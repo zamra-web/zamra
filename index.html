@@ -2120,35 +2120,36 @@ Example:
           htmlContent += `
             <div class="flight-item">
               <div class="flight-flex">
-                <div class="flight-info-group">
-                  <div class="airline-logo-box">
+                <div class="flight-info-group" style="flex: 1;">
+                  <div style="text-align: center; min-width: 80px;">
                     <img src="https://flycreativekdr.com:8443/FlyCreativeNG/css2/img/Flight_Logo/${item.airline}.png" 
-                         onerror="this.src='https://via.placeholder.com/100x40?text=${item.airline || 'AIRLINE'}'">
+                         onerror="this.src='https://via.placeholder.com/80x30?text=${item.airline || 'Flight'}'" style="max-height: 32px; margin: 0 auto;">
+                    <span style="font-size: 9px; font-weight: 900; color: var(--z-text-soft); text-transform: uppercase; display: block; margin-top: 8px;">${item.airline}</span>
                   </div>
                   <div>
-                    <div style="font-size:11px;font-weight:800;color:var(--z-blue);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">${item.airline}</div>
-                    <div class="flight-route-text">
+                    <div style="font-size: 10px; font-weight: 700; color: var(--z-blue); background: var(--z-blue-bg); padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 4px;">${item.date}</div>
+                    <div class="flight-route-text" style="font-size: 24px; color: var(--z-navy);">
                       ${item.origin} 
-                      <svg style="width:16px;height:16px;color:var(--z-blue);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                      <svg style="width:14px;height:14px;color:var(--z-blue);margin:0 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                       ${item.destination}
                     </div>
-                    <div class="flight-meta-text">
-                      <span style="display:inline-flex;align-items:center;gap:4px;">
-                        <svg style="width:12px;height:12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h12c1.1 0 2 .9 2 2v14H4V6c0-1.1.9-2 2-2zM4 10h16M8 4V2M16 4V2"/></svg>
-                        ${item.luggage}
+                    <div class="flight-meta-text" style="display: flex; gap: 16px; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--z-text-soft);">
+                      <span style="display:flex;align-items:center;gap:4px;">
+                        <svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        ${item.departure} — ${item.arrival}
+                      </span>
+                      <span style="display:flex;align-items:center;gap:4px;color:var(--z-green);">
+                        <svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18v3M20 18v3M5 8h14M4 18h16M4 11v7M20 11v7M6 14v4M18 14v4M8 4h8v7H8z"/></svg>
+                        ${item.seats} Seats
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div class="flight-seats-box">
-                  <span style="display:block;font-size:10px;text-transform:uppercase;font-weight:800;color:var(--z-blue);letter-spacing:0.05em;">Available Seats</span>
-                  <span style="font-size:22px;font-weight:900;color:var(--z-navyy);">${item.seats}</span>
-                </div>
-
-                <div style="text-align:right;">
-                  <div class="flight-price-text">${item.price}</div>
-                  <button class="btn-book">Book Now</button>
+                <div style="text-align: right; border-left: 1px solid var(--z-border); padding-left: 24px; min-width: 140px;">
+                  <div style="font-size: 10px; font-weight: 900; color: var(--z-text-soft); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Net Fare</div>
+                  <div class="flight-price-text" style="font-size: 30px; letter-spacing: -0.03em; margin-bottom: 12px;">${item.price}</div>
+                  <button class="btn-book" style="font-size: 10px; padding: 8px 24px; text-transform: uppercase; letter-spacing: 0.1em; width: 100%;">Select</button>
                 </div>
               </div>
             </div>
