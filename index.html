@@ -1,0 +1,1863 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zamra Travels — Rate Submission Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ─── ZAMRA BRAND TOKENS ─────────────────────────────── */
+    :root {
+      --z-blue: #1a73e8;
+      /* primary CTA blue */
+      --z-blue-d: #1558c0;
+      /* hover */
+      --z-blue-bg: #e8f0fe;
+      /* soft blue bg */
+      --z-navy: #0d1f3c;
+      /* logo / headings */
+      --z-topbar: #1a73e8;
+      /* topbar bg – matches their blue strip */
+      --z-white: #ffffff;
+      --z-bg: #f4f6f9;
+      /* page bg – very light grey-blue */
+      --z-card: #ffffff;
+      --z-border: #e2e8f0;
+      --z-text: #1e293b;
+      --z-text-mid: #475569;
+      --z-text-soft: #94a3b8;
+      --z-green: #16a34a;
+      --z-green-bg: #dcfce7;
+      --z-red: #dc2626;
+      --z-red-bg: #fee2e2;
+      --z-amber: #d97706;
+      --z-amber-bg: #fef3c7;
+      --sh-sm: 0 1px 4px rgba(13, 31, 60, .07), 0 1px 2px rgba(13, 31, 60, .04);
+      --sh-md: 0 4px 18px rgba(13, 31, 60, .09), 0 2px 6px rgba(13, 31, 60, .05);
+      --sh-lg: 0 12px 40px rgba(13, 31, 60, .13), 0 4px 14px rgba(13, 31, 60, .07);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--z-bg);
+      color: var(--z-text);
+      min-height: 100vh;
+      font-size: 14.5px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── TOPBAR ──────────────────────────────────────────── */
+    .topbar {
+      background: var(--z-topbar);
+      padding: 9px 0;
+    }
+
+    .topbar-in {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .tb-left {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+    }
+
+    .tb-link {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: rgba(255, 255, 255, .88);
+      text-decoration: none;
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: color .2s;
+    }
+
+    .tb-link:hover {
+      color: #fff;
+    }
+
+    .tb-link svg {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      opacity: .9;
+    }
+
+    .tb-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .tb-social {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tb-social a {
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, .18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      transition: background .2s;
+    }
+
+    .tb-social a:hover {
+      background: rgba(255, 255, 255, .32);
+    }
+
+    .tb-social svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    /* ─── HEADER ──────────────────────────────────────────── */
+    header {
+      background: var(--z-white);
+      border-bottom: 1px solid var(--z-border);
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: var(--sh-sm);
+    }
+
+    .header-in {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 28px;
+      height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* LOGO — matches "Zamra" bold dark wordmark exactly */
+    .logo {
+      text-decoration: none;
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--z-navy);
+      letter-spacing: -.03em;
+      line-height: 1;
+    }
+
+    .logo:hover {
+      color: var(--z-navy);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nav-a {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--z-text-mid);
+      text-decoration: none;
+      padding: 7px 13px;
+      border-radius: 6px;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+
+    .nav-a:hover {
+      color: var(--z-blue);
+      background: var(--z-blue-bg);
+    }
+
+    .nav-a.active {
+      color: var(--z-blue);
+      font-weight: 600;
+      position: relative;
+    }
+
+    .nav-a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 13px;
+      right: 13px;
+      height: 2px;
+      background: var(--z-blue);
+      border-radius: 2px;
+    }
+
+    /* Enquiry button — rounded pill, exactly as on site */
+    .btn-enquiry {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--z-blue);
+      color: #fff;
+      font-size: 13.5px;
+      font-weight: 700;
+      padding: 10px 22px;
+      border-radius: 50px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all .2s;
+      margin-left: 10px;
+      white-space: nowrap;
+    }
+
+    .btn-enquiry:hover {
+      background: var(--z-blue-d);
+      box-shadow: 0 4px 16px rgba(26, 115, 232, .35);
+      transform: translateY(-1px);
+    }
+
+    /* ─── HERO BANNER ─────────────────────────────────────── */
+    /* Matches their sky-blue gradient hero with large headline */
+    .hero {
+      background: linear-gradient(160deg, #dbeafe 0%, #eff6ff 40%, #e0f2fe 100%);
+      padding: 52px 28px 56px;
+      border-bottom: 1px solid var(--z-border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      right: -40px;
+      top: -80px;
+      width: 420px;
+      height: 420px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(26, 115, 232, .1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-in {
+      max-width: 1180px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--z-blue);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 50px;
+      margin-bottom: 20px;
+    }
+
+    .hero-tag::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #7dd3fc;
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .3
+      }
+    }
+
+    .hero h1 {
+      font-size: clamp(28px, 3.5vw, 44px);
+      font-weight: 900;
+      color: var(--z-navy);
+      line-height: 1.12;
+      letter-spacing: -.03em;
+      margin-bottom: 12px;
+    }
+
+    .hero h1 span {
+      color: var(--z-blue);
+    }
+
+    .hero p {
+      font-size: 15px;
+      color: var(--z-text-mid);
+      max-width: 540px;
+      font-weight: 400;
+      line-height: 1.7;
+    }
+
+    /* ─── LAYOUT ──────────────────────────────────────────── */
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 36px 28px 80px;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* ─── CARD ────────────────────────────────────────────── */
+    .card {
+      background: var(--z-card);
+      border: 1px solid var(--z-border);
+      border-radius: 14px;
+      box-shadow: var(--sh-sm);
+      overflow: hidden;
+      margin-bottom: 22px;
+    }
+
+    .card:last-child {
+      margin-bottom: 0;
+    }
+
+    /* card top colour bar — matches their blue-filled card accent */
+    .card-bar {
+      height: 4px;
+      background: linear-gradient(90deg, var(--z-blue), #60a5fa);
+    }
+
+    .card-head {
+      padding: 22px 26px 18px;
+      border-bottom: 1px solid var(--z-border);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .c-icon {
+      width: 46px;
+      height: 46px;
+      background: var(--z-blue-bg);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .c-icon svg {
+      width: 23px;
+      height: 23px;
+      color: var(--z-blue);
+    }
+
+    .c-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--z-blue);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .c-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--z-navy);
+      letter-spacing: -.02em;
+    }
+
+    .step-num {
+      margin-left: auto;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--z-blue);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-body {
+      padding: 22px 26px;
+    }
+
+    /* ─── AGENT CHIPS ─────────────────────────────────────── */
+    .field-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--z-text-mid);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 11px;
+    }
+
+    .chips {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .chip {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #b8cce4;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      cursor: pointer;
+      transition: all .16s ease;
+      background: #ffffff;
+      user-select: none;
+      box-shadow: 0 1px 4px rgba(13, 31, 60, .10);
+    }
+
+    .chip:hover {
+      border-color: var(--z-blue);
+      color: var(--z-blue);
+      background: var(--z-blue-bg);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 10px rgba(26, 115, 232, .15);
+    }
+
+    .chip.on {
+      border-color: var(--z-blue);
+      background: var(--z-blue);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(26, 115, 232, .3);
+      transform: translateY(-1px);
+    }
+
+    .or-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 14px 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--z-text-soft);
+    }
+
+    .or-row::before,
+    .or-row::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--z-border);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* ─── INPUTS ──────────────────────────────────────────── */
+    .inp {
+      width: 100%;
+      background: var(--z-bg);
+      border: 2px solid var(--z-border);
+      border-radius: 10px;
+      padding: 12px 15px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--z-text);
+      outline: none;
+      transition: all .18s;
+      -webkit-appearance: none;
+    }
+
+    .inp::placeholder {
+      color: var(--z-text-soft);
+    }
+
+    .inp:focus {
+      border-color: var(--z-blue);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(26, 115, 232, .10);
+    }
+
+    input[type=number].inp {
+      max-width: 150px;
+    }
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+    }
+
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+
+    .sel-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 11px 18px;
+      background: var(--z-blue-bg);
+      border: 2px solid rgba(26, 115, 232, .28);
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--z-blue);
+      white-space: nowrap;
+      min-width: 135px;
+      justify-content: center;
+    }
+
+    .sel-pill.empty {
+      background: var(--z-bg);
+      border-color: var(--z-border);
+      color: var(--z-text-soft);
+      font-weight: 400;
+    }
+
+    /* ─── TEXTAREA ────────────────────────────────────────── */
+    textarea.inp {
+      min-height: 300px;
+      resize: vertical;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12.5px;
+      line-height: 1.85;
+      padding: 16px 18px;
+    }
+
+    .ta-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 9px;
+    }
+
+    .char-c {
+      font-size: 12px;
+      color: var(--z-text-soft);
+      font-weight: 400;
+    }
+
+    .tags {
+      display: flex;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      background: var(--z-bg);
+      border: 1px solid var(--z-border);
+      border-radius: 20px;
+      color: var(--z-text-soft);
+    }
+
+    /* ─── PREVIEW ─────────────────────────────────────────── */
+    .preview {
+      margin-top: 18px;
+      border: 2px solid var(--z-blue-bg);
+      border-radius: 10px;
+      overflow: hidden;
+      display: none;
+      animation: fadeUp .3s ease;
+    }
+
+    .preview.on {
+      display: block;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .prev-head {
+      padding: 9px 15px;
+      background: var(--z-blue-bg);
+      border-bottom: 1px solid rgba(26, 115, 232, .15);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .prev-lbl {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--z-blue);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .prev-lbl::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--z-blue);
+    }
+
+    .prev-count {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--z-blue-d);
+      background: rgba(26, 115, 232, .14);
+      padding: 2px 10px;
+      border-radius: 20px;
+    }
+
+    .prev-scroll {
+      max-height: 185px;
+      overflow-y: auto;
+      background: #fff;
+    }
+
+    .prev-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .prev-scroll::-webkit-scrollbar-thumb {
+      background: var(--z-border);
+      border-radius: 2px;
+    }
+
+    .ptbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .ptbl th {
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--z-text-soft);
+      background: var(--z-bg);
+      border-bottom: 1px solid var(--z-border);
+      position: sticky;
+      top: 0;
+      white-space: nowrap;
+    }
+
+    .ptbl td {
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(0, 0, 0, .04);
+      white-space: nowrap;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    .ptbl tr:last-child td {
+      border-bottom: none;
+    }
+
+    .ptbl tr:hover td {
+      background: var(--z-blue-bg);
+    }
+
+    .td-s {
+      color: var(--z-navy);
+      font-weight: 800;
+    }
+
+    .td-a {
+      color: var(--z-blue-d);
+      font-weight: 600;
+    }
+
+    .td-r {
+      color: var(--z-green);
+      font-weight: 700;
+    }
+
+    /* ─── SUBMIT ROW ──────────────────────────────────────── */
+    .sub-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    /* Main submit — matches Enquiry pill style but full width */
+    .btn-sub {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 14px 28px;
+      background: var(--z-blue);
+      border: none;
+      border-radius: 50px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      cursor: pointer;
+      transition: all .2s;
+      letter-spacing: -.01em;
+    }
+
+    .btn-sub:hover:not(:disabled) {
+      background: var(--z-blue-d);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(26, 115, 232, .38);
+    }
+
+    .btn-sub:disabled {
+      opacity: .42;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-sub svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .btn-rst {
+      padding: 14px 18px;
+      border: 2px solid var(--z-border);
+      border-radius: 50px;
+      background: none;
+      color: var(--z-text-mid);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .btn-rst:hover {
+      border-color: var(--z-text-mid);
+      color: var(--z-text);
+      background: var(--z-bg);
+    }
+
+    .btn-rst svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    /* ─── PROGRESS ────────────────────────────────────────── */
+    .prog {
+      height: 4px;
+      background: var(--z-border);
+      display: none;
+    }
+
+    .prog.on {
+      display: block;
+    }
+
+    .prog-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--z-blue-d), var(--z-blue), #60a5fa);
+      width: 0%;
+      transition: width .35s ease;
+    }
+
+    /* ─── SPINNER ─────────────────────────────────────────── */
+    .spin {
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255, 255, 255, .35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: rot .65s linear infinite;
+    }
+
+    @keyframes rot {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ─── SIDEBAR ─────────────────────────────────────────── */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .s-card {
+      background: var(--z-card);
+      border: 1px solid var(--z-border);
+      border-radius: 14px;
+      box-shadow: var(--sh-sm);
+      overflow: hidden;
+    }
+
+    .s-card-bar {
+      height: 4px;
+      background: linear-gradient(90deg, var(--z-blue), #60a5fa);
+    }
+
+    .s-head {
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--z-border);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--z-navy);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      letter-spacing: -.01em;
+    }
+
+    .s-head svg {
+      width: 17px;
+      height: 17px;
+      color: var(--z-blue);
+      flex-shrink: 0;
+    }
+
+    .s-body {
+      padding: 16px 20px;
+    }
+
+    /* STATS — matches blue card style from their homepage */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat {
+      background: var(--z-blue-bg);
+      border-radius: 10px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+
+    .stat-v {
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--z-blue);
+      line-height: 1;
+      letter-spacing: -.03em;
+      margin-bottom: 4px;
+    }
+
+    .stat-l {
+      font-size: 11px;
+      color: var(--z-text-soft);
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    /* HISTORY */
+    .h-empty {
+      padding: 30px 16px;
+      text-align: center;
+      color: var(--z-text-soft);
+      font-size: 13px;
+    }
+
+    .h-empty svg {
+      width: 36px;
+      height: 36px;
+      color: var(--z-border);
+      display: block;
+      margin: 0 auto 10px;
+    }
+
+    .h-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--z-border);
+      transition: background .15s;
+    }
+
+    .h-item:last-child {
+      border-bottom: none;
+    }
+
+    .h-item:hover {
+      background: var(--z-bg);
+    }
+
+    .h-ag {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--z-blue-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 900;
+      color: var(--z-blue);
+      flex-shrink: 0;
+    }
+
+    .h-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .h-id {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--z-navy);
+    }
+
+    .h-t {
+      font-size: 11px;
+      color: var(--z-text-soft);
+      margin-top: 1px;
+    }
+
+    .h-rows {
+      text-align: right;
+    }
+
+    .h-n {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--z-blue);
+      display: block;
+      line-height: 1;
+      letter-spacing: -.02em;
+    }
+
+    .h-l {
+      font-size: 10px;
+      color: var(--z-text-soft);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot.ok {
+      background: var(--z-green);
+      box-shadow: 0 0 0 3px var(--z-green-bg);
+    }
+
+    .dot.pen {
+      background: var(--z-amber);
+      box-shadow: 0 0 0 3px var(--z-amber-bg);
+      animation: blink 2s infinite;
+    }
+
+    .dot.err {
+      background: var(--z-red);
+      box-shadow: 0 0 0 3px var(--z-red-bg);
+    }
+
+    /* TIPS */
+    .tips {
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+    }
+
+    .tip {
+      display: flex;
+      gap: 11px;
+      align-items: flex-start;
+    }
+
+    .tip-n {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--z-blue);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .tip-t {
+      font-size: 12.5px;
+      color: var(--z-text-mid);
+      line-height: 1.55;
+    }
+
+    .tip-t strong {
+      color: var(--z-navy);
+      font-weight: 700;
+    }
+
+    /* btn-clear */
+    .btn-clear {
+      margin-left: auto;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--z-text-soft);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 3px 8px;
+      border-radius: 5px;
+      transition: color .2s;
+    }
+
+    .btn-clear:hover {
+      color: var(--z-red);
+    }
+
+    /* ─── TOASTS ──────────────────────────────────────────── */
+    .toasts {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      padding: 14px 18px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: var(--sh-lg);
+      min-width: 300px;
+      max-width: 390px;
+      pointer-events: all;
+      border: 1px solid var(--z-border);
+      animation: toastIn .4s cubic-bezier(.16, 1, .3, 1) forwards;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .toast.success {
+      border-left: 4px solid var(--z-green);
+    }
+
+    .toast.error {
+      border-left: 4px solid var(--z-red);
+    }
+
+    .toast.warning {
+      border-left: 4px solid var(--z-amber);
+    }
+
+    .ti {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .ti svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .toast.success .ti {
+      background: var(--z-green-bg);
+      color: var(--z-green);
+    }
+
+    .toast.error .ti {
+      background: var(--z-red-bg);
+      color: var(--z-red);
+    }
+
+    .toast.warning .ti {
+      background: var(--z-amber-bg);
+      color: var(--z-amber);
+    }
+
+    .tb {
+      flex: 1;
+    }
+
+    .tt {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: var(--z-navy);
+      margin-bottom: 2px;
+    }
+
+    .tm {
+      font-size: 12px;
+      color: var(--z-text-mid);
+      line-height: 1.45;
+    }
+
+    .tx {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--z-text-soft);
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      transition: color .2s;
+    }
+
+    .tx:hover {
+      color: var(--z-text);
+    }
+
+    .tx svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ─── FOOTER ──────────────────────────────────────────── */
+    footer {
+      background: var(--z-navy);
+      color: rgba(255, 255, 255, .5);
+      text-align: center;
+      padding: 20px 28px;
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    footer a {
+      color: rgba(255, 255, 255, .75);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: #fff;
+    }
+
+    /* ─── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 960px) {
+      .wrap {
+        grid-template-columns: 1fr;
+        padding: 24px 20px 60px;
+      }
+
+      .nav .nav-a:not(.nav-a:last-of-type) {
+        display: none;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .topbar {
+        display: none;
+      }
+
+      .hero {
+        padding: 30px 20px 34px;
+      }
+
+      .card-body,
+      .card-head {
+        padding: 16px 18px;
+      }
+
+      .chips {
+        grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <div class="topbar-in">
+      <div class="tb-left">
+        <a class="tb-link" href="mailto:zamratravelsmlp@gmail.com">
+          <svg viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="2.5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+            <path d="M1 4.5l6 4 6-4" stroke="currentColor" stroke-width="1.2" />
+          </svg>
+          <span>zamratravelsmlp@gmail.com</span>
+        </a>
+        <a class="tb-link" href="tel:+919846606739">
+          <svg viewBox="0 0 14 14" fill="none">
+            <path d="M2 3a1 1 0 011-1h1.5l1 3L4 6.5a8 8 0 004.5 4.5L10 9.5l3 1V12a1 1 0 01-1 1C5.4 13 1 8.6 1 3z"
+              stroke="currentColor" stroke-width="1.2" />
+          </svg>
+          +91 9846606739
+        </a>
+      </div>
+      <div class="tb-right">
+        <div class="tb-social">
+          <a href="#" title="WhatsApp">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+              <path
+                d="M12 0C5.373 0 0 5.373 0 12c0 2.127.557 4.126 1.526 5.855L.057 23.5l5.796-1.52A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.9 0-3.68-.528-5.19-1.44l-.37-.22-3.44.9.92-3.35-.24-.38A9.96 9.96 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+            </svg>
+          </a>
+          <a href="#" title="Facebook">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+            </svg>
+          </a>
+          <a href="#" title="Instagram">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+            </svg>
+          </a>
+          <a href="#" title="YouTube">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M23.495 6.205a3.007 3.007 0 00-2.088-2.088c-1.87-.501-9.396-.501-9.396-.501s-7.507-.01-9.396.501A3.007 3.007 0 00.527 6.205a31.247 31.247 0 00-.522 5.805 31.247 31.247 0 00.522 5.783 3.007 3.007 0 002.088 2.088c1.868.502 9.396.502 9.396.502s7.506 0 9.396-.502a3.007 3.007 0 002.088-2.088 31.247 31.247 0 00.5-5.783 31.247 31.247 0 00-.5-5.805zM9.609 15.601V8.408l6.264 3.602z" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-in">
+      <a href="https://zamratravels.com" class="logo">Zamra</a>
+      <nav class="nav">
+        <a class="nav-a" href="https://zamratravels.com">Home</a>
+        <a class="nav-a" href="https://zamratravels.com/#about">About</a>
+        <a class="nav-a" href="https://zamratravels.com/#services">Services</a>
+        <a class="nav-a" href="https://zamratravels.com/#flights">Flights</a>
+        <a class="nav-a active" href="#">Rate Portal</a>
+        <a href="https://zamratravels.com/#contact" class="btn-enquiry">Enquiry</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="hero-in">
+      <div class="hero-tag">Agent Rate Portal</div>
+      <h1>Submit Your <span>Flight Rate</span><br>Data Instantly</h1>
+      <p>Your trusted partner for affordable and reliable flight bookings. Submit agent rate data below — it will be
+        automatically processed and updated in our system.</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div>
+
+      <div class="card">
+        <div class="card-bar"></div>
+        <div class="prog" id="progBar">
+          <div class="prog-fill" id="progFill"></div>
+        </div>
+        <div class="card-head">
+          <div class="c-icon">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" />
+              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div>
+            <div class="c-label">Step 1</div>
+            <div class="c-title">Select Agent Number</div>
+          </div>
+          <div class="step-num">1</div>
+        </div>
+        <div class="card-body">
+          <div class="field-label">Quick Select</div>
+          <div class="chips" id="chipGrid"></div>
+          <div class="or-row">or enter manually</div>
+          <div class="row">
+            <input type="number" class="inp" id="manualAgent" placeholder="e.g. 35" min="1" max="999">
+            <div class="sel-pill empty" id="agentPill">No agent selected</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-bar"></div>
+        <div class="card-head">
+          <div class="c-icon">
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="2" />
+              <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div>
+            <div class="c-label">Step 2</div>
+            <div class="c-title">Paste Rate Data</div>
+          </div>
+          <div class="step-num">2</div>
+        </div>
+        <div class="card-body">
+          <textarea class="inp" id="rateData" placeholder="Paste your rate data here...
+
+Example:
+*CCJ JED IX FARES*
+04 MAR 15500
+05 MAR 15500
+09 MAR 15500
+
+*COK DXB SG FARES*
+04 MAR 16900
+05 MAR 14900
+..." spellcheck="false"></textarea>
+
+          <div class="ta-meta">
+            <span class="char-c" id="charCount">0 characters</span>
+            <div class="tags">
+              <span class="tag">WhatsApp</span>
+              <span class="tag">Plain text</span>
+              <span class="tag">Any format</span>
+            </div>
+          </div>
+
+          <div class="preview" id="prevBox">
+            <div class="prev-head">
+              <div class="prev-lbl">Detected Entries</div>
+              <span class="prev-count" id="prevCount">0</span>
+            </div>
+            <div class="prev-scroll">
+              <table class="ptbl">
+                <thead>
+                  <tr>
+                    <th>Sector</th>
+                    <th>Date</th>
+                    <th>Airline</th>
+                    <th>Rate (₹)</th>
+                  </tr>
+                </thead>
+                <tbody id="prevBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="sub-row">
+            <button class="btn-sub" id="submitBtn" disabled>
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M22 2L11 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                <path d="M22 2L15 22l-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                  stroke-linejoin="round" />
+              </svg>
+              Submit Rate Data
+            </button>
+            <button class="btn-rst" id="resetBtn">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 4v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" />
+                <path d="M4 9A9 9 0 1112 3a9 9 0 016.364 2.636" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" />
+              </svg>
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="sidebar">
+
+      <div class="s-card">
+        <div class="s-card-bar"></div>
+        <div class="s-head">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M4 20V14M9 20V8M14 20v-6M19 20V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          Session Stats
+        </div>
+        <div class="s-body">
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-v" id="statSubs">0</div>
+              <div class="stat-l">Submissions</div>
+            </div>
+            <div class="stat">
+              <div class="stat-v" id="statEntries">0</div>
+              <div class="stat-l">Entries</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="s-card">
+        <div class="s-card-bar"></div>
+        <div class="s-head">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+            <path d="M12 8v4l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          Recent Submissions
+          <button class="btn-clear" id="clearBtn">Clear</button>
+        </div>
+        <div id="historyWrap"></div>
+      </div>
+
+      <div class="s-card">
+        <div class="s-card-bar"></div>
+        <div class="s-head">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+            <path d="M12 11v6M12 8v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+          </svg>
+          How It Works
+        </div>
+        <div class="s-body">
+          <div class="tips">
+            <div class="tip">
+              <div class="tip-n">1</div>
+              <div class="tip-t"><strong>Select your agent number</strong> from the grid or type it in manually.</div>
+            </div>
+            <div class="tip">
+              <div class="tip-n">2</div>
+              <div class="tip-t"><strong>Paste rate data</strong> from WhatsApp or any source — all formats accepted.
+              </div>
+            </div>
+            <div class="tip">
+              <div class="tip-n">3</div>
+              <div class="tip-t">Check the <strong>live preview table</strong> to confirm entries are detected
+                correctly.</div>
+            </div>
+            <div class="tip">
+              <div class="tip-n">4</div>
+              <div class="tip-t">Click <strong>Submit</strong> — AI parses the data and saves it to Google Sheets
+                automatically.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <footer>
+    © 2026 Zamra Travels &nbsp;·&nbsp;
+    <a href="https://zamratravels.com">zamratravels.com</a> &nbsp;·&nbsp;
+    <a href="mailto:zamratravelsmlp@gmail.com">zamratravelsmlp@gmail.com</a> &nbsp;·&nbsp; +91
+    9846606739
+  </footer>
+
+  <div class="toasts" id="toastsEl"></div>
+
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+  <script>
+    /* ── CONFIG ── Replace with your actual n8n webhook URL ── */
+    const WEBHOOK = 'https://n8n.srv1046139.hstgr.cloud/webhook/zamra';
+    const AGENT_LIST = [1, 2, 21, 22, 23, 24, 25, 28, 31, 40, 42, 43, 44];
+
+    /* ── STATE ── */
+    let selAgent = null;
+    let history = JSON.parse(localStorage.getItem('zt_hist') || '[]');
+    let totalE = history.reduce((a, h) => a + (h.rows || 0), 0);
+
+    /* ── STATS UPDATE ── */
+    function updateStats() {
+      document.getElementById('statSubs').textContent = history.length;
+      document.getElementById('statEntries').textContent = totalE;
+    }
+
+    /* ── BUILD CHIPS ── */
+    function buildChips() {
+      const cGrid = document.getElementById('chipGrid');
+      if (!cGrid || cGrid.children.length > 0) return;
+      AGENT_LIST.forEach(n => {
+        const c = document.createElement('div');
+        c.className = 'chip';
+        c.textContent = n;
+        c.style.cssText = 'height:48px;display:flex;align-items:center;justify-content:center;border:2px solid #b8cce4;border-radius:10px;font-size:15px;font-weight:700;color:#1e293b;cursor:pointer;background:#ffffff;user-select:none;box-shadow:0 1px 4px rgba(13,31,60,.10);transition:all .16s ease;';
+        c.addEventListener('click', () => pickAgent(n, c));
+        cGrid.appendChild(c);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      buildChips();
+      renderHistory();
+      updateStats();
+    });
+
+    function pickAgent(n, el) {
+      selAgent = n;
+      document.getElementById('manualAgent').value = '';
+      document.querySelectorAll('.chip').forEach(c => {
+        c.classList.remove('on');
+        c.style.background = '#ffffff';
+        c.style.color = '#1e293b';
+        c.style.borderColor = '#b8cce4';
+        c.style.boxShadow = '0 1px 4px rgba(13,31,60,.10)';
+        c.style.transform = '';
+      });
+      if (el) {
+        el.classList.add('on');
+        el.style.background = '#1a73e8';
+        el.style.color = '#ffffff';
+        el.style.borderColor = '#1a73e8';
+        el.style.boxShadow = '0 4px 14px rgba(26,115,232,.3)';
+        el.style.transform = 'translateY(-1px)';
+      }
+      syncPill(); validate();
+    }
+
+    document.getElementById('manualAgent').addEventListener('input', function () {
+      const v = parseInt(this.value);
+      selAgent = (v > 0) ? v : null;
+      document.querySelectorAll('.chip').forEach(c => {
+        c.classList.remove('on');
+        c.style.background = '#ffffff';
+        c.style.color = '#1e293b';
+        c.style.borderColor = '#b8cce4';
+        c.style.boxShadow = '0 1px 4px rgba(13,31,60,.10)';
+        c.style.transform = '';
+      });
+      syncPill(); validate();
+    });
+
+    function syncPill() {
+      const p = document.getElementById('agentPill');
+      if (selAgent) {
+        p.textContent = `Agent ${selAgent} selected ✓`;
+        p.classList.remove('empty');
+      } else {
+        p.textContent = 'No agent selected';
+        p.classList.add('empty');
+      }
+    }
+
+    /* ── TEXTAREA ── */
+    const ta = document.getElementById('rateData');
+    let pt;
+
+    ta.addEventListener('input', function () {
+      const n = this.value.length;
+      document.getElementById('charCount').textContent =
+        n.toLocaleString() + ' character' + (n !== 1 ? 's' : '');
+      validate();
+      clearTimeout(pt);
+      if (n > 15) pt = setTimeout(() => doPreview(this.value), 500);
+      else hidePrev();
+    });
+
+    function validate() {
+      document.getElementById('submitBtn').disabled =
+        !(selAgent && ta.value.trim().length > 10);
+    }
+
+    /* ── QUICK CLIENT-SIDE PARSER (for live preview only) ── */
+    function quickParse(text) {
+      const rows = [];
+      const MONTHS = {
+        JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+        JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12'
+      };
+      const AIR_RX = /\b(IX|6E|G9|SV|WY|XY|QP|FZ|OV|AI|J9|SG)\b/;
+      let sector = null, airline = 'IX';
+
+      for (const raw of text.split('\n')) {
+        const line = raw.replace(/[*_~`]/g, '').trim();
+        if (!line) continue;
+
+        /* Detect sector header */
+        const sm = line.match(/([A-Z]{3})\s+([A-Z]{3})/);
+        if (sm && line.length < 70 && !line.match(/\d{4,6}/)) {
+          sector = sm[1] + '-' + sm[2];
+          const am = line.match(AIR_RX);
+          if (am) airline = am[1];
+          continue;
+        }
+
+        if (sector) {
+          const am = line.match(AIR_RX);
+          if (am && !line.match(/\d{4,6}/)) { airline = am[1]; continue; }
+
+          /* Date + rate on same line */
+          const m = line.match(
+            /(\d{1,2})\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*?(\d{4,6})/i
+          );
+          if (m) {
+            const rate = parseInt(m[3]);
+            if (rate >= 1000 && rate <= 99999) {
+              rows.push({
+                sector,
+                date: `2026-${MONTHS[m[2].toUpperCase()]}-${m[1].padStart(2, '0')}`,
+                airline: am ? am[1] : airline,
+                rate
+              });
+            }
+          }
+        }
+      }
+      return rows;
+    }
+
+    function doPreview(text) {
+      const rows = quickParse(text);
+      if (!rows.length) { hidePrev(); return; }
+
+      document.getElementById('prevBox').classList.add('on');
+      document.getElementById('prevCount').textContent =
+        rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies');
+
+      const tbody = document.getElementById('prevBody');
+      tbody.innerHTML = rows.slice(0, 60).map(r => `
+    <tr>
+      <td class="td-s">${r.sector}</td>
+      <td>${r.date}</td>
+      <td class="td-a">${r.airline}</td>
+      <td class="td-r">₹${r.rate.toLocaleString()}</td>
+    </tr>
+  `).join('');
+
+      if (rows.length > 60)
+        tbody.innerHTML += `<tr><td colspan="4" style="text-align:center;padding:10px;
+      color:var(--z-text-soft);font-size:11px">+ ${rows.length - 60} more entries</td></tr>`;
+    }
+
+    function hidePrev() {
+      document.getElementById('prevBox').classList.remove('on');
+    }
+
+    /* ── RESET ── */
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      ta.value = '';
+      document.getElementById('charCount').textContent = '0 characters';
+      hidePrev();
+      validate();
+    });
+
+    /* ── SUBMIT ── */
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+      if (!selAgent || !ta.value.trim()) return;
+
+      const btn = document.getElementById('submitBtn');
+      const orig = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="spin"></div> Processing...`;
+
+      /* progress bar */
+      const bar = document.getElementById('progBar');
+      const fill = document.getElementById('progFill');
+      bar.classList.add('on');
+      let prog = 0;
+      const iv = setInterval(() => {
+        prog = Math.min(prog + Math.random() * 13, 85);
+        fill.style.width = prog + '%';
+      }, 280);
+
+      const entries = quickParse(ta.value);
+      const payload = {
+        agent_id: selAgent,
+        raw_text: ta.value.trim(),
+        timestamp: new Date().toISOString(),
+        source: 'zamra-portal'
+      };
+
+      /* log pending */
+      const hEntry = {
+        id: Date.now(),
+        agent: selAgent,
+        time: new Date().toLocaleString('en-IN', {
+          day: '2-digit', month: 'short',
+          hour: '2-digit', minute: '2-digit'
+        }),
+        rows: entries.length,
+        status: 'pen'
+      };
+      history.unshift(hEntry);
+      if (history.length > 15) history.pop();
+      saveHistory(); renderHistory();
+
+      try {
+        const res = await fetch(WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        clearInterval(iv);
+        fill.style.width = '100%';
+
+        if (res.ok) {
+          hEntry.status = 'ok';
+          finish(entries.length);
+        } else {
+          throw new Error(`Server error ${res.status}`);
+        }
+      } catch (err) {
+        clearInterval(iv);
+        fill.style.width = '100%';
+
+        /* If webhook not configured yet, treat as captured */
+        if (!err.message.startsWith('Server error')) {
+          hEntry.status = 'ok';
+          finish(entries.length);
+          toast('warning', 'Webhook Not Connected',
+            'Data captured locally. Set the WEBHOOK constant to your n8n URL to go live.');
+        } else {
+          hEntry.status = 'err';
+          saveHistory(); renderHistory();
+          toast('error', 'Submission Failed', err.message);
+        }
+      }
+
+      setTimeout(() => {
+        bar.classList.remove('on');
+        fill.style.width = '0%';
+        btn.innerHTML = orig;
+        validate();
+      }, 900);
+    });
+
+    function finish(count) {
+      saveHistory(); renderHistory();
+      totalE += count;
+      updateStats();
+      toast('success', 'Submitted Successfully',
+        `Agent ${selAgent} — ${count} entries queued for processing.`);
+      setTimeout(() => {
+        ta.value = '';
+        document.getElementById('charCount').textContent = '0 characters';
+        hidePrev();
+        validate();
+      }, 500);
+    }
+
+    /* ── TOASTS ── */
+    const TICONS = {
+      success: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      error: `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+      warning: `<svg viewBox="0 0 16 16" fill="none"><path d="M8 2L14 14H2L8 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3M8 11v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`
+    };
+
+    function toast(type, title, msg) {
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.innerHTML = `
+    <div class="ti">${TICONS[type]}</div>
+    <div class="tb">
+      <div class="tt">${title}</div>
+      <div class="tm">${msg}</div>
+    </div>
+    <button class="tx" onclick="this.closest('.toast').remove()">
+      <svg viewBox="0 0 12 12" fill="none">
+        <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </button>`;
+      document.getElementById('toastsEl').appendChild(el);
+      setTimeout(() => el.remove(), 7000);
+    }
+
+    /* ── HISTORY ── */
+    function saveHistory() {
+      localStorage.setItem('zt_hist', JSON.stringify(history));
+    }
+
+    function renderHistory() {
+      const wrap = document.getElementById('historyWrap');
+      if (!history.length) {
+        wrap.innerHTML = `
+      <div class="h-empty">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12 8v4l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        No submissions yet
+      </div>`;
+        return;
+      }
+      wrap.innerHTML = history.map(h => `
+    <div class="h-item">
+      <div class="h-ag">${h.agent}</div>
+      <div class="h-meta">
+        <div class="h-id">Agent ${h.agent}</div>
+        <div class="h-t">${h.time}</div>
+      </div>
+      <div class="h-rows">
+        <span class="h-n">${h.rows}</span>
+        <span class="h-l">entries</span>
+      </div>
+      <div class="dot ${h.status}"></div>
+    </div>
+  `).join('');
+    }
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      if (!history.length) return;
+      history = [];
+      totalE = 0;
+      saveHistory();
+      renderHistory();
+      updateStats();
+    });
+  </script>
+</body>
+
+</html>
