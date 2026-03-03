@@ -1,0 +1,257 @@
+{
+  "name": "Flight Data Live Web",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://flycreativekdr.com:8443/FlyCreativeNG/SearchFlightDest.jsp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "en-US,en;q=0.9"
+            },
+            {
+              "name": "Cache-Control",
+              "value": "max-age=0"
+            },
+            {
+              "name": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "name": "Origin",
+              "value": "https://flycreativekdr.com:8443"
+            },
+            {
+              "name": "Referer",
+              "value": "https://flycreativekdr.com:8443/FlyCreativeNG/index.jsp?"
+            },
+            {
+              "name": "Sec-Fetch-Dest",
+              "value": "document"
+            },
+            {
+              "name": "Sec-Fetch-Mode",
+              "value": "navigate"
+            },
+            {
+              "name": "Sec-Fetch-Site",
+              "value": "same-origin"
+            },
+            {
+              "name": "Sec-Fetch-User",
+              "value": "?1"
+            },
+            {
+              "name": "Upgrade-Insecure-Requests",
+              "value": "1"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "sec-ch-ua",
+              "value": "\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"145\", \"Chromium\";v=\"145\""
+            },
+            {
+              "name": "sec-ch-ua-mobile",
+              "value": "?0"
+            },
+            {
+              "name": "sec-ch-ua-platform",
+              "value": "\"macOS\""
+            },
+            {
+              "name": "Cookie",
+              "value": "JSESSIONID=8339D7A79B268C0D3D0BACE7FBC5910A"
+            },
+            {
+              "name": "cookie",
+              "value": "JSESSIONID=8339D7A79B268C0D3D0BACE7FBC5910A;"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "destination",
+              "value": "RUH"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "fc439919-fe21-402b-9fd7-4b0aa40141aa",
+      "name": "http"
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "Price",
+              "cssSelector": ".flight_search_right h2",
+              "returnArray": true
+            },
+            {
+              "key": "Seats",
+              "cssSelector": ".flight_search_items > .flight_search_destination h2",
+              "returnArray": true
+            },
+            {
+              "key": "Origin",
+              "cssSelector": ".flight_search_left h3",
+              "returnArray": true
+            },
+            {
+              "key": "Destination",
+              "cssSelector": ".flight_search_middel h3",
+              "returnArray": true
+            },
+            {
+              "key": "AirlineSrc",
+              "cssSelector": ".flight_logo img",
+              "returnValue": "attribute",
+              "attribute": "src",
+              "returnArray": true
+            },
+            {
+              "key": "Luggage",
+              "cssSelector": ".flight_search_right p",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f37da53f-18d4-4a10-a8a2-306e318ed818",
+      "name": "extract",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst flights = [];\n\n// Count how many flights we extracted based on the Price array\nconst numFlights = data.Price ? data.Price.length : 0;\n\n// Loop through and format everything cleanly\nfor (let i = 0; i < numFlights; i++) {\n  \n  // Extract Airline Name from the image URL (e.g., 'css2/.../Air India.png' -> 'Air India')\n  let rawSrc = data.AirlineSrc[i] || \"\";\n  let airlineName = rawSrc.split('/').pop().replace('.png', '').trim();\n  \n  flights.push({\n    json: {\n      airline: airlineName,\n      origin: data.Origin[i] ? data.Origin[i].trim() : \"\",\n      destination: data.Destination[i] ? data.Destination[i].trim() : \"\",\n      price: data.Price[i] ? data.Price[i].trim().replace(/\\s+/g, ' ') : \"\",\n      seats: data.Seats[i] ? data.Seats[i].trim() : \"\",\n      luggage: data.Luggage[i] ? data.Luggage[i].trim() : \"\"\n    }\n  });\n}\n\nreturn flights;"
+      },
+      "id": "d290d35d-3309-4001-b2d2-8df13b12c1df",
+      "name": "format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-flights",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "082997c9-7231-4136-ad78-f1e0c4cbadd3",
+      "name": "Webhook",
+      "webhookId": "b75d73d3-eac4-4ed5-a29d-9ec8d07631f3"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        0
+      ],
+      "id": "19b35b14-ac77-4052-812a-67ac261f3958",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "http": {
+      "main": [
+        [
+          {
+            "node": "extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract": {
+      "main": [
+        [
+          {
+            "node": "format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "http",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ca47918e-2508-4c5f-93db-4ea0bf717863",
+  "meta": {
+    "instanceId": "4b9b75390299944389820ccd465e1bdcbb8577277b04ac2e585637f5a61d7ef5"
+  },
+  "id": "BM6kwBdFRhfXNzdg",
+  "tags": []
+}
