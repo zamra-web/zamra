@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+    /* Color Palette */
+    --color-primary: #1a73e8; /* Zamra Blue */
+    --color-primary-dark: #1558c0;
+    --color-primary-light: #e8f0fe;
+
+    --color-accent: #ff6b35; /* Vibrant Orange for accents/CTAs */
+    --color-accent-dark: #e85d2b;
+
+    --color-text-main: #0d1f3c; /* Deep Navy */
+    --color-text-muted: #475569; /* Slate */
+    --color-text-light: #94a3b8;
+
+    --color-bg-main: #f8fafc;
+    --color-bg-card: #ffffff;
+
+    --color-border: #e2e8f0;
+
+    /* Zamra Web Portal (legacy elements) colors */
+    --color-navy: #0f172a;
+    --color-navy-dark: #0b1120;
+
+    /* Typography */
+    --font-heading: 'Outfit', sans-serif;
+    --font-body: 'Inter', sans-serif;
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+    
+    body {
+        font-family: var(--font-body);
+        background-color: var(--color-bg-main);
+        color: var(--color-text-muted);
+        -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-heading);
+        color: var(--color-text-main);
+    }
+}
