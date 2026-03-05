@@ -7,7 +7,7 @@
   <title>Zamra Travels - Premium Flight Booking</title>
 
   <!-- Favicons -->
-  <link href="/assets/img/favicon.png" rel="icon">
+  <link href="/assets/img/favicon.webp" rel="icon">
   <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
   <!-- Google Fonts -->
@@ -31,7 +31,7 @@
     id="header">
     <div class="w-full max-w-[1280px] mx-auto px-6 flex justify-between items-center h-[80px]">
       <a href="index.html" class="flex items-center">
-        <img src="/assets/img/logo.jpeg" alt="Zamra Travels" class="h-[40px] w-auto mix-blend-multiply">
+        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[40px] w-auto mix-blend-multiply">
       </a>
 
       <nav class="hidden md:block" id="nav-menu">
@@ -53,12 +53,6 @@
           <li><a href="index.html#flights"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Flights</a>
           </li>
-          <li><a href="flight-search.html"
-              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Live
-              Search</a></li>
-          <li><a href="agent-portal.html"
-              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Agent
-              Portal</a></li>
           <li><a href="index.html#hajj-umrah"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Hajj-Umrah</a>
           </li>
@@ -152,6 +146,77 @@
     </div>
   </section>
 
+  <!-- Live Search Section -->
+  <section id="live-search-home" class="relative z-[20] w-full max-w-[1280px] mx-auto px-6 -mt-[50px] mb-[50px]">
+    <div
+      class="bg-white rounded-[24px] shadow-[0_12px_40px_rgba(13,31,60,0.13),_0_4px_14px_rgba(13,31,60,0.07)] border border-border relative overflow-hidden">
+      <div class="h-[4px] w-full bg-gradient-to-r from-primary to-[#1558c0]"></div>
+      <div class="flex items-center gap-[16px] p-[20px_32px] border-b border-border bg-[#f8fafc]">
+        <div
+          class="w-[40px] h-[40px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[20px]">
+          <i class="bi bi-airplane"></i>
+        </div>
+        <div>
+          <div class="text-[13px] font-bold text-text-muted uppercase tracking-[1px]">Live Sync</div>
+          <div class="text-[18px] font-heading font-bold text-navy">Search Flight Deals</div>
+        </div>
+      </div>
+
+      <div class="p-[32px] flex gap-[16px] items-end flex-wrap">
+        <div class="flex-1 min-w-[200px]">
+          <div class="text-[13px] font-bold text-text-mid mb-[8px]">Destination City</div>
+          <select id="destination"
+            class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] h-[52px] text-[15px] text-text-main font-bold cursor-pointer transition-colors focus:outline-none focus:border-primary focus:bg-white focus:shadow-[0_0_0_3px_rgba(26,115,232,0.1)] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]">
+            <option value="RUH" selected>Riyadh (RUH)</option>
+            <option value="JED">Jeddah (JED)</option>
+            <option value="CCJ">Kozhikode (CCJ)</option>
+            <option value="DMM">Dammam (DMM)</option>
+            <option value="AUH">Abu Dhabi (AUH)</option>
+            <option value="CNN">Kannur (CNN)</option>
+            <option value="TRV">Trivandrum (TRV)</option>
+            <option value="IXE">Mangalore (IXE)</option>
+            <option value="KWI">Kuwait (KWI)</option>
+            <option value="SHJ">Sharjah (SHJ)</option>
+            <option value="DXB">Dubai (DXB)</option>
+            <option value="DOH">Doha (DOH)</option>
+            <option value="SLL">Salalah (SLL)</option>
+            <option value="RKT">Ras Al Khaimah (RKT)</option>
+            <option value="AAN">Al Ain (AAN)</option>
+            <option value="FJR">Fujairah (FJR)</option>
+            <option value="COK">Kochi (COK)</option>
+            <option value="BAH">Bahrain (BAH)</option>
+            <option value="MCT">Muscat (MCT)</option>
+            <option value="KUL">Kuala Lumpur (KUL)</option>
+          </select>
+        </div>
+        <button id="live-search-btn"
+          class="flex-none w-auto px-[32px] h-[52px] bg-primary text-white rounded-[12px] font-bold text-[15px] cursor-pointer transition-all flex items-center justify-center gap-[8px] hover:bg-[#1558c0] hover:shadow-[0_4px_14px_rgba(26,115,232,0.3)] hover:-translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="bi bi-search font-bold"></i>
+          Check Availability
+        </button>
+      </div>
+
+      <div class="px-[32px] pb-[32px]">
+        <div id="resultsHeader" style="display: none; margin-bottom: 24px;">
+          <h2 class="text-[24px] font-black text-navy tracking-[-0.02em]">
+            Live Flights to <span id="locName" class="text-primary">...</span>
+          </h2>
+          <div class="h-[4px] w-[60px] bg-primary rounded-[2px] mt-[8px]"></div>
+        </div>
+
+        <div id="loading" style="display: none; text-align: center; padding: 40px 0;">
+          <div
+            class="inline-block w-[40px] h-[40px] border-[3px] border-[rgba(26,115,232,0.2)] rounded-full border-t-primary animate-spin">
+          </div>
+          <div class="mt-[16px] font-bold text-text-mid opacity-80 animate-pulse">Syncing with FlyCreative Servers...
+          </div>
+        </div>
+
+        <div id="flightList"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- About Section -->
   <section id="about" class="py-[100px] bg-bg-main relative z-[1]">
     <!-- Decorative Circle -->
@@ -226,72 +291,6 @@
     </div>
   </section>
 
-  <!-- Subscribe / Social Section -->
-  <section id="subscribe" class="py-[100px] bg-white">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
-      <div class="mb-[60px] text-center">
-        <h2
-          class="text-[40px] font-heading font-bold text-text-main mb-4 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-[60px] after:h-1 after:bg-accent after:rounded-full">
-          Join Our Community</h2>
-        <p class="text-[18px] text-text-muted mt-4">Follow our social media channels to get the latest travel updates,
-          group tickets,
-          and exclusive deals.</p>
-      </div>
-      <div class="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-8">
-        <div
-          class="bg-white rounded-2xl p-8 text-center border border-border hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(13,31,60,0.12)] transition-all flex flex-col items-center">
-          <div
-            class="w-[70px] h-[70px] rounded-full flex items-center justify-center text-[28px] mb-5 bg-[#1877F2]/10 text-[#1877F2]">
-            <i class="bi bi-facebook"></i>
-          </div>
-          <h3 class="font-heading font-bold text-xl mb-3 text-text-main">Facebook</h3>
-          <p class="text-[14px] text-text-muted mb-6 flex-grow leading-[1.6]">Subscribe to Zamra Tours & Travels
-            Facebook and get group tickets and travel updates</p>
-          <a href="https://www.facebook.com/share/19ptsreQGF/" target="_blank"
-            class="inline-flex py-2 px-6 rounded-full border border-current text-[14px] font-semibold transition-colors text-[#1877F2] hover:bg-[#1877F2] hover:text-white">Follow
-            Us</a>
-        </div>
-        <div
-          class="bg-white rounded-2xl p-8 text-center border border-border hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(13,31,60,0.12)] transition-all flex flex-col items-center">
-          <div
-            class="w-[70px] h-[70px] rounded-full flex items-center justify-center text-[28px] mb-5 bg-[#25D366]/10 text-[#25D366]">
-            <i class="bi bi-whatsapp"></i>
-          </div>
-          <h3 class="font-heading font-bold text-xl mb-3 text-text-main">WhatsApp</h3>
-          <p class="text-[14px] text-text-muted mb-6 flex-grow leading-[1.6]">Subscribe to Zamra Tours & Travels
-            WhatsApp and get group tickets and travel updates</p>
-          <a href="https://wa.me/919846606739" target="_blank"
-            class="inline-flex py-2 px-6 rounded-full border border-current text-[14px] font-semibold transition-colors text-[#25D366] hover:bg-[#25D366] hover:text-white">Join
-            Channel</a>
-        </div>
-        <div
-          class="bg-white rounded-2xl p-8 text-center border border-border hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(13,31,60,0.12)] transition-all flex flex-col items-center">
-          <div
-            class="w-[70px] h-[70px] rounded-full flex items-center justify-center text-[28px] mb-5 bg-[#E1306C]/10 text-[#E1306C]">
-            <i class="bi bi-instagram"></i>
-          </div>
-          <h3 class="font-heading font-bold text-xl mb-3 text-text-main">Instagram</h3>
-          <p class="text-[14px] text-text-muted mb-6 flex-grow leading-[1.6]">Subscribe to Zamra Tours & Travels
-            Instagram and get group tickets and travel updates</p>
-          <a href="https://www.instagram.com/zamratravels?igsh=dXF0eDRxM2R3bmN3" target="_blank"
-            class="inline-flex py-2 px-6 rounded-full border border-current text-[14px] font-semibold transition-colors text-[#E1306C] hover:bg-[#E1306C] hover:text-white">Follow
-            Us</a>
-        </div>
-        <div
-          class="bg-white rounded-2xl p-8 text-center border border-border hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(13,31,60,0.12)] transition-all flex flex-col items-center">
-          <div
-            class="w-[70px] h-[70px] rounded-full flex items-center justify-center text-[28px] mb-5 bg-[#FF0000]/10 text-[#FF0000]">
-            <i class="bi bi-youtube"></i>
-          </div>
-          <h3 class="font-heading font-bold text-xl mb-3 text-text-main">YouTube</h3>
-          <p class="text-[14px] text-text-muted mb-6 flex-grow leading-[1.6]">Subscribe to Zamra Tours & Travels YouTube
-            and get group tickets and travel updates</p>
-          <a href="https://youtube.com/@livejobs?si=RvycSHW-ziIP2MDG" target="_blank"
-            class="inline-flex py-2 px-6 rounded-full border border-current text-[14px] font-semibold transition-colors text-[#FF0000] hover:bg-[#FF0000] hover:text-white">Subscribe</a>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <!-- Services Section -->
   <section id="services" class="py-[100px] bg-bg-main">
@@ -438,6 +437,24 @@
     </div>
   </section>
 
+  <!-- Sectors Section -->
+  <section class="py-[100px] bg-white border-b border-border" id="flights">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      <div class="text-center mb-[60px]">
+        <h2
+          class="text-[32px] font-heading font-bold text-text-main mb-3 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-[60px] after:h-[3px] after:bg-accent after:rounded-full">
+          Lowest Fare Flight Tickets</h2>
+        <p class="text-[16px] text-text-muted mt-4">Discover amazing deals on popular routes from major airports</p>
+      </div>
+
+      <div id="flight-grids-container">
+        <!-- Airpots will be populated via JS -->
+      </div>
+    </div>
+  </section>
+
+
+
   <!-- Contact Section -->
   <section id="contact" class="py-[100px] bg-bg-main">
     <div class="w-full max-w-[1280px] mx-auto px-6">
@@ -488,6 +505,7 @@
       </div>
     </div>
   </section>
+
 
   <!-- Enquiry Form Section -->
   <section id="enquiry" class="py-[100px] bg-white">
@@ -555,59 +573,14 @@
     </div>
   </section>
 
-  <!-- Sectors Section -->
-  <section class="py-[100px] bg-white border-b border-border" id="flights">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
-      <div class="text-center mb-[60px]">
-        <h2
-          class="text-[32px] font-heading font-bold text-text-main mb-3 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-[60px] after:h-[3px] after:bg-accent after:rounded-full">
-          Lowest Fare Flight Tickets</h2>
-        <p class="text-[16px] text-text-muted mt-4">Discover amazing deals on popular routes from major airports</p>
-      </div>
-
-      <!-- Kozhikode Tab/Section -->
-      <div class="mb-[50px]">
-        <h3
-          class="flex items-center gap-3 text-[24px] text-accent mb-6 border-b-2 border-border pb-3 font-heading font-bold">
-          <i class="bi bi-geo-alt-fill text-[1.1em]"></i> From Kozhikode (CCJ)
-        </h3>
-        <div class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6" id="grid-kozhikode">
-          <!-- Populated via JS -->
-        </div>
-      </div>
-
-      <!-- Kochi Tab/Section -->
-      <div class="mb-[50px]">
-        <h3
-          class="flex items-center gap-3 text-[24px] text-accent mb-6 border-b-2 border-border pb-3 font-heading font-bold">
-          <i class="bi bi-geo-alt-fill text-[1.1em]"></i> From Kochi (COK)
-        </h3>
-        <div class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6" id="grid-kochi">
-          <!-- Populated via JS -->
-        </div>
-      </div>
-
-      <!-- Kannur Tab/Section -->
-      <div class="mb-[50px]">
-        <h3
-          class="flex items-center gap-3 text-[24px] text-accent mb-6 border-b-2 border-border pb-3 font-heading font-bold">
-          <i class="bi bi-geo-alt-fill text-[1.1em]"></i> From Kannur (CNN)
-        </h3>
-        <div class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6" id="grid-kannur">
-          <!-- Populated via JS -->
-        </div>
-      </div>
-    </div>
-  </section>
-
 
   <!-- Footer -->
   <footer class="bg-navy-dark text-white pt-[80px]">
     <div class="w-full max-w-[1280px] mx-auto px-6">
       <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-[60px] pb-[60px] border-b border-white/10">
         <div>
-          <a href="#" class="block mb-[20px] bg-white w-fit px-3 py-1.5 rounded-lg">
-            <img src="/assets/img/logo.jpeg" alt="Zamra Travels" class="h-[32px] w-auto">
+          <a href="#" class="block mb-[20px]">
+            <img src="/assets/img/favicon.webp" alt="Zamra Travels" class="h-[40px] w-auto">
           </a>
           <p class="text-text-soft leading-[1.6] mb-[24px] max-w-[400px]">Your trusted travel companion offering the
             best deals on flights, visas, tours, and more. Experience the world with comfort and ease.</p>
@@ -621,9 +594,7 @@
             <a href="https://www.instagram.com/zamratravels?igsh=dXF0eDRxM2R3bmN3"
               class="w-[40px] h-[40px] rounded-full bg-white/10 flex items-center justify-center text-white no-underline transition-all duration-300 hover:bg-primary hover:-translate-y-[3px]"><i
                 class="bi bi-instagram"></i></a>
-            <a href="https://youtube.com/@livejobs?si=RvycSHW-ziIP2MDG"
-              class="w-[40px] h-[40px] rounded-full bg-white/10 flex items-center justify-center text-white no-underline transition-all duration-300 hover:bg-primary hover:-translate-y-[3px]"><i
-                class="bi bi-youtube"></i></a>
+
           </div>
         </div>
         <div>

@@ -9,12 +9,15 @@ Zamra Travels is a premium flight booking and travel services web portal. It pro
 
 ## File Structure
 - **`web/`** - **IMPORTANT:** This folder is the standalone root of the Vite project for the main website. It contains its own `package.json`, `vite.config.js`, and node cache.
-  - `index.html` - The primary entry point for the main web portal, utilizing Tailwind CSS utility classes.
+  - `index.html` - The primary entry point (homepage), which also handles Live Flight Search.
+  - `admin.html` - Standalone page for the Admin Dashboard and the Agent Rate Portal (Agent Sheets).
   - `src/` - Contains all modularized source files.
-    - `styles/web/style.css` - The primary CSS file implementing `@theme` and `@import "tailwindcss";`. All legacy Vanilla CSS files (e.g. `portal.css`) have been removed.
-    - `js/web/main.js` - Modular JavaScript file containing site logic and dynamic UI generation (e.g., modals, layout behaviors).
-  - `public/assets/` - Static assets (images, icons, etc.) served directly by Vite.
-  - `vite.config.js` - Configuration for the Vite bundler scoped specifically to the `web/` folder, utilizing the `@tailwindcss/vite` plugin.
+    - `styles/web/style.css` - The primary CSS file implementing `@theme` and `@import "tailwindcss";`.
+    - `styles/admin/style.css` - Custom admin template CSS.
+    - `js/web/main.js` - Modular JavaScript file containing site logic for the frontend (including Flight Search).
+    - `js/admin/main.js` - JavaScript for the admin and agent functionalities.
+  - `public/assets/` - Static local assets (images, icons, etc.) served directly by Vite.
+  - `vite.config.js` - Vite multi-page bundler configuration scoped specifically to the `web/` folder, utilizing the `@tailwindcss/vite` plugin.
 
 ## Instructions for AI Agents
 - **Context:** When working on the main website structure, UI, or content, prioritize the `web/` directory and `web/index.html`. 

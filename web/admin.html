@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Zamra Travels</title>
+    <!-- Favicons -->
+    <link href="/assets/img/favicon.webp" rel="icon">
+    <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/src/styles/admin/style.css">
+
+    <style>
+        /* Temporary inline styles to ensure tailwind works well without complex rebuilds yet */
+        .bg-navy {
+            background-color: #0f172a;
+        }
+
+        .text-navy {
+            color: #0f172a;
+        }
+
+        .bg-white {
+            background-color: #ffffff;
+        }
+
+        .text-text-main {
+            color: #334155;
+        }
+
+        .text-text-muted {
+            color: #64748b;
+        }
+
+        .border-border {
+            border-color: #e2e8f0;
+        }
+
+        .bg-primary {
+            background-color: #2563eb;
+        }
+
+        .text-primary {
+            color: #2563eb;
+        }
+
+        .hover\:text-primary:hover {
+            color: #2563eb;
+        }
+
+        .hover\:bg-blue-600:hover {
+            background-color: #1d4ed8;
+        }
+
+        .bg-red-500 {
+            background-color: #ef4444;
+        }
+
+        .bg-yellow-400 {
+            background-color: #facc15;
+        }
+
+        .bg-green-500 {
+            background-color: #22c55e;
+        }
+    </style>
+</head>
+
+<body class="bg-navy font-sans antialiased text-white min-h-screen flex flex-col">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-white border-b border-border shadow-sm sticky top-0 z-[1000]">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <!-- Logo -->
+                    <div class="shrink-0 flex items-center">
+                        <a href="/admin.html">
+                            <img src="/assets/img/logo.webp" alt="Zamra Travels"
+                                class="h-8 w-auto mix-blend-multiply opacity-50">
+                        </a>
+                    </div>
+
+                    <!-- Main Navigation Links -->
+                    <div class="hidden sm:flex space-x-6 h-full items-center">
+                        <a href="#" data-tab="dashboard-tab" data-title="Dashboard"
+                            class="nav-link active text-primary hover:text-primary font-medium text-[14px]">Dashboard</a>
+                        <a href="#" data-tab="agents-tab" data-title="Agents"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Agents</a>
+                        <a href="#" data-tab="agent-charts-tab" data-title="Agent Charts"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Agent Charts</a>
+                        <a href="#" data-tab="agent-sheets-tab" data-title="Agent Sheets"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Agent Sheets</a>
+                        <a href="#" data-tab="sectors-tab" data-title="Sectors"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Sectors</a>
+                        <a href="#" data-tab="flights-tab" data-title="Flights"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Flights</a>
+                        <a href="#" data-tab="reports-tab" data-title="Reports"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Reports</a>
+                        <a href="#" data-tab="contact-mails-tab" data-title="Contact Queries"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Contact
+                            Mails</a>
+                        <a href="#" data-tab="testimonials-tab" data-title="Testimonial"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Testimonials</a>
+                        <a href="#" data-tab="faq-tab" data-title="FAQ"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Faq</a>
+                    </div>
+                </div>
+
+                <!-- Admin Profile Dropdown Concept -->
+                <div class="flex items-center">
+                    <button
+                        class="flex items-center space-x-2 border border-border rounded-md px-3 py-1.5 text-text-muted text-[13px] hover:bg-gray-50 transition-colors">
+                        <span>Sahal Admin</span>
+                        <i class="bi bi-chevron-down text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <header class="bg-white text-navy shadow-[0_1px_3px_rgba(0,0,0,0.05)] border-b border-border z-40 relative">
+        <div class="max-w-[1400px] mx-auto py-5 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <h2 id="page-title" class="font-bold text-2xl tracking-tight text-navy">Dashboard</h2>
+            <div id="page-actions" class="flex items-center space-x-3">
+                <!-- Actions like "+ Add Agent" will be injected or toggled via JS if needed -->
+                <!-- Example Add Button shown only on specific tabs ideally, we'll implement that in JS or CSS -->
+                <button
+                    class="bg-white border border-border text-navy font-bold text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all font-outfit hidden"
+                    id="action-btn-generic">+ Add Item</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Wrapper -->
+    <main class="flex-1 w-full max-w-[1400px] mx-auto py-8 px-4 sm:px-6 lg:px-8 relative z-0">
+
+        <!-- DASHBOARD TAB -->
+        <div id="dashboard-tab" class="tab-content active">
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-semibold text-text-muted mb-2">Select Sector</label>
+                        <select
+                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                            <option value="">Select Sector</option>
+                            <option value="0">ALL</option>
+                            <option value="1">CCJ JED</option>
+                            <option value="2">CCJ RUH</option>
+                            <!-- more options would go here -->
+                        </select>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="block text-sm font-semibold text-text-muted mb-2">Start Date</label>
+                        <input type="date"
+                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="block text-sm font-semibold text-text-muted mb-2">End Date</label>
+                        <input type="date"
+                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                    </div>
+                    <div class="md:col-span-2">
+                        <button
+                            class="w-full bg-primary text-white font-semibold h-11 rounded-lg shadow-[0_4px_14px_rgba(37,99,235,0.25)] hover:bg-blue-600 transition-all hover:-translate-y-0.5 text-sm">Fetch</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Results Container (Empty by default) -->
+            <div class="mt-8 text-center text-text-muted border-2 border-dashed border-border/20 rounded-xl py-12">
+                <i class="bi bi-briefcase text-4xl opacity-50 mb-3 block"></i>
+                <p>Select a sector and dates to fetch data</p>
+            </div>
+        </div>
+
+        <!-- AGENTS TAB -->
+        <div id="agents-tab" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                <div></div>
+                <button
+                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-lg shadow-sm border border-border hover:bg-gray-50 transition-colors">+
+                    Add Agent</button>
+            </div>
+
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main mb-8">
+                <h3 class="font-bold text-gray-300 mb-6 text-sm uppercase tracking-wide">Bulk Delete Agent Flight Charts
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                    <div>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Select Agent</label>
+                        <select class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                            <option>Select Agent</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date</label>
+                        <input type="date"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date</label>
+                        <input type="date"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                    </div>
+                    <div>
+                        <button
+                            class="bg-red-500 text-white font-semibold px-6 h-[42px] rounded-lg shadow-sm hover:opacity-90 transition-all text-[14px]">Bulk
+                            Delete</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="text-[14px] flex items-center">
+                        Show
+                        <select class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option>10</option>
+                            <option>25</option>
+                        </select>
+                        entries
+                    </div>
+                    <div class="flex items-center text-[14px]">
+                        Search: <input type="text"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
+
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Code <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Email <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Phone <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>21</td>
+                                <td>Mustaque</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>22</td>
+                                <td>Amie</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>23</td>
+                                <td>Lefin</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- AGENT CHARTS TAB -->
+        <div id="agent-charts-tab" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Data Display -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main h-full">
+                        <div class="flex justify-center items-center h-full min-h-[300px] text-text-muted">
+                            <p class="opacity-60 text-center"><i class="bi bi-bar-chart text-4xl mb-3 block"></i>No
+                                charts to display yet.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Import Report Data -->
+                <div class="lg:col-span-1">
+                    <div
+                        class="bg-white rounded-[16px] shadow-sm border border-border/50 text-text-main overflow-hidden">
+                        <div class="bg-gray-50/50 p-4 border-b border-border/50 text-[14px] font-bold text-text-main">
+                            Import Report Data
+                        </div>
+                        <div class="p-6">
+                            <p class="text-[13px] font-medium mb-2">Upload Excel File</p>
+                            <input type="file"
+                                class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-light file:text-primary hover:file:bg-blue-100 cursor-pointer mb-6" />
+
+                            <div class="flex gap-3">
+                                <button
+                                    class="bg-primary text-white font-medium px-4 py-2 rounded shadow-sm text-[14px]">Import
+                                    Data</button>
+                                <button
+                                    class="bg-green-500 text-white font-medium px-4 py-2 rounded shadow-sm text-[14px]">Download
+                                    Sample Excel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Chart Form -->
+                <div class="lg:col-span-3">
+                    <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                        <div class="flex flex-wrap gap-4 items-end justify-between">
+                            <div class="flex flex-wrap gap-4">
+                                <div class="w-[180px]">
+                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">Select
+                                        Agent</label>
+                                    <select
+                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
+                                        <option>Select Agent</option>
+                                    </select>
+                                </div>
+                                <div class="w-[180px]">
+                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">Select
+                                        Sector</label>
+                                    <select
+                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
+                                        <option>Select Sector</option>
+                                    </select>
+                                </div>
+                                <div class="w-[180px]">
+                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">Start
+                                        Date</label>
+                                    <input type="date"
+                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
+                                </div>
+                                <div class="w-[180px]">
+                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date</label>
+                                    <input type="date"
+                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
+                                </div>
+                                <div class="w-[180px]">
+                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">&nbsp;</label>
+                                    <select
+                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
+                                        <option>Bulk Action</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button
+                                class="bg-primary text-white font-semibold px-8 h-[42px] rounded outline-none text-[14px]">Edit</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex flex-col gap-3 w-fit">
+                        <button
+                            class="border border-border bg-transparent text-white px-4 py-2 rounded text-[14px] hover:bg-white/5 transition-colors">+
+                            Add Chart</button>
+                        <button class="bg-green-500 text-white px-4 py-2 rounded text-[14px] font-bold">Save
+                            All</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AGENT SHEETS TAB -->
+        <div id="agent-sheets-tab" class="tab-content">
+<div id="rate-portal" class="py-[60px] px-[20px] bg-bg-main relative z-10 w-full max-w-[1280px] mx-auto">
+      <div
+        class="bg-gradient-to-br from-navy to-[#1e3a8a] rounded-[24px] p-[60px_40px] mb-[-60px] relative overflow-hidden shadow-[0_4px_18px_rgba(13,31,60,0.09),_0_2px_6px_rgba(13,31,60,0.05)] text-white">
+        <div
+          class="absolute top-[-50%] right-[-10%] w-[60%] h-[200%] bg-[radial-gradient(circle,rgba(255,255,255,0.1)_0%,transparent_70%)] rounded-full z-0">
+        </div>
+        <div class="max-w-[600px] relative z-10">
+          <div
+            class="bg-white/15 backdrop-blur-[4px] px-[14px] py-[6px] rounded-full text-[13px] font-bold inline-block mb-5 tracking-[0.5px] uppercase border border-white/20">
+            Agent Rate Portal</div>
+          <h1 class="text-[42px] font-black leading-[1.1] mb-4 tracking-[-0.02em] font-heading">Submit Your <span
+              class="text-[#60a5fa]">Flight Rate</span><br>Data Instantly</h1>
+          <p class="text-[16px] opacity-85 leading-[1.6]">Your trusted partner for affordable and reliable flight
+            bookings. Submit agent rate data below — it will be automatically processed and updated in our system.</p>
+        </div>
+      </div>
+
+      <div
+        class="max-w-[1000px] mx-auto pt-[100px] pb-[40px] grid grid-cols-1 md:grid-cols-[1fr_300px] gap-[30px] relative">
+
+        <div>
+
+          <div
+            class="bg-white rounded-[24px] shadow-[0_12px_40px_rgba(13,31,60,0.13),_0_4px_14px_rgba(13,31,60,0.07)] border border-border relative overflow-hidden mb-[30px]">
+            <div class="h-[4px] w-full bg-gradient-to-r from-primary to-[#1558c0]"></div>
+            <div class="absolute top-[4px] left-0 w-full h-[3px] bg-[#e2e8f0] hidden [&.on]:block" id="progBar">
+              <div class="h-full w-0 bg-primary transition-[width] duration-300 ease-in-out" id="progFill"></div>
+            </div>
+            <div class="flex items-center gap-[16px] p-[24px_32px] border-b border-border bg-[#f8fafc]">
+              <div
+                class="w-[48px] h-[48px] rounded-[14px] bg-primary-light text-primary flex items-center justify-center shrink-0">
+                <svg class="w-[24px] h-[24px]" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" />
+                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[12px] font-bold text-text-muted uppercase tracking-[1px] mb-[2px]">Step 1</div>
+                <div class="text-[18px] font-black text-navy m-0">Select Agent Number</div>
+              </div>
+              <div
+                class="w-[36px] h-[36px] rounded-full border-2 border-border flex items-center justify-center text-[15px] font-black text-text-muted ml-auto bg-white">
+                1</div>
+            </div>
+            <div class="p-[32px]">
+              <div class="text-[13px] font-bold text-text-mid mb-[8px]">Quick Select</div>
+              <div class="flex flex-wrap gap-[10px] mb-[24px]" id="chipGrid"></div>
+              <div
+                class="flex items-center text-[13px] font-bold text-text-muted uppercase tracking-[0.05em] mb-[24px] before:content-[''] before:flex-1 before:h-[1px] before:bg-border before:mr-[16px] after:content-[''] after:flex-1 after:h-[1px] after:bg-border after:ml-[16px]">
+                or enter manually</div>
+              <div class="flex gap-[16px] items-center">
+                <input type="number"
+                  class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] h-[52px] text-[15px] text-text-main font-bold transition-colors focus:outline-none focus:border-primary focus:bg-white focus:shadow-[0_0_0_3px_rgba(26,115,232,0.1)] placeholder:text-text-muted/60"
+                  id="manualAgent" placeholder="e.g. 35" min="1" max="999">
+                <div
+                  class="shrink-0 px-[16px] h-[40px] rounded-[8px] bg-[#dcfce7] text-[#16a34a] font-bold text-[14px] flex items-center justify-center border border-[rgba(22,163,74,0.2)] transition-all [&.empty]:bg-[#f1f5f9] [&.empty]:text-[#64748b] [&.empty]:border-border"
+                  id="agentPill">No agent selected</div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="bg-white rounded-[24px] shadow-[0_12px_40px_rgba(13,31,60,0.13),_0_4px_14px_rgba(13,31,60,0.07)] border border-border relative overflow-hidden mb-[30px]">
+            <div class="h-[4px] w-full bg-gradient-to-r from-primary to-[#1558c0]"></div>
+            <div class="flex items-center gap-[16px] p-[24px_32px] border-b border-border bg-[#f8fafc]">
+              <div
+                class="w-[48px] h-[48px] rounded-[14px] bg-primary-light text-primary flex items-center justify-center shrink-0">
+                <svg class="w-[24px] h-[24px]" viewBox="0 0 24 24" fill="none">
+                  <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="2" />
+                  <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[12px] font-bold text-text-muted uppercase tracking-[1px] mb-[2px]">Step 2</div>
+                <div class="text-[18px] font-black text-navy m-0">Paste Rate Data</div>
+              </div>
+              <div
+                class="w-[36px] h-[36px] rounded-full border-2 border-border flex items-center justify-center text-[15px] font-black text-text-muted ml-auto bg-white">
+                2</div>
+            </div>
+            <div class="p-[32px]">
+              <textarea
+                class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] py-[16px] text-[14px] font-mono text-text-main font-bold transition-colors focus:outline-none focus:border-primary focus:bg-white focus:shadow-[0_0_0_3px_rgba(26,115,232,0.1)] placeholder:text-text-muted/60 min-h-[140px] resize-y leading-[1.5]"
+                id="rateData" placeholder="Paste your rate data here...
+
+Example:
+*CCJ JED IX FARES*
+04 MAR 15500
+05 MAR 15500
+09 MAR 15500
+
+*COK DXB SG FARES*
+04 MAR 16900
+05 MAR 14900
+..." spellcheck="false"></textarea>
+
+              <div class="flex justify-between items-center mt-[12px]">
+                <span class="text-[13px] text-text-soft font-semibold" id="charCount">0 characters</span>
+                <div class="flex gap-[6px]">
+                  <span
+                    class="bg-bg-main px-[10px] py-[4px] rounded-[6px] text-[11px] text-text-mid font-bold uppercase tracking-[0.5px]">WhatsApp</span>
+                  <span
+                    class="bg-bg-main px-[10px] py-[4px] rounded-[6px] text-[11px] text-text-mid font-bold uppercase tracking-[0.5px]">Plain
+                    text</span>
+                  <span
+                    class="bg-bg-main px-[10px] py-[4px] rounded-[6px] text-[11px] text-text-mid font-bold uppercase tracking-[0.5px]">Any
+                    format</span>
+                </div>
+              </div>
+
+              <div
+                class="mt-[24px] bg-[#f8fafc] border border-border rounded-[12px] hidden overflow-hidden [&.on]:block [&.on]:animate-[expandIn_0.3s_ease]"
+                id="prevBox">
+                <div class="bg-[#e2e8f0] p-[10px_16px] flex justify-between items-center">
+                  <div class="text-[12px] font-extrabold text-navy uppercase">Detected Entries</div>
+                  <span class="bg-primary text-white text-[11px] px-[8px] py-[2px] rounded-full font-bold"
+                    id="prevCount">0</span>
+                </div>
+                <div class="max-h-[240px] overflow-y-auto">
+                  <table class="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr>
+                        <th
+                          class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
+                          Sector</th>
+                        <th
+                          class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
+                          Date</th>
+                        <th
+                          class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
+                          Airline</th>
+                        <th
+                          class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
+                          Rate (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="prevBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-[16px] mt-[32px] pt-[24px] border-t border-border">
+                <button
+                  class="flex-[2] min-w-[200px] h-[52px] bg-primary text-white rounded-[12px] font-bold text-[15px] cursor-pointer transition-all flex items-center justify-center gap-[8px] hover:bg-[#1558c0] hover:shadow-[0_4px_14px_rgba(26,115,232,0.3)] hover:-translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none relative overflow-hidden"
+                  id="submitBtn" disabled>
+                  <svg class="w-[20px] h-[20px]" viewBox="0 0 24 24" fill="none">
+                    <path d="M22 2L11 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                    <path d="M22 2L15 22l-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                      stroke-linejoin="round" />
+                  </svg>
+                  Submit Rate Data
+                </button>
+                <button
+                  class="flex-1 min-w-[120px] h-[52px] bg-white border border-border text-text-mid rounded-[12px] font-bold text-[15px] cursor-pointer transition-colors flex items-center justify-center gap-[8px] hover:bg-bg-main hover:text-navy"
+                  id="resetBtn">
+                  <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 4v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round" />
+                    <path d="M4 9A9 9 0 1112 3a9 9 0 016.364 2.636" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" />
+                  </svg>
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="flex flex-col gap-[20px]">
+
+          <div class="bg-[#f8fafc] border border-border rounded-[16px] p-[20px] relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-[4px] h-full bg-gradient-to-b from-primary to-[#1558c0]"></div>
+            <div
+              class="text-[15px] font-extrabold text-navy flex items-center gap-[10px] pb-[16px] mb-[16px] border-b border-dotted border-[#cbd5e1] [&>svg]:w-[20px] [&>svg]:h-[20px] [&>svg]:text-primary">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 20V14M9 20V8M14 20v-6M19 20V4" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" />
+              </svg>
+              Session Stats
+            </div>
+            <div>
+              <div class="flex flex-col gap-[12px]">
+                <div class="bg-white border border-border rounded-[10px] p-[12px] flex justify-between items-center">
+                  <div class="text-[20px] font-black text-navy tracking-[-0.02em]" id="statSubs">0</div>
+                  <div class="text-[12px] font-bold uppercase text-text-soft tracking-[0.05em]">Submissions</div>
+                </div>
+                <div class="bg-white border border-border rounded-[10px] p-[12px] flex justify-between items-center">
+                  <div class="text-[20px] font-black text-navy tracking-[-0.02em]" id="statEntries">0</div>
+                  <div class="text-[12px] font-bold uppercase text-text-soft tracking-[0.05em]">Entries</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-[#f8fafc] border border-border rounded-[16px] p-[20px] relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-[4px] h-full bg-gradient-to-b from-primary to-[#1558c0]"></div>
+            <div
+              class="text-[15px] font-extrabold text-navy flex items-center gap-[10px] pb-[16px] mb-[16px] border-b border-dotted border-[#cbd5e1] [&>svg]:w-[20px] [&>svg]:h-[20px] [&>svg]:text-primary">
+              <svg viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+                <path d="M12 8v4l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              Recent Submissions
+              <button
+                class="ml-auto bg-[rgba(220,38,38,0.1)] text-[#dc2626] border-none px-[10px] py-[4px] rounded-[6px] font-bold text-[10px] uppercase cursor-pointer transition-colors hover:bg-[rgba(220,38,38,0.15)]"
+                id="clearBtn">Clear</button>
+            </div>
+            <div id="historyWrap"></div>
+          </div>
+
+          <div class="bg-[#f8fafc] border border-border rounded-[16px] p-[20px] relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-[4px] h-full bg-gradient-to-b from-primary to-[#1558c0]"></div>
+            <div
+              class="text-[15px] font-extrabold text-navy flex items-center gap-[10px] pb-[16px] mb-[16px] border-b border-dotted border-[#cbd5e1] [&>svg]:w-[20px] [&>svg]:h-[20px] [&>svg]:text-primary">
+              <svg viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+                <path d="M12 11v6M12 8v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+              </svg>
+              How It Works
+            </div>
+            <div>
+              <div class="flex flex-col gap-[14px]">
+                <div class="flex gap-[12px]">
+                  <div
+                    class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
+                    1</div>
+                  <div class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                    <strong>Select your agent number</strong> from the grid or type it in manually.
+                  </div>
+                </div>
+                <div class="flex gap-[12px]">
+                  <div
+                    class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
+                    2</div>
+                  <div class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                    <strong>Paste rate data</strong> from WhatsApp or any source — all formats
+                    accepted.
+                  </div>
+                </div>
+                <div class="flex gap-[12px]">
+                  <div
+                    class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
+                    3</div>
+                  <div class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                    Check the <strong>live preview table</strong> to confirm entries are detected
+                    correctly.</div>
+                </div>
+                <div class="flex gap-[12px]">
+                  <div
+                    class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
+                    4</div>
+                  <div class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                    Click <strong>Submit</strong> — AI parses the data and saves it to Google Sheets
+                    automatically.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+        </div>
+
+        <!-- SECTORS TAB -->
+        <div id="sectors-tab" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                <div></div>
+                <button
+                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-lg shadow-sm border border-border hover:bg-gray-50 transition-colors">+
+                    Add Sector</button>
+            </div>
+
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="text-[14px] flex items-center">
+                        Show <select class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option>10</option>
+                        </select> entries
+                    </div>
+                    <div class="flex items-center text-[14px]">
+                        Search: <input type="text"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
+
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Sector From <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Sector To <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Sector Code <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1</td>
+                                <td>KOZHIKKODE</td>
+                                <td>JEDDAH</td>
+                                <td>CCJ JED</td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>KOZHIKKODE</td>
+                                <td>RIYADH</td>
+                                <td>CCJ RUH</td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td>KOZHIKKODE</td>
+                                <td>DAMAMM</td>
+                                <td>CCJ DMM</td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- FLIGHTS TAB -->
+        <div id="flights-tab" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                <div></div>
+                <button
+                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-lg shadow-sm border border-border hover:bg-gray-50 transition-colors">+
+                    Add Flight</button>
+            </div>
+
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="text-[14px] flex items-center">
+                        Show <select class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option>10</option>
+                        </select> entries
+                    </div>
+                    <div class="flex items-center text-[14px]">
+                        Search: <input type="text"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
+
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Flight Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Flight Code <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1</td>
+                                <td>Indigo</td>
+                                <td>6E</td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>AIR INDIA EXPRESS</td>
+                                <td>IX</td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td>AIR ARABIA</td>
+                                <td>G9</td>
+                                <td>
+                                    <button
+                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
+                                    <button
+                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPORTS TAB -->
+        <div id="reports-tab" class="tab-content">
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end mb-8">
+                    <div>
+                        <input type="date"
+                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-muted">
+                    </div>
+                    <div>
+                        <input type="date"
+                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-muted">
+                    </div>
+                    <div>
+                        <select
+                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-main">
+                            <option>All Sectors</option>
+                        </select>
+                    </div>
+                    <div>
+                        <select
+                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-main">
+                            <option>All Agents</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div>
+                        <h4 class="text-center font-bold text-[14px] text-text-main mb-4">Agent Report</h4>
+                        <div class="flex items-center justify-center gap-2 text-[12px] text-text-muted mb-4">
+                            <span class="w-4 h-2 bg-[#99d7d1] inline-block"></span> Rates by Agent
+                        </div>
+                        <div class="w-full h-[300px] border-l border-b border-border/50 flex items-end justify-around pb-2 px-2 relative"
+                            style="background-image: repeating-linear-gradient(to top, transparent, transparent 39px, #f1f5f9 39px, #f1f5f9 40px); background-size: 100% 40px;">
+                            <div class="w-[12%] bg-[#99d7d1] h-[5%]" title="TRAVEL"></div>
+                            <div class="w-[12%] bg-[#99d7d1] h-[4%]" title="BOOK"></div>
+                            <div class="w-[12%] bg-[#99d7d1] h-[55%]" title="Mustaque"></div>
+                            <div class="w-[12%] bg-[#99d7d1] h-[45%]" title="Amie"></div>
+                            <div class="w-[12%] bg-[#99d7d1] h-[90%]" title="Lefin"></div>
+                            <div class="w-[12%] bg-[#99d7d1] h-[25%]" title="Niba gafoor"></div>
+
+                            <div
+                                class="absolute left-[-70px] top-0 bottom-0 flex flex-col justify-between text-[10px] text-text-muted py-2 w-[65px] text-right">
+                                <span>20,000,000</span>
+                                <span>16,000,000</span>
+                                <span>12,000,000</span>
+                                <span>8,000,000</span>
+                                <span>4,000,000</span>
+                                <span>0</span>
+                            </div>
+
+                            <div
+                                class="absolute -bottom-[20px] left-0 right-0 flex justify-around text-[10px] text-text-muted px-2">
+                                <span class="w-[12%] text-center truncate">TRAVEL</span>
+                                <span class="w-[12%] text-center truncate">BOOK</span>
+                                <span class="w-[12%] text-center truncate">Mustaque</span>
+                                <span class="w-[12%] text-center truncate">Amie</span>
+                                <span class="w-[12%] text-center truncate">Lefin</span>
+                                <span class="w-[12%] text-center truncate">Niba gafoor</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-center font-bold text-[14px] text-text-main mb-4">Sector Report</h4>
+                        <div class="flex justify-center items-center h-[300px]">
+                            <div class="w-[250px] h-[250px] rounded-full bg-[#007bff] relative"
+                                style="background: conic-gradient(#007bff 0% 99%, #ffffff 99% 100%);">
+                                <div class="absolute -top-[15px] left-1/2 -translate-x-1/2 w-6 h-2 bg-[#007bff]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTACT MAILS TAB -->
+        <div id="contact-mails-tab" class="tab-content">
+            <h3
+                class="font-bold text-[18px] text-navy mb-4 bg-white p-4 rounded-[8px] shadow-sm border border-border/50">
+                Contact Enquiries</h3>
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main mb-8">
+                <div class="flex justify-between items-center mb-6 text-[14px]">
+                    <div class="flex items-center">
+                        Show <select class="mx-2 border border-border rounded p-1">
+                            <option>10</option>
+                        </select> entries
+                    </div>
+                    <div class="flex items-center">
+                        Search: <input type="text"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Email <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Phone <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Date <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Sector <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Flight <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Message <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="8" class="text-center text-text-muted py-8">No data available in table</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
+                    <div>Showing 0 to 0 of 0 entries</div>
+                    <div class="flex gap-2">
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
+                    </div>
+                </div>
+            </div>
+
+            <h3
+                class="font-bold text-[18px] text-navy mb-4 bg-white p-4 rounded-[8px] shadow-sm border border-border/50">
+                Contact Mails</h3>
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="flex justify-between items-center mb-6 text-[14px]">
+                    <div class="flex items-center">
+                        Show <select class="mx-2 border border-border rounded p-1">
+                            <option>10</option>
+                        </select> entries
+                    </div>
+                    <div class="flex items-center">
+                        Search: <input type="text"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Email <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Phone <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Message Subject <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Message <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" class="text-center text-text-muted py-8">No data available in table</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
+                    <div>Showing 0 to 0 of 0 entries</div>
+                    <div class="flex gap-2">
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TESTIMONIALS TAB -->
+        <div id="testimonials-tab" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                <div></div>
+                <button
+                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-lg shadow-sm border border-border hover:bg-gray-50 transition-colors">+
+                    Add Testimonial</button>
+            </div>
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="flex justify-between items-center mb-6 text-[14px]">
+                    <div class="flex items-center">
+                        Show <select class="mx-2 border border-border rounded p-1">
+                            <option>10</option>
+                        </select> entries
+                    </div>
+                    <div class="flex items-center">
+                        Search: <input type="text"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Title <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Priority <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Review <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" class="text-center text-text-muted py-8">No data available in table</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
+                    <div>Showing 0 to 0 of 0 entries</div>
+                    <div class="flex gap-2">
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FAQ TAB -->
+        <div id="faq-tab" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                <div></div>
+                <button
+                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-lg shadow-sm border border-border hover:bg-gray-50 transition-colors">+
+                    Add Faq</button>
+            </div>
+            <div class="bg-white rounded-[16px] p-6 shadow-sm border border-border/50 text-text-main">
+                <div class="flex justify-between items-center mb-6 text-[14px]">
+                    <div class="flex items-center">
+                        Show <select class="mx-2 border border-border rounded p-1">
+                            <option>10</option>
+                        </select> entries
+                    </div>
+                    <div class="flex items-center">
+                        Search: <input type="text"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Question <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Answer <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Sort Order <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" class="text-center text-text-muted py-8">No data available in table</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
+                    <div>Showing 0 to 0 of 0 entries</div>
+                    <div class="flex gap-2">
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
+                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Custom JS -->
+    <script type="module" src="/src/js/admin/main.js"></script>
+</body>
+
+</html>

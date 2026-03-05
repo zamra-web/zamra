@@ -10,8 +10,7 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 main: resolve(__dirname, 'index.html'),
-                flightSearch: resolve(__dirname, 'flight-search.html'),
-                agentPortal: resolve(__dirname, 'agent-portal.html')
+                admin: resolve(__dirname, 'admin.html')
             }
         }
     }

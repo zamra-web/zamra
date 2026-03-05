@@ -40,31 +40,49 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 3. Populate Sectors Dynamically
-  const destinations = [
-    { code: 'JED', name: 'JEDDAH' },
-    { code: 'RUH', name: 'RIYADH' },
-    { code: 'DMM', name: 'DAMAMM' },
-    { code: 'DOH', name: 'DOHA' },
-    { code: 'MCT', name: 'MUSCUT' },
-    { code: 'BAH', name: 'BAHRAIN' },
-    { code: 'KWI', name: 'KUWAIT' },
-    { code: 'DXB', name: 'DUBAI' },
-    { code: 'SHJ', name: 'SHARJA' },
-    { code: 'AUH', name: 'ABUDHABI' },
-    { code: 'RKT', name: 'Ras Al Khaimah' },
-    { code: 'AAN', name: 'AL AIN' },
-    { code: 'FJR', name: 'FUJAIRAH' }
+  const indianAirports = [
+    { id: 'kozhikode', code: 'CCJ', name: 'Kozhikode' },
+    { id: 'kochi', code: 'COK', name: 'Kochi' },
+    { id: 'kannur', code: 'CNN', name: 'Kannur' },
+    { id: 'trivandrum', code: 'TRV', name: 'Trivandrum' },
+    { id: 'mangalore', code: 'IXE', name: 'Mangalore' }
   ];
 
-  const originAirports = [
-    { id: 'kozhikode', code: 'CCJ', name: 'KOZHIKKODE' },
-    { id: 'kochi', code: 'COK', name: 'KOCHI' },
-    { id: 'kannur', code: 'CNN', name: 'KANNUR' }
+  const middleEastAirports = [
+    { id: 'jeddah', code: 'JED', name: 'Jeddah' },
+    { id: 'riyadh', code: 'RUH', name: 'Riyadh' },
+    { id: 'dammam', code: 'DMM', name: 'Dammam' },
+    { id: 'doha', code: 'DOH', name: 'Doha' },
+    { id: 'muscat', code: 'MCT', name: 'Muscat' },
+    { id: 'bahrain', code: 'BAH', name: 'Bahrain' },
+    { id: 'kuwait', code: 'KWI', name: 'Kuwait' },
+    { id: 'dubai', code: 'DXB', name: 'Dubai' },
+    { id: 'sharjah', code: 'SHJ', name: 'Sharjah' },
+    { id: 'abudhabi', code: 'AUH', name: 'Abu Dhabi' },
+    { id: 'rasalkhaimah', code: 'RKT', name: 'Ras Al Khaimah' },
+    { id: 'alain', code: 'AAN', name: 'Al Ain' },
+    { id: 'fujairah', code: 'FJR', name: 'Fujairah' }
   ];
 
-  originAirports.forEach(origin => {
-    const grid = document.getElementById(`grid-${origin.id}`);
-    if (grid) {
+  const gridsContainer = document.getElementById('flight-grids-container');
+
+  if (gridsContainer) {
+    const renderSection = (origin, destinations) => {
+      // Create section container
+      const sectionDiv = document.createElement('div');
+      sectionDiv.className = 'mb-[50px]';
+
+      // Create header
+      sectionDiv.innerHTML = `
+        <h3 class="flex items-center gap-3 text-[24px] text-accent mb-6 border-b-2 border-border pb-3 font-heading font-bold">
+          <i class="bi bi-geo-alt-fill text-[1.1em]"></i> From ${origin.name} (${origin.code})
+        </h3>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6" id="grid-${origin.id}"></div>
+      `;
+
+      gridsContainer.appendChild(sectionDiv);
+      const grid = sectionDiv.querySelector(`#grid-${origin.id}`);
+
       destinations.forEach(dest => {
         const sectorCode = `${origin.code} ${dest.code}`;
         const routeName = `${origin.name} → ${dest.name}`;
@@ -75,12 +93,26 @@ document.addEventListener('DOMContentLoaded', () => {
         card.innerHTML = `<h4 class="text-[15px] font-extrabold text-text-main m-0 flex items-center gap-[12px] z-[2] relative">${origin.name} <i class="bi bi-airplane text-primary text-[18px]"></i> ${dest.name}</h4>`;
 
         // Add click event for modal
-        card.addEventListener('click', () => openModal(sectorCode, routeName));
+        card.addEventListener('click', () => {
+          if (typeof openModal === 'function') {
+            openModal(sectorCode, routeName);
+          }
+        });
 
         grid.appendChild(card);
       });
-    }
-  });
+    };
+
+    // First, Indian to Middle East
+    indianAirports.forEach(origin => {
+      renderSection(origin, middleEastAirports);
+    });
+
+    // Second, Middle East to Indian
+    middleEastAirports.forEach(origin => {
+      renderSection(origin, indianAirports);
+    });
+  }
 
   // 4. Modal Functionality
   const modal = document.getElementById('sector-modal');
@@ -178,6 +210,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize remaining components
   setupPartnersSlider();
+
+  // 5. Live Search Button Event Listener
+  const liveSearchBtn = document.getElementById('live-search-btn');
+  if (liveSearchBtn) {
+    liveSearchBtn.addEventListener('click', () => {
+      if (typeof searchFlights === 'function') {
+        searchFlights();
+      }
+    });
+  }
 });
 
 
@@ -559,50 +601,125 @@ async function searchFlights() {
     if (locName) locName.innerText = dest;
 
     if (!data || data.length === 0) {
-      list.innerHTML = `<div style="text-align:center;color:var(--z-text-soft);padding:40px;font-weight:700;border:2px dashed var(--z-border);border-radius:14px;margin-top:20px;">No flights currently found for ${dest}. Try another destination.</div>`;
+      list.innerHTML = `<div class="text-center text-text-muted p-10 font-bold border-2 border-dashed border-border rounded-[24px] mt-6 bg-[#f8fafc]">No flights currently found for ${dest}. Try another destination.</div>`;
       return;
     }
 
-    // Build Flight Cards
     let htmlContent = '';
     data.forEach(item => {
-      htmlContent += `
-            <div class="flight-item">
-              <div class="flight-flex">
-                <div class="flight-info-group" style="flex: 1;">
-                  <div style="text-align: center; min-width: 80px;">
-                    <img src="https://flycreativekdr.com:8443/FlyCreativeNG/css2/img/Flight_Logo/${item.airline}.png" 
-                         onerror="this.src='https://via.placeholder.com/80x30?text=${item.airline || 'Flight'}'" style="max-height: 32px; margin: 0 auto;">
-                    <span style="font-size: 9px; font-weight: 900; color: var(--z-text-soft); text-transform: uppercase; display: block; margin-top: 8px;">${item.airline}</span>
-                  </div>
-                  <div>
-                    <div style="font-size: 10px; font-weight: 700; color: var(--z-blue); background: var(--z-blue-bg); padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 4px;">${item.date}</div>
-                    <div class="flight-route-text" style="font-size: 24px; color: var(--z-navy);">
-                      ${item.origin} 
-                      <svg style="width:14px;height:14px;color:var(--z-blue);margin:0 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                      ${item.destination}
-                    </div>
-                    <div class="flight-meta-text" style="display: flex; gap: 16px; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--z-text-soft);">
-                      <span style="display:flex;align-items:center;gap:4px;">
-                        <svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        ${item.departure} — ${item.arrival}
-                      </span>
-                      <span style="display:flex;align-items:center;gap:4px;color:var(--z-green);">
-                        <svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18v3M20 18v3M5 8h14M4 18h16M4 11v7M20 11v7M6 14v4M18 14v4M8 4h8v7H8z"/></svg>
-                        ${item.seats} Seats
-                      </span>
-                    </div>
-                  </div>
-                </div>
 
-                <div style="text-align: right; border-left: 1px solid var(--z-border); padding-left: 24px; min-width: 140px;">
-                  <div style="font-size: 10px; font-weight: 900; color: var(--z-text-soft); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Net Fare</div>
-                  <div class="flight-price-text" style="font-size: 30px; letter-spacing: -0.03em; margin-bottom: 12px;">${item.price}</div>
-                  <button class="btn-book" style="font-size: 10px; padding: 8px 24px; text-transform: uppercase; letter-spacing: 0.1em; width: 100%;">Select</button>
-                </div>
+      // Parse Date (e.g., "06 Mar 2026" -> "06", "Mar")
+      let day = "00", month = "MTH";
+      if (item.date) {
+        const dParts = item.date.split(' ');
+        if (dParts.length >= 2) {
+          day = dParts[0];
+          month = dParts[1];
+        } else {
+          day = item.date;
+          month = "";
+        }
+      }
+
+      const waMsg = encodeURIComponent(`Hello Zamra Travels, I'm interested in booking this flight:\n\n✈️ *${item.airline}*\n🛫 From: *${item.origin}*\n🛬 To: *${item.destination}*\n📅 Date: *${item.date}*\n⏰ Dep: ${item.departure} | Arr: ${item.arrival}\n💵 Price: *${item.price}*\n\nPlease confirm availability!`);
+      const waLink = `https://wa.me/919846606739?text=${waMsg}`;
+
+      let airlineName = (item.airline || "").toUpperCase().trim();
+      let matchedLogo = "";
+
+      const zamraLogos = {
+        "INDIGO": "https://zamratravels.com/storage/flights/aOmxqJ17OLg2jUGzvAG8mEkihGaJo0raHn6wmBYS.png",
+        "AIR INDIA EXPRESS": "https://zamratravels.com/storage/flights/GzhMpRifybCj24bixwVC57QvUfG0y013MqZWBKPI.png",
+        "AIR ARABIA": "https://zamratravels.com/storage/flights/9trVGL2m5llr8dGoc1dNkQthLPMKMjcRVyEa0aLG.png",
+        "FLYNAS": "https://zamratravels.com/storage/flights/5uKuXz2Ozld7DKhkObiswnAzAOvZZrFKPSqJN0TO.png",
+        "OMAN AIR": "https://zamratravels.com/storage/flights/UwvtahPomKIkhppwUwEy75yQvH67jCFkv2L8McNP.png",
+        "SALAM AIR": "https://zamratravels.com/storage/flights/MMG2OqdpwmAQ0Jq0PTz8DbKUSNo2hJXDLU4c3cqE.png",
+        "AIR INDIA": "https://zamratravels.com/storage/flights/WwVHAryL03uvrrxZ13kFYRUz73GPSEloClZhuUqL.png",
+        "SAUDIA": "https://zamratravels.com/storage/flights/q3RdRv65lOXLdUcBna8i9EwM9OgcF4IDbxL3xuff.png"
+      };
+
+      if (airlineName.includes("EXPRESS") || airlineName === "IX") matchedLogo = zamraLogos["AIR INDIA EXPRESS"];
+      else if (airlineName.includes("INDIA") || airlineName === "AI") matchedLogo = zamraLogos["AIR INDIA"];
+      else if (airlineName.includes("SAUD") || airlineName.includes("SOUD") || airlineName === "SV") matchedLogo = zamraLogos["SAUDIA"];
+      else if (airlineName.includes("INDIGO") || airlineName === "6E") matchedLogo = zamraLogos["INDIGO"];
+      else if (airlineName.includes("ARABIA") || airlineName === "G9") matchedLogo = zamraLogos["AIR ARABIA"];
+      else if (airlineName.includes("FLYNAS") || airlineName === "XY") matchedLogo = zamraLogos["FLYNAS"];
+      else if (airlineName.includes("OMAN") || airlineName === "WY") matchedLogo = zamraLogos["OMAN AIR"];
+      else if (airlineName.includes("SALAM") || airlineName === "OV") matchedLogo = zamraLogos["SALAM AIR"];
+      else matchedLogo = `https://flycreativekdr.com:8443/FlyCreativeNG/css2/img/Flight_Logo/${item.airline}.png`;
+
+      htmlContent += `
+        <div class="bg-white rounded-[16px] p-4 md:p-6 mb-4 shadow-[0_2px_12px_rgba(13,31,60,0.06)] border border-border transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(13,31,60,0.1)] flex flex-col lg:flex-row items-center justify-between gap-6">
+          
+          <!-- Left side: Date & Airline -->
+          <div class="flex items-center gap-6 md:gap-8 w-full lg:w-auto">
+            <div class="text-center font-heading leading-tight shrink-0 flex flex-col items-center">
+              <div class="text-[36px] md:text-[42px] font-medium text-navy tracking-tight" style="line-height: 1;">${day}</div>
+              <div class="text-[20px] font-medium text-navy capitalize">${month}</div>
+            </div>
+            
+            <div class="w-[100px] shrink-0 text-center flex items-center justify-center">
+              <img src="${matchedLogo}" 
+                   onerror="this.style.display='none'" 
+                   class="max-h-[35px] max-w-full object-contain">
+            </div>
+          </div>
+
+          <!-- Middle side: Routes & Details -->
+          <div class="flex flex-1 w-full flex-col md:flex-row items-start md:items-center justify-between gap-8 lg:px-6">
+            
+            <!-- Route -->
+            <div class="flex items-center gap-6 md:gap-8 mx-auto md:mx-0">
+              <div class="text-left w-[100px]">
+                <div class="text-[13px] font-medium text-text-muted mb-1 capitalize">From</div>
+                <div class="text-[22px] font-medium text-navy uppercase leading-none tracking-tight">${item.origin}</div>
+                <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.origin.substring(0, 3)}</div>
+              </div>
+              
+              <div class="w-[46px] h-[46px] rounded-full bg-[#f8fafc] border border-border flex items-center justify-center shrink-0 shadow-sm relative">
+                <i class="bi bi-arrow-right text-primary text-[20px]"></i>
+              </div>
+              
+              <div class="text-left w-[100px]">
+                <div class="text-[13px] font-medium text-text-muted mb-1 capitalize">To</div>
+                <div class="text-[22px] font-medium text-navy uppercase leading-none tracking-tight">${item.destination}</div>
+                <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.destination.substring(0, 3)}</div>
               </div>
             </div>
-          `;
+
+            <!-- Times & Info -->
+            <div class="flex gap-10 md:gap-14 text-sm mx-auto md:mx-0 mt-4 md:mt-0">
+              <div class="text-left">
+                <div class="text-[14px] font-bold text-navy mb-3">Flight time</div>
+                <div class="text-[13px] text-text-muted font-medium mb-1.5 flex items-center">Dep- ${item.departure}</div>
+                <div class="text-[13px] text-text-muted font-medium flex items-center">Arr- ${item.arrival}</div>
+              </div>
+              <div class="text-left">
+                <div class="text-[14px] font-bold text-navy mb-3">Luggage</div>
+                <div class="text-[13px] text-text-muted font-medium mb-1.5 flex items-center">30 KG</div>
+                <div class="text-[14px] font-bold text-navy flex items-center">+ 7 KG</div>
+              </div>
+            </div>
+            
+          </div>
+
+          <!-- Right side: Price & Action -->
+          <div class="flex flex-col items-center justify-center w-full lg:w-[180px] mt-4 lg:mt-0 pt-6 lg:pt-0 border-t lg:border-t-0 border-border shrink-0">
+            <div class="bg-[#f8fafc] rounded-xl p-4 w-full flex flex-col items-center border border-border/50">
+              <span class="text-[28px] md:text-[32px] font-medium text-navy tracking-tight mb-3 leading-none flex items-center">
+                ${item.price}
+              </span>
+              <a href="${waLink}" target="_blank" class="w-full text-center bg-[#2b2b2b] text-white font-medium text-[15px] px-6 py-2.5 rounded justify-center flex items-center hover:bg-black transition-colors">
+                Book Now
+              </a>
+              <div class="text-[11px] text-green-600 font-bold mt-2.5 text-center uppercase tracking-wide flex items-center gap-1">
+                <i class="bi bi-person-check-fill"></i> ${item.seats} Seats Available
+              </div>
+            </div>
+          </div>
+
+        </div>
+      `;
     });
 
     list.innerHTML = htmlContent;
@@ -613,3 +730,6 @@ async function searchFlights() {
     console.error(error);
   }
 }
+
+// Expose to global scope for inline onclick handler from HTML
+window.searchFlights = searchFlights;
