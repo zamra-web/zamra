@@ -628,14 +628,14 @@ async function searchFlights() {
       let matchedLogo = "";
 
       const zamraLogos = {
-        "INDIGO": "https://zamratravels.com/storage/flights/aOmxqJ17OLg2jUGzvAG8mEkihGaJo0raHn6wmBYS.png",
-        "AIR INDIA EXPRESS": "https://zamratravels.com/storage/flights/GzhMpRifybCj24bixwVC57QvUfG0y013MqZWBKPI.png",
-        "AIR ARABIA": "https://zamratravels.com/storage/flights/9trVGL2m5llr8dGoc1dNkQthLPMKMjcRVyEa0aLG.png",
-        "FLYNAS": "https://zamratravels.com/storage/flights/5uKuXz2Ozld7DKhkObiswnAzAOvZZrFKPSqJN0TO.png",
-        "OMAN AIR": "https://zamratravels.com/storage/flights/UwvtahPomKIkhppwUwEy75yQvH67jCFkv2L8McNP.png",
-        "SALAM AIR": "https://zamratravels.com/storage/flights/MMG2OqdpwmAQ0Jq0PTz8DbKUSNo2hJXDLU4c3cqE.png",
-        "AIR INDIA": "https://zamratravels.com/storage/flights/WwVHAryL03uvrrxZ13kFYRUz73GPSEloClZhuUqL.png",
-        "SAUDIA": "https://zamratravels.com/storage/flights/q3RdRv65lOXLdUcBna8i9EwM9OgcF4IDbxL3xuff.png"
+        "INDIGO": "/assets/img/flights/indigo.png",
+        "AIR INDIA EXPRESS": "/assets/img/flights/air-india-express.png",
+        "AIR ARABIA": "/assets/img/flights/air-arabia.png",
+        "FLYNAS": "/assets/img/flights/flynas.png",
+        "OMAN AIR": "/assets/img/flights/oman-air.png",
+        "SALAM AIR": "/assets/img/flights/salam-air.png",
+        "AIR INDIA": "/assets/img/flights/air-india.png",
+        "SAUDIA": "/assets/img/flights/saudia.png"
       };
 
       if (airlineName.includes("EXPRESS") || airlineName === "IX") matchedLogo = zamraLogos["AIR INDIA EXPRESS"];
