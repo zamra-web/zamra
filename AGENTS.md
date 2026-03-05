@@ -24,3 +24,8 @@ Zamra Travels is a premium flight booking and travel services web portal. It pro
 - **Styling:** Use **Tailwind CSS v4** utility classes for all styling. Do not write custom Vanilla CSS unless absolutely necessary (and if so, place it in `style.css`).
 - **Code Modularity:** Always maintain separation of concerns. Do not mix inline `<style>` and `<script>` heavily in HTML; keep them in the `src/` directory.
 - **Continuous Updating:** **Whenever major file structure changes, migrations, or stack updates are made, you MUST update this `AGENTS.md` file to keep it relevant.**
+
+## Asset Management 
+- **Local Images:** All external images (from Unsplash, Zamra CDN, etc.) have been migrated to local hosting within `web/public/assets/img/`. All source code must reference these local assets instead of external HTTP links. A helper script named `download_images.sh` was created to automate the initial fetch of these files into the workspace.
+- **Component Styling Updates:** The footer and contact headers have been customized utilizing Tailwind text color classes (e.g., `text-white`) without relying strictly on the base theme.
+
