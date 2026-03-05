@@ -1,46 +1,147 @@
 @import "tailwindcss";
 
 @theme {
-    /* Color Palette */
-    --color-primary: #1a73e8; /* Zamra Blue */
-    --color-primary-dark: #1558c0;
-    --color-primary-light: #e8f0fe;
+    /* Premium Color Palette (from Logo & UI/UX Skill) */
+    --color-primary: #0c4a8a;
+    /* Zamra Dark Blue */
+    --color-primary-dark: #073160;
+    --color-primary-light: #60a5fa;
+    /* Zamra Light Blue */
 
-    --color-accent: #ff6b35; /* Vibrant Orange for accents/CTAs */
-    --color-accent-dark: #e85d2b;
+    /* Sleek gradient components */
+    --color-primary-gradient-start: #0c4a8a;
+    --color-primary-gradient-end: #1e67c2;
 
-    --color-text-main: #0d1f3c; /* Deep Navy */
-    --color-text-muted: #475569; /* Slate */
+    --color-accent: #F97316;
+    /* Vibrant Orange for CTAs */
+    --color-accent-dark: #C2410B;
+
+    --color-text-main: #0f172a;
+    /* Deeper Navy */
+    --color-text-muted: #475569;
+    /* Slate */
     --color-text-light: #94a3b8;
 
     --color-bg-main: #f8fafc;
     --color-bg-card: #ffffff;
-
     --color-border: #e2e8f0;
 
-    /* Zamra Web Portal (legacy elements) colors */
+    /* Zamra Web Portal (legacy admin elements) colors */
     --color-navy: #0f172a;
-    --color-navy-dark: #0b1120;
+    --color-navy-dark: #020617;
 
     /* Typography */
     --font-heading: 'Outfit', sans-serif;
     --font-body: 'Inter', sans-serif;
+
+    /* Custom Premium Shadows */
+    --shadow-premium-soft: 0 10px 40px -10px rgba(0, 0, 0, 0.06);
+    --shadow-premium-hover: 0 20px 40px -10px rgba(12, 74, 138, 0.15);
+    /* Tinted with Primary */
+    --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+
+    /* Aurora Flow Animation Duration */
+    --animate-aurora-flow: aurora-flow 15s ease infinite alternate;
+
+    /* Infinite Logo Loop Animation */
+    --animate-loop-scroll: loop-scroll 35s linear infinite;
+}
+
+@keyframes loop-scroll {
+    0% {
+        transform: translateX(0);
+    }
+
+    100% {
+        transform: translateX(-50%);
+    }
 }
 
 @layer base {
     html {
         scroll-behavior: smooth;
     }
-    
+
     body {
         font-family: var(--font-body);
         background-color: var(--color-bg-main);
         color: var(--color-text-muted);
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        /* Adds elegance to rendering */
     }
 
-    h1, h2, h3, h4, h5, h6 {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
         font-family: var(--font-heading);
         color: var(--color-text-main);
+        letter-spacing: -0.02em;
+        /* Sleek tracking */
+    }
+
+    /* Improve focus states globally */
+    :focus-visible {
+        outline: 2px solid var(--color-primary-light);
+        outline-offset: 2px;
+    }
+}
+
+@layer utilities {
+
+    /* Smooth transition for all hover elements */
+    .premium-transition {
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Elegant hover lift */
+    .premium-hover-lift {
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .premium-hover-lift:hover {
+        transform: translateY(-0.375rem);
+        box-shadow: var(--shadow-premium-hover);
+    }
+
+    /* Premium Glassmorphism (from UI/UX Skill) */
+    .glass-effect {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: var(--shadow-glass);
+    }
+
+    /* Aurora Effects Container */
+    .aurora-container {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .aurora-bg {
+        background: radial-gradient(circle at 0% 0%, var(--color-primary-light) 0%, transparent 50%),
+            radial-gradient(circle at 100% 0%, var(--color-primary) 0%, transparent 50%),
+            radial-gradient(circle at 100% 100%, #38BDF8 0%, transparent 50%),
+            radial-gradient(circle at 0% 100%, var(--color-bg-main) 0%, transparent 50%);
+        background-size: 200% 200%;
+        animation: aurora-flow 15s ease infinite alternate;
+    }
+}
+
+@keyframes aurora-flow {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
     }
 }

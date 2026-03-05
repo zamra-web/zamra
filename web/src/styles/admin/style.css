@@ -1,51 +1,75 @@
 @import "tailwindcss";
 
 :root {
-    --primary: #2563eb;
-    --primary-light: #eff6ff;
+    --primary: #0c4a8a;
+    --primary-light: #60a5fa;
+    --primary-dark: #073160;
+    --color-primary-gradient-start: #0c4a8a;
+    --color-primary-gradient-end: #1e67c2;
     --navy: #0f172a;
     --navy-light: #1e293b;
     --text-main: #334155;
     --text-muted: #64748b;
     --border: #e2e8f0;
     --bg-main: #f8fafc;
+    --shadow-premium-soft: 0 10px 40px -10px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.03);
+    --shadow-premium-hover: 0 20px 40px -10px rgba(12, 74, 138, 0.15), 0 8px 16px rgba(12, 74, 138, 0.1);
 }
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: var(--navy-light);
-    color: #fff;
+    background-color: var(--bg-main);
+    color: var(--navy);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.premium-hover-lift {
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.premium-hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-premium-hover);
+}
+
+.premium-transition {
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Custom Table Styles */
 .admin-table-container {
     background: white;
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-premium-soft);
 }
 
 .admin-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     text-align: left;
 }
 
 .admin-table th {
-    background-color: #334155;
-    color: #e2e8f0;
-    font-weight: 600;
+    background-color: #f8fafc;
+    color: var(--text-muted);
+    font-weight: 700;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
 }
 
 .admin-table td {
     padding: 1rem 1.5rem;
     font-size: 0.875rem;
-    color: #334155;
-    border-bottom: 1px solid #f1f5f9;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border);
+    transition: background-color 0.2s ease;
 }
 
 .admin-table tr:last-child td {
@@ -53,7 +77,7 @@ body {
 }
 
 .admin-table tr:hover td {
-    background-color: #f8fafc;
+    background-color: #f1f5f9;
 }
 
 /* Tab Transitions */
