@@ -21,9 +21,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
   <!-- Custom CSS -->
-  <script type="module" crossorigin src="/assets/main-CLvwH9sq.js"></script>
+  <script type="module" crossorigin src="/assets/main-B4b7xqpw.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-BVBt70wz.css">
+  <link rel="stylesheet" crossorigin href="/assets/main-BukeKn5_.css">
 </head>
 
 <body>
@@ -31,14 +31,12 @@
   <!-- Header -->
   <header class="sticky top-0 z-[1000] glass-effect border-b border-white/20 transition-all" id="header">
     <div class="w-full max-w-[1280px] mx-auto px-6 flex justify-between items-center h-[80px]">
-      <a href="index.html" class="flex items-center">
+      <a href="#hero" class="flex items-center">
         <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[40px] w-auto mix-blend-multiply">
       </a>
 
       <nav class="hidden md:block" id="nav-menu">
         <ul class="flex gap-8 list-none m-0 p-0">
-          <li><a href="index.html#hero"
-              class="text-primary font-heading font-semibold text-[15px] relative py-2">Home</a></li>
           <li><a href="index.html#about"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">About</a>
           </li>
@@ -79,7 +77,7 @@
   <section id="hero" class="relative min-h-[85vh] flex items-center overflow-hidden py-20 aurora-container">
     <div class="absolute inset-0 z-[-2] aurora-bg opacity-40"></div>
     <div class="absolute inset-0 z-[-1]">
-      <img src="https://zamratravels.com/assets/img/hero-banner-bg.png" alt="Travel Background"
+      <img src="/assets/img/hero-banner-bg.png" alt="Travel Background"
         class="w-full h-full object-cover opacity-80 mix-blend-multiply">
       <div class="absolute inset-0 bg-gradient-to-br from-[#f8fafc]/80 via-white/60 to-[#f8fafc]/80"></div>
       <div
@@ -168,8 +166,8 @@
         </div>
       </div>
 
-      <div class="p-[32px] flex gap-[16px] items-end flex-wrap">
-        <div class="flex-1 min-w-[200px]">
+      <div class="p-[20px] md:p-[32px] flex gap-[16px] items-end flex-wrap">
+        <div class="flex-1 w-full md:min-w-[200px]">
           <div class="text-[13px] font-bold text-text-muted mb-[8px]">Destination City</div>
           <select id="destination"
             class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] h-[52px] text-[15px] text-text-main font-bold cursor-pointer premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]">
@@ -196,7 +194,7 @@
           </select>
         </div>
         <button id="live-search-btn"
-          class="flex-none w-auto px-[32px] h-[52px] bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)] text-white rounded-[12px] font-bold text-[15px] cursor-pointer premium-transition premium-hover-lift flex items-center justify-center gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed">
+          class="flex-none w-full md:w-auto px-[32px] h-[52px] bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)] text-white rounded-[12px] font-bold text-[15px] cursor-pointer premium-transition premium-hover-lift flex items-center justify-center gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed">
           <i class="bi bi-search font-bold"></i>
           Check Availability
         </button>
@@ -214,7 +212,7 @@
           <div
             class="inline-block w-[40px] h-[40px] border-[3px] border-[rgba(26,115,232,0.2)] rounded-full border-t-primary animate-spin">
           </div>
-          <div class="mt-[16px] font-bold text-text-mid opacity-80 animate-pulse">Syncing with FlyCreative Servers...
+          <div class="mt-[16px] font-bold text-text-mid opacity-80 animate-pulse">Syncing with Zamra Servers...
           </div>
         </div>
 
@@ -223,8 +221,68 @@
     </div>
   </section>
 
+  <!-- Hajj & Umrah Section -->
+  <section id="hajj-umrah" class="py-[60px] md:py-[100px] bg-white">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      <div class="mb-[60px] text-center">
+        <h2
+          class="text-[40px] font-heading font-bold text-text-main mb-4 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-[60px] after:h-1 after:bg-accent after:rounded-full">
+          Hajj & Umrah Services
+        </h2>
+        <p class="text-[18px] text-text-muted mt-4">Experience a spiritual journey with our premium packages</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+        <!-- Card 1 -->
+        <a href="#enquiry"
+          class="group relative rounded-[24px] overflow-hidden aspect-[4/5] md:aspect-auto md:h-[450px] shadow-[var(--shadow-premium-soft)] premium-hover-lift block ring-1 ring-border/50">
+          <img src="/assets/img/hajj-seats.jpg" alt="HAJJ Seats"
+            class="absolute inset-0 w-full h-full object-cover premium-transition duration-700 group-hover:scale-110">
+          <div
+            class="absolute inset-0 bg-gradient-to-t from-[#0d1f3c]/90 via-[#0d1f3c]/20 to-transparent opacity-80 group-hover:opacity-90 premium-transition">
+          </div>
+          <div class="absolute bottom-0 left-0 p-8 w-full z-10">
+            <h3 class="text-white font-heading font-bold text-[36px] md:text-[42px] mb-1 leading-none tracking-tight">
+              HAJJ</h3>
+            <p class="text-white/90 text-[18px] font-medium">Seats</p>
+          </div>
+        </a>
+
+        <!-- Card 2 -->
+        <a href="#enquiry"
+          class="group relative rounded-[24px] overflow-hidden aspect-[4/5] md:aspect-auto md:h-[450px] shadow-[var(--shadow-premium-soft)] premium-hover-lift block ring-1 ring-border/50">
+          <img src="/assets/img/umrah-packages.jpg" alt="Umrah Packages"
+            class="absolute inset-0 w-full h-full object-cover premium-transition duration-700 group-hover:scale-110">
+          <div
+            class="absolute inset-0 bg-gradient-to-t from-[#0d1f3c]/90 via-[#0d1f3c]/20 to-transparent opacity-80 group-hover:opacity-90 premium-transition">
+          </div>
+          <div class="absolute bottom-0 left-0 p-8 w-full z-10">
+            <h3 class="text-white font-heading font-bold text-[36px] md:text-[42px] mb-1 leading-none tracking-tight">
+              Umrah</h3>
+            <p class="text-white/90 text-[18px] font-medium">Packages</p>
+          </div>
+        </a>
+
+        <!-- Card 3 -->
+        <a href="#enquiry"
+          class="group relative rounded-[24px] overflow-hidden aspect-[4/5] md:aspect-auto md:h-[450px] shadow-[var(--shadow-premium-soft)] premium-hover-lift block ring-1 ring-border/50">
+          <img src="/assets/img/umrah-visa.jpg" alt="Umrah E Visa"
+            class="absolute inset-0 w-full h-full object-cover premium-transition duration-700 group-hover:scale-110">
+          <div
+            class="absolute inset-0 bg-gradient-to-t from-[#0d1f3c]/90 via-[#0d1f3c]/20 to-transparent opacity-80 group-hover:opacity-90 premium-transition">
+          </div>
+          <div class="absolute bottom-0 left-0 p-8 w-full z-10">
+            <h3 class="text-white font-heading font-bold text-[36px] md:text-[42px] mb-1 leading-none tracking-tight">
+              Umrah</h3>
+            <p class="text-white/90 text-[18px] font-medium">E Visa</p>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
   <!-- About Section -->
-  <section id="about" class="py-[100px] bg-bg-main relative z-[1]">
+  <section id="about" class="py-[60px] md:py-[100px] bg-bg-main relative z-[1]">
     <!-- Decorative Circle -->
     <div
       class="absolute top-[10%] -left-[100px] w-[300px] h-[300px] rounded-full bg-[radial-gradient(circle,rgba(13,110,253,0.05)_0%,rgba(255,255,255,0)_70%)] z-0">
@@ -235,7 +293,7 @@
         <div class="mb-10 lg:mb-0">
           <div
             class="relative rounded-[24px] overflow-hidden group shadow-[var(--shadow-premium-soft)] ring-1 ring-border/50">
-            <img src="https://zamratravels.com/assets/img/about_us.png" alt="About Zamra Travels"
+            <img src="/assets/img/about_us.png" alt="About Zamra Travels"
               class="w-full h-auto block premium-transition duration-700 group-hover:scale-110">
             <div
               class="absolute inset-0 bg-gradient-to-t from-navy/60 to-transparent opacity-0 group-hover:opacity-100 premium-transition duration-500">
@@ -257,7 +315,7 @@
             <h2 class="text-[40px] font-heading font-bold text-text-main mb-6 leading-[1.2]">Your Gateway to
               Extraordinary Journeys</h2>
             <p class="text-[17.6px] text-text-light mb-8 leading-[1.7]">
-              At <strong class="text-text-main font-semibold">WanderWise Travels</strong>, we believe every journey
+              At <strong class="text-text-main font-semibold">Zamra Travels</strong>, we believe every journey
               tells a story. Whether
               you're planning your dream vacation, a quick weekend escape, or a cultural adventure, we're
               here to make it seamless, memorable, and truly extraordinary.
@@ -305,7 +363,7 @@
 
 
   <!-- Services Section -->
-  <section id="services" class="py-[100px] bg-bg-main">
+  <section id="services" class="py-[60px] md:py-[100px] bg-bg-main">
     <div class="w-full max-w-[1280px] mx-auto px-6">
       <div class="mb-[60px] text-center">
         <h2
@@ -393,7 +451,7 @@
 
 
   <!-- Stats Section -->
-  <section id="stats" class="py-[80px] bg-primary text-white relative overflow-hidden">
+  <section id="stats" class="py-[60px] md:py-[80px] bg-primary text-white relative overflow-hidden">
     <div
       class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_20%_100%,rgba(255,255,255,0.8)_0%,transparent_50%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.8)_0%,transparent_50%)]">
     </div>
@@ -424,7 +482,7 @@
   </section>
 
   <!-- Partners Section -->
-  <section class="py-[80px] bg-white border-b border-border">
+  <section class="py-[60px] md:py-[80px] bg-white border-b border-border">
     <div class="w-full max-w-[1280px] mx-auto px-6">
       <div class="mb-[50px] text-center">
         <h2
@@ -432,37 +490,54 @@
           Our Flight Ticketing Partners</h2>
         <p class="text-[16px] text-text-muted mt-4">Trusted by major airlines worldwide</p>
       </div>
-      <div class="flex flex-wrap justify-center items-center gap-8 md:gap-12 opacity-80">
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/aOmxqJ17OLg2jUGzvAG8mEkihGaJo0raHn6wmBYS.png" alt="Indigo"
-            class="w-full h-auto"></div>
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/GzhMpRifybCj24bixwVC57QvUfG0y013MqZWBKPI.png"
-            alt="Air India Express" class="w-full h-auto"></div>
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/9trVGL2m5llr8dGoc1dNkQthLPMKMjcRVyEa0aLG.png" alt="Air Arabia"
-            class="w-full h-auto"></div>
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/5uKuXz2Ozld7DKhkObiswnAzAOvZZrFKPSqJN0TO.png" alt="Flynas"
-            class="w-full h-auto"></div>
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/UwvtahPomKIkhppwUwEy75yQvH67jCFkv2L8McNP.png" alt="Oman Air"
-            class="w-full h-auto"></div>
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/MMG2OqdpwmAQ0Jq0PTz8DbKUSNo2hJXDLU4c3cqE.png" alt="Salam Air"
-            class="w-full h-auto"></div>
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/WwVHAryL03uvrrxZ13kFYRUz73GPSEloClZhuUqL.png" alt="Air India"
-            class="w-full h-auto"></div>
-        <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
-            src="https://zamratravels.com/storage/flights/q3RdRv65lOXLdUcBna8i9EwM9OgcF4IDbxL3xuff.png"
-            alt="Saudi Airlines" class="w-full h-auto"></div>
+      <div
+        class="relative w-full overflow-hidden [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)] py-6">
+        <div class="flex w-max animate-loop-scroll hover:[animation-play-state:paused] opacity-80 cursor-pointer">
+          <!-- Set 1 -->
+          <div class="flex shrink-0 items-center gap-8 md:gap-16 px-4 md:px-8">
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/indigo.png" alt="Indigo" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/air-india-express.png" alt="Air India Express" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/air-arabia.png" alt="Air Arabia" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/flynas.png" alt="Flynas" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/oman-air.png" alt="Oman Air" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/salam-air.png" alt="Salam Air" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/air-india.png" alt="Air India" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/saudia.png" alt="Saudi Airlines" class="w-full h-auto"></div>
+          </div>
+          <!-- Set 2 (Duplicate for infinite loop) -->
+          <div class="flex shrink-0 items-center gap-8 md:gap-16 px-4 md:px-8">
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/indigo.png" alt="Indigo" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/air-india-express.png" alt="Air India Express" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/air-arabia.png" alt="Air Arabia" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/flynas.png" alt="Flynas" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/oman-air.png" alt="Oman Air" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/salam-air.png" alt="Salam Air" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/air-india.png" alt="Air India" class="w-full h-auto"></div>
+            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+                src="/assets/img/flights/saudia.png" alt="Saudi Airlines" class="w-full h-auto"></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- Sectors Section -->
-  <section class="py-[100px] bg-white border-b border-border" id="flights">
+  <section class="py-[60px] md:py-[100px] bg-white border-b border-border" id="flights">
     <div class="w-full max-w-[1280px] mx-auto px-6">
       <div class="text-center mb-[60px]">
         <h2
@@ -480,7 +555,7 @@
 
 
   <!-- Contact Section -->
-  <section id="contact" class="py-[100px] bg-bg-main">
+  <section id="contact" class="py-[60px] md:py-[100px] bg-bg-main">
     <div class="w-full max-w-[1280px] mx-auto px-6">
       <div class="mb-[60px] text-center">
         <h2
@@ -497,7 +572,7 @@
               class="w-[60px] h-[60px] rounded-2xl bg-white/10 flex items-center justify-center text-[24px] shrink-0"><i
                 class="bi bi-geo-alt-fill"></i></div>
             <div>
-              <h4 class="text-[20px] font-heading font-bold mb-1">Our Office</h4>
+              <h4 class="text-[20px] font-heading font-bold mb-1 text-white">Our Office</h4>
               <p class="text-[16px] opacity-80 leading-[1.6]">Malappuram Melmuri<br>Kerala, India</p>
             </div>
           </div>
@@ -506,7 +581,7 @@
               class="w-[60px] h-[60px] rounded-2xl bg-white/10 flex items-center justify-center text-[24px] shrink-0"><i
                 class="bi bi-telephone-fill"></i></div>
             <div>
-              <h4 class="text-[20px] font-heading font-bold mb-1">Call Us</h4>
+              <h4 class="text-[20px] font-heading font-bold mb-1 text-white">Call Us</h4>
               <a href="tel:+919846606739" class="text-[16px] opacity-80 hover:opacity-100 transition-opacity">+91
                 9846606739</a>
             </div>
@@ -516,7 +591,7 @@
               class="w-[60px] h-[60px] rounded-2xl bg-white/10 flex items-center justify-center text-[24px] shrink-0"><i
                 class="bi bi-envelope-fill"></i></div>
             <div>
-              <h4 class="text-[20px] font-heading font-bold mb-1">Email Us</h4>
+              <h4 class="text-[20px] font-heading font-bold mb-1 text-white">Email Us</h4>
               <a href="mailto:info@zamratravels.com"
                 class="text-[16px] opacity-80 hover:opacity-100 transition-opacity">info@zamratravels.com</a>
             </div>
@@ -533,7 +608,7 @@
 
 
   <!-- Enquiry Form Section -->
-  <section id="enquiry" class="py-[100px] relative overflow-hidden bg-bg-main aurora-container">
+  <section id="enquiry" class="py-[60px] md:py-[100px] relative overflow-hidden bg-bg-main aurora-container">
     <div class="absolute inset-0 z-0 aurora-bg opacity-20 hidden md:block"></div>
     <div class="w-full max-w-[1280px] mx-auto px-6 relative z-10">
       <div
@@ -603,12 +678,12 @@
 
 
   <!-- Footer -->
-  <footer class="bg-navy-dark text-white pt-[80px]">
+  <footer class="bg-navy-dark text-white pt-[60px] md:pt-[80px]">
     <div class="w-full max-w-[1280px] mx-auto px-6">
       <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-[60px] pb-[60px] border-b border-white/10">
         <div>
-          <a href="#" class="block mb-[20px]">
-            <img src="/assets/img/favicon.webp" alt="Zamra Travels" class="h-[40px] w-auto">
+          <a href="#hero" class="block mb-[20px]">
+            <img src="/assets/img/favicon.webp" alt="Zamra Travels" class="h-[80px] w-auto">
           </a>
           <p class="text-text-soft leading-[1.6] mb-[24px] max-w-[400px]">Your trusted travel companion offering the
             best deals on flights, visas, tours, and more. Experience the world with comfort and ease.</p>
@@ -644,15 +719,15 @@
           <h4 class="text-[18px] font-bold mb-[24px] text-white">Contact Info</h4>
           <ul class="list-none">
             <li class="flex gap-[16px] text-text-soft items-start mb-[12px]">
-              <i class="bi bi-geo-alt text-primary text-[18px] mt-[2px]"></i>
+              <i class="bi bi-geo-alt text-white text-[18px] mt-[2px]"></i>
               <span>Malappuram Melmuri<br>Kerala, India</span>
             </li>
             <li class="flex gap-[16px] text-text-soft items-start mb-[12px]">
-              <i class="bi bi-telephone text-primary text-[18px] mt-[2px]"></i>
+              <i class="bi bi-telephone text-white text-[18px] mt-[2px]"></i>
               <span>+91 9846606739</span>
             </li>
             <li class="flex gap-[16px] text-text-soft items-start mb-[12px]">
-              <i class="bi bi-envelope text-primary text-[18px] mt-[2px]"></i>
+              <i class="bi bi-envelope text-white text-[18px] mt-[2px]"></i>
               <span>info@zamratravels.com</span>
             </li>
           </ul>
