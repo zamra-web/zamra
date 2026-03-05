@@ -28,4 +28,4 @@ Zamra Travels is a premium flight booking and travel services web portal. It pro
 ## Asset Management 
 - **Local Images:** All external images (from Unsplash, Zamra CDN, etc.) have been migrated to local hosting within `web/public/assets/img/`. All source code must reference these local assets instead of external HTTP links. A helper script named `download_images.sh` was created to automate the initial fetch of these files into the workspace.
 - **Component Styling Updates:** The footer and contact headers have been customized utilizing Tailwind text color classes (e.g., `text-white`) without relying strictly on the base theme.
-
+- **Mobile Optimization:** The application has been fully optimized for mobile devices. Responsiveness is primarily handled via Tailwind's `md:` and `max-sm:` utility classes for layouts and spacing. The mobile navigation hamburger menu utilizes vanilla CSS inside `@layer components` in `style.css` to govern the dropdown mechanism.
