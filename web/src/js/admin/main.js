@@ -11,7 +11,7 @@ import {
   getAgents, addAgent, updateAgent, deleteAgent,
   getSectors, addSector, updateSector, deleteSector,
   getAirlines, addAirline, updateAirline, deleteAirline,
-  getFares, saveFares, deleteFare,
+  getFares, saveFares, deleteFare, updateFare,
   callBulkDeleteFares, callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
 } from './db.js';
@@ -104,6 +104,7 @@ async function renderActiveTab() {
   else if (id === 'flights-tab') await renderFlightsTab();
   else if (id === 'dashboard-tab') await renderDashboardTab();
   else if (id === 'reports-tab') await renderReportsTab();
+  // agent-charts-tab removed
 }
 
 
@@ -138,9 +139,9 @@ async function renderDashboardTab() {
   const tab = document.getElementById('dashboard-tab');
   if (!tab) return;
 
-  // Populate sector dropdown
-  const sectorSel = tab.querySelector('select');
-  if (sectorSel && sectorSel.options.length <= 2) {
+  // Populate sector dropdown from live Firestore data
+  const sectorSel = document.getElementById('dashboard-sector-sel');
+  if (sectorSel && sectorSel.options.length <= 1) {
     _sectors.forEach(s => {
       const opt = new Option(s.sectorCode, s.id);
       sectorSel.appendChild(opt);
@@ -148,11 +149,12 @@ async function renderDashboardTab() {
   }
 
   // Hook up Fetch button
-  const fetchBtn = tab.querySelector('button');
+  const fetchBtn = document.getElementById('dashboard-fetch-btn');
   if (fetchBtn && !fetchBtn.dataset.wired) {
     fetchBtn.dataset.wired = '1';
     fetchBtn.addEventListener('click', async () => {
-      const [, startInput, endInput] = tab.querySelectorAll('input[type=date]');
+      const startInput = document.getElementById('dashboard-start-date');
+      const endInput = document.getElementById('dashboard-end-date');
       const sectorId = sectorSel?.value || 'all';
       const startDate = startInput?.value;
       const endDate = endInput?.value;
@@ -611,42 +613,43 @@ async function renderReportsTab() {
   tab.dataset.wired = '1';
 
   // Populate sector filter
-  const sectorSel = tab.querySelectorAll('select')[0];
-  if (sectorSel && sectorSel.options.length === 1) {
+  const sectorSel = document.getElementById('reports-sector-sel');
+  if (sectorSel && sectorSel.options.length <= 1) {
     _sectors.forEach(s => sectorSel.appendChild(new Option(s.sectorCode, s.id)));
   }
 
-  // Populate agent filter
-  const agentSel = tab.querySelectorAll('select')[1];
-  if (agentSel && agentSel.options.length === 1) {
+  // Populate agent filter (informational only — Cloud Function aggregates all)
+  const agentSel = document.getElementById('reports-agent-sel');
+  if (agentSel && agentSel.options.length <= 1) {
     _agents.forEach(a => agentSel.appendChild(new Option(a.name, a.id)));
   }
 
-  // Fetch button (first date inputs)
-  const [startInput, endInput] = tab.querySelectorAll('input[type=date]');
-  const fetchBtn = document.createElement('button');
-  fetchBtn.textContent = 'Generate Report';
-  fetchBtn.className = 'bg-primary text-white font-semibold px-6 h-[42px] rounded-lg shadow-sm hover:bg-blue-600 transition-all text-[14px]';
-  endInput?.after(fetchBtn);
+  // Wire Generate Report button
+  const fetchBtn = document.getElementById('generate-report-btn');
+  const startInput = document.getElementById('reports-start-date');
+  const endInput = document.getElementById('reports-end-date');
 
-  fetchBtn.addEventListener('click', async () => {
-    const startDate = startInput?.value;
-    const endDate = endInput?.value;
-    if (!startDate || !endDate) { toast('warning', 'Missing Dates', 'Select a date range.'); return; }
-    fetchBtn.disabled = true; fetchBtn.textContent = 'Generating…';
-    try {
-      const report = await callGenerateAgentReport(startDate, endDate, sectorSel?.value || 'all');
-      renderReportCharts(report, tab);
-    } catch (e) { toast('error', 'Report Failed', e.message); }
-    finally { fetchBtn.disabled = false; fetchBtn.textContent = 'Generate Report'; }
-  });
+  if (fetchBtn && !fetchBtn.dataset.wired) {
+    fetchBtn.dataset.wired = '1';
+    fetchBtn.addEventListener('click', async () => {
+      const startDate = startInput?.value;
+      const endDate = endInput?.value;
+      if (!startDate || !endDate) { toast('warning', 'Missing Dates', 'Select a date range.'); return; }
+      fetchBtn.disabled = true; fetchBtn.textContent = 'Generating…';
+      try {
+        const report = await callGenerateAgentReport(startDate, endDate, sectorSel?.value || 'all');
+        renderReportCharts(report, tab);
+      } catch (e) { toast('error', 'Report Failed', e.message); }
+      finally { fetchBtn.disabled = false; fetchBtn.textContent = 'Generate Report'; }
+    });
+  }
 }
 
 function renderReportCharts(report, tab) {
   const { agentReport, sectorReport, totalFares } = report;
 
-  // Agent bar chart
-  const barChartContainer = tab.querySelector('.h-\\[300px\\].border-l');
+  // Agent bar chart — targeted by stable ID
+  const barChartContainer = document.getElementById('bar-chart-container');
   if (barChartContainer && agentReport.length) {
     const maxCount = Math.max(...agentReport.map(a => a.count));
     barChartContainer.innerHTML = agentReport.slice(0, 8).map(a => {
@@ -657,10 +660,16 @@ function renderReportCharts(report, tab) {
         <span class="text-[9px] text-text-muted truncate w-full text-center">${a.name?.split(' ')[0]}</span>
       </div>`;
     }).join('');
+    // Show total fares count
+    const totalEl = document.getElementById('report-total-fares');
+    if (totalEl) {
+      totalEl.textContent = `${totalFares} total fares`;
+      totalEl.classList.remove('hidden');
+    }
   }
 
-  // Sector pie chart (CSS conic-gradient)
-  const pieContainer = tab.querySelector('.rounded-full.bg-\\[\\#007bff\\]');
+  // Sector pie chart (CSS conic-gradient) — targeted by stable ID
+  const pieContainer = document.getElementById('pie-chart-container');
   if (pieContainer && sectorReport.length) {
     const total = sectorReport.reduce((s, r) => s + r.count, 0);
     const COLORS = ['#007bff','#28a745','#ffc107','#dc3545','#6f42c1','#17a2b8','#fd7e14','#6c757d'];
@@ -672,6 +681,18 @@ function renderReportCharts(report, tab) {
     });
     pieContainer.style.background = `conic-gradient(${segments.join(', ')})`;
     pieContainer.title = sectorReport.map(s => `${s.name}: ${s.count}`).join('\n');
+
+    // Legend
+    const legendEl = document.getElementById('pie-legend');
+    if (legendEl) {
+      legendEl.innerHTML = sectorReport.slice(0, 8).map((s, i) =>
+        `<div class="flex items-center gap-2 text-[12px]">
+          <span class="inline-block w-3 h-3 rounded-sm shrink-0" style="background:${COLORS[i % COLORS.length]}"></span>
+          <span class="truncate text-text-muted">${s.name}</span>
+          <span class="font-bold text-navy ml-auto">${s.count}</span>
+        </div>`
+      ).join('');
+    }
   }
 
   toast('success', 'Report Ready', `${totalFares} fares aggregated.`);

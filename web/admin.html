@@ -62,8 +62,8 @@
     </style>
 </head>
 
-<body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative aurora-container">
-    <div class="absolute inset-0 z-[-1] aurora-bg opacity-30 fixed"></div>
+<body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
+    <div class="fixed inset-0 z-[-1] aurora-bg opacity-30"></div>
 
     <!-- Navigation Bar -->
     <nav class="glass-effect border-b border-white/20 sticky top-0 z-[1000] shadow-[var(--shadow-premium-soft)]">
@@ -74,7 +74,7 @@
                     <div class="shrink-0 flex items-center">
                         <a href="/admin.html">
                             <img src="/assets/img/logo.webp" alt="Zamra Travels"
-                                class="h-8 w-auto mix-blend-multiply opacity-50">
+                                class="h-8 w-auto">
                         </a>
                     </div>
 
@@ -84,8 +84,6 @@
                             class="nav-link active text-primary hover:text-primary font-medium text-[14px]">Dashboard</a>
                         <a href="#" data-tab="agents-tab" data-title="Agents"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Agents</a>
-                        <a href="#" data-tab="agent-charts-tab" data-title="Agent Charts"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Agent Charts</a>
                         <a href="#" data-tab="agent-sheets-tab" data-title="Agent Sheets"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Agent Sheets</a>
                         <a href="#" data-tab="sectors-tab" data-title="Sectors"
@@ -94,7 +92,6 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Flights</a>
                         <a href="#" data-tab="reports-tab" data-title="Reports"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Reports</a>
-
                     </div>
                 </div>
 
@@ -139,34 +136,30 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
                     <div class="md:col-span-4">
                         <label class="block text-sm font-semibold text-text-muted mb-2">Select Sector</label>
-                        <select
+                        <select id="dashboard-sector-sel"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
-                            <option value="">Select Sector</option>
-                            <option value="0">ALL</option>
-                            <option value="1">CCJ JED</option>
-                            <option value="2">CCJ RUH</option>
-                            <!-- more options would go here -->
+                            <option value="all">ALL Sectors</option>
                         </select>
                     </div>
                     <div class="md:col-span-3">
                         <label class="block text-sm font-semibold text-text-muted mb-2">Start Date</label>
-                        <input type="date"
+                        <input id="dashboard-start-date" type="date"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
                     </div>
                     <div class="md:col-span-3">
                         <label class="block text-sm font-semibold text-text-muted mb-2">End Date</label>
-                        <input type="date"
+                        <input id="dashboard-end-date" type="date"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
                     </div>
                     <div class="md:col-span-2">
-                        <button
+                        <button id="dashboard-fetch-btn"
                             class="w-full bg-primary text-white font-semibold h-11 rounded-lg shadow-[0_4px_14px_rgba(37,99,235,0.25)] hover:bg-blue-600 transition-all hover:-translate-y-0.5 text-sm">Fetch</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Dashboard Results Container (Empty by default) -->
-            <div class="mt-8 text-center text-text-muted border-2 border-dashed border-border/20 rounded-xl py-12">
+            <!-- Dashboard Results Container (populated by JS) -->
+            <div id="dashboard-results" class="mt-8 text-center text-text-muted border-2 border-dashed border-border/20 rounded-xl py-12">
                 <i class="bi bi-briefcase text-4xl opacity-50 mb-3 block"></i>
                 <p>Select a sector and dates to fetch data</p>
             </div>
@@ -212,203 +205,43 @@
 
             <div
                 class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
-                <div class="flex justify-between items-center mb-6">
-                    <div class="text-[14px] flex items-center">
-                        Show
-                        <select class="mx-2 border border-border rounded p-1 text-[13px]">
-                            <option>10</option>
-                            <option>25</option>
-                        </select>
-                        entries
-                    </div>
-                    <div class="flex items-center text-[14px]">
-                        Search: <input type="text"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
-                    </div>
-                </div>
-
                 <div class="admin-table-container">
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>ID <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Code <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Email <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Phone <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>21</td>
-                                <td>Mustaque</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>22</td>
-                                <td>Amie</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>23</td>
-                                <td>Lefin</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
+                            <!-- populated by JS: renderAgentsTab() -->
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- AGENT CHARTS TAB -->
-        <div id="agent-charts-tab" class="tab-content">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Data Display -->
-                <div class="lg:col-span-2">
-                    <div
-                        class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main h-full">
-                        <div class="flex justify-center items-center h-full min-h-[300px] text-text-muted">
-                            <p class="opacity-60 text-center"><i class="bi bi-bar-chart text-4xl mb-3 block"></i>No
-                                charts to display yet.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Import Report Data -->
-                <div class="lg:col-span-1">
-                    <div
-                        class="bg-white rounded-2xl shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main overflow-hidden">
-                        <div class="bg-slate-50 p-4 border-b border-border/50 text-[14px] font-bold text-text-main">
-                            Import Report Data
-                        </div>
-                        <div class="p-6">
-                            <p class="text-[13px] font-medium mb-2">Upload Excel File</p>
-                            <input type="file"
-                                class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-light file:text-primary hover:file:bg-blue-100 cursor-pointer mb-6" />
-
-                            <div class="flex gap-3">
-                                <button
-                                    class="bg-primary text-white font-medium px-4 py-2 rounded shadow-sm text-[14px]">Import
-                                    Data</button>
-                                <button
-                                    class="bg-green-500 text-white font-medium px-4 py-2 rounded shadow-sm text-[14px]">Download
-                                    Sample Excel</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Add Chart Form -->
-                <div class="lg:col-span-3">
-                    <div
-                        class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
-                        <div class="flex flex-wrap gap-4 items-end justify-between">
-                            <div class="flex flex-wrap gap-4">
-                                <div class="w-[180px]">
-                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">Select
-                                        Agent</label>
-                                    <select
-                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
-                                        <option>Select Agent</option>
-                                    </select>
-                                </div>
-                                <div class="w-[180px]">
-                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">Select
-                                        Sector</label>
-                                    <select
-                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
-                                        <option>Select Sector</option>
-                                    </select>
-                                </div>
-                                <div class="w-[180px]">
-                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">Start
-                                        Date</label>
-                                    <input type="date"
-                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
-                                </div>
-                                <div class="w-[180px]">
-                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date</label>
-                                    <input type="date"
-                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
-                                </div>
-                                <div class="w-[180px]">
-                                    <label class="block text-[13px] font-semibold text-text-muted mb-2">&nbsp;</label>
-                                    <select
-                                        class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px]">
-                                        <option>Bulk Action</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <button
-                                class="bg-primary text-white font-semibold px-8 h-[42px] rounded outline-none text-[14px]">Edit</button>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 flex flex-col gap-3 w-fit">
-                        <button
-                            class="border border-border bg-transparent text-white px-4 py-2 rounded text-[14px] hover:bg-white/5 transition-colors">+
-                            Add Chart</button>
-                        <button class="bg-green-500 text-white px-4 py-2 rounded text-[14px] font-bold">Save
-                            All</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- agent-charts-tab REMOVED — use Reports tab for analytics -->
 
         <!-- AGENT SHEETS TAB -->
         <div id="agent-sheets-tab" class="tab-content">
-            <div id="rate-portal" class="py-[60px] px-[20px] relative z-10 w-full max-w-[1280px] mx-auto">
-                <div
-                    class="aurora-container bg-navy rounded-[32px] p-[60px_40px] mb-[-60px] relative overflow-hidden shadow-[var(--shadow-premium-soft)] text-white border border-white/20 group">
-                    <div
-                        class="absolute inset-0 z-0 aurora-bg opacity-30 group-hover:opacity-60 premium-transition duration-1000">
+            <div class="max-w-[1200px] mx-auto py-12 px-2 relative z-10">
+                
+                <div class="mb-10">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-primary-light/10 text-primary flex items-center justify-center">
+                            <i class="bi bi-file-earmark-spreadsheet text-xl"></i>
+                        </div>
+                        <h1 class="text-3xl font-black text-navy tracking-tight font-heading">Rate Portal</h1>
                     </div>
-                    <div
-                        class="absolute top-[-50%] right-[-10%] w-[60%] h-[200%] bg-[radial-gradient(circle,rgba(255,255,255,0.15)_0%,transparent_70%)] rounded-full z-0 mix-blend-overlay pointer-events-none">
-                    </div>
-                    <div class="max-w-[600px] relative z-10">
-                        <div
-                            class="glass-effect px-[14px] py-[6px] rounded-full text-[13px] font-bold inline-block mb-5 tracking-[0.5px] uppercase text-white/90">
-                            Agent Rate Portal</div>
-                        <h1
-                            class="text-[42px] font-black leading-[1.1] mb-4 tracking-[-0.02em] font-heading drop-shadow-md">
-                            Submit
-                            Your <span class="text-[#60a5fa]">Flight Rate</span><br>Data Instantly</h1>
-                        <p class="text-[16px] opacity-90 leading-[1.6] drop-shadow-sm font-medium">Your trusted partner
-                            for affordable and reliable
-                            flight
-                            bookings. Submit agent rate data below — it will be automatically processed and updated in
-                            our system.</p>
-                    </div>
+                    <p class="text-text-muted text-base max-w-2xl pl-13">Paste raw agent rate data from WhatsApp or text files. The system will automatically parse, clean, and sync the fares to the live database.</p>
                 </div>
 
-                <div
-                    class="max-w-[1000px] mx-auto pt-[100px] pb-[40px] grid grid-cols-1 md:grid-cols-[1fr_300px] gap-[30px] relative">
+                <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 relative">
 
                     <div>
 
@@ -448,9 +281,9 @@
                                     class="flex items-center text-[13px] font-bold text-text-muted uppercase tracking-[0.05em] mb-[24px] before:content-[''] before:flex-1 before:h-[1px] before:bg-border before:mr-[16px] after:content-[''] after:flex-1 after:h-[1px] after:bg-border after:ml-[16px]">
                                     or enter manually</div>
                                 <div class="flex gap-[16px] items-center">
-                                    <input type="number"
+                                    <input type="text"
                                         class="w-full bg-[#f8fafc] border border-border rounded-xl px-[16px] h-[52px] text-[15px] text-text-main font-bold premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 placeholder:text-text-muted/60"
-                                        id="manualAgent" placeholder="e.g. 35" min="1" max="999">
+                                        id="manualAgent" placeholder="e.g. AGENT-123">
                                     <div class="shrink-0 px-[16px] h-[40px] rounded-[8px] bg-[#dcfce7] text-[#16a34a] font-bold text-[14px] flex items-center justify-center border border-[rgba(22,163,74,0.2)] transition-all [&.empty]:bg-[#f1f5f9] [&.empty]:text-[#64748b] [&.empty]:border-border"
                                         id="agentPill">No agent selected</div>
                                 </div>
@@ -718,50 +551,15 @@ Example:
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>ID <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Sector From <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Sector To <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Sector Code <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>ID</th>
+                                <th>Sector From</th>
+                                <th>Sector To</th>
+                                <th>Sector Code</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>1</td>
-                                <td>KOZHIKKODE</td>
-                                <td>JEDDAH</td>
-                                <td>CCJ JED</td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>2</td>
-                                <td>KOZHIKKODE</td>
-                                <td>RIYADH</td>
-                                <td>CCJ RUH</td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>3</td>
-                                <td>KOZHIKKODE</td>
-                                <td>DAMAMM</td>
-                                <td>CCJ DMM</td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
+                            <!-- populated by JS: renderSectorsTab() -->
                         </tbody>
                     </table>
                 </div>
@@ -795,46 +593,14 @@ Example:
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>ID <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Flight Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Flight Code <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
+                                <th>Logo</th>
+                                <th>Airline Name</th>
+                                <th>IATA Code</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>1</td>
-                                <td>Indigo</td>
-                                <td>6E</td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>2</td>
-                                <td>AIR INDIA EXPRESS</td>
-                                <td>IX</td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>3</td>
-                                <td>AIR ARABIA</td>
-                                <td>G9</td>
-                                <td>
-                                    <button
-                                        class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold">Edit</button>
-                                    <button
-                                        class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold">Delete</button>
-                                </td>
-                            </tr>
+                            <!-- populated by JS: renderFlightsTab() -->
                         </tbody>
                     </table>
                 </div>
@@ -843,73 +609,75 @@ Example:
 
         <!-- REPORTS TAB -->
         <div id="reports-tab" class="tab-content">
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end mb-8">
+            <div class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
+
+                <!-- Filters Row -->
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-8">
                     <div>
-                        <input type="date"
-                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-muted">
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date</label>
+                        <input id="reports-start-date" type="date"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary">
                     </div>
                     <div>
-                        <input type="date"
-                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-muted">
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date</label>
+                        <input id="reports-end-date" type="date"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary">
                     </div>
                     <div>
-                        <select
-                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-main">
-                            <option>All Sectors</option>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Filter by Sector</label>
+                        <select id="reports-sector-sel"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] text-text-main">
+                            <option value="all">All Sectors</option>
                         </select>
                     </div>
                     <div>
-                        <select
-                            class="w-full border border-border rounded h-[42px] px-3 outline-none text-[14px] text-text-main">
-                            <option>All Agents</option>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Filter by Agent</label>
+                        <select id="reports-agent-sel"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] text-text-main">
+                            <option value="all">All Agents</option>
                         </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button id="generate-report-btn"
+                            class="w-full bg-primary text-white font-semibold h-[42px] rounded-lg shadow-sm hover:bg-blue-600 transition-all text-[14px] px-4">
+                            Generate Report
+                        </button>
                     </div>
                 </div>
 
+                <!-- Total fares badge -->
+                <p id="report-total-fares" class="text-xs text-text-muted font-semibold mb-6 hidden"></p>
+
+                <!-- Charts -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Bar Chart: Fares per Agent -->
                     <div>
-                        <h4 class="text-center font-bold text-[14px] text-text-main mb-4">Agent Report</h4>
+                        <h4 class="text-center font-bold text-[14px] text-text-main mb-4">Fares per Agent</h4>
                         <div class="flex items-center justify-center gap-2 text-[12px] text-text-muted mb-4">
-                            <span class="w-4 h-2 bg-[#99d7d1] inline-block"></span> Rates by Agent
+                            <span class="w-4 h-2 bg-[#99d7d1] inline-block rounded"></span> Number of fares submitted
                         </div>
-                        <div class="w-full h-[300px] border-l border-b border-border/50 flex items-end justify-around pb-2 px-2 relative"
-                            style="background-image: repeating-linear-gradient(to top, transparent, transparent 39px, #f1f5f9 39px, #f1f5f9 40px); background-size: 100% 40px;">
-                            <div class="w-[12%] bg-[#99d7d1] h-[5%]" title="TRAVEL"></div>
-                            <div class="w-[12%] bg-[#99d7d1] h-[4%]" title="BOOK"></div>
-                            <div class="w-[12%] bg-[#99d7d1] h-[55%]" title="Mustaque"></div>
-                            <div class="w-[12%] bg-[#99d7d1] h-[45%]" title="Amie"></div>
-                            <div class="w-[12%] bg-[#99d7d1] h-[90%]" title="Lefin"></div>
-                            <div class="w-[12%] bg-[#99d7d1] h-[25%]" title="Niba gafoor"></div>
-
-                            <div
-                                class="absolute left-[-70px] top-0 bottom-0 flex flex-col justify-between text-[10px] text-text-muted py-2 w-[65px] text-right">
-                                <span>20,000,000</span>
-                                <span>16,000,000</span>
-                                <span>12,000,000</span>
-                                <span>8,000,000</span>
-                                <span>4,000,000</span>
-                                <span>0</span>
-                            </div>
-
-                            <div
-                                class="absolute -bottom-[20px] left-0 right-0 flex justify-around text-[10px] text-text-muted px-2">
-                                <span class="w-[12%] text-center truncate">TRAVEL</span>
-                                <span class="w-[12%] text-center truncate">BOOK</span>
-                                <span class="w-[12%] text-center truncate">Mustaque</span>
-                                <span class="w-[12%] text-center truncate">Amie</span>
-                                <span class="w-[12%] text-center truncate">Lefin</span>
-                                <span class="w-[12%] text-center truncate">Niba gafoor</span>
+                        <div id="bar-chart-container"
+                            class="w-full h-[300px] border-l border-b border-border/50 flex items-end justify-around gap-1 pb-2 px-2 relative"
+                            style="background-image: repeating-linear-gradient(to top, transparent, transparent 59px, #f1f5f9 59px, #f1f5f9 60px); background-size: 100% 60px;">
+                            <!-- bars injected by JS: renderReportCharts() -->
+                            <div class="flex flex-col items-center justify-center h-full w-full opacity-40 text-text-muted text-sm">
+                                <i class="bi bi-bar-chart text-3xl mb-2"></i>
+                                <p>Generate a report to see chart</p>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Pie Chart: Fares per Sector -->
                     <div>
-                        <h4 class="text-center font-bold text-[14px] text-text-main mb-4">Sector Report</h4>
-                        <div class="flex justify-center items-center h-[300px]">
-                            <div class="w-[250px] h-[250px] rounded-full bg-[#007bff] relative"
-                                style="background: conic-gradient(#007bff 0% 99%, #ffffff 99% 100%);">
-                                <div class="absolute -top-[15px] left-1/2 -translate-x-1/2 w-6 h-2 bg-[#007bff]"></div>
+                        <h4 class="text-center font-bold text-[14px] text-text-main mb-4">Fares per Sector</h4>
+                        <div class="flex flex-col lg:flex-row gap-6 items-center justify-center">
+                            <div id="pie-chart-container"
+                                class="w-[220px] h-[220px] rounded-full shrink-0"
+                                style="background: conic-gradient(#e2e8f0 0% 100%);"
+                                title="Generate a report to see sector breakdown">
+                            </div>
+                            <div id="pie-legend" class="flex flex-col gap-2 min-w-0 w-full max-w-[200px]">
+                                <p class="text-[12px] text-text-muted opacity-60">Generate a report to see legend</p>
                             </div>
                         </div>
                     </div>
