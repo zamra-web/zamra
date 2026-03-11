@@ -27,10 +27,14 @@ let tableSort = {
   agents: { key: 'id', asc: true },
   sectors: { key: 'id', asc: true },
   airlines: { key: 'name', asc: true },
-  dashboard: { key: 'finalRate', asc: true }
+  dashboard: { key: 'flightDate', asc: true }
 };
 let tableSearch = { sectors: '', airlines: '' };
 let tableLimit = { sectors: 10, airlines: 10 };
+
+// ── Agents Pagination ─────────────────────────────────────────────────────────
+let agentsPage = 1;
+const AGENTS_PER_PAGE = 10;
 
 function applySortAndFilter(data, tab) {
   let filtered = data;
@@ -102,7 +106,7 @@ document.addEventListener('click', (e) => {
   if (tab === 'agents') renderAgentsTab(false);
   else if (tab === 'sectors') renderSectorsTab(false);
   else if (tab === 'airlines') renderFlightsTab(false);
-  else if (tab === 'dashboard' && _dashboardFares.length) renderDashboardResults(_dashboardFares, document.getElementById('dashboard-tab'));
+  else if (tab === 'dashboard' && _dashboardFares.length) renderDashboardResults(_dashboardFares);
 });
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
@@ -232,6 +236,12 @@ async function renderDashboardTab() {
     });
   }
 
+  // Populate agent dropdown
+  const agentSel = document.getElementById('dashboard-agent-sel');
+  if (agentSel && agentSel.options.length <= 1) {
+    _agents.forEach(a => agentSel.appendChild(new Option(a.name, a.id)));
+  }
+
   // Hook up Fetch button
   const fetchBtn = document.getElementById('dashboard-fetch-btn');
   if (fetchBtn && !fetchBtn.dataset.wired) {
@@ -240,6 +250,7 @@ async function renderDashboardTab() {
       const startInput = document.getElementById('dashboard-start-date');
       const endInput = document.getElementById('dashboard-end-date');
       const sectorId = sectorSel?.value || 'all';
+      const agentId = agentSel?.value || 'all';
       const startDate = startInput?.value;
       const endDate = endInput?.value;
 
@@ -248,9 +259,9 @@ async function renderDashboardTab() {
       fetchBtn.disabled = true;
       fetchBtn.textContent = 'Loading…';
       try {
-        const fares = await getFares({ sectorId, startDate, endDate, includeHidden: true });
+        const fares = await getFares({ sectorId, agentId, startDate, endDate, includeHidden: true });
         _dashboardFares = fares;
-        renderDashboardResults(_dashboardFares, tab);
+        renderDashboardResults(_dashboardFares);
       } catch (e) {
         toast('error', 'Fetch Failed', e.message);
       } finally {
@@ -261,16 +272,11 @@ async function renderDashboardTab() {
   }
 }
 
-function renderDashboardResults(fares, tab) {
-  let target = document.getElementById('dashboard-results');
-  if (!target) {
-    target = document.createElement('div');
-    target.id = 'dashboard-results';
-    target.className = 'mt-8';
-    tab.appendChild(target);
-  }
+function renderDashboardResults(fares) {
+  const target = document.getElementById('dashboard-results');
+  if (!target) return;
 
-  if (!fares.length) {
+  if (!fares || !fares.length) {
     target.innerHTML = `<div class="text-center text-text-muted border-2 border-dashed border-border/20 rounded-xl py-12">
       <i class="bi bi-inbox text-4xl opacity-50 mb-3 block"></i><p>No fares found for this selection.</p></div>`;
     return;
@@ -280,6 +286,7 @@ function renderDashboardResults(fares, tab) {
   const agentMap = Object.fromEntries(_agents.map(a => [a.id, a.name]));
   const sectorMap = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
   const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a.code]));
+  const sorted = applySortAndFilter(fares, 'dashboard');
 
   target.innerHTML = `
     <div class="bg-white rounded-2xl shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden">
@@ -303,7 +310,7 @@ function renderDashboardResults(fares, tab) {
             <th class="whitespace-nowrap">Actions</th>
           </tr></thead>
           <tbody>
-            ${applySortAndFilter(fares, 'dashboard').map(f => `
+            ${sorted.map(f => `
               <tr class="hover:bg-slate-50 border-b border-border/20 last:border-0 transition-colors">
                 <td class="whitespace-nowrap">${f.flightDate instanceof Date ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : f.flightDate}</td>
                 <td class="whitespace-nowrap text-text-muted">${f.flightTime || '—'}</td>
@@ -328,17 +335,22 @@ function renderDashboardResults(fares, tab) {
       </div>
     </div>`;
 
-  // Expose global handlers for inline onclick
+  // Expose global handlers — re-render in-place using cached fares
   window.__deleteFare = async (fareId) => {
     if (!confirm('Delete this fare?')) return;
-    try { await deleteFare(fareId); toast('success', 'Deleted', 'Fare removed.'); renderActiveTab(); }
-    catch (e) { toast('error', 'Error', e.message); }
+    try {
+      await deleteFare(fareId);
+      _dashboardFares = _dashboardFares.filter(f => f.id !== fareId);
+      toast('success', 'Deleted', 'Fare removed.');
+      renderDashboardResults(_dashboardFares);
+    } catch (e) { toast('error', 'Error', e.message); }
   };
   window.__toggleFare = async (fareId, isHidden) => {
     try {
       await updateFare(fareId, { isHidden });
+      _dashboardFares = _dashboardFares.map(f => f.id === fareId ? { ...f, isHidden } : f);
       toast('success', 'Updated', `Fare ${isHidden ? 'hidden' : 'shown'}.`);
-      renderActiveTab();
+      renderDashboardResults(_dashboardFares);
     } catch (e) { toast('error', 'Error', e.message); }
   };
 
@@ -350,26 +362,37 @@ function renderDashboardResults(fares, tab) {
 // AGENTS TAB — Full CRUD + Bulk Delete + Toggle Active
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderAgentsTab(fetchData = true) {
-  if (fetchData) _agents = await getAgents();
+  if (fetchData) { _agents = await getAgents(); agentsPage = 1; }
   const tbody = document.querySelector('#agents-tab .admin-table tbody');
   if (!tbody) return;
 
-  const data = applySortAndFilter(_agents, 'agents');
-  tbody.innerHTML = data.length
-    ? data.map(a => agentRow(a)).join('')
+  // Sort all agents, then paginate
+  const sorted = applySortAndFilter(_agents, 'agents');
+  const totalPages = Math.max(1, Math.ceil(_agents.length / AGENTS_PER_PAGE));
+  if (agentsPage > totalPages) agentsPage = totalPages;
+  const start = (agentsPage - 1) * AGENTS_PER_PAGE;
+  const pageData = sorted.slice(start, start + AGENTS_PER_PAGE);
+
+  tbody.innerHTML = pageData.length
+    ? pageData.map(a => agentRow(a)).join('')
     : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No agents yet. Click "+ Add Agent" to get started.</td></tr>`;
 
+  // Render pagination footer
+  renderAgentsPagination(_agents.length, totalPages, start);
+
+  // Remove stale wired flag so delegation re-attaches after innerHTML replacement
+  delete tbody.dataset.actionsWired;
   wireAgentActions();
   wireAgentsBulkForm();
-  populateAgentSelects();
+  populateAgentBulkSelect();
 
-  // Wire "+ Add Agent" button
-  const addBtn = document.querySelector('#agents-tab button:first-of-type');
+  // Wire "+ Add Agent" button (by stable ID)
+  const addBtn = document.getElementById('agents-add-btn');
   if (addBtn && !addBtn.dataset.wired) {
     addBtn.dataset.wired = '1';
     addBtn.addEventListener('click', () => openAgentModal(null));
   }
-  
+
   updateSortIcons('agents');
 }
 
@@ -421,6 +444,38 @@ function wireAgentActions() {
       } catch (e) { toast('error', 'Toggle Failed', e.message); await renderAgentsTab(); }
     }
   });
+}
+
+function renderAgentsPagination(total, totalPages, start) {
+  const footer = document.getElementById('agents-pagination-footer');
+  if (!footer) return;
+  const end = Math.min(start + AGENTS_PER_PAGE, total);
+  footer.innerHTML = `
+    <div class="flex items-center justify-between px-2 py-3 text-sm text-text-muted">
+      <span>Showing ${total ? start + 1 : 0} to ${end} of ${total} entries</span>
+      <div class="flex items-center gap-1">
+        <button data-pg-action="prev" class="px-3 py-1 border border-border rounded text-sm hover:bg-slate-50 disabled:opacity-40" ${agentsPage <= 1 ? 'disabled' : ''}>Previous</button>
+        ${Array.from({ length: totalPages }, (_, i) => i + 1).map(p =>
+          `<button data-pg-action="goto" data-pg="${p}" class="px-3 py-1 border rounded text-sm font-semibold transition-colors ${
+            p === agentsPage ? 'bg-primary text-white border-primary' : 'border-border hover:bg-slate-50'
+          }">${p}</button>`
+        ).join('')}
+        <button data-pg-action="next" class="px-3 py-1 border border-border rounded text-sm hover:bg-slate-50 disabled:opacity-40" ${agentsPage >= totalPages ? 'disabled' : ''}>Next</button>
+      </div>
+    </div>`;
+
+  if (!footer.dataset.wired) {
+    footer.dataset.wired = '1';
+    footer.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pg-action]');
+      if (!btn || btn.disabled) return;
+      const action = btn.dataset.pgAction;
+      if (action === 'prev') agentsPage = Math.max(1, agentsPage - 1);
+      else if (action === 'next') agentsPage++;
+      else if (action === 'goto') agentsPage = parseInt(btn.dataset.pg);
+      renderAgentsTab(false);
+    });
+  }
 }
 
 function openAgentModal(agent) {
@@ -475,38 +530,39 @@ function openAgentModal(agent) {
 }
 
 function wireAgentsBulkForm() {
-  const tab = document.getElementById('agents-tab');
-  if (!tab || tab.dataset.bulkWired) return;
-  tab.dataset.bulkWired = '1';
+  const bulkBtn = document.getElementById('agents-bulk-delete-btn');
+  if (!bulkBtn || bulkBtn.dataset.wired) return;
+  bulkBtn.dataset.wired = '1';
 
-  const bulkForm = tab.querySelector('.grid.grid-cols-1.md\\:grid-cols-4');
-  if (!bulkForm) return;
-  const [agentSel, startInput, endInput] = bulkForm.querySelectorAll('select, input[type=date]');
-  const bulkBtn = bulkForm.querySelector('button');
-  if (bulkBtn) {
-    bulkBtn.addEventListener('click', async () => {
-      const agentId = agentSel?.value;
-      const startDate = startInput?.value;
-      const endDate = endInput?.value;
-      if (!agentId || !startDate || !endDate) { toast('warning', 'Incomplete', 'Select agent and both dates.'); return; }
-      if (!confirm(`Delete ALL fares for this agent from ${startDate} to ${endDate}? This cannot be undone.`)) return;
-      bulkBtn.disabled = true; bulkBtn.textContent = 'Deleting…';
-      try {
-        const res = await callBulkDeleteFares(agentId, startDate, endDate);
-        toast('success', 'Bulk Delete Complete', res.message);
-      } catch (e) { toast('error', 'Bulk Delete Failed', e.message); }
-      finally { bulkBtn.disabled = false; bulkBtn.textContent = 'Bulk Delete'; }
-    });
-  }
+  bulkBtn.addEventListener('click', async () => {
+    const agentSel = document.getElementById('agents-bulk-agent-sel');
+    const startInput = document.getElementById('agents-bulk-start');
+    const endInput = document.getElementById('agents-bulk-end');
+    const agentId = agentSel?.value;
+    const startDate = startInput?.value;
+    const endDate = endInput?.value;
+    if (!agentId || agentId === '' || !startDate || !endDate) {
+      toast('warning', 'Incomplete', 'Select agent and both dates.');
+      return;
+    }
+    if (!confirm(`Delete ALL fares for this agent from ${startDate} to ${endDate}? This cannot be undone.`)) return;
+    bulkBtn.disabled = true; bulkBtn.textContent = 'Deleting…';
+    try {
+      const res = await callBulkDeleteFares(agentId, startDate, endDate);
+      toast('success', 'Bulk Delete Complete', res.message);
+    } catch (e) { toast('error', 'Bulk Delete Failed', e.message); }
+    finally { bulkBtn.disabled = false; bulkBtn.textContent = 'Bulk Delete'; }
+  });
 }
 
-function populateAgentSelects() {
-  document.querySelectorAll('select').forEach(sel => {
-    const firstOpt = sel.querySelector('option');
-    if (firstOpt?.textContent?.trim() === 'Select Agent' && sel.options.length === 1) {
-      _agents.forEach(a => sel.appendChild(new Option(a.name, a.id)));
-    }
-  });
+function populateAgentBulkSelect() {
+  const sel = document.getElementById('agents-bulk-agent-sel');
+  if (!sel) return;
+  // Rebuild options from scratch each time agents list may have changed
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Select Agent</option>';
+  _agents.forEach(a => sel.appendChild(new Option(a.name, a.id)));
+  if (currentVal) sel.value = currentVal;
 }
 
 
@@ -561,7 +617,9 @@ function sectorRow(s) {
 
 function wireSectorActions() {
   const tbody = document.querySelector('#sectors-tab .admin-table tbody');
-  if (!tbody || tbody.dataset.actionsWired) return;
+  if (!tbody) return;
+  // Reset wired flag so listener rebinds after tbody innerHTML is replaced
+  delete tbody.dataset.actionsWired;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -685,7 +743,9 @@ function airlineRow(a) {
 
 function wireAirlineActions() {
   const tbody = document.querySelector('#flights-tab .admin-table tbody');
-  if (!tbody || tbody.dataset.actionsWired) return;
+  if (!tbody) return;
+  // Reset wired flag so listener rebinds after tbody innerHTML is replaced
+  delete tbody.dataset.actionsWired;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');

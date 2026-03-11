@@ -131,10 +131,9 @@
 
         <!-- DASHBOARD TAB -->
         <div id="dashboard-tab" class="tab-content active">
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
+            <div class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="block text-sm font-semibold text-text-muted mb-2">Select Sector</label>
                         <select id="dashboard-sector-sel"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
@@ -142,11 +141,18 @@
                         </select>
                     </div>
                     <div class="md:col-span-3">
+                        <label class="block text-sm font-semibold text-text-muted mb-2">Select Agent</label>
+                        <select id="dashboard-agent-sel"
+                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                            <option value="all">All Agents</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-text-muted mb-2">Start Date</label>
                         <input id="dashboard-start-date" type="date"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-text-muted mb-2">End Date</label>
                         <input id="dashboard-end-date" type="date"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
@@ -169,7 +175,7 @@
         <div id="agents-tab" class="tab-content">
             <div class="flex justify-between items-center mb-6">
                 <div></div>
-                <button
+                <button id="agents-add-btn"
                     class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-200 premium-hover-lift premium-transition">+
                     Add Agent</button>
             </div>
@@ -181,22 +187,22 @@
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                     <div>
                         <label class="block text-[13px] font-semibold text-text-muted mb-2">Select Agent</label>
-                        <select class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
-                            <option>Select Agent</option>
+                        <select id="agents-bulk-agent-sel" class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                            <option value="">Select Agent</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date</label>
-                        <input type="date"
+                        <input id="agents-bulk-start" type="date"
                             class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
                     </div>
                     <div>
                         <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date</label>
-                        <input type="date"
+                        <input id="agents-bulk-end" type="date"
                             class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
                     </div>
                     <div>
-                        <button
+                        <button id="agents-bulk-delete-btn"
                             class="bg-red-500 text-white font-semibold px-6 h-[42px] rounded-lg shadow-sm hover:opacity-90 transition-all text-[14px]">Bulk
                             Delete</button>
                     </div>
@@ -222,6 +228,8 @@
                         </tbody>
                     </table>
                 </div>
+                <!-- Pagination footer -->
+                <div id="agents-pagination-footer" class="border-t border-border/50 mt-0"></div>
             </div>
         </div>
 
