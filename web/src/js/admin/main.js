@@ -112,6 +112,50 @@ onAuthChange(async (user) => {
   const adminNameEl = document.getElementById('admin-user-name');
   if (adminNameEl) adminNameEl.textContent = user.email.split('@')[0];
 
+  // === TEMPORARY ONE-OFF MIGRATION SCRIPT ===
+  if (!localStorage.getItem('migratedAgentsTo1Done')) {
+    try {
+      const { db } = await import('./firebase-config.js');
+      const { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } = await import('firebase/firestore');
+      if (typeof toast === 'function') toast('warning', 'Migrating Agents...', 'Shifting agent IDs. Do not close this window.');
+      console.log('Starting one-off migration of agent IDs from 21+ down to 1+');
+      
+      const agentsSnap = await getDocs(collection(db, 'agents'));
+      const agentMap = {};
+      
+      for (const d of agentsSnap.docs) {
+        const idNum = parseInt(d.id, 10);
+        if (idNum >= 21) {
+          const newIdNum = idNum - 20; // 21 becomes 1
+          agentMap[d.id] = newIdNum.toString();
+          
+          const newDocRef = doc(db, 'agents', newIdNum.toString());
+          const agentData = { ...d.data(), agentId: newIdNum.toString() };
+          
+          await setDoc(newDocRef, agentData);
+          await deleteDoc(d.ref);
+        }
+      }
+
+      const faresSnap = await getDocs(collection(db, 'agent_fares'));
+      for (const d of faresSnap.docs) {
+        const fareData = d.data();
+        if (fareData.agentId && agentMap[fareData.agentId]) {
+          await updateDoc(d.ref, { agentId: agentMap[fareData.agentId] });
+        }
+      }
+
+      localStorage.setItem('migratedAgentsTo1Done', 'true');
+      console.log('Migration Complete.');
+      if (typeof toast === 'function') toast('success', 'Migration Finished!', 'All agents & fares properly shifted.');
+      setTimeout(() => location.reload(), 2000);
+      return; 
+    } catch (e) {
+      console.error('Migration failed:', e);
+    }
+  }
+  // ==========================================
+
   // Pre-load lookup data then build chips
   await loadGlobalData();
   buildChips();
