@@ -21,9 +21,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
   <!-- Custom CSS -->
-  <script type="module" crossorigin src="/assets/main-DFchlzGl.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-8XtDpUuu.css">
+  <script type="module" crossorigin src="/assets/main-DMATkhVc.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/firebase-config-zYKzaodH.js">
+  <link rel="modulepreload" crossorigin href="/assets/db-BxSq6g0-.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-DzAhHPE7.css">
 </head>
 
 <body>
@@ -37,25 +38,25 @@
 
       <nav class="hidden md:block" id="nav-menu">
         <ul class="flex gap-8 list-none m-0 p-0">
-          <li><a href="index.html#about"
+          <li><a href="#about"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">About</a>
           </li>
-          <li><a href="index.html#services"
+          <li><a href="#services"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Services</a>
           </li>
-          <li><a href="index.html#tours"
+          <li><a href="#tours"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Tours</a>
           </li>
-          <li><a href="index.html#visa"
+          <li><a href="#visa"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Visa</a>
           </li>
-          <li><a href="index.html#flights"
+          <li><a href="#flights"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Flights</a>
           </li>
-          <li><a href="index.html#hajj-umrah"
+          <li><a href="#hajj-umrah"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Hajj-Umrah</a>
           </li>
-          <li><a href="index.html#contact"
+          <li><a href="#contact"
               class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Contact</a>
           </li>
         </ul>
@@ -99,10 +100,10 @@
           flight bookings, visa assistance, and complete
           travel solutions worldwide.</p>
         <div class="flex justify-center md:justify-start gap-4 flex-wrap">
-          <a href="index.html#flights"
+          <a href="#flights"
             class="inline-flex items-center justify-center gap-2 px-9 py-4 rounded-full font-heading font-semibold text-[16px] bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)] text-white shadow-[var(--shadow-premium-soft)] premium-hover-lift">Book
             Flights</a>
-          <a href="index.html#services"
+          <a href="#services"
             class="inline-flex items-center justify-center gap-2 px-9 py-4 rounded-full font-heading font-semibold text-[16px] glass-effect text-text-main shadow-[var(--shadow-premium-soft)] premium-hover-lift">Explore
             Services</a>
         </div>
@@ -166,44 +167,74 @@
         </div>
       </div>
 
-      <div class="p-[20px] md:p-[32px] flex gap-[16px] items-end flex-wrap">
+      <div class="p-[20px] md:p-[32px] flex flex-col md:flex-row gap-[16px] md:items-end">
         <div class="flex-1 w-full md:min-w-[200px]">
-          <div class="text-[13px] font-bold text-text-muted mb-[8px]">Destination City</div>
+          <div class="text-[13px] font-bold text-text-muted mb-[8px]">From</div>
+          <select id="origin"
+            class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] h-[52px] text-[15px] text-text-main font-bold cursor-pointer premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]">
+            <option value="CCJ" selected>Kozhikode (CCJ)</option>
+            <option value="COK">Kochi (COK)</option>
+            <option value="CNN">Kannur (CNN)</option>
+            <option value="TRV">Trivandrum (TRV)</option>
+            <option value="IXE">Mangalore (IXE)</option>
+            <option value="RUH">Riyadh (RUH)</option>
+            <option value="JED">Jeddah (JED)</option>
+            <option value="DMM">Dammam (DMM)</option>
+            <option value="DXB">Dubai (DXB)</option>
+            <option value="SHJ">Sharjah (SHJ)</option>
+            <option value="AUH">Abu Dhabi (AUH)</option>
+            <option value="DOH">Doha (DOH)</option>
+            <option value="KWI">Kuwait (KWI)</option>
+            <option value="BAH">Bahrain (BAH)</option>
+            <option value="MCT">Muscat (MCT)</option>
+          </select>
+        </div>
+
+        <div class="flex-none hidden md:flex items-center justify-center w-[40px] pb-[6px]">
+          <button id="swap-locations" aria-label="Swap locations" class="w-[40px] h-[40px] rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 border border-border flex items-center justify-center transition-colors cursor-pointer">
+            <i class="bi bi-arrow-left-right text-[16px]"></i>
+          </button>
+        </div>
+
+        <!-- Mobile Swap Button -->
+        <div class="flex-none md:hidden w-full flex justify-center -my-3 relative z-10">
+          <button id="swap-locations-mobile" aria-label="Swap locations" class="w-[40px] h-[40px] rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 border border-border flex items-center justify-center transition-colors shadow-sm cursor-pointer">
+            <i class="bi bi-arrow-down-up text-[16px]"></i>
+          </button>
+        </div>
+
+        <div class="flex-1 w-full md:min-w-[200px]">
+          <div class="text-[13px] font-bold text-text-muted mb-[8px]">To</div>
           <select id="destination"
             class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] h-[52px] text-[15px] text-text-main font-bold cursor-pointer premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]">
             <option value="RUH" selected>Riyadh (RUH)</option>
             <option value="JED">Jeddah (JED)</option>
-            <option value="CCJ">Kozhikode (CCJ)</option>
             <option value="DMM">Dammam (DMM)</option>
+            <option value="DXB">Dubai (DXB)</option>
+            <option value="SHJ">Sharjah (SHJ)</option>
             <option value="AUH">Abu Dhabi (AUH)</option>
+            <option value="DOH">Doha (DOH)</option>
+            <option value="KWI">Kuwait (KWI)</option>
+            <option value="BAH">Bahrain (BAH)</option>
+            <option value="MCT">Muscat (MCT)</option>
+            <option value="CCJ">Kozhikode (CCJ)</option>
+            <option value="COK">Kochi (COK)</option>
             <option value="CNN">Kannur (CNN)</option>
             <option value="TRV">Trivandrum (TRV)</option>
             <option value="IXE">Mangalore (IXE)</option>
-            <option value="KWI">Kuwait (KWI)</option>
-            <option value="SHJ">Sharjah (SHJ)</option>
-            <option value="DXB">Dubai (DXB)</option>
-            <option value="DOH">Doha (DOH)</option>
-            <option value="SLL">Salalah (SLL)</option>
-            <option value="RKT">Ras Al Khaimah (RKT)</option>
-            <option value="AAN">Al Ain (AAN)</option>
-            <option value="FJR">Fujairah (FJR)</option>
-            <option value="COK">Kochi (COK)</option>
-            <option value="BAH">Bahrain (BAH)</option>
-            <option value="MCT">Muscat (MCT)</option>
-            <option value="KUL">Kuala Lumpur (KUL)</option>
           </select>
         </div>
         <button id="live-search-btn"
           class="flex-none w-full md:w-auto px-[32px] h-[52px] bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)] text-white rounded-[12px] font-bold text-[15px] cursor-pointer premium-transition premium-hover-lift flex items-center justify-center gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed">
           <i class="bi bi-search font-bold"></i>
-          Check Availability
+          Search
         </button>
       </div>
 
       <div class="px-[32px] pb-[32px]">
         <div id="resultsHeader" style="display: none; margin-bottom: 24px;">
           <h2 class="text-[24px] font-black text-navy tracking-[-0.02em]">
-            Live Flights to <span id="locName" class="text-primary">...</span>
+            Live Flights: <span id="origName" class="text-primary">...</span> to <span id="locName" class="text-primary">...</span>
           </h2>
           <div class="h-[4px] w-[60px] bg-primary rounded-[2px] mt-[8px]"></div>
         </div>
@@ -217,6 +248,22 @@
         </div>
 
         <div id="flightList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sectors Section -->
+  <section class="py-[60px] md:py-[100px] bg-white border-b border-border" id="flights">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      <div class="text-center mb-[60px]">
+        <h2
+          class="text-[32px] font-heading font-bold text-text-main mb-3 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-[60px] after:h-[3px] after:bg-accent after:rounded-full">
+          Lowest Fare Flight Tickets</h2>
+        <p class="text-[16px] text-text-muted mt-4">Discover amazing deals on popular routes from major airports</p>
+      </div>
+
+      <div id="flight-grids-container">
+        <!-- Airpots will be populated via JS -->
       </div>
     </div>
   </section>
@@ -492,62 +539,46 @@
       </div>
       <div
         class="relative w-full overflow-hidden [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)] py-6">
-        <div class="flex w-max animate-loop-scroll hover:[animation-play-state:paused] opacity-80 cursor-pointer">
+        <div class="flex w-max animate-loop-scroll hover:[animation-play-state:paused] cursor-pointer">
           <!-- Set 1 -->
           <div class="flex shrink-0 items-center gap-8 md:gap-16 px-4 md:px-8">
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/indigo.png" alt="Indigo" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/air-india-express.png" alt="Air India Express" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/air-arabia.png" alt="Air Arabia" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/flynas.png" alt="Flynas" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/oman-air.png" alt="Oman Air" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/salam-air.png" alt="Salam Air" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/air-india.png" alt="Air India" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/saudia.png" alt="Saudi Airlines" class="w-full h-auto"></div>
           </div>
           <!-- Set 2 (Duplicate for infinite loop) -->
           <div class="flex shrink-0 items-center gap-8 md:gap-16 px-4 md:px-8">
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/indigo.png" alt="Indigo" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/air-india-express.png" alt="Air India Express" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/air-arabia.png" alt="Air Arabia" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/flynas.png" alt="Flynas" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/oman-air.png" alt="Oman Air" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/salam-air.png" alt="Salam Air" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/air-india.png" alt="Air India" class="w-full h-auto"></div>
-            <div class="w-[120px] transition-all hover:opacity-100 hover:scale-110 grayscale hover:grayscale-0"><img
+            <div class="w-[120px] transition-all hover:scale-110"><img
                 src="/assets/img/flights/saudia.png" alt="Saudi Airlines" class="w-full h-auto"></div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Sectors Section -->
-  <section class="py-[60px] md:py-[100px] bg-white border-b border-border" id="flights">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
-      <div class="text-center mb-[60px]">
-        <h2
-          class="text-[32px] font-heading font-bold text-text-main mb-3 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-[60px] after:h-[3px] after:bg-accent after:rounded-full">
-          Lowest Fare Flight Tickets</h2>
-        <p class="text-[16px] text-text-muted mt-4">Discover amazing deals on popular routes from major airports</p>
-      </div>
-
-      <div id="flight-grids-container">
-        <!-- Airpots will be populated via JS -->
       </div>
     </div>
   </section>
@@ -703,15 +734,15 @@
         <div>
           <h4 class="text-[18px] font-bold mb-[24px] text-white">Quick Links</h4>
           <ul class="list-none">
-            <li class="mb-[12px]"><a href="index.html#hero"
+            <li class="mb-[12px]"><a href="#hero"
                 class="text-text-soft no-underline transition-colors hover:text-primary">Home</a></li>
-            <li class="mb-[12px]"><a href="index.html#about"
+            <li class="mb-[12px]"><a href="#about"
                 class="text-text-soft no-underline transition-colors hover:text-primary">About Us</a></li>
-            <li class="mb-[12px]"><a href="index.html#services"
+            <li class="mb-[12px]"><a href="#services"
                 class="text-text-soft no-underline transition-colors hover:text-primary">Our Services</a></li>
-            <li class="mb-[12px]"><a href="index.html#flights"
+            <li class="mb-[12px]"><a href="#flights"
                 class="text-text-soft no-underline transition-colors hover:text-primary">Flight Offers</a></li>
-            <li class="mb-[12px]"><a href="index.html#contact"
+            <li class="mb-[12px]"><a href="#contact"
                 class="text-text-soft no-underline transition-colors hover:text-primary">Contact Us</a></li>
           </ul>
         </div>

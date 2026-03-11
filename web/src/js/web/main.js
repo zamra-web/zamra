@@ -1,4 +1,5 @@
 // Modern Zamra Travels JavaScript
+import { getSectors, getFares, getAirlines } from '../admin/db.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -185,10 +186,59 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show loading state
     modalBody.innerHTML = '<div class="w-[40px] h-[40px] border-[3px] border-[#f3f3f3] border-t-primary rounded-full animate-spin mx-auto my-[30px]"></div><p class="text-center text-text-muted mt-4">Fetching latest fares...</p>';
 
-    // Simulate API call to fetch sector data (like legacy site did with fetch.php)
-    setTimeout(() => {
-      // Mock content
-      modalBody.innerHTML = `
+    // Load data dynamically
+    async function loadFares() {
+      try {
+        const sectors = await getSectors();
+        const sector = sectors.find(s => s.sectorCode === sectorCode);
+        
+        const airlines = await getAirlines();
+        const airlineMap = {};
+        airlines.forEach(a => airlineMap[a.id] = a.name);
+
+        let faresHtml = '';
+
+        if (sector) {
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          
+          let fares = await getFares({
+            sectorId: sector.id,
+            startDate: today.toISOString()
+          });
+
+          fares.sort((a, b) => {
+             if (a.flightDate.getTime() === b.flightDate.getTime()) {
+                return a.finalRate - b.finalRate;
+             }
+             return a.flightDate.getTime() - b.flightDate.getTime();
+          });
+
+          if (fares.length === 0) {
+             faresHtml = `<tr><td colspan="5" class="p-[14px_15px] text-center text-text-muted">No flights available currently.</td></tr>`;
+          } else {
+             faresHtml = fares.map(fare => {
+                const airlineName = airlineMap[fare.airlineId] || 'Unknown Airline';
+                const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+                const dateStr = fare.flightDate.toLocaleDateString('en-GB', dateOptions);
+                const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
+                const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
+                
+                return `
+                          <tr class="border-b border-[#e2e8f0] [&:nth-of-type(even)]:bg-[#fafbfc] [&:last-of-type]:border-b-2 [&:last-of-type]:border-primary hover:bg-[#f1f5f9] transition-colors">
+                              <td class="p-[14px_15px] whitespace-nowrap"><strong>${dateStr}</strong></td>
+                              <td class="p-[14px_15px] whitespace-nowrap"><strong>${airlineName}</strong></td>
+                              <td class="p-[14px_15px]">${dep}</td>
+                              <td class="p-[14px_15px]">${arr}</td>
+                              <td class="p-[14px_15px] text-right"><strong>₹${fare.finalRate.toLocaleString('en-IN')}</strong></td>
+                          </tr>`;
+             }).join('');
+          }
+        } else {
+          faresHtml = `<tr><td colspan="5" class="p-[14px_15px] text-center text-text-muted">No flights available currently.</td></tr>`;
+        }
+
+        modalBody.innerHTML = `
                 <div class="text-center mb-4">
                     <button class="mb-4 text-primary font-bold text-[14px] hover:underline flex items-center gap-2 justify-center mx-auto" id="back-to-routes">
                       <i class="bi bi-arrow-left"></i> Back to Destinations
@@ -200,61 +250,47 @@ document.addEventListener('DOMContentLoaded', () => {
                   <table class="w-full min-w-[500px] border-collapse my-[10px] text-[14px] text-left rounded-[10px] overflow-hidden">
                       <thead>
                           <tr class="bg-[#f8fafc] text-text-muted font-bold border-b-2 border-[#e2e8f0]">
+                              <th class="p-[14px_15px]">Date</th>
                               <th class="p-[14px_15px]">Airlines</th>
                               <th class="p-[14px_15px]">Departure</th>
                               <th class="p-[14px_15px]">Arrival</th>
-                              <th class="p-[14px_15px]">Status</th>
-                              <th class="p-[14px_15px] text-right">Price Starts At</th>
+                              <th class="p-[14px_15px] text-right">Price</th>
                           </tr>
                       </thead>
                       <tbody>
-                          <tr class="border-b border-[#e2e8f0] [&:nth-of-type(even)]:bg-[#fafbfc] [&:last-of-type]:border-b-2 [&:last-of-type]:border-primary hover:bg-[#f1f5f9] transition-colors">
-                              <td class="p-[14px_15px] whitespace-nowrap"><strong>Air India Express</strong></td>
-                              <td class="p-[14px_15px]">10:45 AM</td>
-                              <td class="p-[14px_15px]">01:20 PM</td>
-                              <td class="p-[14px_15px]"><span style="color: #16a34a; font-weight: 600;">Available</span></td>
-                              <td class="p-[14px_15px] text-right"><strong>₹12,450</strong></td>
-                          </tr>
-                          <tr class="border-b border-[#e2e8f0] [&:nth-of-type(even)]:bg-[#fafbfc] [&:last-of-type]:border-b-2 [&:last-of-type]:border-primary hover:bg-[#f1f5f9] transition-colors">
-                              <td class="p-[14px_15px] whitespace-nowrap"><strong>Saudi Airlines</strong></td>
-                              <td class="p-[14px_15px]">04:30 PM</td>
-                              <td class="p-[14px_15px]">08:15 PM</td>
-                              <td class="p-[14px_15px]"><span style="color: #16a34a; font-weight: 600;">Available</span></td>
-                              <td class="p-[14px_15px] text-right"><strong>₹14,200</strong></td>
-                          </tr>
-                          <tr class="border-b border-[#e2e8f0] [&:nth-of-type(even)]:bg-[#fafbfc] [&:last-of-type]:border-b-2 [&:last-of-type]:border-primary hover:bg-[#f1f5f9] transition-colors">
-                              <td class="p-[14px_15px] whitespace-nowrap"><strong>Oman Air</strong></td>
-                              <td class="p-[14px_15px]">11:00 PM</td>
-                              <td class="p-[14px_15px]">03:45 AM</td>
-                              <td class="p-[14px_15px]"><span style="color: #d97706; font-weight: 600;">Few Seats</span></td>
-                              <td class="p-[14px_15px] text-right"><strong>₹13,800</strong></td>
-                          </tr>
+                          ${faresHtml}
                       </tbody>
                   </table>
                 </div>
             `;
       
-      const backBtn = document.getElementById('back-to-routes');
-      if (backBtn) {
-        backBtn.addEventListener('click', () => {
-          // Determine origin/destinations based on routeName for back navigation
-          const originCode = sectorCode.split(' ')[0];
-          let originObj = indianAirports.find(a => a.code === originCode);
-          let destList = middleEastAirports;
-          
-          if (!originObj) {
-            originObj = middleEastAirports.find(a => a.code === originCode);
-            destList = indianAirports;
-          }
-          
-          if (originObj) {
-            openRoutesModal(originObj, destList);
-          } else {
-            closeModal();
-          }
-        });
+        const backBtn = document.getElementById('back-to-routes');
+        if (backBtn) {
+          backBtn.addEventListener('click', () => {
+            // Determine origin/destinations based on routeName for back navigation
+            const originCode = sectorCode.split(' ')[0];
+            let originObj = indianAirports.find(a => a.code === originCode);
+            let destList = middleEastAirports;
+            
+            if (!originObj) {
+              originObj = middleEastAirports.find(a => a.code === originCode);
+              destList = indianAirports;
+            }
+            
+            if (originObj) {
+              openRoutesModal(originObj, destList);
+            } else {
+              closeModal();
+            }
+          });
+        }
+      } catch (error) {
+         console.error("Error fetching fares:", error);
+         modalBody.innerHTML = '<p class="text-center text-red-500 my-4">Error loading flights. Please try again later.</p>';
       }
-    }, 800);
+    }
+
+    loadFares();
   }
 
   function closeModal() {
@@ -691,13 +727,51 @@ async function searchFlights() {
   header.style.display = 'none';
 
   try {
-    const response = await fetch('https://n8n.srv1046139.hstgr.cloud/webhook/get-flights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ origin: origin, destination: dest })
-    });
+    const sectors = await getSectors();
+    const sectorCode = `${origin} ${dest}`;
+    const sector = sectors.find(s => s.sectorCode === sectorCode);
+    
+    let data = [];
+    if (sector) {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      
+      let fares = await getFares({
+        sectorId: sector.id,
+        startDate: today.toISOString()
+      });
+      
+      fares.sort((a, b) => {
+         if (a.flightDate.getTime() === b.flightDate.getTime()) {
+            return a.finalRate - b.finalRate;
+         }
+         return a.flightDate.getTime() - b.flightDate.getTime();
+      });
+      
+      const airlines = await getAirlines();
+      const airlineMap = {};
+      airlines.forEach(a => airlineMap[a.id] = a.name);
+      
+      data = fares.map(fare => {
+        const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+        const dateStr = fare.flightDate.toLocaleDateString('en-GB', dateOptions).replace(/,/g, ''); 
+        
+        const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
+        const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
+        
+        return {
+          airline: airlineMap[fare.airlineId] || 'Unknown Airline',
+          origin: origin,
+          destination: dest,
+          date: dateStr,
+          departure: dep,
+          arrival: arr,
+          price: "₹" + fare.finalRate.toLocaleString('en-IN'),
+          seats: fare.seatsAvailable || 0
+        };
+      });
+    }
 
-    const data = await response.json();
     loader.style.display = 'none';
     header.style.display = 'block';
     if (origName) origName.innerText = origin;

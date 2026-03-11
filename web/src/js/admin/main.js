@@ -993,7 +993,7 @@ async function handleSheetSubmit() {
   const btn = document.getElementById('submitBtn');
   const orig = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = `<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Processing...`;
+  btn.innerHTML = `<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Sending to AI...`;
 
   const bar = document.getElementById('progBar');
   const fill = document.getElementById('progFill');
@@ -1002,12 +1002,6 @@ async function handleSheetSubmit() {
   const iv = setInterval(() => { prog = Math.min(prog + Math.random() * 13, 85); if (fill) fill.style.width = prog + '%'; }, 280);
 
   const parsedRows = quickParse(ta.value);
-
-  // Build lookup maps for Firestore writes
-  const sectorMap = {};
-  _sectors.forEach(s => { sectorMap[s.sectorCode.replace(' ', '-')] = s.id; });
-  const airlineMap = {};
-  _airlines.forEach(a => { airlineMap[a.code] = a.id; });
 
   const hEntry = {
     id: Date.now(), agent: selAgent,
@@ -1018,31 +1012,32 @@ async function handleSheetSubmit() {
   if (rateHistory.length > 15) rateHistory.pop();
   saveHistory(); renderHistory();
 
-  const results = await Promise.allSettled([
-    // 1. Save to Firestore
-    saveFares(parsedRows, selAgent, sectorMap, airlineMap),
-    // 2. Also ping n8n webhook (fire-and-forget, non-breaking)
-    fetch(WEBHOOK, {
+  try {
+    const n8nResp = await fetch(WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agent_id: selAgent, raw_text: ta.value.trim(), timestamp: new Date().toISOString(), source: 'zamra-portal' }),
-    }).catch(() => null),
-  ]);
+    });
 
-  clearInterval(iv);
-  if (fill) fill.style.width = '100%';
+    clearInterval(iv);
+    if (fill) fill.style.width = '100%';
 
-  const firestoreResult = results[0];
-  if (firestoreResult.status === 'fulfilled') {
-    hEntry.status = 'ok';
-    saveHistory(); renderHistory();
-    totalEntries += parsedRows.length; updateStats();
-    toast('success', 'Submitted Successfully', `${parsedRows.length} entries saved to Firestore.`);
-    setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
-  } else {
+    if (n8nResp.ok) {
+      hEntry.status = 'ok';
+      // Use estimated rows just for UI stat
+      totalEntries += parsedRows.length; 
+      saveHistory(); renderHistory(); updateStats();
+      toast('success', 'Submitted', 'Rates dispatched to AI Agent. The database will reflect parsing results momentarily.');
+      setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
+    } else {
+      throw new Error('N8N webhook rejected payload');
+    }
+  } catch (err) {
+    clearInterval(iv);
+    if (fill) fill.style.width = '100%';
     hEntry.status = 'err';
     saveHistory(); renderHistory();
-    toast('error', 'Submission Failed', firestoreResult.reason?.message || 'Unknown error');
+    toast('error', 'Submission Failed', err.message);
   }
 
   setTimeout(() => { if (bar) bar.classList.remove('on'); if (fill) fill.style.width = '0%'; btn.innerHTML = orig; validate(); }, 900);

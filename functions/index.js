@@ -243,3 +243,83 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
     generatedAt: new Date().toISOString(),
   };
 });
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 5. ingestFaresFromN8n
+//    Accepts parsed 'firebaseData' JSON from n8n webhook and stores it in Firestore.
+// ══════════════════════════════════════════════════════════════════════════════
+const { onRequest } = require("firebase-functions/v2/https");
+
+exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method Not Allowed');
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== 'Bearer ZAMRA_SECURE_N8N_KEY_2026') {
+    return res.status(401).send('Unauthorized');
+  }
+
+  const fares = req.body.firebaseData;
+  if (!fares || !Array.isArray(fares)) {
+    return res.status(400).send('Invalid payload: expected { firebaseData: [...] }');
+  }
+
+  // Load Sectors mapping
+  const sectorMap = {};
+  const sectorsSnap = await db.collection("sectors").get();
+  sectorsSnap.forEach(d => {
+      const dbCode = d.data().sectorCode || '';
+      sectorMap[dbCode.replace('-', ' ').trim()] = d.id;
+  });
+
+  // Load Airlines mapping
+  const airlineMap = {};
+  const airlinesSnap = await db.collection("airlines").get();
+  airlinesSnap.forEach(a => {
+      airlineMap[a.data().code] = a.id;
+  });
+
+  const BATCH_LIMIT = 400;
+  let saved = 0;
+  
+  for (let i = 0; i < fares.length; i += BATCH_LIMIT) {
+    const batch = db.batch();
+    const chunk = fares.slice(i, i + BATCH_LIMIT);
+    
+    chunk.forEach(row => {
+      const newRef = db.collection('agent_fares').doc();
+      const n8nSectorCode = String(row.sector_code || '').trim();
+      const sectorId = sectorMap[n8nSectorCode] || n8nSectorCode;
+      
+      const n8nFlightCode = String(row.flight_code || '').trim();
+      const airlineId = airlineMap[n8nFlightCode] || n8nFlightCode;
+      
+      const flightDate = Timestamp.fromDate(new Date(row.date + 'T00:00:00Z'));
+      const flightTimeStr = (row.time_start && row.time_end) ? `${row.time_start} - ${row.time_end}` : '';
+
+      batch.set(newRef, {
+        agentId: String(row.agent_id),
+        sectorId,
+        airlineId,
+        flightDate,
+        specialRate: row.sp_rate ? Number(row.sp_rate) : 0,
+        finalRate: row.rate ? Number(row.rate) : 0,
+        baggage: String(row.baggage || ''),
+        extraBaggage: row.extra_baggage ? Number(row.extra_baggage) : 0,
+        commission: row.commission ? Number(row.commission) : 200,
+        supplierRate: 0,
+        isHidden: row.show === 'no',
+        flightTime: flightTimeStr,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    
+    await batch.commit();
+    saved += chunk.length;
+  }
+
+  res.status(200).json({ success: true, saved });
+});
