@@ -126,7 +126,7 @@ web/
 ### `agents`
 | Field | Type | Notes |
 |---|---|---|
-| `agentId` | String | Auto-generated doc ID |
+| `agentId` | String | Manual Custom string (e.g. `AGENT-123`)(doc ID) |
 | `name` | String | Display name |
 | `contactPhone` | String | |
 | `email` | String | |

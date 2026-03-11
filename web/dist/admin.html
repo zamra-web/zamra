@@ -59,14 +59,14 @@
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
         }
     </style>
-  <script type="module" crossorigin src="/assets/admin-BNZt5Pk6.js"></script>
+  <script type="module" crossorigin src="/assets/admin-2PfyrCkn.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-CurJtAJd.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-C8dCQQR7.css">
+  <link rel="modulepreload" crossorigin href="/assets/auth-C3LIlOmd.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-BRxfEDCD.css">
 </head>
 
-<body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative aurora-container">
-    <div class="absolute inset-0 z-[-1] aurora-bg opacity-30 fixed"></div>
+<body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
+    <div class="fixed inset-0 z-[-1] aurora-bg opacity-30"></div>
 
     <!-- Navigation Bar -->
     <nav class="glass-effect border-b border-white/20 sticky top-0 z-[1000] shadow-[var(--shadow-premium-soft)]">
@@ -212,11 +212,11 @@
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Status</th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="id">ID <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="name">Name <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="email">Email <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="contactPhone">Phone <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="isActive">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -232,33 +232,19 @@
 
         <!-- AGENT SHEETS TAB -->
         <div id="agent-sheets-tab" class="tab-content">
-            <div id="rate-portal" class="py-[60px] px-[20px] relative z-10 w-full max-w-[1280px] mx-auto">
-                <div
-                    class="aurora-container bg-navy rounded-[32px] p-[60px_40px] mb-[-60px] relative overflow-hidden shadow-[var(--shadow-premium-soft)] text-white border border-white/20 group">
-                    <div
-                        class="absolute inset-0 z-0 aurora-bg opacity-30 group-hover:opacity-60 premium-transition duration-1000">
+            <div class="max-w-[1200px] mx-auto py-12 px-2 relative z-10">
+                
+                <div class="mb-10">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-primary-light/10 text-primary flex items-center justify-center">
+                            <i class="bi bi-file-earmark-spreadsheet text-xl"></i>
+                        </div>
+                        <h1 class="text-3xl font-black text-navy tracking-tight font-heading">Rate Portal</h1>
                     </div>
-                    <div
-                        class="absolute top-[-50%] right-[-10%] w-[60%] h-[200%] bg-[radial-gradient(circle,rgba(255,255,255,0.15)_0%,transparent_70%)] rounded-full z-0 mix-blend-overlay pointer-events-none">
-                    </div>
-                    <div class="max-w-[600px] relative z-10">
-                        <div
-                            class="glass-effect px-[14px] py-[6px] rounded-full text-[13px] font-bold inline-block mb-5 tracking-[0.5px] uppercase text-white/90">
-                            Agent Rate Portal</div>
-                        <h1
-                            class="text-[42px] font-black leading-[1.1] mb-4 tracking-[-0.02em] font-heading drop-shadow-md">
-                            Submit
-                            Your <span class="text-[#60a5fa]">Flight Rate</span><br>Data Instantly</h1>
-                        <p class="text-[16px] opacity-90 leading-[1.6] drop-shadow-sm font-medium">Your trusted partner
-                            for affordable and reliable
-                            flight
-                            bookings. Submit agent rate data below — it will be automatically processed and updated in
-                            our system.</p>
-                    </div>
+                    <p class="text-text-muted text-base max-w-2xl pl-13">Paste raw agent rate data from WhatsApp or text files. The system will automatically parse, clean, and sync the fares to the live database.</p>
                 </div>
 
-                <div
-                    class="max-w-[1000px] mx-auto pt-[100px] pb-[40px] grid grid-cols-1 md:grid-cols-[1fr_300px] gap-[30px] relative">
+                <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 relative">
 
                     <div>
 
@@ -554,12 +540,16 @@ Example:
                 class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
                 <div class="flex justify-between items-center mb-6">
                     <div class="text-[14px] flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1 text-[13px]">
-                            <option>10</option>
+                        Show <select id="sectors-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="999999">All</option>
                         </select> entries
                     </div>
                     <div class="flex items-center text-[14px]">
-                        Search: <input type="text"
+                        Search: <input type="text" id="sectors-search"
                             class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
                     </div>
                 </div>
@@ -568,10 +558,10 @@ Example:
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Sector From</th>
-                                <th>Sector To</th>
-                                <th>Sector Code</th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="id">ID <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorFrom">Sector From <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorTo">Sector To <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorCode">Sector Code <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -596,12 +586,16 @@ Example:
                 class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
                 <div class="flex justify-between items-center mb-6">
                     <div class="text-[14px] flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1 text-[13px]">
-                            <option>10</option>
+                        Show <select id="airlines-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="999999">All</option>
                         </select> entries
                     </div>
                     <div class="flex items-center text-[14px]">
-                        Search: <input type="text"
+                        Search: <input type="text" id="airlines-search"
                             class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
                     </div>
                 </div>
@@ -611,8 +605,8 @@ Example:
                         <thead>
                             <tr>
                                 <th>Logo</th>
-                                <th>Airline Name</th>
-                                <th>IATA Code</th>
+                                <th class="cursor-pointer group" data-sort-tab="airlines" data-sort-key="name">Airline Name <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="airlines" data-sort-key="code">IATA Code <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

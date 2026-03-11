@@ -20,6 +20,85 @@ import {
 let _agents = [];
 let _sectors = [];
 let _airlines = [];
+let _dashboardFares = [];
+
+// ── Sorting & Search State ────────────────────────────────────────────────────
+let tableSort = {
+  agents: { key: 'name', asc: true },
+  sectors: { key: 'sectorFrom', asc: true },
+  airlines: { key: 'name', asc: true },
+  dashboard: { key: 'finalRate', asc: true }
+};
+let tableSearch = { sectors: '', airlines: '' };
+let tableLimit = { sectors: 10, airlines: 10 };
+
+function applySortAndFilter(data, tab) {
+  let filtered = data;
+  const q = tableSearch[tab]?.toLowerCase();
+  
+  if (q && tab === 'sectors') {
+    filtered = filtered.filter(s => 
+      (s.sectorFrom || '').toLowerCase().includes(q) || 
+      (s.sectorTo || '').toLowerCase().includes(q) || 
+      (s.sectorCode || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'airlines') {
+    filtered = filtered.filter(s => 
+      (s.name || '').toLowerCase().includes(q) || 
+      (s.code || '').toLowerCase().includes(q)
+    );
+  }
+
+  const { key, asc } = tableSort[tab];
+  if (key) {
+    filtered = [...filtered].sort((a, b) => {
+      let valA = a[key], valB = b[key];
+      if (valA instanceof Date) valA = valA.getTime();
+      if (valB instanceof Date) valB = valB.getTime();
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+      
+      if (valA < valB) return asc ? -1 : 1;
+      if (valA > valB) return asc ? 1 : -1;
+      return 0;
+    });
+  }
+  
+  const limit = tableLimit[tab] || 999999;
+  return filtered.slice(0, limit);
+}
+
+function updateSortIcons(tab) {
+  document.querySelectorAll(`th[data-sort-tab="${tab}"] i`).forEach(i => {
+    i.className = 'bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]';
+  });
+  const activeTh = document.querySelector(`th[data-sort-tab="${tab}"][data-sort-key="${tableSort[tab].key}"]`);
+  if (activeTh) {
+    const icon = activeTh.querySelector('i');
+    if (icon) icon.className = `bi bi-arrow-${tableSort[tab].asc ? 'up' : 'down'} opacity-100 ml-1 text-[11px] text-primary`;
+  }
+}
+
+// Global click delegation for sorters
+document.addEventListener('click', (e) => {
+  const th = e.target.closest('th[data-sort-tab]');
+  if (!th) return;
+
+  const tab = th.dataset.sortTab;
+  const key = th.dataset.sortKey;
+
+  if (tableSort[tab].key === key) {
+    tableSort[tab].asc = !tableSort[tab].asc;
+  } else {
+    tableSort[tab].key = key;
+    tableSort[tab].asc = true;
+  }
+
+  if (tab === 'agents') renderAgentsTab(false);
+  else if (tab === 'sectors') renderSectorsTab(false);
+  else if (tab === 'airlines') renderFlightsTab(false);
+  else if (tab === 'dashboard' && _dashboardFares.length) renderDashboardResults(_dashboardFares, document.getElementById('dashboard-tab'));
+});
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
 document.documentElement.style.visibility = 'hidden';
@@ -165,7 +244,8 @@ async function renderDashboardTab() {
       fetchBtn.textContent = 'Loading…';
       try {
         const fares = await getFares({ sectorId, startDate, endDate, includeHidden: true });
-        renderDashboardResults(fares, tab);
+        _dashboardFares = fares;
+        renderDashboardResults(_dashboardFares, tab);
       } catch (e) {
         toast('error', 'Fetch Failed', e.message);
       } finally {
@@ -204,11 +284,17 @@ function renderDashboardResults(fares, tab) {
       <div class="admin-table-container">
         <table class="admin-table w-full text-sm">
           <thead><tr>
-            <th>Date</th><th>Sector</th><th>Airline</th><th>Agent</th>
-            <th>Rate (₹)</th><th>Baggage</th><th>Status</th><th>Actions</th>
+            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="flightDate">Date <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="sectorId">Sector <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="airlineId">Airline <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="agentId">Agent <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="finalRate">Rate (₹) <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="baggage">Baggage <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="isHidden">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th>Actions</th>
           </tr></thead>
           <tbody>
-            ${fares.map(f => `
+            ${applySortAndFilter(fares, 'dashboard').map(f => `
               <tr>
                 <td>${f.flightDate instanceof Date ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : f.flightDate}</td>
                 <td>${sectorMap[f.sectorId] || f.sectorId}</td>
@@ -243,19 +329,21 @@ function renderDashboardResults(fares, tab) {
     } catch (e) { toast('error', 'Error', e.message); }
   };
 
+  updateSortIcons('dashboard');
 }
 
 
 // ══════════════════════════════════════════════════════════════════════════════
 // AGENTS TAB — Full CRUD + Bulk Delete + Toggle Active
 // ══════════════════════════════════════════════════════════════════════════════
-async function renderAgentsTab() {
-  _agents = await getAgents();
+async function renderAgentsTab(fetchData = true) {
+  if (fetchData) _agents = await getAgents();
   const tbody = document.querySelector('#agents-tab .admin-table tbody');
   if (!tbody) return;
 
-  tbody.innerHTML = _agents.length
-    ? _agents.map(a => agentRow(a)).join('')
+  const data = applySortAndFilter(_agents, 'agents');
+  tbody.innerHTML = data.length
+    ? data.map(a => agentRow(a)).join('')
     : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No agents yet. Click "+ Add Agent" to get started.</td></tr>`;
 
   wireAgentActions();
@@ -268,6 +356,8 @@ async function renderAgentsTab() {
     addBtn.dataset.wired = '1';
     addBtn.addEventListener('click', () => openAgentModal(null));
   }
+  
+  updateSortIcons('agents');
 }
 
 function agentRow(a) {
@@ -407,13 +497,24 @@ function populateAgentSelects() {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTORS TAB — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
-async function renderSectorsTab() {
-  _sectors = await getSectors();
+async function renderSectorsTab(fetchData = true) {
+  if (fetchData) _sectors = await getSectors();
+  
+  // Wire up filter inputs if not already
+  const searchInp = document.getElementById('sectors-search');
+  const limitSel = document.getElementById('sectors-limit');
+  if (searchInp && !searchInp.dataset.wired) {
+    searchInp.dataset.wired = '1'; limitSel.dataset.wired = '1';
+    searchInp.addEventListener('input', (e) => { tableSearch.sectors = e.target.value; renderSectorsTab(false); });
+    limitSel.addEventListener('change', (e) => { tableLimit.sectors = parseInt(e.target.value); renderSectorsTab(false); });
+  }
+
   const tbody = document.querySelector('#sectors-tab .admin-table tbody');
   if (!tbody) return;
 
-  tbody.innerHTML = _sectors.length
-    ? _sectors.map(s => sectorRow(s)).join('')
+  const data = applySortAndFilter(_sectors, 'sectors');
+  tbody.innerHTML = data.length
+    ? data.map(s => sectorRow(s)).join('')
     : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No sectors yet. Click "+ Add Sector".</td></tr>`;
 
   wireSectorActions();
@@ -423,6 +524,8 @@ async function renderSectorsTab() {
     addBtn.dataset.wired = '1';
     addBtn.addEventListener('click', () => openSectorModal(null));
   }
+  
+  updateSortIcons('sectors');
 }
 
 function sectorRow(s) {
@@ -515,13 +618,24 @@ function openSectorModal(sector) {
 // ══════════════════════════════════════════════════════════════════════════════
 // FLIGHTS TAB (Airlines) — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
-async function renderFlightsTab() {
-  _airlines = await getAirlines();
+async function renderFlightsTab(fetchData = true) {
+  if (fetchData) _airlines = await getAirlines();
+
+  // Wire up filter inputs if not already
+  const searchInp = document.getElementById('airlines-search');
+  const limitSel = document.getElementById('airlines-limit');
+  if (searchInp && !searchInp.dataset.wired) {
+    searchInp.dataset.wired = '1'; limitSel.dataset.wired = '1';
+    searchInp.addEventListener('input', (e) => { tableSearch.airlines = e.target.value; renderFlightsTab(false); });
+    limitSel.addEventListener('change', (e) => { tableLimit.airlines = parseInt(e.target.value); renderFlightsTab(false); });
+  }
+
   const tbody = document.querySelector('#flights-tab .admin-table tbody');
   if (!tbody) return;
 
-  tbody.innerHTML = _airlines.length
-    ? _airlines.map(a => airlineRow(a)).join('')
+  const data = applySortAndFilter(_airlines, 'airlines');
+  tbody.innerHTML = data.length
+    ? data.map(a => airlineRow(a)).join('')
     : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No airlines yet. Click "+ Add Flight".</td></tr>`;
 
   wireAirlineActions();
@@ -531,6 +645,8 @@ async function renderFlightsTab() {
     addBtn.dataset.wired = '1';
     addBtn.addEventListener('click', () => openAirlineModal(null));
   }
+  
+  updateSortIcons('airlines');
 }
 
 function airlineRow(a) {
@@ -761,7 +877,12 @@ function buildChips() {
   const cGrid = document.getElementById('chipGrid');
   if (!cGrid || cGrid.children.length > 0) return;
 
-  const chipAgents = _agents.length ? _agents : [];
+  const chipAgents = _agents.length ? [..._agents].sort((a, b) => {
+    const numA = parseInt(a.id);
+    const numB = parseInt(b.id);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return a.id.localeCompare(b.id);
+  }) : [];
 
   if (!chipAgents.length) {
     cGrid.innerHTML = `<p class="text-sm text-text-muted">No agents found. Add agents in the Agents tab first.</p>`;
@@ -772,7 +893,7 @@ function buildChips() {
     const c = document.createElement('div');
     c.className = 'rp-chip';
     c.dataset.agentId = agent.id;
-    c.textContent = agent.name;
+    c.textContent = agent.id;
     c.style.cssText = 'height:48px;padding:0 12px;display:flex;align-items:center;justify-content:center;border:2px solid #b8cce4;border-radius:10px;font-size:13px;font-weight:700;color:#1e293b;cursor:pointer;background:#ffffff;user-select:none;box-shadow:0 1px 4px rgba(13,31,60,.10);transition:all .16s ease;white-space:nowrap;';
     c.addEventListener('click', () => pickAgent(agent.id, agent.name, c));
     cGrid.appendChild(c);
@@ -803,7 +924,7 @@ function syncPill() {
   if (!p) return;
   if (selAgent) {
     const agent = _agents.find(a => a.id === selAgent);
-    p.textContent = `${agent?.name || 'Agent ' + selAgent} selected ✓`;
+    p.textContent = `Agent ${agent?.id || selAgent} selected ✓`;
     p.classList.remove('empty');
   } else {
     p.textContent = 'No agent selected';

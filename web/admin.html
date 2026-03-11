@@ -209,11 +209,11 @@
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Status</th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="id">ID <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="name">Name <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="email">Email <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="contactPhone">Phone <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="agents" data-sort-key="isActive">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -537,12 +537,16 @@ Example:
                 class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
                 <div class="flex justify-between items-center mb-6">
                     <div class="text-[14px] flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1 text-[13px]">
-                            <option>10</option>
+                        Show <select id="sectors-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="999999">All</option>
                         </select> entries
                     </div>
                     <div class="flex items-center text-[14px]">
-                        Search: <input type="text"
+                        Search: <input type="text" id="sectors-search"
                             class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
                     </div>
                 </div>
@@ -551,10 +555,10 @@ Example:
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Sector From</th>
-                                <th>Sector To</th>
-                                <th>Sector Code</th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="id">ID <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorFrom">Sector From <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorTo">Sector To <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorCode">Sector Code <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -579,12 +583,16 @@ Example:
                 class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
                 <div class="flex justify-between items-center mb-6">
                     <div class="text-[14px] flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1 text-[13px]">
-                            <option>10</option>
+                        Show <select id="airlines-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="999999">All</option>
                         </select> entries
                     </div>
                     <div class="flex items-center text-[14px]">
-                        Search: <input type="text"
+                        Search: <input type="text" id="airlines-search"
                             class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
                     </div>
                 </div>
@@ -594,8 +602,8 @@ Example:
                         <thead>
                             <tr>
                                 <th>Logo</th>
-                                <th>Airline Name</th>
-                                <th>IATA Code</th>
+                                <th class="cursor-pointer group" data-sort-tab="airlines" data-sort-key="name">Airline Name <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="airlines" data-sort-key="code">IATA Code <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
