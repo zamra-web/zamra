@@ -59,11 +59,11 @@
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
         }
     </style>
-  <script type="module" crossorigin src="/assets/admin-Cbn446eD.js"></script>
+  <script type="module" crossorigin src="/assets/admin-CS2Eqvy0.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/firebase-config-zYKzaodH.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-BoSsNJB0.js">
-  <link rel="modulepreload" crossorigin href="/assets/db-BxSq6g0-.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-DyyH16RE.css">
+  <link rel="modulepreload" crossorigin href="/assets/auth-DyFD4TBb.js">
+  <link rel="modulepreload" crossorigin href="/assets/db-CCPO5ebM.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-DLdRZqwR.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -135,10 +135,9 @@
 
         <!-- DASHBOARD TAB -->
         <div id="dashboard-tab" class="tab-content active">
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
+            <div class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="block text-sm font-semibold text-text-muted mb-2">Select Sector</label>
                         <select id="dashboard-sector-sel"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
@@ -146,11 +145,18 @@
                         </select>
                     </div>
                     <div class="md:col-span-3">
+                        <label class="block text-sm font-semibold text-text-muted mb-2">Select Agent</label>
+                        <select id="dashboard-agent-sel"
+                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                            <option value="all">All Agents</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-text-muted mb-2">Start Date</label>
                         <input id="dashboard-start-date" type="date"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-text-muted mb-2">End Date</label>
                         <input id="dashboard-end-date" type="date"
                             class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
@@ -165,7 +171,7 @@
             <!-- Dashboard Results Container (populated by JS) -->
             <div id="dashboard-results" class="mt-8 text-center text-text-muted border-2 border-dashed border-border/20 rounded-xl py-12">
                 <i class="bi bi-briefcase text-4xl opacity-50 mb-3 block"></i>
-                <p>Select a sector and dates to fetch data</p>
+                <p>Select a sector or filter to fetch fares</p>
             </div>
         </div>
 
@@ -173,35 +179,41 @@
         <div id="agents-tab" class="tab-content">
             <div class="flex justify-between items-center mb-6">
                 <div></div>
-                <button
+                <button id="agents-add-btn"
                     class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-200 premium-hover-lift premium-transition">+
                     Add Agent</button>
             </div>
 
             <div
                 class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main mb-8">
-                <h3 class="font-bold text-gray-300 mb-6 text-sm uppercase tracking-wide">Bulk Delete Agent Flight Charts
+                <h3 class="font-bold text-gray-300 mb-6 text-sm uppercase tracking-wide">Bulk Delete Fares
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Select Agent</label>
-                        <select class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
-                            <option>Select Agent</option>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Agent <span class="font-normal opacity-60">(optional)</span></label>
+                        <select id="agents-bulk-agent-sel" class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                            <option value="">All Agents</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date</label>
-                        <input type="date"
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Sector <span class="font-normal opacity-60">(optional)</span></label>
+                        <select id="agents-bulk-sector-sel" class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                            <option value="">All Sectors</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date <span class="font-normal opacity-60">(optional)</span></label>
+                        <input id="agents-bulk-start" type="date"
                             class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
                     </div>
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date</label>
-                        <input type="date"
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date <span class="font-normal opacity-60">(optional)</span></label>
+                        <input id="agents-bulk-end" type="date"
                             class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
                     </div>
                     <div>
-                        <button
-                            class="bg-red-500 text-white font-semibold px-6 h-[42px] rounded-lg shadow-sm hover:opacity-90 transition-all text-[14px]">Bulk
+                        <button id="agents-bulk-delete-btn"
+                            class="w-full bg-red-500 text-white font-semibold h-[42px] rounded-lg shadow-sm hover:opacity-90 transition-all text-[14px]">Bulk
                             Delete</button>
                     </div>
                 </div>
@@ -226,6 +238,8 @@
                         </tbody>
                     </table>
                 </div>
+                <!-- Pagination footer -->
+                <div id="agents-pagination-footer" class="border-t border-border/50 mt-0"></div>
             </div>
         </div>
 
@@ -626,28 +640,28 @@ Example:
                 <!-- Filters Row -->
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-8">
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date</label>
-                        <input id="reports-start-date" type="date"
-                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                    </div>
-                    <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date</label>
-                        <input id="reports-end-date" type="date"
-                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                    </div>
-                    <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Filter by Sector</label>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Sector</label>
                         <select id="reports-sector-sel"
                             class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] text-text-main">
                             <option value="all">All Sectors</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Filter by Agent</label>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Agent <span class="font-normal opacity-60">(optional)</span></label>
                         <select id="reports-agent-sel"
                             class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] text-text-main">
                             <option value="all">All Agents</option>
                         </select>
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date <span class="font-normal opacity-60">(optional)</span></label>
+                        <input id="reports-start-date" type="date"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date <span class="font-normal opacity-60">(optional)</span></label>
+                        <input id="reports-end-date" type="date"
+                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary">
                     </div>
                     <div class="flex items-end">
                         <button id="generate-report-btn"

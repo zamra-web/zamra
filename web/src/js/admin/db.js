@@ -315,14 +315,21 @@ export async function deleteLogo(downloadUrl) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Bulk delete all fares for an agent within a date range.
- * @param {string} agentId
- * @param {string} startDate  — 'YYYY-MM-DD'
- * @param {string} endDate    — 'YYYY-MM-DD'
+ * Bulk delete fares matching any combination of optional filters.
+ * At least one filter must be meaningful (non-null / non-'all').
+ * @param {string|null} agentId
+ * @param {string|null} startDate  — 'YYYY-MM-DD'
+ * @param {string|null} endDate    — 'YYYY-MM-DD'
+ * @param {string|null} sectorId
  */
-export async function callBulkDeleteFares(agentId, startDate, endDate) {
+export async function callBulkDeleteFares(agentId = null, startDate = null, endDate = null, sectorId = null) {
   const fn = httpsCallable(functions, 'bulkDeleteFares');
-  const result = await fn({ agentId, startDate, endDate });
+  const payload = {};
+  if (agentId && agentId !== 'all') payload.agentId = agentId;
+  if (sectorId && sectorId !== 'all') payload.sectorId = sectorId;
+  if (startDate) payload.startDate = startDate;
+  if (endDate) payload.endDate = endDate;
+  const result = await fn(payload);
   return result.data;
 }
 
@@ -349,13 +356,17 @@ export async function callToggleSectorVisibility(sectorId, isHidden) {
 }
 
 /**
- * Generate an aggregated agent report for the given date range.
- * @param {string} startDate
- * @param {string} endDate
- * @param {string} [sectorId]  — optional filter
+ * Generate an aggregated agent report.
+ * @param {string|null} startDate  — optional 'YYYY-MM-DD'
+ * @param {string|null} endDate    — optional 'YYYY-MM-DD'
+ * @param {string}      sectorId   — optional, defaults to 'all'
+ * @param {string}      agentId    — optional, defaults to 'all'
  */
-export async function callGenerateAgentReport(startDate, endDate, sectorId = 'all') {
+export async function callGenerateAgentReport(startDate = null, endDate = null, sectorId = 'all', agentId = 'all') {
   const fn = httpsCallable(functions, 'generateAgentReport');
-  const result = await fn({ startDate, endDate, sectorId });
+  const payload = { sectorId, agentId };
+  if (startDate) payload.startDate = startDate;
+  if (endDate) payload.endDate = endDate;
+  const result = await fn(payload);
   return result.data;
 }

@@ -75,15 +75,18 @@ web/
 ## Dashboard Tabs
 
 ### 1. 📊 Dashboard Tab
-- **Search** fares by sector + date range
+- **Search** fares with flexible optional filters: Sector, Agent, Start Date, End Date
+- **Only one filter is required** — select a sector alone to see all its fares; add dates/agent to narrow results
 - Displays a full results table with: Date, Sector, Airline, Agent, Rate (₹), Baggage, Status (Live/Hidden)
 - Inline **Hide/Show** and **Delete** per fare row
 - All data from Firestore `agent_fares`
 
 ### 2. 👥 Agents Tab
 - **Full CRUD** — Add / Edit (modal form) / Delete agents
+- **Pagination** — 10 agents per page with Previous/Next/page-number controls
 - **Hide All / Show All** — calls `bulkToggleAgentVisibility` Cloud Function, which updates the agent's `isActive` flag AND toggles `isHidden` on all their fares at once
-- **Bulk Delete** — deletes all fares for a selected agent within a date range via `bulkDeleteFares` Cloud Function
+- **Bulk Delete Fares** — deletes fares matching any combination of optional filters: Agent, Sector, Start Date, End Date. At least one filter must be set. Calls `bulkDeleteFares` Cloud Function.
+- Confirm dialog shows a human-readable summary of the exact filter combination before deletion
 - Data from Firestore `agents` collection
 
 ### 3. 🗺️ Sectors Tab
@@ -104,7 +107,9 @@ web/
 - Submission history stored in `localStorage` (last 15 sessions)
 
 ### 6. 📈 Reports Tab
-- **Sector + Agent filters** + date range
+- **Sector + Agent filters** (primary) + optional date range
+- **Only one filter is required** — pick a sector alone to run a report; agent and dates further narrow the aggregation
+- Filter order in UI: Sector → Agent → Start Date → End Date
 - Calls `generateAgentReport` Cloud Function
 - Renders results as:
   - **Bar chart** — fares per agent (top 8)
@@ -191,10 +196,10 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 
 | Function | What it does |
 |---|---|
-| `bulkDeleteFares` | Batch-deletes all `agent_fares` for an agent within a date range (500-doc batches) |
+| `bulkDeleteFares` | Batch-deletes `agent_fares` matching optional filters: `agentId`, `sectorId`, `startDate`, `endDate`. At least one filter required. Builds query dynamically. |
 | `bulkToggleAgentVisibility` | Sets `isActive` on agent + `isHidden` on all their fares |
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
-| `generateAgentReport` | Aggregates fares → per-agent count/avgRate + per-sector count, returns report data |
+| `generateAgentReport` | Aggregates fares with optional filters (sector, agent, date range). All filters optional individually — at least one required. Returns per-agent count/avgRate + per-sector count. |
 | `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token, maps sector/airline codes, and batch writes to `agent_fares`. |
 
 ---
@@ -223,12 +228,15 @@ Agents:   getAgents(), addAgent(), updateAgent(), deleteAgent()
 Sectors:  getSectors(), addSector(), updateSector(), deleteSector()
 Airlines: getAirlines(), addAirline(), updateAirline(), deleteAirline()
 Fares:    getFares(filters), deleteFare(), updateFare()
+          getFares({ agentId?, sectorId?, startDate?, endDate?, includeHidden? })
 Storage:  uploadLogo(folder, file), deleteLogo(url)
 Functions:
-  callBulkDeleteFares(agentId, startDate, endDate)
+  callBulkDeleteFares(agentId?, startDate?, endDate?, sectorId?)
+    — all params optional; at least one required
   callToggleAgentVisibility(agentId, isActive)
   callToggleSectorVisibility(sectorId, isHidden)
-  callGenerateAgentReport(startDate, endDate, sectorId?)
+  callGenerateAgentReport(startDate?, endDate?, sectorId?, agentId?)
+    — all params optional; at least one required
 ```
 
 ---

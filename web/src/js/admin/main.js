@@ -251,10 +251,14 @@ async function renderDashboardTab() {
       const endInput = document.getElementById('dashboard-end-date');
       const sectorId = sectorSel?.value || 'all';
       const agentId = agentSel?.value || 'all';
-      const startDate = startInput?.value;
-      const endDate = endInput?.value;
+      const startDate = startInput?.value || null;
+      const endDate = endInput?.value || null;
 
-      if (!startDate || !endDate) { toast('warning', 'Missing Dates', 'Please select start and end dates.'); return; }
+      // Only sector is required — dates and agent are optional narrowing filters
+      if (sectorId === 'all' && !startDate && !endDate && agentId === 'all') {
+        toast('warning', 'No Filter Selected', 'Select at least a sector, an agent, or a date range.');
+        return;
+      }
 
       fetchBtn.disabled = true;
       fetchBtn.textContent = 'Loading…';
@@ -535,20 +539,37 @@ function wireAgentsBulkForm() {
   bulkBtn.dataset.wired = '1';
 
   bulkBtn.addEventListener('click', async () => {
-    const agentSel = document.getElementById('agents-bulk-agent-sel');
+    const agentSel  = document.getElementById('agents-bulk-agent-sel');
+    const sectorSel = document.getElementById('agents-bulk-sector-sel');
     const startInput = document.getElementById('agents-bulk-start');
-    const endInput = document.getElementById('agents-bulk-end');
-    const agentId = agentSel?.value;
-    const startDate = startInput?.value;
-    const endDate = endInput?.value;
-    if (!agentId || agentId === '' || !startDate || !endDate) {
-      toast('warning', 'Incomplete', 'Select agent and both dates.');
+    const endInput  = document.getElementById('agents-bulk-end');
+
+    const agentId  = agentSel?.value  || null;
+    const sectorId = sectorSel?.value || null;
+    const startDate = startInput?.value || null;
+    const endDate  = endInput?.value  || null;
+
+    // At least one meaningful filter must be set
+    const hasFilter = (agentId && agentId !== 'all') ||
+                      (sectorId && sectorId !== 'all') ||
+                      startDate || endDate;
+    if (!hasFilter) {
+      toast('warning', 'No Filter', 'Select at least an agent, a sector, or a date range before deleting.');
       return;
     }
-    if (!confirm(`Delete ALL fares for this agent from ${startDate} to ${endDate}? This cannot be undone.`)) return;
+
+    // Build a human-readable summary for the confirm dialog
+    const parts = [];
+    if (agentId  && agentId  !== 'all') parts.push(`Agent: ${agentSel.options[agentSel.selectedIndex].text}`);
+    if (sectorId && sectorId !== 'all') parts.push(`Sector: ${sectorSel.options[sectorSel.selectedIndex].text}`);
+    if (startDate) parts.push(`from ${startDate}`);
+    if (endDate)   parts.push(`to ${endDate}`);
+
+    if (!confirm(`Delete ALL matching fares?\n${parts.join(' · ')}\n\nThis cannot be undone.`)) return;
+
     bulkBtn.disabled = true; bulkBtn.textContent = 'Deleting…';
     try {
-      const res = await callBulkDeleteFares(agentId, startDate, endDate);
+      const res = await callBulkDeleteFares(agentId, startDate, endDate, sectorId);
       toast('success', 'Bulk Delete Complete', res.message);
     } catch (e) { toast('error', 'Bulk Delete Failed', e.message); }
     finally { bulkBtn.disabled = false; bulkBtn.textContent = 'Bulk Delete'; }
@@ -556,13 +577,23 @@ function wireAgentsBulkForm() {
 }
 
 function populateAgentBulkSelect() {
-  const sel = document.getElementById('agents-bulk-agent-sel');
-  if (!sel) return;
-  // Rebuild options from scratch each time agents list may have changed
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="">Select Agent</option>';
-  _agents.forEach(a => sel.appendChild(new Option(a.name, a.id)));
-  if (currentVal) sel.value = currentVal;
+  // Agent dropdown
+  const agentSel = document.getElementById('agents-bulk-agent-sel');
+  if (agentSel) {
+    const currentAgent = agentSel.value;
+    agentSel.innerHTML = '<option value="">All Agents</option>';
+    _agents.forEach(a => agentSel.appendChild(new Option(a.name, a.id)));
+    if (currentAgent) agentSel.value = currentAgent;
+  }
+
+  // Sector dropdown
+  const sectorSel = document.getElementById('agents-bulk-sector-sel');
+  if (sectorSel) {
+    const currentSector = sectorSel.value;
+    sectorSel.innerHTML = '<option value="">All Sectors</option>';
+    _sectors.forEach(s => sectorSel.appendChild(new Option(s.sectorCode, s.id)));
+    if (currentSector) sectorSel.value = currentSector;
+  }
 }
 
 
@@ -836,12 +867,20 @@ async function renderReportsTab() {
   if (fetchBtn && !fetchBtn.dataset.wired) {
     fetchBtn.dataset.wired = '1';
     fetchBtn.addEventListener('click', async () => {
-      const startDate = startInput?.value;
-      const endDate = endInput?.value;
-      if (!startDate || !endDate) { toast('warning', 'Missing Dates', 'Select a date range.'); return; }
+      const sectorId = sectorSel?.value || 'all';
+      const agentId = agentSel?.value || 'all';
+      const startDate = startInput?.value || null;
+      const endDate = endInput?.value || null;
+
+      // Sector is the primary filter; dates and agent are optional
+      if (sectorId === 'all' && !startDate && !endDate && agentId === 'all') {
+        toast('warning', 'No Filter Selected', 'Select at least a sector, an agent, or a date range.');
+        return;
+      }
+
       fetchBtn.disabled = true; fetchBtn.textContent = 'Generating…';
       try {
-        const report = await callGenerateAgentReport(startDate, endDate, sectorSel?.value || 'all');
+        const report = await callGenerateAgentReport(startDate, endDate, sectorId, agentId);
         renderReportCharts(report, tab);
       } catch (e) { toast('error', 'Report Failed', e.message); }
       finally { fetchBtn.disabled = false; fetchBtn.textContent = 'Generate Report'; }

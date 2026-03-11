@@ -65,29 +65,43 @@ async function updateDocs(snapshot, updateData) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 1. bulkDeleteFares
-//    Deletes all agent_fares docs for a given agent within a date range.
+//    Deletes agent_fares matching any combination of optional filters:
+//    agentId, sectorId, startDate, endDate. At least one must be provided.
 // ══════════════════════════════════════════════════════════════════════════════
 exports.bulkDeleteFares = onCall({ region: "asia-south1" }, async (request) => {
   requireAdmin(request);
 
-  const { agentId, startDate, endDate } = request.data;
+  const { agentId, sectorId, startDate, endDate } = request.data;
 
-  if (!agentId || !startDate || !endDate) {
-    throw new HttpsError("invalid-argument", "agentId, startDate, and endDate are required.");
+  // Require at least one meaningful filter to prevent accidental full wipes
+  const hasFilter = (agentId && agentId !== "all") ||
+                    (sectorId && sectorId !== "all") ||
+                    startDate || endDate;
+
+  if (!hasFilter) {
+    throw new HttpsError("invalid-argument", "Provide at least one filter: agentId, sectorId, or a date range.");
   }
 
-  const start = Timestamp.fromDate(new Date(startDate));
-  const end = Timestamp.fromDate(new Date(endDate + "T23:59:59"));
+  // Build query dynamically from whatever filters are supplied
+  let query = db.collection("agent_fares");
 
-  const snapshot = await db.collection("agent_fares")
-    .where("agentId", "==", agentId)
-    .where("flightDate", ">=", start)
-    .where("flightDate", "<=", end)
-    .get();
+  if (agentId && agentId !== "all") {
+    query = query.where("agentId", "==", agentId);
+  }
+  if (sectorId && sectorId !== "all") {
+    query = query.where("sectorId", "==", sectorId);
+  }
+  if (startDate) {
+    query = query.where("flightDate", ">=", Timestamp.fromDate(new Date(startDate)));
+  }
+  if (endDate) {
+    query = query.where("flightDate", "<=", Timestamp.fromDate(new Date(endDate + "T23:59:59")));
+  }
 
+  const snapshot = await query.get();
   const deleted = await deleteDocs(snapshot);
 
-  return { success: true, deleted, message: `Deleted ${deleted} fare records.` };
+  return { success: true, deleted, message: `Deleted ${deleted} fare record${deleted !== 1 ? "s" : ""}.` };
 });
 
 
@@ -164,22 +178,28 @@ exports.bulkToggleSectorVisibility = onCall({ region: "asia-south1" }, async (re
 exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) => {
   requireAdmin(request);
 
-  const { startDate, endDate, sectorId } = request.data;
+  const { startDate, endDate, sectorId, agentId } = request.data;
 
-  if (!startDate || !endDate) {
-    throw new HttpsError("invalid-argument", "startDate and endDate are required.");
+  // Dates are optional — when omitted, all fares are aggregated.
+  // At least one filter (sector, agent, or date range) must be provided.
+  if (!startDate && !endDate && (!sectorId || sectorId === "all") && (!agentId || agentId === "all")) {
+    throw new HttpsError("invalid-argument", "Provide at least a sector, an agent, or a date range.");
   }
 
-  const start = Timestamp.fromDate(new Date(startDate));
-  const end = Timestamp.fromDate(new Date(endDate + "T23:59:59"));
+  // Build query dynamically — only add constraints that were supplied
+  let query = db.collection("agent_fares");
 
-  // Build query
-  let query = db.collection("agent_fares")
-    .where("flightDate", ">=", start)
-    .where("flightDate", "<=", end);
-
+  if (startDate) {
+    query = query.where("flightDate", ">=", Timestamp.fromDate(new Date(startDate)));
+  }
+  if (endDate) {
+    query = query.where("flightDate", "<=", Timestamp.fromDate(new Date(endDate + "T23:59:59")));
+  }
   if (sectorId && sectorId !== "all") {
     query = query.where("sectorId", "==", sectorId);
+  }
+  if (agentId && agentId !== "all") {
+    query = query.where("agentId", "==", agentId);
   }
 
   const snapshot = await query.get();
