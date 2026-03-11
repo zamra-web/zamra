@@ -24,8 +24,8 @@ let _dashboardFares = [];
 
 // ── Sorting & Search State ────────────────────────────────────────────────────
 let tableSort = {
-  agents: { key: 'name', asc: true },
-  sectors: { key: 'sectorFrom', asc: true },
+  agents: { key: 'id', asc: true },
+  sectors: { key: 'id', asc: true },
   airlines: { key: 'name', asc: true },
   dashboard: { key: 'finalRate', asc: true }
 };
@@ -55,9 +55,14 @@ function applySortAndFilter(data, tab) {
       let valA = a[key], valB = b[key];
       if (valA instanceof Date) valA = valA.getTime();
       if (valB instanceof Date) valB = valB.getTime();
+      // Numeric ID sort — treat '1','2'...'27' as numbers
+      if (key === 'id') {
+        const na = parseInt(valA), nb = parseInt(valB);
+        if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+      }
       if (typeof valA === 'string') valA = valA.toLowerCase();
       if (typeof valB === 'string') valB = valB.toLowerCase();
-      
+
       if (valA < valB) return asc ? -1 : 1;
       if (valA > valB) return asc ? 1 : -1;
       return 0;

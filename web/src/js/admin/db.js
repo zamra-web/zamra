@@ -18,10 +18,16 @@ import { db, storage, functions } from './firebase-config.js';
 // AGENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Fetch all agents ordered by name */
+/** Fetch all agents — returned unsorted; callers sort by numeric ID */
 export async function getAgents() {
-  const snap = await getDocs(query(collection(db, 'agents'), orderBy('name')));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(collection(db, 'agents'));
+  const agents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Sort by numeric ID (1, 2, 3…) with fallback to lexicographic
+  return agents.sort((a, b) => {
+    const na = parseInt(a.id), nb = parseInt(b.id);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.id.localeCompare(b.id);
+  });
 }
 
 /** Add a new agent. Returns the new document ID. */
@@ -63,10 +69,16 @@ export async function toggleAgentActive(agentId, isActive) {
 // SECTORS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Fetch all sectors ordered by sectorCode */
+/** Fetch all sectors — sorted by numeric ID with fallback to sectorCode */
 export async function getSectors() {
-  const snap = await getDocs(query(collection(db, 'sectors'), orderBy('sectorCode')));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(collection(db, 'sectors'));
+  const sectors = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Sort by numeric ID first; fall back to sectorCode alphabetically
+  return sectors.sort((a, b) => {
+    const na = parseInt(a.id), nb = parseInt(b.id);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return (a.sectorCode || '').localeCompare(b.sectorCode || '');
+  });
 }
 
 /** Add a new sector */
