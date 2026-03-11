@@ -39,6 +39,7 @@ export async function addAgent(data) {
     contactPhone: data.contactPhone || '',
     email: data.email || '',
     isActive: data.isActive !== undefined ? data.isActive : true,
+    commission: data.commission !== undefined ? Number(data.commission) : 500,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

@@ -379,7 +379,7 @@ async function renderAgentsTab(fetchData = true) {
 
   tbody.innerHTML = pageData.length
     ? pageData.map(a => agentRow(a)).join('')
-    : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No agents yet. Click "+ Add Agent" to get started.</td></tr>`;
+    : `<tr><td colspan="7" class="text-center py-8 text-text-muted">No agents yet. Click "+ Add Agent" to get started.</td></tr>`;
 
   // Render pagination footer
   renderAgentsPagination(_agents.length, totalPages, start);
@@ -404,11 +404,13 @@ function agentRow(a) {
   const statusBadge = a.isActive !== false
     ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700">Active</span>`
     : `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-600">Hidden</span>`;
+  const comm = a.commission !== undefined ? `₹${Number(a.commission).toLocaleString()}` : '—';
   return `<tr data-agent-id="${a.id}">
     <td class="font-mono text-xs text-text-muted">${a.id.slice(0, 8)}…</td>
     <td class="font-semibold">${a.name}</td>
     <td>${a.email || '—'}</td>
     <td>${a.contactPhone || '—'}</td>
+    <td class="font-semibold text-navy">${comm}</td>
     <td>${statusBadge}</td>
     <td class="flex gap-1 flex-wrap">
       <button data-action="edit-agent" data-id="${a.id}" class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-yellow-500">Edit</button>
@@ -506,6 +508,13 @@ function openAgentModal(agent) {
         <label class="block text-sm font-semibold text-text-muted mb-1">Phone</label>
         <input name="contactPhone" value="${agent?.contactPhone || ''}"
           class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-text-muted mb-1">Commission (₹) *</label>
+        <input name="commission" type="number" min="0" required value="${agent?.commission !== undefined ? agent.commission : 500}"
+          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          placeholder="e.g. 500">
+        <p class="text-[11px] text-text-soft mt-1">This commission is auto-applied to all fares ingested for this agent.</p>
       </div>
       <div class="flex gap-3 pt-2">
         <button type="submit"

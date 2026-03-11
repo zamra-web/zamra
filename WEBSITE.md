@@ -81,8 +81,11 @@ web/
 - Reads `sectors` collection from Firestore
 - Groups routes by top-level "Origin" cards (e.g., India to Middle East)
 - Clicking an Origin opens a modal with destination Routes
-- Clicking a Route opens the Flight Details modal with live pricing
+- Clicking a Route opens the **Flight Details modal** with live pricing
+  - Modal width: `max-w-[760px]` — wide enough to show all columns (Date, Airlines, Departure, Arrival, Price, Book Now) **without horizontal scrolling**
+  - Table `min-w-[680px]` ensures the Book Now button is always immediately visible
 - Includes "Back to Destinations" navigation within the modal
+- **Book Now** button opens a pre-filled WhatsApp message to the Zamra Travels number
 
 ### 🚀 Smooth Scrolling and Navigation
 - All local navigation links use `#anchor` tags handled gracefully via custom JavaScript
@@ -158,5 +161,5 @@ npx firebase-tools@latest deploy --only hosting
 |---|---|
 | `sectors` | `sectorFrom`, `sectorTo`, `sectorCode` |
 | `airlines` | `name`, `code`, `logoUrl` |
-| `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `isHidden` |
+| `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `flightTime`, `isHidden` |
 | `services` | `serviceType`, `title`, `basePrice`, `isActive` |

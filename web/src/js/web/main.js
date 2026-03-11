@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="text-text-muted text-sm">Prices are introductory and subject to availability.</p>
                 </div>
                 <div class="overflow-x-auto w-full pb-2">
-                  <table class="w-full min-w-[500px] border-collapse my-[10px] text-[14px] text-left rounded-[10px] overflow-hidden">
+                  <table class="w-full min-w-[680px] border-collapse my-[10px] text-[14px] text-left rounded-[10px] overflow-hidden">
                       <thead>
                           <tr class="bg-[#f8fafc] text-text-muted font-bold border-b-2 border-[#e2e8f0]">
                               <th class="p-[12px_15px]">Date</th>

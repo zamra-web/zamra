@@ -301,6 +301,14 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
       airlineMap[a.data().code] = a.id;
   });
 
+  // Load Agents commission map — commission value is stored per-agent in Firestore
+  const agentCommissionMap = {};
+  const agentsSnap = await db.collection("agents").get();
+  agentsSnap.forEach(a => {
+      const d = a.data();
+      agentCommissionMap[a.id] = d.commission !== undefined ? Number(d.commission) : 500;
+  });
+
   const BATCH_LIMIT = 400;
   let saved = 0;
   
@@ -316,11 +324,17 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
       const n8nFlightCode = String(row.flight_code || '').trim();
       const airlineId = airlineMap[n8nFlightCode] || n8nFlightCode;
       
+      const agentIdStr = String(row.agent_id);
       const flightDate = Timestamp.fromDate(new Date(row.date + 'T00:00:00Z'));
       const flightTimeStr = (row.time_start && row.time_end) ? `${row.time_start} - ${row.time_end}` : '';
 
+      // Use agent's stored commission; n8n payload can override if explicitly provided
+      const commission = (row.commission !== undefined && row.commission !== null)
+        ? Number(row.commission)
+        : (agentCommissionMap[agentIdStr] ?? 500);
+
       batch.set(newRef, {
-        agentId: String(row.agent_id),
+        agentId: agentIdStr,
         sectorId,
         airlineId,
         flightDate,
@@ -328,7 +342,7 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
         finalRate: row.rate ? Number(row.rate) : 0,
         baggage: String(row.baggage || ''),
         extraBaggage: row.extra_baggage ? Number(row.extra_baggage) : 0,
-        commission: row.commission ? Number(row.commission) : 200,
+        commission,
         supplierRate: 0,
         isHidden: row.show === 'no',
         flightTime: flightTimeStr,

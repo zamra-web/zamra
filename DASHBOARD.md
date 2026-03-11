@@ -83,11 +83,13 @@ web/
 
 ### 2. 👥 Agents Tab
 - **Full CRUD** — Add / Edit (modal form) / Delete agents
+- **Commission field** — Each agent has a `commission` (₹) value set via the Add/Edit modal. This value is automatically stamped onto every fare ingested for that agent via `ingestFaresFromN8n`. Default is ₹500 if not specified.
 - **Pagination** — 10 agents per page with Previous/Next/page-number controls
 - **Hide All / Show All** — calls `bulkToggleAgentVisibility` Cloud Function, which updates the agent's `isActive` flag AND toggles `isHidden` on all their fares at once
 - **Bulk Delete Fares** — deletes fares matching any combination of optional filters: Agent, Sector, Start Date, End Date. At least one filter must be set. Calls `bulkDeleteFares` Cloud Function.
 - Confirm dialog shows a human-readable summary of the exact filter combination before deletion
 - Data from Firestore `agents` collection
+- **Table columns:** ID · Name · Email · Phone · **Commission** · Status · Actions
 
 ### 3. 🗺️ Sectors Tab
 - **Full CRUD** — Add / Edit / Delete sectors
@@ -99,14 +101,7 @@ web/
 - **Logo upload** — uploads to Firebase Storage (`/airline_logos/`), stores URL in Firestore
 - Data from Firestore `airlines` collection (fields: `name`, `code`, `logoUrl`)
 
-### 5. 📋 Agent Sheets Tab
-- **Agent selector** — chips populated from live Firestore `agents` list
-- **Paste raw rate text** — agent-formatted WhatsApp/text fare data
-- **Submit** — Sends raw text payload securely to the **n8n AI webhook** at `https://n8n.srv1046139.hstgr.cloud/webhook/zamra`. The frontend no longer parses and saves this locally.
-- **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
-- Submission history stored in `localStorage` (last 15 sessions)
-
-### 6. 📈 Reports Tab
+### 5. 📈 Reports Tab
 - **Sector + Agent filters** (primary) + optional date range
 - **Only one filter is required** — pick a sector alone to run a report; agent and dates further narrow the aggregation
 - Filter order in UI: Sector → Agent → Start Date → End Date
@@ -114,6 +109,13 @@ web/
 - Renders results as:
   - **Bar chart** — fares per agent (top 8)
   - **Pie chart** — fares per sector (conic-gradient CSS)
+
+### 6. 📋 Rate Upload Tab
+- **Agent selector** — chips populated from live Firestore `agents` list
+- **Paste raw rate text** — agent-formatted WhatsApp/text fare data
+- **Submit** — Sends raw text payload securely to the **n8n AI webhook** at `https://n8n.srv1046139.hstgr.cloud/webhook/zamra`. The frontend no longer parses and saves this locally.
+- **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
+- Submission history stored in `localStorage` (last 15 sessions)
 
 ---
 
@@ -135,6 +137,9 @@ web/
 | `contactPhone` | String | |
 | `email` | String | |
 | `isActive` | Boolean | `false` = all their fares hidden on public site |
+| `commission` | Number | Per-agent commission in ₹ (default: 500). Auto-stamped on ingested fares. |
+| `createdAt` | Timestamp | Server timestamp |
+| `updatedAt` | Timestamp | Server timestamp |
 
 ### `sectors`
 | Field | Type | Notes |
@@ -162,8 +167,13 @@ web/
 | `specialRate` | Number | Base fare in ₹ |
 | `finalRate` | Number | Final selling rate |
 | `baggage` | String | e.g. `'30kg'` |
+| `extraBaggage` | Number | Extra baggage allowance in kg |
+| `commission` | Number | Agent commission in ₹ — sourced from `agents.commission` at ingest time |
+| `supplierRate` | Number | Supplier cost (currently always 0) |
+| `flightTime` | String | e.g. `'19:40 - 22:55'` |
 | `isHidden` | Boolean | `true` = hidden from public site |
 | `createdAt` | Timestamp | Server timestamp |
+| `updatedAt` | Timestamp | Server timestamp |
 
 ### `services`
 | Field | Type | Notes |
@@ -200,7 +210,7 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 | `bulkToggleAgentVisibility` | Sets `isActive` on agent + `isHidden` on all their fares |
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
 | `generateAgentReport` | Aggregates fares with optional filters (sector, agent, date range). All filters optional individually — at least one required. Returns per-agent count/avgRate + per-sector count. |
-| `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token, maps sector/airline codes, and batch writes to `agent_fares`. |
+| `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, and **`agents`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. Batch-writes to `agent_fares`. |
 
 ---
 
