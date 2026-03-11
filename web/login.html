@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Zamra Travels</title>
+    <meta name="description" content="Secure admin login portal for Zamra Travels management dashboard.">
+    <!-- Favicons -->
+    <link href="/assets/img/favicon.webp" rel="icon">
+    <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/src/styles/admin/style.css">
+
+    <style>
+        /* Aurora Background */
+        @keyframes aurora-flow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-8px) rotate(1deg); }
+            66% { transform: translateY(4px) rotate(-1deg); }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.05); opacity: 0.2; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .login-aurora {
+            background: radial-gradient(circle at 20% 20%, rgba(12, 74, 138, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(30, 103, 194, 0.12) 0%, transparent 50%),
+                        radial-gradient(circle at 50% 80%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 10% 90%, rgba(96, 165, 250, 0.08) 0%, transparent 50%);
+            background-size: 200% 200%;
+            animation: aurora-flow 20s ease infinite alternate;
+        }
+
+        .login-card {
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .login-logo {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .input-group input {
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .input-group input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(12, 74, 138, 0.1);
+        }
+
+        .input-group .input-icon {
+            transition: color 0.3s ease;
+        }
+
+        .input-group input:focus ~ .input-icon,
+        .input-group input:focus + .input-icon {
+            color: var(--primary);
+        }
+
+        .login-btn {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 3s ease infinite;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(12, 74, 138, 0.35);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .login-btn:disabled::before {
+            display: none;
+        }
+
+        /* Floating orbs decoration */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.4;
+            animation: pulse-ring 8s ease-in-out infinite;
+        }
+
+        .orb-1 {
+            width: 300px; height: 300px;
+            background: rgba(12, 74, 138, 0.2);
+            top: -100px; left: -100px;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 200px; height: 200px;
+            background: rgba(56, 189, 248, 0.15);
+            bottom: -50px; right: -50px;
+            animation-delay: 4s;
+        }
+
+        .orb-3 {
+            width: 150px; height: 150px;
+            background: rgba(96, 165, 250, 0.2);
+            top: 50%; right: 10%;
+            animation-delay: 2s;
+        }
+
+        /* Error shake */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
+        .shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        /* Toast notification */
+        .login-toast {
+            animation: slideUp 0.3s ease forwards;
+        }
+
+        /* Password toggle */
+        .password-toggle {
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .password-toggle:hover {
+            color: var(--primary);
+        }
+
+        /* Spinner */
+        .spinner {
+            border: 2.5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            width: 18px; height: 18px;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Grid pattern overlay */
+        .grid-pattern {
+            background-image: 
+                linear-gradient(rgba(12, 74, 138, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(12, 74, 138, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center relative overflow-hidden" style="background-color: var(--bg-main); font-family: 'Inter', sans-serif;">
+
+    <!-- Background Effects -->
+    <div class="absolute inset-0 login-aurora"></div>
+    <div class="absolute inset-0 grid-pattern"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <!-- Login Container -->
+    <div class="relative z-10 w-full max-w-[440px] mx-4">
+
+        <!-- Login Card -->
+        <div class="login-card bg-white/80 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-white/60 overflow-hidden" id="login-card">
+
+            <!-- Top Accent Bar -->
+            <div class="h-1.5 w-full bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)]"></div>
+
+            <!-- Card Body -->
+            <div class="p-8 sm:p-10">
+                
+                <!-- Logo & Title -->
+                <div class="text-center mb-8">
+                    <div class="login-logo inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)] shadow-[0_8px_30px_rgba(12,74,138,0.3)] mb-5">
+                        <i class="bi bi-shield-lock-fill text-white text-2xl"></i>
+                    </div>
+                    <h1 class="text-2xl font-extrabold tracking-tight mb-1.5" style="color: var(--navy); font-family: 'Outfit', sans-serif;">
+                        Admin Portal
+                    </h1>
+                    <p class="text-sm font-medium" style="color: var(--text-muted);">
+                        Sign in to access Zamra Travels Dashboard
+                    </p>
+                </div>
+
+                <!-- Error Message -->
+                <div id="login-error" class="hidden mb-5 p-3.5 rounded-xl border text-sm font-semibold flex items-center gap-2.5" 
+                     style="background: #fef2f2; border-color: #fecaca; color: #dc2626;">
+                    <i class="bi bi-exclamation-circle-fill text-base"></i>
+                    <span id="login-error-text">Invalid credentials</span>
+                </div>
+
+                <!-- Login Form -->
+                <form id="login-form" class="space-y-5" autocomplete="on">
+
+                    <!-- Email -->
+                    <div>
+                        <label for="login-email" class="block text-xs font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+                            Email Address
+                        </label>
+                        <div class="input-group relative">
+                            <div class="absolute left-4 top-1/2 -translate-y-1/2 input-icon" style="color: var(--text-muted);">
+                                <i class="bi bi-envelope text-base"></i>
+                            </div>
+                            <input 
+                                type="email" 
+                                id="login-email"
+                                name="email"
+                                placeholder="admin@zamratravels.com"
+                                autocomplete="email"
+                                required
+                                class="w-full h-[52px] pl-12 pr-4 rounded-xl border text-[15px] font-medium outline-none"
+                                style="border-color: var(--border); color: var(--navy); background: rgba(248, 250, 252, 0.8);"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label for="login-password" class="block text-xs font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+                            Password
+                        </label>
+                        <div class="input-group relative">
+                            <div class="absolute left-4 top-1/2 -translate-y-1/2 input-icon" style="color: var(--text-muted);">
+                                <i class="bi bi-lock text-base"></i>
+                            </div>
+                            <input 
+                                type="password" 
+                                id="login-password"
+                                name="password"
+                                placeholder="Enter your password"
+                                autocomplete="current-password"
+                                required
+                                class="w-full h-[52px] pl-12 pr-12 rounded-xl border text-[15px] font-medium outline-none"
+                                style="border-color: var(--border); color: var(--navy); background: rgba(248, 250, 252, 0.8);"
+                            >
+                            <button type="button" id="toggle-password" class="absolute right-4 top-1/2 -translate-y-1/2 password-toggle" style="color: var(--text-muted);">
+                                <i class="bi bi-eye text-base" id="eye-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="login-submit" 
+                        class="login-btn w-full h-[52px] rounded-xl text-white font-bold text-[15px] flex items-center justify-center gap-2 mt-2"
+                        style="background: linear-gradient(135deg, var(--color-primary-gradient-start), var(--color-primary-gradient-end));">
+                        <span id="btn-text">Sign In</span>
+                        <i class="bi bi-arrow-right" id="btn-arrow"></i>
+                        <div class="spinner hidden" id="btn-spinner"></div>
+                    </button>
+
+                </form>
+
+                <!-- Footer -->
+                <div class="mt-8 pt-6 border-t text-center" style="border-color: var(--border);">
+                    <div class="flex items-center justify-center gap-2 text-xs font-semibold" style="color: var(--text-muted);">
+                        <i class="bi bi-shield-check text-sm" style="color: var(--primary);"></i>
+                        Protected by Firebase Authentication
+                    </div>
+                    <a href="/" class="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold hover:underline" style="color: var(--primary);">
+                        <i class="bi bi-arrow-left text-xs"></i>
+                        Back to Zamra Travels
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Branding -->
+        <p class="text-center mt-6 text-xs font-semibold" style="color: var(--text-muted); opacity: 0.7;">
+            © 2026 Zamra Travels. All rights reserved.
+        </p>
+    </div>
+
+    <!-- Login Script -->
+    <script type="module" src="/src/js/admin/login.js"></script>
+
+</body>
+</html>

@@ -59,9 +59,10 @@
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
         }
     </style>
-  <script type="module" crossorigin src="/assets/admin-BMMdeqgP.js"></script>
+  <script type="module" crossorigin src="/assets/admin-BS88vhRb.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
-  <link rel="stylesheet" crossorigin href="/assets/admin-i0SrqMSf.css">
+  <link rel="modulepreload" crossorigin href="/assets/auth-vcAzlFac.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-C35bRvjH.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative aurora-container">
@@ -96,22 +97,21 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Flights</a>
                         <a href="#" data-tab="reports-tab" data-title="Reports"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Reports</a>
-                        <a href="#" data-tab="contact-mails-tab" data-title="Contact Queries"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Contact
-                            Mails</a>
-                        <a href="#" data-tab="testimonials-tab" data-title="Testimonial"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Testimonials</a>
-                        <a href="#" data-tab="faq-tab" data-title="FAQ"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Faq</a>
+
                     </div>
                 </div>
 
-                <!-- Admin Profile Dropdown Concept -->
-                <div class="flex items-center">
-                    <button
-                        class="flex items-center space-x-2 border border-border rounded-md px-3 py-1.5 text-text-muted text-[13px] hover:bg-gray-50 transition-colors">
-                        <span>Sahal Admin</span>
-                        <i class="bi bi-chevron-down text-[10px]"></i>
+                <!-- Admin Profile & Logout -->
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 border border-border rounded-md px-3 py-1.5 text-[13px] bg-white/50">
+                        <i class="bi bi-person-circle text-primary text-base"></i>
+                        <span id="admin-user-name" class="text-text-muted font-medium">Admin</span>
+                    </div>
+                    <button id="admin-logout-btn"
+                        class="flex items-center gap-1.5 border border-red-200 bg-red-50 text-red-600 rounded-md px-3 py-1.5 text-[13px] font-semibold hover:bg-red-100 transition-colors"
+                        title="Sign Out">
+                        <i class="bi bi-box-arrow-right text-sm"></i>
+                        <span class="hidden sm:inline">Logout</span>
                     </button>
                 </div>
             </div>
@@ -920,198 +920,38 @@ Example:
             </div>
         </div>
 
-        <!-- CONTACT MAILS TAB -->
-        <div id="contact-mails-tab" class="tab-content">
-            <h3
-                class="font-bold text-[18px] text-navy mb-4 bg-white p-4 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-100">
-                Contact Enquiries</h3>
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main mb-8">
-                <div class="flex justify-between items-center mb-6 text-[14px]">
-                    <div class="flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1">
-                            <option>10</option>
-                        </select> entries
-                    </div>
-                    <div class="flex items-center">
-                        Search: <input type="text"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
-                    </div>
-                </div>
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Email <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Phone <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Date <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Sector <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Flight <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Message <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="8" class="text-center text-text-muted py-8">No data available in table</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
-                    <div>Showing 0 to 0 of 0 entries</div>
-                    <div class="flex gap-2">
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
-                    </div>
-                </div>
-            </div>
-
-            <h3
-                class="font-bold text-[18px] text-navy mb-4 bg-white p-4 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-100">
-                Contact Mails</h3>
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
-                <div class="flex justify-between items-center mb-6 text-[14px]">
-                    <div class="flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1">
-                            <option>10</option>
-                        </select> entries
-                    </div>
-                    <div class="flex items-center">
-                        Search: <input type="text"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
-                    </div>
-                </div>
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Name <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Email <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Phone <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Message Subject <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Message <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="6" class="text-center text-text-muted py-8">No data available in table</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
-                    <div>Showing 0 to 0 of 0 entries</div>
-                    <div class="flex gap-2">
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TESTIMONIALS TAB -->
-        <div id="testimonials-tab" class="tab-content">
-            <div class="flex justify-between items-center mb-6">
-                <div></div>
-                <button
-                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-200 premium-hover-lift premium-transition">+
-                    Add Testimonial</button>
-            </div>
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
-                <div class="flex justify-between items-center mb-6 text-[14px]">
-                    <div class="flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1">
-                            <option>10</option>
-                        </select> entries
-                    </div>
-                    <div class="flex items-center">
-                        Search: <input type="text"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
-                    </div>
-                </div>
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Title <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Priority <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Review <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="4" class="text-center text-text-muted py-8">No data available in table</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
-                    <div>Showing 0 to 0 of 0 entries</div>
-                    <div class="flex gap-2">
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- FAQ TAB -->
-        <div id="faq-tab" class="tab-content">
-            <div class="flex justify-between items-center mb-6">
-                <div></div>
-                <button
-                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-200 premium-hover-lift premium-transition">+
-                    Add Faq</button>
-            </div>
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
-                <div class="flex justify-between items-center mb-6 text-[14px]">
-                    <div class="flex items-center">
-                        Show <select class="mx-2 border border-border rounded p-1">
-                            <option>10</option>
-                        </select> entries
-                    </div>
-                    <div class="flex items-center">
-                        Search: <input type="text"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
-                    </div>
-                </div>
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Question <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Answer <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Sort Order <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                                <th>Actions <i class="bi bi-arrow-down-up float-right opacity-50"></i></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="4" class="text-center text-text-muted py-8">No data available in table</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="flex justify-between items-center mt-4 text-[13px] text-text-muted">
-                    <div>Showing 0 to 0 of 0 entries</div>
-                    <div class="flex gap-2">
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Previous</button>
-                        <button class="px-3 py-1 cursor-not-allowed opacity-50">Next</button>
-                    </div>
-                </div>
-            </div>
-        </div>
 
     </main>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         REUSABLE MODAL DIALOG
+         JS populates #modal-title, #modal-body, then calls modal.showModal()
+         ══════════════════════════════════════════════════════════════════════ -->
+    <dialog id="admin-modal"
+        class="backdrop:bg-black/40 backdrop:backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-100 p-0 w-full max-w-lg mx-auto mt-20 open:animate-[fadeInScale_0.2s_ease]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+            <h3 id="modal-title" class="font-bold text-navy text-lg"></h3>
+            <button id="modal-close-btn"
+                class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-500">
+                <i class="bi bi-x-lg text-sm"></i>
+            </button>
+        </div>
+        <div id="modal-body" class="p-6"></div>
+    </dialog>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         TOAST CONTAINER (rendered by JS)
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div id="toastsEl" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
     <!-- Custom JS -->
+
+    <style>
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+    </style>
 </body>
 
 </html>

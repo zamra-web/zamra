@@ -1,0 +1,48 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "agent_fares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "agentId", "order": "ASCENDING" },
+        { "fieldPath": "flightDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agent_fares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sectorId", "order": "ASCENDING" },
+        { "fieldPath": "flightDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agent_fares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "agentId", "order": "ASCENDING" },
+        { "fieldPath": "sectorId", "order": "ASCENDING" },
+        { "fieldPath": "flightDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agent_fares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isHidden", "order": "ASCENDING" },
+        { "fieldPath": "sectorId", "order": "ASCENDING" },
+        { "fieldPath": "flightDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agent_fares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "agentId", "order": "ASCENDING" },
+        { "fieldPath": "isHidden", "order": "ASCENDING" },
+        { "fieldPath": "flightDate", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

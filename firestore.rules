@@ -1,0 +1,58 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ─────────────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // ── admins ───────────────────────────────────────────────────────────────
+    // Only admins can read/write other admin docs
+    match /admins/{uid} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── agents ───────────────────────────────────────────────────────────────
+    // Public can read active agents; only admins can write
+    match /agents/{agentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── sectors ──────────────────────────────────────────────────────────────
+    // Public can read sectors; only admins can write
+    match /sectors/{sectorId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── airlines ─────────────────────────────────────────────────────────────
+    // Public can read airlines; only admins can write
+    match /airlines/{airlineId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── agent_fares ──────────────────────────────────────────────────────────
+    // Public: can only read fares that are NOT hidden (isHidden == false)
+    // Admins: full read/write including hidden records
+    match /agent_fares/{fareId} {
+      allow read: if isAdmin() || resource.data.isHidden == false;
+      allow write: if isAdmin();
+    }
+
+    // ── services ─────────────────────────────────────────────────────────────
+    // Public can read active services; only admins can write
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+  }
+}
