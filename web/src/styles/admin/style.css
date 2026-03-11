@@ -66,7 +66,8 @@ body {
 .admin-table-container {
     background: white;
     border-radius: 16px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     border: 1px solid var(--border);
     box-shadow: var(--shadow-premium-soft);
 }
@@ -76,6 +77,7 @@ body {
     border-collapse: separate;
     border-spacing: 0;
     text-align: left;
+    min-width: 1000px; /* Ensure table has a minimum width for all columns */
 }
 
 .admin-table th {
@@ -85,12 +87,12 @@ body {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    padding: 1rem 1.5rem;
+    padding: 1rem 1rem;
     border-bottom: 1px solid var(--border);
 }
 
 .admin-table td {
-    padding: 1rem 1.5rem;
+    padding: 0.875rem 1rem;
     font-size: 0.875rem;
     color: var(--text-main);
     border-bottom: 1px solid var(--border);

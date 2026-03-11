@@ -99,9 +99,8 @@ web/
 ### 5. 📋 Agent Sheets Tab
 - **Agent selector** — chips populated from live Firestore `agents` list
 - **Paste raw rate text** — agent-formatted WhatsApp/text fare data
-- **Live preview** — parses input client-side and shows a preview table before submitting
-- **Submit** — saves parsed fares to Firestore `agent_fares` via `db.js:saveFares()` using batched writes
-- **Also pings n8n webhook** (fire-and-forget) at `https://n8n.srv1046139.hstgr.cloud/webhook/zamra`
+- **Submit** — Sends raw text payload securely to the **n8n AI webhook** at `https://n8n.srv1046139.hstgr.cloud/webhook/zamra`. The frontend no longer parses and saves this locally.
+- **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
 - Submission history stored in `localStorage` (last 15 sessions)
 
 ### 6. 📈 Reports Tab
@@ -196,6 +195,7 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 | `bulkToggleAgentVisibility` | Sets `isActive` on agent + `isHidden` on all their fares |
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
 | `generateAgentReport` | Aggregates fares → per-agent count/avgRate + per-sector count, returns report data |
+| `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token, maps sector/airline codes, and batch writes to `agent_fares`. |
 
 ---
 
@@ -222,7 +222,7 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 Agents:   getAgents(), addAgent(), updateAgent(), deleteAgent()
 Sectors:  getSectors(), addSector(), updateSector(), deleteSector()
 Airlines: getAirlines(), addAirline(), updateAirline(), deleteAirline()
-Fares:    getFares(filters), saveFares(), deleteFare(), updateFare()
+Fares:    getFares(filters), deleteFare(), updateFare()
 Storage:  uploadLogo(folder, file), deleteLogo(url)
 Functions:
   callBulkDeleteFares(agentId, startDate, endDate)

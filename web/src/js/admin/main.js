@@ -281,33 +281,41 @@ function renderDashboardResults(fares, tab) {
       <div class="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-border/50">
         <p class="font-bold text-navy text-sm">${fares.length} Fare${fares.length !== 1 ? 's' : ''} Found</p>
       </div>
-      <div class="admin-table-container">
+      <div class="admin-table-container overflow-x-auto w-full">
         <table class="admin-table w-full text-sm">
           <thead><tr>
-            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="flightDate">Date <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="sectorId">Sector <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="airlineId">Airline <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="agentId">Agent <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="finalRate">Rate (₹) <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="baggage">Baggage <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group" data-sort-tab="dashboard" data-sort-key="isHidden">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th>Actions</th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="flightDate">Date <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="flightTime">Time <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="sectorId">Sector <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="airlineId">Airline <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="agentId">Agent <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="specialRate">SP Rate (₹) <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="finalRate">Rate (₹) <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="commission">Comm <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="baggage">Baggage <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="extraBaggage">Ex.Bag <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="isHidden">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+            <th class="whitespace-nowrap">Actions</th>
           </tr></thead>
           <tbody>
             ${applySortAndFilter(fares, 'dashboard').map(f => `
-              <tr>
-                <td>${f.flightDate instanceof Date ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : f.flightDate}</td>
-                <td>${sectorMap[f.sectorId] || f.sectorId}</td>
-                <td>${airlineMap[f.airlineId] || f.airlineId}</td>
-                <td>${agentMap[f.agentId] || f.agentId}</td>
-                <td class="font-bold">₹${(f.finalRate || 0).toLocaleString()}</td>
-                <td>${f.baggage || '—'}</td>
-                <td><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${f.isHidden ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}">${f.isHidden ? 'Hidden' : 'Live'}</span></td>
-                <td>
+              <tr class="hover:bg-slate-50 border-b border-border/20 last:border-0 transition-colors">
+                <td class="whitespace-nowrap">${f.flightDate instanceof Date ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : f.flightDate}</td>
+                <td class="whitespace-nowrap text-text-muted">${f.flightTime || '—'}</td>
+                <td class="whitespace-nowrap font-medium text-navy">${sectorMap[f.sectorId] || f.sectorId}</td>
+                <td class="whitespace-nowrap">${airlineMap[f.airlineId] || f.airlineId}</td>
+                <td class="whitespace-nowrap text-text-muted">${agentMap[f.agentId] || f.agentId}</td>
+                <td class="whitespace-nowrap font-semibold opacity-60">₹${(f.specialRate || 0).toLocaleString()}</td>
+                <td class="whitespace-nowrap font-bold text-navy">₹${(f.finalRate || 0).toLocaleString()}</td>
+                <td class="whitespace-nowrap opacity-70">₹${(f.commission || 0).toLocaleString()}</td>
+                <td class="whitespace-nowrap">${f.baggage ? f.baggage + 'kg' : '—'}</td>
+                <td class="whitespace-nowrap">${f.extraBaggage ? f.extraBaggage + 'kg' : '—'}</td>
+                <td class="whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${f.isHidden ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}">${f.isHidden ? 'Hidden' : 'Live'}</span></td>
+                <td class="whitespace-nowrap">
                   <button onclick="window.__deleteFare('${f.id}')"
-                    class="bg-red-500 text-white px-2 py-1 rounded text-[11px] font-bold hover:bg-red-600">Delete</button>
+                    class="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded shadow-sm text-[11px] font-bold hover:bg-red-500 hover:text-white transition-colors">Del</button>
                   <button onclick="window.__toggleFare('${f.id}', ${!f.isHidden})"
-                    class="bg-gray-400 text-white px-2 py-1 rounded text-[11px] font-bold hover:bg-gray-500 ml-1">${f.isHidden ? 'Show' : 'Hide'}</button>
+                    class="bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded shadow-sm text-[11px] font-bold hover:bg-slate-500 hover:text-white transition-colors ml-1">${f.isHidden ? 'Show' : 'Hide'}</button>
                 </td>
               </tr>`).join('')}
           </tbody>

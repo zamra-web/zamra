@@ -63,7 +63,7 @@ zamra/                              # Firebase project root — run firebase CLI
 │
 ├── functions/                      # Cloud Functions (Node.js 22)
 │   ├── index.js                    # bulkDeleteFares, bulkToggleAgentVisibility,
-│   │                               # bulkToggleSectorVisibility, generateAgentReport
+│   │                               # bulkToggleSectorVisibility, generateAgentReport, ingestFaresFromN8n
 │   └── package.json                # firebase-admin, firebase-functions
 │
 └── web/                            # ★ Vite project root — all website/dashboard code
