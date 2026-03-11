@@ -389,7 +389,10 @@ function agentRow(a) {
 }
 
 function wireAgentActions() {
-  document.querySelector('#agents-tab .admin-table tbody')?.addEventListener('click', async (e) => {
+  const tbody = document.querySelector('#agents-tab .admin-table tbody');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
@@ -552,7 +555,10 @@ function sectorRow(s) {
 }
 
 function wireSectorActions() {
-  document.querySelector('#sectors-tab .admin-table tbody')?.addEventListener('click', async (e) => {
+  const tbody = document.querySelector('#sectors-tab .admin-table tbody');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const { action, id } = btn.dataset;
@@ -673,7 +679,10 @@ function airlineRow(a) {
 }
 
 function wireAirlineActions() {
-  document.querySelector('#flights-tab .admin-table tbody')?.addEventListener('click', async (e) => {
+  const tbody = document.querySelector('#flights-tab .admin-table tbody');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const { action, id } = btn.dataset;

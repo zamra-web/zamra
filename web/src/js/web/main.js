@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sector) {
           const today = new Date();
           today.setHours(0,0,0,0);
-          
+
           let fares = await getFares({
             sectorId: sector.id,
             startDate: today.toISOString()
@@ -735,7 +735,7 @@ async function searchFlights() {
     if (sector) {
       const today = new Date();
       today.setHours(0,0,0,0);
-      
+
       let fares = await getFares({
         sectorId: sector.id,
         startDate: today.toISOString()
@@ -761,8 +761,10 @@ async function searchFlights() {
         
         return {
           airline: airlineMap[fare.airlineId] || 'Unknown Airline',
-          origin: origin,
-          destination: dest,
+          origin: sector.sectorFrom,
+          originCode: origin,
+          destination: sector.sectorTo,
+          destinationCode: dest,
           date: dateStr,
           departure: dep,
           arrival: arr,
@@ -846,7 +848,7 @@ async function searchFlights() {
             <!-- Mobile Middle Section -->
             <div class="flex flex-row items-center justify-between gap-2 px-2">
               <div class="text-left flex-none">
-                <div class="text-[20px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.origin}</div>
+                <div class="text-[20px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.originCode}</div>
                 <div class="text-[12px] font-medium text-text-muted uppercase">Dep: ${item.departure}</div>
               </div>
               
@@ -857,7 +859,7 @@ async function searchFlights() {
               </div>
 
               <div class="text-right flex-none">
-                <div class="text-[20px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.destination}</div>
+                <div class="text-[20px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.destinationCode}</div>
                 <div class="text-[12px] font-medium text-text-muted uppercase">Arr: ${item.arrival}</div>
               </div>
             </div>
@@ -897,8 +899,8 @@ async function searchFlights() {
               <div class="flex items-center gap-6 lg:gap-8 mx-0">
                 <div class="text-left w-[100px]">
                   <div class="text-[13px] font-medium text-text-muted mb-1 capitalize">From</div>
-                  <div class="text-[22px] font-medium text-navy uppercase leading-none tracking-tight">${item.origin}</div>
-                  <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.origin.substring(0, 3)}</div>
+                  <div class="text-[20px] font-bold text-navy uppercase leading-none tracking-tight break-words truncate w-[100px]">${item.origin}</div>
+                  <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.originCode}</div>
                 </div>
                 
                 <div class="w-[46px] h-[46px] rounded-full bg-[#f8fafc] border border-border flex items-center justify-center shrink-0 shadow-sm relative">
@@ -907,8 +909,8 @@ async function searchFlights() {
                 
                 <div class="text-left w-[100px]">
                   <div class="text-[13px] font-medium text-text-muted mb-1 capitalize">To</div>
-                  <div class="text-[22px] font-medium text-navy uppercase leading-none tracking-tight">${item.destination}</div>
-                  <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.destination.substring(0, 3)}</div>
+                  <div class="text-[20px] font-bold text-navy uppercase leading-none tracking-tight break-words truncate w-[100px]">${item.destination}</div>
+                  <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.destinationCode}</div>
                 </div>
               </div>
 
