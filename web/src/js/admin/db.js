@@ -6,7 +6,7 @@
  */
 
 import {
-  collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
+  collection, doc, getDocs, addDoc, updateDoc, deleteDoc, setDoc,
   query, where, orderBy, Timestamp, serverTimestamp, writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -26,7 +26,9 @@ export async function getAgents() {
 
 /** Add a new agent. Returns the new document ID. */
 export async function addAgent(data) {
-  const docRef = await addDoc(collection(db, 'agents'), {
+  if (!data.id) throw new Error("Agent ID is required.");
+  const docRef = doc(db, 'agents', data.id);
+  await setDoc(docRef, {
     name: data.name || '',
     contactPhone: data.contactPhone || '',
     email: data.email || '',
@@ -34,13 +36,14 @@ export async function addAgent(data) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  return docRef.id;
+  return data.id;
 }
 
 /** Update an existing agent */
 export async function updateAgent(agentId, data) {
+  const { id, ...updates } = data;
   await updateDoc(doc(db, 'agents', agentId), {
-    ...data,
+    ...updates,
     updatedAt: serverTimestamp(),
   });
 }

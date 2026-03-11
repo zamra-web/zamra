@@ -322,6 +322,12 @@ function openAgentModal(agent) {
   openModal(isEdit ? 'Edit Agent' : 'Add New Agent', `
     <form id="agent-form" class="flex flex-col gap-4">
       <div>
+        <label class="block text-sm font-semibold text-text-muted mb-1">Agent ID *</label>
+        <input name="id" required value="${agent?.id || ''}" placeholder="e.g. AGENT1"
+          ${isEdit ? 'readonly class="w-full bg-slate-100 border border-border rounded-lg h-11 px-3 text-sm focus:outline-none cursor-not-allowed text-slate-500"' : 'class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"'}>
+        ${isEdit ? '<p class="text-[11px] text-text-soft mt-1">Agent ID cannot be changed after creation.</p>' : ''}
+      </div>
+      <div>
         <label class="block text-sm font-semibold text-text-muted mb-1">Name *</label>
         <input name="name" required value="${agent?.name || ''}"
           class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
