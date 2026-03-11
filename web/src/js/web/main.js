@@ -223,14 +223,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dateStr = fare.flightDate.toLocaleDateString('en-GB', dateOptions);
                 const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
                 const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
+                const price = `\u20b9${fare.finalRate.toLocaleString('en-IN')}`;
+                const waMsg = encodeURIComponent(`Hello Zamra Travels, I'd like to book this flight:\n\n\u2708\ufe0f *${airlineName}*\n\ud83d\uddef\ufe0f Route: *${routeName}*\n\ud83d\udcc5 Date: *${dateStr}*\n\u23f0 Dep: ${dep} | Arr: ${arr}\n\ud83d\udcb5 Price: *${price}*\n\nPlease confirm availability!`);
+                const waLink = `https://wa.me/919846606739?text=${waMsg}`;
                 
                 return `
                           <tr class="border-b border-[#e2e8f0] [&:nth-of-type(even)]:bg-[#fafbfc] [&:last-of-type]:border-b-2 [&:last-of-type]:border-primary hover:bg-[#f1f5f9] transition-colors">
-                              <td class="p-[14px_15px] whitespace-nowrap"><strong>${dateStr}</strong></td>
-                              <td class="p-[14px_15px] whitespace-nowrap"><strong>${airlineName}</strong></td>
-                              <td class="p-[14px_15px]">${dep}</td>
-                              <td class="p-[14px_15px]">${arr}</td>
-                              <td class="p-[14px_15px] text-right"><strong>₹${fare.finalRate.toLocaleString('en-IN')}</strong></td>
+                              <td class="p-[12px_15px] whitespace-nowrap"><strong>${dateStr}</strong></td>
+                              <td class="p-[12px_15px] whitespace-nowrap"><strong>${airlineName}</strong></td>
+                              <td class="p-[12px_15px]">${dep}</td>
+                              <td class="p-[12px_15px]">${arr}</td>
+                              <td class="p-[12px_15px] text-right"><strong>${price}</strong></td>
+                              <td class="p-[12px_10px] text-center">
+                                <a href="${waLink}" target="_blank" class="inline-flex items-center gap-1.5 bg-gradient-to-r from-primary to-[#1558c0] text-white text-[12px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap hover:shadow-[0_3px_10px_rgba(26,115,232,0.35)] hover:-translate-y-0.5 transition-all">
+                                  <i class="bi bi-whatsapp"></i> Book Now
+                                </a>
+                              </td>
                           </tr>`;
              }).join('');
           }
@@ -250,11 +258,12 @@ document.addEventListener('DOMContentLoaded', () => {
                   <table class="w-full min-w-[500px] border-collapse my-[10px] text-[14px] text-left rounded-[10px] overflow-hidden">
                       <thead>
                           <tr class="bg-[#f8fafc] text-text-muted font-bold border-b-2 border-[#e2e8f0]">
-                              <th class="p-[14px_15px]">Date</th>
-                              <th class="p-[14px_15px]">Airlines</th>
-                              <th class="p-[14px_15px]">Departure</th>
-                              <th class="p-[14px_15px]">Arrival</th>
-                              <th class="p-[14px_15px] text-right">Price</th>
+                              <th class="p-[12px_15px]">Date</th>
+                              <th class="p-[12px_15px]">Airlines</th>
+                              <th class="p-[12px_15px]">Departure</th>
+                              <th class="p-[12px_15px]">Arrival</th>
+                              <th class="p-[12px_15px] text-right">Price</th>
+                              <th class="p-[12px_15px]"></th>
                           </tr>
                       </thead>
                       <tbody>
@@ -518,9 +527,6 @@ async function searchFlights() {
             <div class="flex sm:flex-row flex-col items-center justify-between w-full border-t border-border pt-4 gap-3 sm:gap-0">
               <div class="flex flex-col items-center sm:items-start w-full sm:w-auto">
                 <span class="text-[24px] font-heading font-bold text-navy leading-none tracking-tight">${item.price}</span>
-                <div class="text-[11px] text-green-600 font-bold mt-1.5 uppercase tracking-wider flex items-center gap-1.5">
-                  <i class="bi bi-person-check-fill text-[14px]"></i> ${item.seats} Seats Left
-                </div>
               </div>
               <a href="${waLink}" target="_blank" class="w-full sm:w-auto bg-gradient-to-r from-primary to-[#1558c0] text-white font-heading font-bold text-[14px] px-6 py-3 rounded-xl hover:shadow-[0_4px_14px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all text-center whitespace-nowrap">
                 Book Now
@@ -589,9 +595,6 @@ async function searchFlights() {
                 <a href="${waLink}" target="_blank" class="w-full bg-gradient-to-r from-primary to-[#1558c0] text-white font-heading font-bold text-[15px] px-6 py-2.5 rounded-xl hover:shadow-[0_4px_14px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all text-center whitespace-nowrap">
                   Book Now
                 </a>
-                <div class="text-[11px] text-green-600 font-bold mt-2.5 text-center uppercase tracking-wide flex items-center gap-1">
-                  <i class="bi bi-person-check-fill"></i> ${item.seats} Seats Left
-                </div>
               </div>
             </div>
 
