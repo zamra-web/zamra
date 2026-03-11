@@ -34,6 +34,10 @@ let tableSearch = { sectors: '', airlines: '' };
 let tableLimit = { agents: 10, sectors: 10, airlines: 10, reportFares: 20 };
 let tablePage = { agents: 1, sectors: 1, airlines: 1, reportFares: 1 };
 
+/**
+ * Sort + filter data for a given tab. Does NOT slice/paginate — returns the
+ * full sorted+filtered array.  Pagination is always applied by the caller.
+ */
 function applySortAndFilter(data, tab) {
   let filtered = data;
   const q = tableSearch[tab]?.toLowerCase();
@@ -70,9 +74,9 @@ function applySortAndFilter(data, tab) {
       return 0;
     });
   }
-  
-  const limit = tableLimit[tab] || 999999;
-  return filtered.slice(0, limit);
+
+  // NOTE: No slice here — callers paginate manually so page-number buttons work
+  return filtered;
 }
 
 function updateSortIcons(tab) {
@@ -344,6 +348,29 @@ async function renderPoster(fares, sectorId) {
   container.classList.add('flex');
 }
 
+/**
+ * Recursively inline computed CSS color values onto an element tree so that
+ * html2canvas (which cannot parse oklch()) sees plain rgb() values instead.
+ * We only touch the properties that html2canvas reads for rendering.
+ */
+function inlineColorsForCanvas(el) {
+  if (!el || el.nodeType !== 1) return;
+  const cs = window.getComputedStyle(el);
+  const props = [
+    'color', 'backgroundColor', 'borderTopColor', 'borderBottomColor',
+    'borderLeftColor', 'borderRightColor', 'outlineColor',
+  ];
+  for (const prop of props) {
+    const val = cs.getPropertyValue(prop);
+    // Only override if the value isn't already a plain rgb/rgba/hex value
+    if (val && !val.startsWith('rgb') && !val.startsWith('#') && val !== 'transparent' && val !== 'initial') {
+      try { el.style[prop] = val; } catch (_) {}
+    }
+  }
+  // Recursively handle children
+  for (const child of el.children) inlineColorsForCanvas(child);
+}
+
 async function downloadPoster(format) {
     const posterEl = document.getElementById('poster-render-frame');
     if (!posterEl) return;
@@ -359,12 +386,16 @@ async function downloadPoster(format) {
     toast('info', 'Generating Export', 'Please wait while we render your poster…');
 
     try {
-        // Wait for any images that aren't yet fully decoded (blob URLs load fast, but be safe)
+        // Wait for any images that aren't yet fully decoded
         await Promise.all(
             Array.from(posterEl.querySelectorAll('img')).map(img =>
                 img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
             )
         );
+
+        // html2canvas 1.4.x cannot parse oklch() (Tailwind v4 default).
+        // Inline all computed colors as rgb() values before capture.
+        inlineColorsForCanvas(posterEl);
 
         // Render to canvas at 2× resolution for crisp output
         const canvas = await html2canvas(posterEl, {
@@ -372,7 +403,12 @@ async function downloadPoster(format) {
             useCORS: false,       // blob: URLs are same-origin — no CORS needed
             allowTaint: true,
             backgroundColor: '#ffffff',
-            logging: false
+            logging: false,
+            onclone: (doc) => {
+              // Also inline colors in the cloned document that html2canvas works on
+              const clonedEl = doc.getElementById('poster-render-frame');
+              if (clonedEl) inlineColorsForCanvas(clonedEl);
+            }
         });
 
         posterEl.style.transform = origTransform;
@@ -557,10 +593,10 @@ async function renderAgentsTab(fetchData = true) {
   const tbody = document.querySelector('#agents-tab .admin-table tbody');
   if (!tbody) return;
 
-  // Sort all agents, then paginate
+  // Sort ALL agents first, then paginate from the full sorted array
   const sorted = applySortAndFilter(_agents, 'agents');
   const limit = tableLimit.agents;
-  const totalPages = Math.max(1, Math.ceil(_agents.length / limit));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
   if (tablePage.agents > totalPages) tablePage.agents = totalPages;
   const start = (tablePage.agents - 1) * limit;
   const pageData = sorted.slice(start, start + limit);
@@ -569,8 +605,8 @@ async function renderAgentsTab(fetchData = true) {
     ? pageData.map(a => agentRow(a)).join('')
     : `<tr><td colspan="7" class="text-center py-8 text-text-muted">No agents yet. Click "+ Add Agent" to get started.</td></tr>`;
 
-  // Render pagination footer
-  renderPaginationFooter('agents', _agents.length, totalPages, start, limit);
+  // Render pagination footer (use sorted.length so filtered count is accurate)
+  renderPaginationFooter('agents', sorted.length, totalPages, start, limit);
 
   // Remove stale wired flag so delegation re-attaches after innerHTML replacement
   delete tbody.dataset.actionsWired;
@@ -817,18 +853,18 @@ async function renderSectorsTab(fetchData = true) {
   const tbody = document.querySelector('#sectors-tab .admin-table tbody');
   if (!tbody) return;
 
-  const data = applySortAndFilter(_sectors, 'sectors');
+  const sorted = applySortAndFilter(_sectors, 'sectors');
   const limit = tableLimit.sectors;
-  const totalPages = Math.max(1, Math.ceil(data.length / limit));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
   if (tablePage.sectors > totalPages) tablePage.sectors = totalPages;
   const start = (tablePage.sectors - 1) * limit;
-  const pageData = data.slice(start, start + limit);
+  const pageData = sorted.slice(start, start + limit);
 
   tbody.innerHTML = pageData.length
     ? pageData.map(s => sectorRow(s)).join('')
     : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No sectors yet. Click "+ Add Sector".</td></tr>`;
 
-  renderPaginationFooter('sectors', data.length, totalPages, start, limit);
+  renderPaginationFooter('sectors', sorted.length, totalPages, start, limit);
 
   wireSectorActions();
 
@@ -953,18 +989,18 @@ async function renderFlightsTab(fetchData = true) {
   const tbody = document.querySelector('#flights-tab .admin-table tbody');
   if (!tbody) return;
 
-  const data = applySortAndFilter(_airlines, 'airlines');
+  const sorted = applySortAndFilter(_airlines, 'airlines');
   const limit = tableLimit.airlines;
-  const totalPages = Math.max(1, Math.ceil(data.length / limit));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
   if (tablePage.airlines > totalPages) tablePage.airlines = totalPages;
   const start = (tablePage.airlines - 1) * limit;
-  const pageData = data.slice(start, start + limit);
+  const pageData = sorted.slice(start, start + limit);
 
   tbody.innerHTML = pageData.length
     ? pageData.map(a => airlineRow(a)).join('')
     : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No airlines yet. Click "+ Add Flight".</td></tr>`;
 
-  renderPaginationFooter('airlines', data.length, totalPages, start, limit);
+  renderPaginationFooter('airlines', sorted.length, totalPages, start, limit);
 
   wireAirlineActions();
 
@@ -1151,15 +1187,17 @@ function renderReportCharts(report, tab) {
       ['#fca5a5','#ef4444'],['#c4b5fd','#8b5cf6'],['#99f6e4','#14b8a6'],
       ['#fdba74','#f97316'],['#94a3b8','#64748b'],
     ];
+    // Use absolute positioning within a relative container so % heights work correctly
+    const chartHeight = 220; // px — matches the inner usable area
     barChartContainer.innerHTML = agentReport.slice(0, 8).map((a, i) => {
-      const pct = maxCount > 0 ? Math.max(4, Math.round((a.count / maxCount) * 92)) : 4;
+      const pct = maxCount > 0 ? Math.max(4, Math.round((a.count / maxCount) * 100)) : 4;
+      const barH = Math.round((pct / 100) * chartHeight);
       const [c1, c2] = GRAD_COLORS[i % GRAD_COLORS.length];
-      return `<div class="flex flex-col items-center gap-1 flex-1 min-w-0 group cursor-default">
-        <span class="text-[11px] font-black text-navy opacity-0 group-hover:opacity-100 transition-opacity -mb-0.5">${a.count}</span>
-        <div class="w-full rounded-t-lg transition-all duration-500" style="height:${pct}%;background:linear-gradient(to top,${c1},${c2});box-shadow:0 -2px 8px 0 ${c2}40"
-          title="${a.name}: ${a.count} fares • avg ₹${(a.avgRate || 0).toLocaleString()} • min ₹${(a.minRate || 0).toLocaleString()} • max ₹${(a.maxRate || 0).toLocaleString()}">
-        </div>
-        <span class="text-[9px] font-semibold text-text-muted truncate w-full text-center px-0.5">${a.name?.split(' ')[0]}</span>
+      return `<div class="flex flex-col items-end justify-end flex-1 min-w-0 group cursor-default h-full" style="min-height:${chartHeight}px">
+        <span class="text-[11px] font-black opacity-0 group-hover:opacity-100 transition-opacity mb-1" style="color:#0f172a">${a.count}</span>
+        <div class="w-full rounded-t-lg transition-all duration-700" style="height:${barH}px;background:linear-gradient(to top,${c1},${c2});box-shadow:0 -2px 8px 0 ${c2}40"
+          title="${a.name}: ${a.count} fares • avg ₹${(a.avgRate || 0).toLocaleString()}"></div>
+        <span class="text-[9px] font-semibold truncate w-full text-center px-0.5 mt-1.5" style="color:#64748b">${a.name?.split(' ')[0]}</span>
       </div>`;
     }).join('');
   }
