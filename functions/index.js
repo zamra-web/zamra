@@ -154,6 +154,19 @@ exports.bulkToggleSectorVisibility = onCall({ region: "asia-south1" }, async (re
     throw new HttpsError("invalid-argument", "sectorId (string) and isHidden (boolean) are required.");
   }
 
+  // 1. Update the sector doc
+  const sectorRef = db.collection("sectors").doc(sectorId);
+  try {
+    await sectorRef.update({ isHidden, updatedAt: FieldValue.serverTimestamp() });
+  } catch (e) {
+    if (e.code === 5) { // NOT_FOUND
+      await sectorRef.set({ isHidden, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    } else {
+      throw e;
+    }
+  }
+
+  // 2. Update all fares:
   const snapshot = await db.collection("agent_fares")
     .where("sectorId", "==", sectorId)
     .get();
@@ -246,6 +259,45 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
     sectorStats[sid].count += 1;
   });
 
+  // Grouped detailed data payload
+  const agentDetailedMap = {};
+  snapshot.forEach((doc) => {
+    const fare = doc.data();
+    const aid = fare.agentId;
+    const sid = fare.sectorId;
+    
+    if(!agentDetailedMap[aid]) {
+        agentDetailedMap[aid] = {
+            agentId: aid,
+            agentName: agentMap[aid] || aid,
+            sectorsMap: {}
+        };
+    }
+    if(!agentDetailedMap[aid].sectorsMap[sid]) {
+        agentDetailedMap[aid].sectorsMap[sid] = {
+            sectorId: sid,
+            sectorCode: sectorMap[sid] || sid,
+            fares: []
+        };
+    }
+    agentDetailedMap[aid].sectorsMap[sid].fares.push({
+        id: doc.id,
+        flightDate: fare.flightDate ? fare.flightDate.toDate().toISOString() : null,
+        airlineId: fare.airlineId || "",
+        rate: fare.finalRate || 0,
+        splr: fare.specialRate || 0,
+        flightTime: fare.flightTime || ""
+    });
+  });
+
+  const detailedPayload = Object.values(agentDetailedMap).map(a => {
+      return {
+          agentId: a.agentId,
+          agentName: a.agentName,
+          sectors: Object.values(a.sectorsMap)
+      };
+  });
+
   // Compute averages and clean up Infinity
   const agentReport = Object.values(agentStats).map((a) => ({
     ...a,
@@ -260,6 +312,7 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
     totalFares: snapshot.size,
     agentReport,
     sectorReport,
+    detailedPayload,
     generatedAt: new Date().toISOString(),
   };
 });

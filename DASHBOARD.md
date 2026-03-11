@@ -75,11 +75,14 @@ web/
 ## Dashboard Tabs
 
 ### 1. 📊 Dashboard Tab
-- **Search** fares with flexible optional filters: Sector, Agent, Start Date, End Date
-- **Only one filter is required** — select a sector alone to see all its fares; add dates/agent to narrow results
-- Displays a full results table with: Date, Sector, Airline, Agent, Rate (₹), Baggage, Status (Live/Hidden)
-- Inline **Hide/Show** and **Delete** per fare row
-- All data from Firestore `agent_fares`
+- **Poster Generator** — select a sector and optional date range, click **Generate Poster** to preview a shareable fare poster
+  - Displays fares sorted by date (up to 10), with airline logo, date, and price in a premium layout
+  - **Airline logos** are pre-fetched as blob URLs before rendering — sidesteps CORS for `html2canvas`
+  - **Download JPEG** — renders poster to canvas at 2× resolution and triggers a `.jpg` download
+  - **Download PDF** — converts canvas to mm-based jsPDF page exactly sized to the poster dimensions
+  - Both export buttons disable during generation and re-enable once done
+- Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
+- All data from Firestore `agent_fares` + `airlines`
 
 ### 2. 👥 Agents Tab
 - **Full CRUD** — Add / Edit (modal form) / Delete agents
@@ -93,22 +96,39 @@ web/
 
 ### 3. 🗺️ Sectors Tab
 - **Full CRUD** — Add / Edit / Delete sectors
+- **Pagination** — 10 sectors per page
 - **Hide Fares / Show Fares** — calls `bulkToggleSectorVisibility` Cloud Function to toggle `isHidden` on all fares for a route
 - Data from Firestore `sectors` collection (fields: `sectorFrom`, `sectorTo`, `sectorCode`)
 
 ### 4. ✈️ Flights Tab (Airlines)
 - **Full CRUD** — Add / Edit / Delete airlines
+- **Pagination** — 10 airlines per page
 - **Logo upload** — uploads to Firebase Storage (`/airline_logos/`), stores URL in Firestore
 - Data from Firestore `airlines` collection (fields: `name`, `code`, `logoUrl`)
 
 ### 5. 📈 Reports Tab
-- **Sector + Agent filters** (primary) + optional date range
-- **Only one filter is required** — pick a sector alone to run a report; agent and dates further narrow the aggregation
-- Filter order in UI: Sector → Agent → Start Date → End Date
-- Calls `generateAgentReport` Cloud Function
-- Renders results as:
-  - **Bar chart** — fares per agent (top 8)
-  - **Pie chart** — fares per sector (conic-gradient CSS)
+- **Filter Bar** — premium card with icon header. Fields: Sector, Agent (optional), From Date (optional), To Date (optional), and a gradient **Generate Report** button with a lightning icon.
+- **Only one filter is required** — pick a sector alone to run a report; agent and dates further narrow the aggregation.
+- Calls `generateAgentReport` Cloud Function for summary stats (charts), then fetches raw fares via `getFares()` for the full table.
+- **Stat Cards (4)** — appear after a report is generated, showing real-time counts from `_reportFares`:
+  - 🎫 **Total Fares** — total count returned
+  - 👁️ **Live** — fares where `isHidden === false`
+  - 🚫 **Hidden** — fares where `isHidden === true`
+  - 👥 **Agents** — unique agent count in the result set
+- **Bar Chart — Fares per Agent** — top 8 agents, each bar has a unique gradient colour pair, count labels appear on hover (CSS group), grid lines via `repeating-linear-gradient` background.
+- **Donut Chart — Fares per Sector** — CSS `conic-gradient` pie with a centre donut-hole overlay (`w-[88px]` white circle). Legend shows sector name, count, and percentage per slice.
+- **Fares Table** — rendered inside the outer table card (no inner wrapper card). Features:
+  - Alternating row striping (`bg-slate-50/60` on odd rows)
+  - Sector codes shown as blue pill badges (`bg-primary/10`)
+  - `● Live` / `● Hidden` status badges with contextual colours
+  - **Hide/Show** button is green when fare is hidden; slate when live
+  - **Del** button beside each row
+  - Fully sortable (click column headers), paginated, and filterable
+  - Columns: **Date · Time · Sector · Airline · Agent · SP Rate · Rate · Comm · Bag · Ex.Bag · Status · Actions**
+  - Inline per-row **Delete** and **Hide/Show** — update `_reportFares` in place without re-fetching
+- **Export CSV** — greyed out until data is loaded; unlocked automatically after a successful report fetch. Downloads full filtered set (not just current page). All IDs resolved to human-readable names. UTF-8 BOM prefix for correct Excel rendering.
+
+> **Implementation note:** `renderReportCharts()` populates the stat cards and both charts, then wires the CSV button via `cloneNode` to avoid duplicate listeners. `renderReportFaresTable()` injects only the `<table>` + pagination footer into `#report-fares-results` — it does **not** wrap in its own card (the outer HTML card in `admin.html` already wraps it).
 
 ### 6. 📋 Rate Upload Tab
 - **Agent selector** — chips populated from live Firestore `agents` list
@@ -255,8 +275,10 @@ Functions:
 
 - **Modal:** Native `<dialog>` element (`#admin-modal`) — JS sets `#modal-title` and `#modal-body` HTML, then calls `.showModal()`
 - **Toasts:** `#toastsEl` container — `toast(type, title, msg)` renders success/error/warning notifications with auto-dismiss (7s)
-- **Tables:** `.admin-table` CSS class with hover states
+- **Tables:** `.admin-table` CSS class with alternating row striping and hover states; each tab renders into its own `<div id="[tab]-results">` container
 - **Auth guard:** Page is hidden via `document.documentElement.style.visibility = 'hidden'` until `onAuthChange` confirms valid admin session
+- **Stat cards** (`#report-stats-row`) — hidden by default; revealed by `renderReportCharts()` after a report is generated
+- **Empty states:** All tables and result containers show a styled icon + message when empty, injected directly into the results container `innerHTML`
 
 ---
 
@@ -291,3 +313,7 @@ npx firebase-tools@latest deploy --only storage
 npx firebase-tools@latest deploy --only functions
 npx firebase-tools@latest deploy --only hosting
 ```
+
+---
+
+_Last audited: 2026-03-12 — Reports tab fully redesigned (stat cards, gradient bar chart, donut chart, premium fares table). All JS pagination, sorting, delete/toggle actions verified working._

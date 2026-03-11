@@ -20,21 +20,19 @@ import {
 let _agents = [];
 let _sectors = [];
 let _airlines = [];
-let _dashboardFares = [];
+let _dashboardFares = []; // Kept for any stale references
+let _reportFares = [];
 
 // ── Sorting & Search State ────────────────────────────────────────────────────
 let tableSort = {
   agents: { key: 'id', asc: true },
   sectors: { key: 'id', asc: true },
   airlines: { key: 'name', asc: true },
-  dashboard: { key: 'flightDate', asc: true }
+  reportFares: { key: 'flightDate', asc: true }
 };
 let tableSearch = { sectors: '', airlines: '' };
-let tableLimit = { sectors: 10, airlines: 10 };
-
-// ── Agents Pagination ─────────────────────────────────────────────────────────
-let agentsPage = 1;
-const AGENTS_PER_PAGE = 10;
+let tableLimit = { agents: 10, sectors: 10, airlines: 10, reportFares: 20 };
+let tablePage = { agents: 1, sectors: 1, airlines: 1, reportFares: 1 };
 
 function applySortAndFilter(data, tab) {
   let filtered = data;
@@ -106,7 +104,7 @@ document.addEventListener('click', (e) => {
   if (tab === 'agents') renderAgentsTab(false);
   else if (tab === 'sectors') renderSectorsTab(false);
   else if (tab === 'airlines') renderFlightsTab(false);
-  else if (tab === 'dashboard' && _dashboardFares.length) renderDashboardResults(_dashboardFares);
+  else if (tab === 'reportFares' && _reportFares.length) renderReportFaresTable(_reportFares);
 });
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
@@ -221,144 +219,333 @@ function openModal(title, bodyHtml) {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD TAB — Live fare search by sector + date range
+// DASHBOARD TAB — Poster Generator
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderDashboardTab() {
   const tab = document.getElementById('dashboard-tab');
   if (!tab) return;
 
   // Populate sector dropdown from live Firestore data
-  const sectorSel = document.getElementById('dashboard-sector-sel');
+  const sectorSel = document.getElementById('poster-sector-sel');
   if (sectorSel && sectorSel.options.length <= 1) {
     _sectors.forEach(s => {
-      const opt = new Option(s.sectorCode, s.id);
+      const opt = new Option(`${s.sectorFrom} ✈ ${s.sectorTo} (${s.sectorCode})`, s.id);
       sectorSel.appendChild(opt);
     });
   }
 
-  // Populate agent dropdown
-  const agentSel = document.getElementById('dashboard-agent-sel');
-  if (agentSel && agentSel.options.length <= 1) {
-    _agents.forEach(a => agentSel.appendChild(new Option(a.name, a.id)));
-  }
-
-  // Hook up Fetch button
-  const fetchBtn = document.getElementById('dashboard-fetch-btn');
-  if (fetchBtn && !fetchBtn.dataset.wired) {
-    fetchBtn.dataset.wired = '1';
-    fetchBtn.addEventListener('click', async () => {
-      const startInput = document.getElementById('dashboard-start-date');
-      const endInput = document.getElementById('dashboard-end-date');
-      const sectorId = sectorSel?.value || 'all';
-      const agentId = agentSel?.value || 'all';
+  // Hook up Generate Poster button
+  const generateBtn = document.getElementById('poster-generate-btn');
+  if (generateBtn && !generateBtn.dataset.wired) {
+    generateBtn.dataset.wired = '1';
+    generateBtn.addEventListener('click', async () => {
+      const startInput = document.getElementById('poster-start-date');
+      const endInput = document.getElementById('poster-end-date');
+      const sectorId = sectorSel?.value;
       const startDate = startInput?.value || null;
       const endDate = endInput?.value || null;
 
-      // Only sector is required — dates and agent are optional narrowing filters
-      if (sectorId === 'all' && !startDate && !endDate && agentId === 'all') {
-        toast('warning', 'No Filter Selected', 'Select at least a sector, an agent, or a date range.');
+      if (!sectorId) {
+        toast('warning', 'Validation Error', 'Please select a sector to generate the poster.');
         return;
       }
 
-      fetchBtn.disabled = true;
-      fetchBtn.textContent = 'Loading…';
+      generateBtn.disabled = true;
+      generateBtn.textContent = 'Generating…';
       try {
-        const fares = await getFares({ sectorId, agentId, startDate, endDate, includeHidden: true });
-        _dashboardFares = fares;
-        renderDashboardResults(_dashboardFares);
+        const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
+        if (!fares || !fares.length) {
+          toast('warning', 'No Fares', 'No live fares found for the selected sector and dates.');
+          document.getElementById('poster-preview-container').classList.add('hidden');
+          return;
+        }
+        await renderPoster(fares, sectorId);
       } catch (e) {
-        toast('error', 'Fetch Failed', e.message);
+        toast('error', 'Generation Failed', e.message);
       } finally {
-        fetchBtn.disabled = false;
-        fetchBtn.textContent = 'Fetch';
+        generateBtn.disabled = false;
+        generateBtn.textContent = 'Generate Poster';
       }
     });
+
+    // Wire up download buttons
+    document.getElementById('poster-download-jpg')?.addEventListener('click', () => downloadPoster('jpeg'));
+    document.getElementById('poster-download-pdf')?.addEventListener('click', () => downloadPoster('pdf'));
   }
 }
 
-function renderDashboardResults(fares) {
-  const target = document.getElementById('dashboard-results');
+
+async function renderPoster(fares, sectorId) {
+  const container = document.getElementById('poster-preview-container');
+  const tbody = document.getElementById('poster-fares-tbody');
+  const titleEl = document.getElementById('poster-sector-title');
+
+  if (!container || !tbody || !titleEl) return;
+
+  // Set header title
+  const sector = _sectors.find(s => s.id === sectorId);
+  const codeParts = sector ? sector.sectorCode.split(' ') : ['', ''];
+  titleEl.innerHTML = `${codeParts[0] || 'DEP'} <i class="bi bi-arrow-right-short text-primary"></i> ${codeParts[1] || 'ARR'}`;
+
+  // Sort fares by date, limit to 10
+  const sortedFares = [...fares].sort((a, b) => {
+    let valA = a.flightDate, valB = b.flightDate;
+    if (valA instanceof Date) valA = valA.getTime();
+    if (valB instanceof Date) valB = valB.getTime();
+    return valA - valB;
+  }).slice(0, 10);
+
+  const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a]));
+
+  // Pre-fetch airline logos as blob URLs — sidesteps CORS for html2canvas
+  async function fetchLogoBlob(url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    } catch { return null; }
+  }
+
+  const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))]
+    .map(id => airlineMap[id])
+    .filter(a => a?.logoUrl);
+  const blobUrlMap = {};
+  await Promise.all(uniqueAirlines.map(async a => {
+    const blobUrl = await fetchLogoBlob(a.logoUrl);
+    if (blobUrl) blobUrlMap[a.id] = blobUrl;
+  }));
+
+  // Render table rows
+  tbody.innerHTML = sortedFares.map((f, i) => {
+    const dt = f.flightDate instanceof Date
+      ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
+      : f.flightDate;
+    const airline = airlineMap[f.airlineId];
+    const bgClass = i % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+    const logoSrc = blobUrlMap[f.airlineId] || null;
+    const logoHtml = logoSrc
+      ? `<img src="${logoSrc}" class="h-8 object-contain mx-auto" alt="${airline?.name || ''}">`
+      : `<span class="font-bold text-navy truncate block mx-auto text-lg">${airline?.name || f.airlineId}</span>`;
+
+    return `
+      <tr class="${bgClass} border-b border-slate-100 last:border-0">
+        <td class="py-5 px-4 font-black text-navy text-2xl">${dt}</td>
+        <td class="py-5 px-4 text-center align-middle">${logoHtml}</td>
+        <td class="py-5 px-4 text-right">
+          <div class="inline-block bg-navy text-white px-5 py-2 rounded-xl font-black shadow-md text-2xl">
+            ₹${(f.finalRate || 0).toLocaleString()}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  container.classList.remove('hidden');
+  container.classList.add('flex');
+}
+
+async function downloadPoster(format) {
+    const posterEl = document.getElementById('poster-render-frame');
+    if (!posterEl) return;
+
+    // Disable both buttons while exporting
+    const jpgBtn = document.getElementById('poster-download-jpg');
+    const pdfBtn = document.getElementById('poster-download-pdf');
+    if (jpgBtn) jpgBtn.disabled = true;
+    if (pdfBtn) pdfBtn.disabled = true;
+
+    const origTransform = posterEl.style.transform;
+    posterEl.style.transform = 'none';
+    toast('info', 'Generating Export', 'Please wait while we render your poster…');
+
+    try {
+        // Wait for any images that aren't yet fully decoded (blob URLs load fast, but be safe)
+        await Promise.all(
+            Array.from(posterEl.querySelectorAll('img')).map(img =>
+                img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
+            )
+        );
+
+        // Render to canvas at 2× resolution for crisp output
+        const canvas = await html2canvas(posterEl, {
+            scale: 2,
+            useCORS: false,       // blob: URLs are same-origin — no CORS needed
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false
+        });
+
+        posterEl.style.transform = origTransform;
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+        if (format === 'jpeg') {
+            const link = document.createElement('a');
+            link.download = `zamra-poster-${Date.now()}.jpg`;
+            link.href = imgData;
+            link.click();
+            toast('success', 'Downloaded!', 'JPEG poster saved successfully.');
+
+        } else if (format === 'pdf') {
+            // Resolve jsPDF regardless of UMD binding name
+            const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF)
+                || window.jsPDF
+                || (window.jspdf);
+            if (!jsPDFCtor) throw new Error('jsPDF library not loaded.');
+
+            // Convert canvas px → mm (96 dpi screen, scale:2 → 192 dpi effective)
+            const PX_PER_MM = 96 / 25.4;           // ~3.779 px/mm at 1×
+            const widthMm  = (canvas.width  / 2) / PX_PER_MM;
+            const heightMm = (canvas.height / 2) / PX_PER_MM;
+
+            const pdf = new jsPDFCtor({
+                orientation: widthMm > heightMm ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: [widthMm, heightMm]
+            });
+
+            pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
+            pdf.save(`zamra-poster-${Date.now()}.pdf`);
+            toast('success', 'Downloaded!', 'PDF poster saved successfully.');
+        }
+
+    } catch (e) {
+        console.error('Poster export error:', e);
+        posterEl.style.transform = origTransform;
+        toast('error', 'Export Failed', e.message || 'There was an error generating the export.');
+    } finally {
+        if (jpgBtn) jpgBtn.disabled = false;
+        if (pdfBtn) pdfBtn.disabled = false;
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REPORT FARES TABLE (Moved from Dashboard)
+// ══════════════════════════════════════════════════════════════════════════════
+function renderReportFaresTable(fares) {
+  const target = document.getElementById('report-fares-results');
   if (!target) return;
 
   if (!fares || !fares.length) {
-    target.innerHTML = `<div class="text-center text-text-muted border-2 border-dashed border-border/20 rounded-xl py-12">
-      <i class="bi bi-inbox text-4xl opacity-50 mb-3 block"></i><p>No fares found for this selection.</p></div>`;
+    target.innerHTML = `<div class="text-center text-text-muted py-14 px-4">
+      <div class="inline-flex flex-col items-center gap-3 opacity-50">
+        <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <i class="bi bi-inbox text-3xl text-slate-400"></i>
+        </div>
+        <p class="font-semibold text-[14px]">No fares found</p>
+        <p class="text-[12px]">Try adjusting your filters.</p>
+      </div>
+    </div>`;
     return;
   }
 
-  // Build agent & sector lookup maps
-  const agentMap = Object.fromEntries(_agents.map(a => [a.id, a.name]));
-  const sectorMap = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
+  // Build lookup maps
+  const agentMap   = Object.fromEntries(_agents.map(a => [a.id, a.name]));
+  const sectorMap  = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
   const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a.code]));
-  const sorted = applySortAndFilter(fares, 'dashboard');
+
+  // Sort (pagination-safe — no limit slice here)
+  const { key, asc } = tableSort.reportFares;
+  const sorted = [...fares].sort((a, b) => {
+    let valA = a[key], valB = b[key];
+    if (valA instanceof Date) valA = valA.getTime();
+    if (valB instanceof Date) valB = valB.getTime();
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+    if (valA < valB) return asc ? -1 : 1;
+    if (valA > valB) return asc ? 1 : -1;
+    return 0;
+  });
+
+  const limit = tableLimit.reportFares;
+  const totalPages = Math.max(1, Math.ceil(fares.length / limit));
+  if (tablePage.reportFares > totalPages) tablePage.reportFares = totalPages;
+  const start = (tablePage.reportFares - 1) * limit;
+  const pageData = sorted.slice(start, start + limit);
+
+  const TH = (key, label) =>
+    `<th class="cursor-pointer group whitespace-nowrap" data-sort-tab="reportFares" data-sort-key="${key}">${label} <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>`;
 
   target.innerHTML = `
-    <div class="bg-white rounded-2xl shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden">
-      <div class="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-border/50">
-        <p class="font-bold text-navy text-sm">${fares.length} Fare${fares.length !== 1 ? 's' : ''} Found</p>
-      </div>
-      <div class="admin-table-container overflow-x-auto w-full">
-        <table class="admin-table w-full text-sm">
-          <thead><tr>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="flightDate">Date <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="flightTime">Time <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="sectorId">Sector <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="airlineId">Airline <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="agentId">Agent <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="specialRate">SP Rate (₹) <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="finalRate">Rate (₹) <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="commission">Comm <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="baggage">Baggage <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="extraBaggage">Ex.Bag <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="dashboard" data-sort-key="isHidden">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
-            <th class="whitespace-nowrap">Actions</th>
-          </tr></thead>
-          <tbody>
-            ${sorted.map(f => `
-              <tr class="hover:bg-slate-50 border-b border-border/20 last:border-0 transition-colors">
-                <td class="whitespace-nowrap">${f.flightDate instanceof Date ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : f.flightDate}</td>
-                <td class="whitespace-nowrap text-text-muted">${f.flightTime || '—'}</td>
-                <td class="whitespace-nowrap font-medium text-navy">${sectorMap[f.sectorId] || f.sectorId}</td>
-                <td class="whitespace-nowrap">${airlineMap[f.airlineId] || f.airlineId}</td>
-                <td class="whitespace-nowrap text-text-muted">${agentMap[f.agentId] || f.agentId}</td>
-                <td class="whitespace-nowrap font-semibold opacity-60">₹${(f.specialRate || 0).toLocaleString()}</td>
-                <td class="whitespace-nowrap font-bold text-navy">₹${(f.finalRate || 0).toLocaleString()}</td>
-                <td class="whitespace-nowrap opacity-70">₹${(f.commission || 0).toLocaleString()}</td>
-                <td class="whitespace-nowrap">${f.baggage ? f.baggage + 'kg' : '—'}</td>
-                <td class="whitespace-nowrap">${f.extraBaggage ? f.extraBaggage + 'kg' : '—'}</td>
-                <td class="whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${f.isHidden ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}">${f.isHidden ? 'Hidden' : 'Live'}</span></td>
-                <td class="whitespace-nowrap">
-                  <button onclick="window.__deleteFare('${f.id}')"
-                    class="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded shadow-sm text-[11px] font-bold hover:bg-red-500 hover:text-white transition-colors">Del</button>
+    <div class="admin-table-container overflow-x-auto w-full rounded-none border-0 shadow-none">
+      <table class="admin-table w-full text-sm">
+        <thead><tr>
+          ${TH('flightDate','Date')}
+          ${TH('flightTime','Time')}
+          ${TH('sectorId','Sector')}
+          ${TH('airlineId','Airline')}
+          ${TH('agentId','Agent')}
+          ${TH('specialRate','SP Rate (₹)')}
+          ${TH('finalRate','Rate (₹)')}
+          ${TH('commission','Comm (₹)')}
+          ${TH('baggage','Bag')}
+          ${TH('extraBaggage','Ex.Bag')}
+          ${TH('isHidden','Status')}
+          <th class="whitespace-nowrap">Actions</th>
+        </tr></thead>
+        <tbody>
+          ${pageData.map((f, idx) => {
+            const dateStr = f.flightDate instanceof Date
+              ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+              : (f.flightDate || '—');
+            const rowBg = idx % 2 === 1 ? 'bg-slate-50/60' : '';
+            return `<tr class="${rowBg} hover:bg-blue-50/40 transition-colors">
+              <td class="whitespace-nowrap font-semibold text-navy text-[13px]">${dateStr}</td>
+              <td class="whitespace-nowrap text-text-muted text-[12px]">${f.flightTime || '—'}</td>
+              <td class="whitespace-nowrap">
+                <span class="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md text-[12px]">${sectorMap[f.sectorId] || f.sectorId}</span>
+              </td>
+              <td class="whitespace-nowrap font-semibold text-[13px]">${airlineMap[f.airlineId] || f.airlineId}</td>
+              <td class="whitespace-nowrap text-text-muted text-[12px]">${agentMap[f.agentId] || f.agentId}</td>
+              <td class="whitespace-nowrap text-[13px] text-text-muted">₹${(f.specialRate || 0).toLocaleString()}</td>
+              <td class="whitespace-nowrap font-black text-navy text-[14px]">₹${(f.finalRate || 0).toLocaleString()}</td>
+              <td class="whitespace-nowrap text-[12px] text-text-muted">₹${(f.commission || 0).toLocaleString()}</td>
+              <td class="whitespace-nowrap text-[12px]">${f.baggage ? f.baggage + ' kg' : '—'}</td>
+              <td class="whitespace-nowrap text-[12px]">${f.extraBaggage ? f.extraBaggage + ' kg' : '—'}</td>
+              <td class="whitespace-nowrap">
+                <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${f.isHidden ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}">
+                  ${f.isHidden ? '● Hidden' : '● Live'}
+                </span>
+              </td>
+              <td class="whitespace-nowrap">
+                <div class="flex gap-1">
                   <button onclick="window.__toggleFare('${f.id}', ${!f.isHidden})"
-                    class="bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded shadow-sm text-[11px] font-bold hover:bg-slate-500 hover:text-white transition-colors ml-1">${f.isHidden ? 'Show' : 'Hide'}</button>
-                </td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>`;
+                    class="${f.isHidden ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-500' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-500'} border px-2.5 py-1 rounded-lg text-[11px] font-bold hover:text-white transition-colors">
+                    ${f.isHidden ? 'Show' : 'Hide'}
+                  </button>
+                  <button onclick="window.__deleteFare('${f.id}')"
+                    class="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-red-500 hover:text-white transition-colors">Del</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div id="reportFares-pagination-footer" class="border-t border-slate-100 bg-slate-50/80 rounded-b-2xl"></div>`;
 
-  // Expose global handlers — re-render in-place using cached fares
+  renderPaginationFooter('reportFares', fares.length, totalPages, start, limit);
+
+  // Global action handlers — re-render in-place using cached fares
   window.__deleteFare = async (fareId) => {
     if (!confirm('Delete this fare?')) return;
     try {
       await deleteFare(fareId);
-      _dashboardFares = _dashboardFares.filter(f => f.id !== fareId);
+      _reportFares = _reportFares.filter(f => f.id !== fareId);
       toast('success', 'Deleted', 'Fare removed.');
-      renderDashboardResults(_dashboardFares);
+      renderReportFaresTable(_reportFares);
     } catch (e) { toast('error', 'Error', e.message); }
   };
   window.__toggleFare = async (fareId, isHidden) => {
     try {
       await updateFare(fareId, { isHidden });
-      _dashboardFares = _dashboardFares.map(f => f.id === fareId ? { ...f, isHidden } : f);
+      _reportFares = _reportFares.map(f => f.id === fareId ? { ...f, isHidden } : f);
       toast('success', 'Updated', `Fare ${isHidden ? 'hidden' : 'shown'}.`);
-      renderDashboardResults(_dashboardFares);
+      renderReportFaresTable(_reportFares);
     } catch (e) { toast('error', 'Error', e.message); }
   };
 
-  updateSortIcons('dashboard');
+  updateSortIcons('reportFares');
 }
 
 
@@ -366,23 +553,24 @@ function renderDashboardResults(fares) {
 // AGENTS TAB — Full CRUD + Bulk Delete + Toggle Active
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderAgentsTab(fetchData = true) {
-  if (fetchData) { _agents = await getAgents(); agentsPage = 1; }
+  if (fetchData) { _agents = await getAgents(); tablePage.agents = 1; }
   const tbody = document.querySelector('#agents-tab .admin-table tbody');
   if (!tbody) return;
 
   // Sort all agents, then paginate
   const sorted = applySortAndFilter(_agents, 'agents');
-  const totalPages = Math.max(1, Math.ceil(_agents.length / AGENTS_PER_PAGE));
-  if (agentsPage > totalPages) agentsPage = totalPages;
-  const start = (agentsPage - 1) * AGENTS_PER_PAGE;
-  const pageData = sorted.slice(start, start + AGENTS_PER_PAGE);
+  const limit = tableLimit.agents;
+  const totalPages = Math.max(1, Math.ceil(_agents.length / limit));
+  if (tablePage.agents > totalPages) tablePage.agents = totalPages;
+  const start = (tablePage.agents - 1) * limit;
+  const pageData = sorted.slice(start, start + limit);
 
   tbody.innerHTML = pageData.length
     ? pageData.map(a => agentRow(a)).join('')
     : `<tr><td colspan="7" class="text-center py-8 text-text-muted">No agents yet. Click "+ Add Agent" to get started.</td></tr>`;
 
   // Render pagination footer
-  renderAgentsPagination(_agents.length, totalPages, start);
+  renderPaginationFooter('agents', _agents.length, totalPages, start, limit);
 
   // Remove stale wired flag so delegation re-attaches after innerHTML replacement
   delete tbody.dataset.actionsWired;
@@ -417,7 +605,7 @@ function agentRow(a) {
       <button data-action="delete-agent" data-id="${a.id}" class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-red-600">Delete</button>
       <button data-action="toggle-agent" data-id="${a.id}" data-active="${a.isActive !== false}"
         class="px-3 py-1 rounded text-[12px] font-bold ${a.isActive !== false ? 'bg-slate-400 text-white hover:bg-slate-500' : 'bg-green-500 text-white hover:bg-green-600'}">
-        ${a.isActive !== false ? 'Hide All' : 'Show All'}</button>
+        ${a.isActive !== false ? 'Hide Fares' : 'Show Fares'}</button>
     </td>
   </tr>`;
 }
@@ -452,21 +640,23 @@ function wireAgentActions() {
   });
 }
 
-function renderAgentsPagination(total, totalPages, start) {
-  const footer = document.getElementById('agents-pagination-footer');
+function renderPaginationFooter(tabName, total, totalPages, start, limit) {
+  const footer = document.getElementById(`${tabName}-pagination-footer`);
   if (!footer) return;
-  const end = Math.min(start + AGENTS_PER_PAGE, total);
+  const end = Math.min(start + limit, total);
+  const currentPage = tablePage[tabName];
+
   footer.innerHTML = `
-    <div class="flex items-center justify-between px-2 py-3 text-sm text-text-muted">
+    <div class="flex items-center justify-between px-2 py-3 text-sm text-text-muted overflow-x-auto whitespace-nowrap">
       <span>Showing ${total ? start + 1 : 0} to ${end} of ${total} entries</span>
-      <div class="flex items-center gap-1">
-        <button data-pg-action="prev" class="px-3 py-1 border border-border rounded text-sm hover:bg-slate-50 disabled:opacity-40" ${agentsPage <= 1 ? 'disabled' : ''}>Previous</button>
+      <div class="flex items-center gap-1 ml-4 shadow-[var(--shadow-premium-soft)] rounded">
+        <button data-pg-action="prev" class="px-3 py-1.5 border border-border rounded-l bg-white text-sm font-semibold hover:bg-slate-50 hover:text-navy disabled:opacity-40 premium-transition" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>
         ${Array.from({ length: totalPages }, (_, i) => i + 1).map(p =>
-          `<button data-pg-action="goto" data-pg="${p}" class="px-3 py-1 border rounded text-sm font-semibold transition-colors ${
-            p === agentsPage ? 'bg-primary text-white border-primary' : 'border-border hover:bg-slate-50'
+          `<button data-pg-action="goto" data-pg="${p}" class="px-3 py-1.5 border-y border-r border-border text-sm font-bold bg-white premium-transition ${
+            p === currentPage ? 'text-primary bg-primary-light shadow-inner border-primary/20 relative z-10' : 'text-text-mid hover:bg-slate-50 hover:text-navy'
           }">${p}</button>`
         ).join('')}
-        <button data-pg-action="next" class="px-3 py-1 border border-border rounded text-sm hover:bg-slate-50 disabled:opacity-40" ${agentsPage >= totalPages ? 'disabled' : ''}>Next</button>
+        <button data-pg-action="next" class="px-3 py-1.5 border-y border-r border-border rounded-r bg-white text-sm font-semibold hover:bg-slate-50 hover:text-navy disabled:opacity-40 premium-transition" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
       </div>
     </div>`;
 
@@ -476,10 +666,13 @@ function renderAgentsPagination(total, totalPages, start) {
       const btn = e.target.closest('[data-pg-action]');
       if (!btn || btn.disabled) return;
       const action = btn.dataset.pgAction;
-      if (action === 'prev') agentsPage = Math.max(1, agentsPage - 1);
-      else if (action === 'next') agentsPage++;
-      else if (action === 'goto') agentsPage = parseInt(btn.dataset.pg);
-      renderAgentsTab(false);
+      if (action === 'prev') tablePage[tabName] = Math.max(1, tablePage[tabName] - 1);
+      else if (action === 'next') tablePage[tabName]++;
+      else if (action === 'goto') tablePage[tabName] = parseInt(btn.dataset.pg);
+      if (tabName === 'agents') renderAgentsTab(false);
+      else if (tabName === 'sectors') renderSectorsTab(false);
+      else if (tabName === 'airlines') renderFlightsTab(false);
+      else if (tabName === 'reportFares') renderReportFaresTable(_reportFares);
     });
   }
 }
@@ -610,24 +803,32 @@ function populateAgentBulkSelect() {
 // SECTORS TAB — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderSectorsTab(fetchData = true) {
-  if (fetchData) _sectors = await getSectors();
+  if (fetchData) { _sectors = await getSectors(); tablePage.sectors = 1; }
   
   // Wire up filter inputs if not already
   const searchInp = document.getElementById('sectors-search');
   const limitSel = document.getElementById('sectors-limit');
   if (searchInp && !searchInp.dataset.wired) {
     searchInp.dataset.wired = '1'; limitSel.dataset.wired = '1';
-    searchInp.addEventListener('input', (e) => { tableSearch.sectors = e.target.value; renderSectorsTab(false); });
-    limitSel.addEventListener('change', (e) => { tableLimit.sectors = parseInt(e.target.value); renderSectorsTab(false); });
+    searchInp.addEventListener('input', (e) => { tableSearch.sectors = e.target.value; tablePage.sectors = 1; renderSectorsTab(false); });
+    limitSel.addEventListener('change', (e) => { tableLimit.sectors = parseInt(e.target.value); tablePage.sectors = 1; renderSectorsTab(false); });
   }
 
   const tbody = document.querySelector('#sectors-tab .admin-table tbody');
   if (!tbody) return;
 
   const data = applySortAndFilter(_sectors, 'sectors');
-  tbody.innerHTML = data.length
-    ? data.map(s => sectorRow(s)).join('')
+  const limit = tableLimit.sectors;
+  const totalPages = Math.max(1, Math.ceil(data.length / limit));
+  if (tablePage.sectors > totalPages) tablePage.sectors = totalPages;
+  const start = (tablePage.sectors - 1) * limit;
+  const pageData = data.slice(start, start + limit);
+
+  tbody.innerHTML = pageData.length
+    ? pageData.map(s => sectorRow(s)).join('')
     : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No sectors yet. Click "+ Add Sector".</td></tr>`;
+
+  renderPaginationFooter('sectors', data.length, totalPages, start, limit);
 
   wireSectorActions();
 
@@ -649,8 +850,9 @@ function sectorRow(s) {
     <td class="flex gap-1">
       <button data-action="edit-sector" data-id="${s.id}" class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-yellow-500">Edit</button>
       <button data-action="delete-sector" data-id="${s.id}" class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-red-600">Delete</button>
-      <button data-action="hide-sector" data-id="${s.id}" class="bg-slate-400 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-slate-500">Hide Fares</button>
-      <button data-action="show-sector" data-id="${s.id}" class="bg-green-500 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-green-600">Show Fares</button>
+      <button data-action="toggle-sector" data-id="${s.id}" data-hidden="${s.isHidden === true}"
+        class="px-3 py-1 rounded text-[12px] font-bold ${s.isHidden === true ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-slate-400 text-white hover:bg-slate-500'}">
+        ${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
     </td>
   </tr>`;
 }
@@ -673,14 +875,15 @@ function wireSectorActions() {
       try { await deleteSector(id); toast('success', 'Deleted', `Sector "${sector?.sectorCode}" removed.`); await renderSectorsTab(); }
       catch (e) { toast('error', 'Error', e.message); }
     }
-    if (action === 'hide-sector' || action === 'show-sector') {
-      const isHidden = action === 'hide-sector';
+    if (action === 'toggle-sector') {
+      const isCurrentlyHidden = btn.dataset.hidden === 'true';
+      const newHiddenStatus = !isCurrentlyHidden;
       btn.disabled = true; btn.textContent = 'Working…';
       try {
-        const res = await callToggleSectorVisibility(id, isHidden);
-        toast('success', `Sector Fares ${isHidden ? 'Hidden' : 'Shown'}`, res.message);
-      } catch (e) { toast('error', 'Toggle Failed', e.message); }
-      finally { btn.disabled = false; btn.textContent = isHidden ? 'Hide Fares' : 'Show Fares'; }
+        const res = await callToggleSectorVisibility(id, newHiddenStatus);
+        toast('success', `Sector Fares ${newHiddenStatus ? 'Hidden' : 'Shown'}`, res.message);
+        await renderSectorsTab(); // Auto-refresh UI to fetch isHidden updates
+      } catch (e) { toast('error', 'Toggle Failed', e.message); await renderSectorsTab(); }
     }
   });
 }
@@ -736,24 +939,32 @@ function openSectorModal(sector) {
 // FLIGHTS TAB (Airlines) — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderFlightsTab(fetchData = true) {
-  if (fetchData) _airlines = await getAirlines();
+  if (fetchData) { _airlines = await getAirlines(); tablePage.airlines = 1; }
 
   // Wire up filter inputs if not already
   const searchInp = document.getElementById('airlines-search');
   const limitSel = document.getElementById('airlines-limit');
   if (searchInp && !searchInp.dataset.wired) {
     searchInp.dataset.wired = '1'; limitSel.dataset.wired = '1';
-    searchInp.addEventListener('input', (e) => { tableSearch.airlines = e.target.value; renderFlightsTab(false); });
-    limitSel.addEventListener('change', (e) => { tableLimit.airlines = parseInt(e.target.value); renderFlightsTab(false); });
+    searchInp.addEventListener('input', (e) => { tableSearch.airlines = e.target.value; tablePage.airlines = 1; renderFlightsTab(false); });
+    limitSel.addEventListener('change', (e) => { tableLimit.airlines = parseInt(e.target.value); tablePage.airlines = 1; renderFlightsTab(false); });
   }
 
   const tbody = document.querySelector('#flights-tab .admin-table tbody');
   if (!tbody) return;
 
   const data = applySortAndFilter(_airlines, 'airlines');
-  tbody.innerHTML = data.length
-    ? data.map(a => airlineRow(a)).join('')
+  const limit = tableLimit.airlines;
+  const totalPages = Math.max(1, Math.ceil(data.length / limit));
+  if (tablePage.airlines > totalPages) tablePage.airlines = totalPages;
+  const start = (tablePage.airlines - 1) * limit;
+  const pageData = data.slice(start, start + limit);
+
+  tbody.innerHTML = pageData.length
+    ? pageData.map(a => airlineRow(a)).join('')
     : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No airlines yet. Click "+ Add Flight".</td></tr>`;
+
+  renderPaginationFooter('airlines', data.length, totalPages, start, limit);
 
   wireAirlineActions();
 
@@ -889,10 +1100,23 @@ async function renderReportsTab() {
 
       fetchBtn.disabled = true; fetchBtn.textContent = 'Generating…';
       try {
-        const report = await callGenerateAgentReport(startDate, endDate, sectorId, agentId);
+        const [report, fares] = await Promise.all([
+          callGenerateAgentReport(startDate, endDate, sectorId, agentId),
+          getFares({ sectorId, agentId, startDate, endDate, includeHidden: true })
+        ]);
+        
         renderReportCharts(report, tab);
+        
+        // Render the detailed fares table
+        tablePage.reportFares = 1;
+        _reportFares = fares;
+        renderReportFaresTable(_reportFares);
+        
       } catch (e) { toast('error', 'Report Failed', e.message); }
-      finally { fetchBtn.disabled = false; fetchBtn.textContent = 'Generate Report'; }
+      finally {
+        fetchBtn.disabled = false;
+        fetchBtn.innerHTML = '<i class="bi bi-lightning-fill text-[13px]"></i> Generate Report';
+      }
     });
   }
 }
@@ -900,31 +1124,51 @@ async function renderReportsTab() {
 function renderReportCharts(report, tab) {
   const { agentReport, sectorReport, totalFares } = report;
 
-  // Agent bar chart — targeted by stable ID
+  // ── Stat Cards ──────────────────────────────────────────────────────────────
+  const statsRow = document.getElementById('report-stats-row');
+  if (statsRow) {
+    statsRow.classList.remove('hidden');
+    const liveFares   = (_reportFares || []).filter(f => !f.isHidden).length;
+    const hiddenFares = (_reportFares || []).filter(f => f.isHidden).length;
+    const agentsCount = new Set((_reportFares || []).map(f => f.agentId)).size;
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val.toLocaleString(); };
+    setEl('stat-total-fares', totalFares);
+    setEl('stat-live-fares',  liveFares);
+    setEl('stat-hidden-fares', hiddenFares);
+    setEl('stat-agents-count', agentsCount);
+  }
+
+  // ── Update fares table header subtitle ──────────────────────────────────────
+  const totalEl = document.getElementById('report-total-fares');
+  if (totalEl) totalEl.textContent = `${totalFares} fare${totalFares !== 1 ? 's' : ''} matched your filter`;
+
+  // ── Bar Chart — Fares per Agent ─────────────────────────────────────────────
   const barChartContainer = document.getElementById('bar-chart-container');
   if (barChartContainer && agentReport.length) {
     const maxCount = Math.max(...agentReport.map(a => a.count));
-    barChartContainer.innerHTML = agentReport.slice(0, 8).map(a => {
-      const pct = maxCount > 0 ? Math.max(2, Math.round((a.count / maxCount) * 95)) : 2;
-      return `<div class="flex flex-col items-center gap-1 flex-1 min-w-0">
-        <span class="text-[10px] font-bold text-navy">${a.count}</span>
-        <div class="w-full bg-[#99d7d1] rounded-t" style="height:${pct}%" title="${a.name}: ${a.count} fares, avg ₹${a.avgRate?.toLocaleString()}"></div>
-        <span class="text-[9px] text-text-muted truncate w-full text-center">${a.name?.split(' ')[0]}</span>
+    const GRAD_COLORS = [
+      ['#6ee7f7','#0ea5e9'],['#a5f3be','#22c55e'],['#fde68a','#f59e0b'],
+      ['#fca5a5','#ef4444'],['#c4b5fd','#8b5cf6'],['#99f6e4','#14b8a6'],
+      ['#fdba74','#f97316'],['#94a3b8','#64748b'],
+    ];
+    barChartContainer.innerHTML = agentReport.slice(0, 8).map((a, i) => {
+      const pct = maxCount > 0 ? Math.max(4, Math.round((a.count / maxCount) * 92)) : 4;
+      const [c1, c2] = GRAD_COLORS[i % GRAD_COLORS.length];
+      return `<div class="flex flex-col items-center gap-1 flex-1 min-w-0 group cursor-default">
+        <span class="text-[11px] font-black text-navy opacity-0 group-hover:opacity-100 transition-opacity -mb-0.5">${a.count}</span>
+        <div class="w-full rounded-t-lg transition-all duration-500" style="height:${pct}%;background:linear-gradient(to top,${c1},${c2});box-shadow:0 -2px 8px 0 ${c2}40"
+          title="${a.name}: ${a.count} fares • avg ₹${(a.avgRate || 0).toLocaleString()} • min ₹${(a.minRate || 0).toLocaleString()} • max ₹${(a.maxRate || 0).toLocaleString()}">
+        </div>
+        <span class="text-[9px] font-semibold text-text-muted truncate w-full text-center px-0.5">${a.name?.split(' ')[0]}</span>
       </div>`;
     }).join('');
-    // Show total fares count
-    const totalEl = document.getElementById('report-total-fares');
-    if (totalEl) {
-      totalEl.textContent = `${totalFares} total fares`;
-      totalEl.classList.remove('hidden');
-    }
   }
 
-  // Sector pie chart (CSS conic-gradient) — targeted by stable ID
+  // ── Pie / Donut Chart — Fares per Sector ────────────────────────────────────
+  const COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316','#64748b'];
   const pieContainer = document.getElementById('pie-chart-container');
   if (pieContainer && sectorReport.length) {
     const total = sectorReport.reduce((s, r) => s + r.count, 0);
-    const COLORS = ['#007bff','#28a745','#ffc107','#dc3545','#6f42c1','#17a2b8','#fd7e14','#6c757d'];
     let deg = 0;
     const segments = sectorReport.slice(0, 8).map((s, i) => {
       const pct = total > 0 ? (s.count / total) * 100 : 0;
@@ -934,20 +1178,81 @@ function renderReportCharts(report, tab) {
     pieContainer.style.background = `conic-gradient(${segments.join(', ')})`;
     pieContainer.title = sectorReport.map(s => `${s.name}: ${s.count}`).join('\n');
 
-    // Legend
     const legendEl = document.getElementById('pie-legend');
     if (legendEl) {
-      legendEl.innerHTML = sectorReport.slice(0, 8).map((s, i) =>
-        `<div class="flex items-center gap-2 text-[12px]">
-          <span class="inline-block w-3 h-3 rounded-sm shrink-0" style="background:${COLORS[i % COLORS.length]}"></span>
-          <span class="truncate text-text-muted">${s.name}</span>
-          <span class="font-bold text-navy ml-auto">${s.count}</span>
-        </div>`
-      ).join('');
+      const total2 = sectorReport.reduce((s, r) => s + r.count, 0);
+      legendEl.innerHTML = sectorReport.slice(0, 8).map((s, i) => {
+        const pct = total2 > 0 ? ((s.count / total2) * 100).toFixed(1) : '0.0';
+        return `<div class="flex items-center gap-2 text-[12px] group">
+          <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-offset-1" style="background:${COLORS[i % COLORS.length]};ring-color:${COLORS[i % COLORS.length]}40"></span>
+          <span class="truncate text-text-muted group-hover:text-navy transition-colors">${s.name}</span>
+          <span class="font-black text-navy ml-auto">${s.count}</span>
+          <span class="text-text-soft text-[10px] w-9 text-right">${pct}%</span>
+        </div>`;
+      }).join('');
     }
   }
 
-  toast('success', 'Report Ready', `${totalFares} fares aggregated.`);
+  // ── Wire Export CSV button ───────────────────────────────────────────────────
+  const csvBtn = document.getElementById('download-report-csv');
+  if (csvBtn) {
+    const newBtn = csvBtn.cloneNode(true);
+    csvBtn.parentNode.replaceChild(newBtn, csvBtn);
+    newBtn.addEventListener('click', () => downloadReportCSV(_reportFares));
+    if (_reportFares && _reportFares.length) {
+      newBtn.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+      newBtn.classList.add('opacity-50', 'pointer-events-none');
+    }
+  }
+
+  toast('success', 'Report Ready', `${totalFares} fare${totalFares !== 1 ? 's' : ''} aggregated.`);
+}
+
+function downloadReportCSV(fares) {
+    if (!fares || !fares.length) {
+        toast('warning', 'No Data', 'No fares to export. Apply filters and fetch first.');
+        return;
+    }
+
+    const agentMap  = Object.fromEntries(_agents.map(a  => [a.id, a.name]));
+    const sectorMap = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
+    const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a.code || a.name]));
+
+    // Helper: escape a value for CSV (wrap in quotes, escape internal quotes)
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+    const headers = ['Date', 'Time', 'Sector', 'Airline', 'Agent', 'SP Rate (INR)', 'Rate (INR)', 'Commission (INR)', 'Baggage (kg)', 'Extra Baggage (kg)', 'Status'];
+    const rows = fares.map(f => {
+        const dt = f.flightDate instanceof Date
+            ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            : (f.flightDate || '');
+        return [
+            esc(dt),
+            esc(f.flightTime || ''),
+            esc(sectorMap[f.sectorId] || f.sectorId),
+            esc(airlineMap[f.airlineId] || f.airlineId),
+            esc(agentMap[f.agentId] || f.agentId),
+            esc(f.specialRate || 0),
+            esc(f.finalRate || 0),
+            esc(f.commission || 0),
+            esc(f.baggage || ''),
+            esc(f.extraBaggage || ''),
+            esc(f.isHidden ? 'Hidden' : 'Live')
+        ].join(',');
+    });
+
+    const csv = [headers.map(esc).join(','), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `zamra-fares-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast('success', 'CSV Downloaded', `${fares.length} fares exported.`);
 }
 
 
@@ -1030,8 +1335,6 @@ function buildChips() {
   });
 }
 
-// ── Rebuild chips once agents load (called from loadGlobalData resolved via onAuthChange)
-const origLoadGlobal = loadGlobalData;
 
 function pickAgent(agentId, agentName, el) {
   selAgent = agentId;

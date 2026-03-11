@@ -15,7 +15,7 @@
 Zamra Travels is a premium flight booking and travel services web portal with a full Firebase backend. It has two main surfaces:
 
 1. **Public Website** (`web/index.html`) — Live flight search, sectors, services. Read-only Firestore. See [WEBSITE.md](./WEBSITE.md).
-2. **Admin Dashboard** (`web/admin.html`) — Full CRUD management of agents, sectors, airlines, fares, and reports. Firebase-integrated with Cloud Functions. See [DASHBOARD.md](./DASHBOARD.md).
+2. **Admin Dashboard** (`web/admin.html`) — Poster Generator, CRUD for agents/sectors/airlines/fares, reports. Firebase-integrated with Cloud Functions. See [DASHBOARD.md](./DASHBOARD.md).
 
 **Live URL:** https://zamra-web.web.app  
 **Firebase Project:** `zamra-web` (Blaze plan)
@@ -34,6 +34,7 @@ Zamra Travels is a premium flight booking and travel services web portal with a 
 | Backend Logic | **Firebase Cloud Functions** (Node.js 22, asia-south1) |
 | Auth | **Firebase Auth** (Email/Password + `admin` custom claim) |
 | Hosting | **Firebase Hosting** |
+| Poster Export | **html2canvas 1.4.1** + **jsPDF 2.5.1** (loaded via CDN in `admin.html`) |
 
 **Build commands:**
 ```bash
@@ -148,3 +149,9 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Admin security** depends on the `admin: true` Firebase custom claim — without it, all Firestore writes are blocked even when authenticated.
 - **Firestore indexes** — complex queries on `agent_fares` require the indexes in `firestore.indexes.json`. Deploy them before testing queries.
 - **Cloud Functions region** is `asia-south1` — this matches the `getFunctions(app, 'asia-south1')` call in `firebase-config.js`. Do not change one without changing the other.
+- **Poster export relies on CDN scripts** — `html2canvas` and `jsPDF` are loaded via `<script>` tags in `admin.html` (not npm). Do not import them via ES modules.
+- **Airline logos in posters** — `renderPoster()` is `async` and pre-fetches all logos as `blob:` URLs using `fetch()` before building HTML. This sidesteps Firebase Storage CORS for `html2canvas`. Never reintroduce external image URLs (e.g. `weserv.nl` proxy) inside the poster HTML — it breaks canvas export.
+- **jsPDF access** — the CDN UMD bundle exposes `window.jspdf.jsPDF`. The code also falls back to `window.jsPDF`. If upgrading jsPDF, verify the UMD global name hasn't changed.
+- **CSV export in Reports** — `downloadReportCSV()` reads `_reportFares` (module-level variable). It always exports the full current filtered set, not just the current pagination page. IDs are resolved to names using the in-memory `_agents`, `_sectors`, `_airlines` caches.
+- **Reports tab card split** — The fares table card (`bg-white rounded-2xl`) lives in the static `admin.html`. `renderReportFaresTable()` injects only the `<table>` + `#reportFares-pagination-footer` into `#report-fares-results`. Do **not** re-introduce an inner card wrapper in `renderReportFaresTable()` — the outer card already provides the border/shadow/header.
+- **Reports pagination bug (fixed)** — `renderReportFaresTable()` must do its own sort + slice. Do **not** pipe the fares array through `applySortAndFilter()` (which also applies `tableLimit` slicing) — doing so double-slices the data and breaks pagination beyond page 1.
