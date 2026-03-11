@@ -28,13 +28,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Close mobile menu when a link is clicked
-  const navLinks = document.querySelectorAll('.nav-menu a');
-  navLinks.forEach(link => {
-    link.addEventListener('click', () => {
-      if (navMenu.classList.contains('active')) {
+  // Smooth scrolling for anchor links & close mobile menu
+  const anchorLinks = document.querySelectorAll('a[href^="#"]');
+  anchorLinks.forEach(link => {
+    link.addEventListener('click', function (e) {
+      const targetId = this.getAttribute('href');
+      
+      // Close mobile menu if open
+      if (navMenu && navMenu.classList.contains('active')) {
         navMenu.classList.remove('active');
-        mobileToggle.querySelector('i').classList.replace('bi-x-lg', 'bi-list');
+        if (mobileToggle) {
+          mobileToggle.querySelector('i').classList.replace('bi-x-lg', 'bi-list');
+        }
+      }
+
+      // Perform smooth scrolling
+      if (targetId && targetId !== '#') {
+        const targetElement = document.querySelector(targetId);
+        if (targetElement) {
+          e.preventDefault(); // Prevent default jump / refresh
+          
+          const headerOffset = 80; // height of the sticky header
+          const elementPosition = targetElement.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: "smooth"
+          });
+          
+          // Optionally update URL hash without scrolling
+          window.history.pushState(null, '', targetId);
+        }
       }
     });
   });
@@ -67,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const gridsContainer = document.getElementById('flight-grids-container');
 
   if (gridsContainer) {
-    const renderSection = (origin, destinations) => {
+    const renderSection = (origins, destinations, label) => {
       // Create section container
       const sectionDiv = document.createElement('div');
       sectionDiv.className = 'mb-[50px]';
@@ -75,27 +100,23 @@ document.addEventListener('DOMContentLoaded', () => {
       // Create header
       sectionDiv.innerHTML = `
         <h3 class="flex items-center gap-3 text-[24px] text-accent mb-6 border-b-2 border-border pb-3 font-heading font-bold">
-          <i class="bi bi-geo-alt-fill text-[1.1em]"></i> From ${origin.name} (${origin.code})
+          <i class="bi bi-geo-alt-fill text-[1.1em]"></i> Flights From ${label}
         </h3>
-        <div class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6" id="grid-${origin.id}"></div>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6" id="grid-${label.replace(/\s+/g, '-').toLowerCase()}"></div>
       `;
 
       gridsContainer.appendChild(sectionDiv);
-      const grid = sectionDiv.querySelector(`#grid-${origin.id}`);
+      const grid = sectionDiv.querySelector(`#grid-${label.replace(/\s+/g, '-').toLowerCase()}`);
 
-      destinations.forEach(dest => {
-        const sectorCode = `${origin.code} ${dest.code}`;
-        const routeName = `${origin.name} → ${dest.name}`;
-
+      origins.forEach(origin => {
         const card = document.createElement('div');
-        card.className = 'sector-card bg-white p-[16px_20px] rounded-[12px] border border-border shadow-sm cursor-pointer hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 flex items-center justify-between relative overflow-hidden group';
-        card.setAttribute('data-sector', sectorCode);
-        card.innerHTML = `<h4 class="text-[15px] font-extrabold text-text-main m-0 flex items-center gap-[12px] z-[2] relative">${origin.name} <i class="bi bi-airplane text-primary text-[18px]"></i> ${dest.name}</h4>`;
+        card.className = 'sector-card bg-gradient-to-r from-primary to-[#1558c0] p-[18px_24px] rounded-[16px] shadow-[var(--shadow-premium-soft)] cursor-pointer hover:shadow-[0_8px_25px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all duration-300 flex items-center relative overflow-hidden group';
+        card.innerHTML = `<h4 class="text-[17px] font-heading font-extrabold text-white m-0 flex items-center justify-between z-[2] relative w-full">${origin.name} (${origin.code}) <i class="bi bi-arrow-right-circle text-white/80 text-[22px]"></i></h4>`;
 
-        // Add click event for modal
+        // Add click event to open Routes Modal
         card.addEventListener('click', () => {
-          if (typeof openModal === 'function') {
-            openModal(sectorCode, routeName);
+          if (typeof openRoutesModal === 'function') {
+            openRoutesModal(origin, destinations);
           }
         });
 
@@ -104,14 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // First, Indian to Middle East
-    indianAirports.forEach(origin => {
-      renderSection(origin, middleEastAirports);
-    });
+    renderSection(indianAirports, middleEastAirports, 'India');
 
     // Second, Middle East to Indian
-    middleEastAirports.forEach(origin => {
-      renderSection(origin, indianAirports);
-    });
+    renderSection(middleEastAirports, indianAirports, 'Middle East');
   }
 
   // 4. Modal Functionality
@@ -119,9 +136,49 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalClose = document.getElementById('modal-close');
   const modalBody = document.getElementById('modal-body');
   const modalRoute = document.getElementById('modal-route');
+  const modalTitle = document.getElementById('modal-title');
+
+  function openRoutesModal(origin, destinations) {
+    modalTitle.textContent = 'Select Destination';
+    modalRoute.textContent = `Flying from ${origin.name}`;
+    modalRoute.classList.remove('bg-primary-light', 'text-primary');
+    modalRoute.classList.add('bg-slate-100', 'text-slate-600');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Render routes options
+    modalBody.innerHTML = `
+      <div class="text-center mb-6">
+        <h4 class="text-primary-dark font-bold text-lg mb-[8px]">Available Routes</h4>
+        <p class="text-text-muted text-sm">Select a destination to view flight options</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto p-1" id="routes-grid">
+      </div>
+    `;
+
+    const routesGrid = document.getElementById('routes-grid');
+    destinations.forEach(dest => {
+      const sectorCode = `${origin.code} ${dest.code}`;
+      const routeName = `${origin.name} → ${dest.name}`;
+      
+      const routeBtn = document.createElement('button');
+      routeBtn.className = 'bg-white p-4 rounded-xl border border-border shadow-sm hover:shadow-md hover:border-primary transition-all flex items-center justify-between group cursor-pointer w-full text-left';
+      routeBtn.innerHTML = `
+        <span class="font-bold text-navy text-[15px]">${dest.name}</span>
+        <i class="bi bi-chevron-right text-text-muted group-hover:text-primary transition-colors"></i>
+      `;
+      routeBtn.onclick = () => {
+        openModal(sectorCode, routeName);
+      };
+      routesGrid.appendChild(routeBtn);
+    });
+  }
 
   function openModal(sectorCode, routeName) {
+    modalTitle.textContent = 'Flight Details';
     modalRoute.textContent = sectorCode.replace(' ', ' → ');
+    modalRoute.classList.add('bg-primary-light', 'text-primary');
+    modalRoute.classList.remove('bg-slate-100', 'text-slate-600');
     modal.classList.add('active');
     document.body.style.overflow = 'hidden'; // Prevent background scrolling
 
@@ -133,7 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // Mock content
       modalBody.innerHTML = `
                 <div class="text-center mb-4">
-                    <h4 class="text-primary-dark font-bold text-lg mb-[8px]">Available Flights for \${routeName}</h4>
+                    <button class="mb-4 text-primary font-bold text-[14px] hover:underline flex items-center gap-2 justify-center mx-auto" id="back-to-routes">
+                      <i class="bi bi-arrow-left"></i> Back to Destinations
+                    </button>
+                    <h4 class="text-primary-dark font-bold text-lg mb-[8px]">Available Flights for ${routeName}</h4>
                     <p class="text-text-muted text-sm">Prices are introductory and subject to availability.</p>
                 </div>
                 <div class="overflow-x-auto w-full pb-2">
@@ -173,6 +233,27 @@ document.addEventListener('DOMContentLoaded', () => {
                   </table>
                 </div>
             `;
+      
+      const backBtn = document.getElementById('back-to-routes');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => {
+          // Determine origin/destinations based on routeName for back navigation
+          const originCode = sectorCode.split(' ')[0];
+          let originObj = indianAirports.find(a => a.code === originCode);
+          let destList = middleEastAirports;
+          
+          if (!originObj) {
+            originObj = middleEastAirports.find(a => a.code === originCode);
+            destList = indianAirports;
+          }
+          
+          if (originObj) {
+            openRoutesModal(originObj, destList);
+          } else {
+            closeModal();
+          }
+        });
+      }
     }, 800);
   }
 
@@ -222,6 +303,23 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // 6. Location Swap Logic
+  const swapBtn = document.getElementById('swap-locations');
+  const swapBtnMobile = document.getElementById('swap-locations-mobile');
+  const originSelect = document.getElementById('origin');
+  const destSelect = document.getElementById('destination');
+
+  const swapLocations = () => {
+    if (originSelect && destSelect) {
+      const temp = originSelect.value;
+      originSelect.value = destSelect.value;
+      destSelect.value = temp;
+    }
+  };
+
+  if (swapBtn) swapBtn.addEventListener('click', swapLocations);
+  if (swapBtnMobile) swapBtnMobile.addEventListener('click', swapLocations);
 });
 
 
@@ -579,10 +677,12 @@ document.getElementById('clearBtn').addEventListener('click', () => {
 
 /* ── FLIGHT SEARCH LOGIC ── */
 async function searchFlights() {
+  const origin = document.getElementById('origin').value;
   const dest = document.getElementById('destination').value;
   const list = document.getElementById('flightList');
   const loader = document.getElementById('loading');
   const header = document.getElementById('resultsHeader');
+  const origName = document.getElementById('origName');
   const locName = document.getElementById('locName');
 
   // Reset UI
@@ -594,16 +694,17 @@ async function searchFlights() {
     const response = await fetch('https://n8n.srv1046139.hstgr.cloud/webhook/get-flights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destination: dest })
+      body: JSON.stringify({ origin: origin, destination: dest })
     });
 
     const data = await response.json();
     loader.style.display = 'none';
     header.style.display = 'block';
+    if (origName) origName.innerText = origin;
     if (locName) locName.innerText = dest;
 
     if (!data || data.length === 0) {
-      list.innerHTML = `<div class="text-center text-text-muted p-10 font-bold border-2 border-dashed border-border rounded-[24px] mt-6 bg-[#f8fafc]">No flights currently found for ${dest}. Try another destination.</div>`;
+      list.innerHTML = `<div class="text-center text-text-muted p-10 font-bold border-2 border-dashed border-border rounded-[24px] mt-6 bg-[#f8fafc]">No flights currently found from ${origin} to ${dest}. Try another destination.</div>`;
       return;
     }
 

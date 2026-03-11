@@ -71,14 +71,22 @@ web/
 ## Key Frontend Features
 
 ### 🔍 Live Flight Search
+- Full "From" and "To" origin/destination selection with location swap functionality
 - Reads from Firestore `agent_fares` collection in real-time
 - Filters by sector, date, and only shows fares where `isHidden == false` and agent `isActive == true`
 - Displays cheapest fare per sector, sorted by price
 - Implemented in `web/src/js/web/main.js`
 
-### ✈️ Sectors Display
+### ✈️ Sectors Display (Lowest Fare Flight Tickets)
 - Reads `sectors` collection from Firestore
-- Shows available flight routes with sector codes (e.g. `CCJ-JED`)
+- Groups routes by top-level "Origin" cards (e.g., India to Middle East)
+- Clicking an Origin opens a modal with destination Routes
+- Clicking a Route opens the Flight Details modal with live pricing
+- Includes "Back to Destinations" navigation within the modal
+
+### 🚀 Smooth Scrolling and Navigation
+- All local navigation links use `#anchor` tags handled gracefully via custom JavaScript
+- Implements smooth scrolling with fixed-header offsets instead of hard page refreshes
 
 ### 🛎️ Services Section
 - Reads `services` collection from Firestore
