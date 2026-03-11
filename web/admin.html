@@ -168,33 +168,34 @@
                 </div>
 
                 <!-- Actual Poster Element (to be captured) -->
-                <div id="poster-render-frame" class="bg-white rounded-3xl overflow-hidden shadow-2xl relative" style="width: 800px; min-height: 1000px;">
+                <div id="poster-render-frame" style="background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative; width: 800px; min-height: 1000px;">
                     <!-- Top Decor -->
-                    <div class="h-4 w-full bg-gradient-to-r from-primary via-blue-400 to-[#1558c0]"></div>
+                    <div style="height: 16px; width: 100%; background: linear-gradient(to right, #2563eb, #60a5fa, #1558c0);"></div>
                     
                     <!-- Header -->
-                    <div class="relative w-full h-[280px] bg-navy flex items-center justify-center overflow-hidden">
-                        <img src="/assets/img/hero-bg.webp" class="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay">
-                        <div class="absolute inset-0 bg-gradient-to-t from-navy to-transparent opacity-80"></div>
-                        <div class="relative z-10 text-center px-10">
-                            <div class="inline-block bg-primary/20 backdrop-blur-md border border-primary/30 px-6 py-2 rounded-full text-blue-200 font-bold tracking-widest text-sm mb-4 uppercase shadow-lg">Exclusive Deals</div>
-                            <h1 id="poster-sector-title" class="text-white text-6xl font-black mb-2 tracking-tight drop-shadow-xl" style="font-family: 'Outfit', sans-serif;">CCJ <i class="bi bi-arrow-right-short text-primary"></i> JED</h1>
-                            <p class="text-blue-100 text-xl font-medium tracking-wide">SPECIAL FARES AVAILABLE NOW</p>
+                    <div style="position: relative; width: 100%; height: 280px; background-color: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        <img src="/assets/img/hero-bg.webp" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.2; mix-blend-mode: overlay;">
+                        <div style="position: absolute; inset: 0; background: linear-gradient(to top, #1e293b, transparent); opacity: 0.8;"></div>
+                        <div style="position: relative; z-index: 10; text-align: center; padding-left: 40px; padding-right: 40px;">
+                            <div style="display: inline-block; background-color: rgba(37, 99, 235, 0.2); backdrop-filter: blur(8px); border: 1px solid rgba(37, 99, 235, 0.3); padding: 8px 24px; border-radius: 9999px; color: #bfdbfe; font-weight: 700; letter-spacing: 0.05em; font-size: 14px; margin-bottom: 16px; text-transform: uppercase; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">Exclusive Deals</div>
+                            <h1 id="poster-sector-title" style="color: #ffffff; font-size: 60px; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.025em; filter: drop-shadow(0 10px 8px rgba(0,0,0,0.04)) drop-shadow(0 4px 3px rgba(0,0,0,0.1)); font-family: 'Outfit', sans-serif;">CCJ <i class="bi bi-arrow-right-short" style="color: #2563eb;"></i> JED</h1>
+                            <p style="color: #dbeafe; font-size: 20px; font-weight: 500; letter-spacing: 0.025em;">SPECIAL FARES AVAILABLE NOW</p>
                         </div>
                     </div>
 
                     <!-- Fares Content -->
-                    <div class="p-12" style="background-color: #f8fafc;">
-                        <div class="bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-slate-100 p-8">
-                            <table class="w-full text-left border-collapse">
+                    <div style="padding: 48px; background-color: #f8fafc;">
+                        <div style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; padding: 32px;">
+                            <table style="width: 100%; text-align: left; border-collapse: collapse;">
                                 <thead>
-                                    <tr class="border-b-2 border-slate-100">
-                                        <th class="py-4 px-2 text-text-muted font-bold text-lg uppercase tracking-wider">Date</th>
-                                        <th class="py-4 px-2 text-text-muted font-bold text-lg uppercase tracking-wider text-center">Airline</th>
-                                        <th class="py-4 px-2 text-text-muted font-bold text-lg uppercase tracking-wider text-right">Fare</th>
+                                    <tr style="border-bottom: 2px solid #f1f5f9;">
+                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
+                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Airline</th>
+                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Time</th>
+                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Fare</th>
                                     </tr>
                                 </thead>
-                                <tbody id="poster-fares-tbody" class="text-xl">
+                                <tbody id="poster-fares-tbody" style="font-size: 20px;">
                                     <!-- Injected by JS -->
                                 </tbody>
                             </table>
@@ -202,19 +203,19 @@
                     </div>
 
                     <!-- Footer -->
-                    <div class="bg-white mt-auto py-8 px-12 border-t border-slate-100 flex items-center justify-between">
-                        <div class="flex items-center gap-4">
-                            <img src="/assets/img/logo.webp" class="h-12" alt="Zamra">
-                            <div class="h-10 w-[2px] bg-slate-200"></div>
-                            <span class="text-navy font-black text-xl tracking-tight">Zamra Travels</span>
+                    <div style="background-color: #ffffff; margin-top: auto; padding: 32px 48px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <img src="/assets/img/logo.webp" style="height: 48px;" alt="Zamra">
+                            <div style="height: 40px; width: 2px; background-color: #e2e8f0;"></div>
+                            <span style="color: #1e293b; font-weight: 900; font-size: 20px; letter-spacing: -0.025em;">Zamra Travels</span>
                         </div>
-                        <div class="flex items-center gap-6 text-navy font-bold text-lg">
-                            <div class="flex items-center gap-2">
-                                <i class="bi bi-telephone-fill text-primary"></i>
+                        <div style="display: flex; align-items: center; gap: 24px; color: #1e293b; font-weight: 700; font-size: 18px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #2563eb; font-size: 16px;">&#9990;</span>
                                 <span>+91 98765 43210</span>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <i class="bi bi-globe text-primary"></i>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #2563eb; font-size: 16px;">&#9632;</span>
                                 <span>zamratravels.com</span>
                             </div>
                         </div>
@@ -269,6 +270,21 @@
 
             <div
                 class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="text-[14px] flex items-center">
+                        Show <select id="agents-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="999999">All</option>
+                        </select> entries
+                    </div>
+                    <div class="flex items-center text-[14px]">
+                        Search: <input type="text" id="agents-search"
+                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                    </div>
+                </div>
                 <div class="admin-table-container">
                     <table class="admin-table">
                         <thead>
@@ -723,7 +739,7 @@ Example:
             </div>
 
             <!-- ── Summary Stat Cards ──────────────────────────────────── -->
-            <div id="report-stats-row" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 hidden">
+            <div id="report-stats-row" class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 hidden">
                 <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-[var(--shadow-premium-soft)] flex items-center gap-4">
                     <div class="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
                         <i class="bi bi-ticket-perforated-fill text-primary text-[18px]"></i>
@@ -760,6 +776,15 @@ Example:
                         <p id="stat-agents-count" class="text-[22px] font-black text-purple-600 leading-tight">—</p>
                     </div>
                 </div>
+                <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-[var(--shadow-premium-soft)] flex items-center gap-4">
+                    <div class="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                        <i class="bi bi-currency-rupee text-amber-500 text-[18px]"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-text-soft">Avg Fare</p>
+                        <p id="stat-avg-fare" class="text-[22px] font-black text-amber-600 leading-tight">—</p>
+                    </div>
+                </div>
             </div>
 
             <!-- ── Charts Row ─────────────────────────────────────────── -->
@@ -770,17 +795,15 @@ Example:
                     <div class="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
                         <div>
                             <h3 class="font-bold text-[15px] text-navy">Fares per Agent</h3>
-                            <p class="text-[12px] text-text-muted mt-0.5">Volume of fares submitted by each agent</p>
+                            <p class="text-[12px] text-text-muted mt-0.5">Count &amp; avg fare by agent</p>
                         </div>
                         <div class="flex items-center gap-1.5 text-[11px] text-text-soft bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
-                            <span class="w-3 h-3 rounded bg-[#99d7d1] inline-block"></span> Count
+                            <span class="w-3 h-3 rounded inline-block" style="background:linear-gradient(to top,#0c4a8a,#60a5fa)"></span> Count
                         </div>
                     </div>
-                    <div class="px-6 pb-6 pt-5">
-                        <div id="bar-chart-container"
-                            class="w-full border-l-2 border-b-2 border-slate-200 flex items-end justify-around gap-2 pb-2 px-2 relative rounded-bl"
-                            style="height:260px;background-image: repeating-linear-gradient(to top, transparent, transparent 54px, #f8fafc 54px, #f8fafc 55px); background-size: 100% 55px;">
-                            <div class="flex flex-col items-center justify-center h-full w-full opacity-40 text-slate-400 text-sm gap-2">
+                    <div class="px-4 pb-4 pt-4 relative" style="min-height:280px;">
+                        <div id="bar-chart-container" class="w-full h-full" style="min-height:260px;">
+                            <div class="flex flex-col items-center justify-center h-full opacity-40 text-slate-400 gap-2" style="min-height:240px;">
                                 <i class="bi bi-bar-chart text-4xl"></i>
                                 <p class="text-[13px]">Generate a report to see chart</p>
                             </div>
@@ -788,29 +811,43 @@ Example:
                     </div>
                 </div>
 
-                <!-- Pie / Donut Chart -->
+                <!-- Donut Chart -->
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
                     <div class="px-6 pt-5 pb-4 border-b border-slate-100">
                         <h3 class="font-bold text-[15px] text-navy">Fares per Sector</h3>
                         <p class="text-[12px] text-text-muted mt-0.5">Distribution of fares across all sectors</p>
                     </div>
-                    <div class="px-6 pb-6 pt-5 flex flex-col sm:flex-row gap-8 items-center justify-center min-h-[260px]">
+                    <div class="px-6 pb-6 pt-5 flex flex-col sm:flex-row gap-8 items-center justify-center min-h-[280px]">
                         <div class="relative shrink-0">
-                            <div id="pie-chart-container"
-                                class="w-[200px] h-[200px] rounded-full"
-                                style="background: conic-gradient(#e2e8f0 0% 100%);"
-                                title="Generate a report to see sector breakdown">
-                            </div>
-                            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div class="w-[88px] h-[88px] rounded-full bg-white flex flex-col items-center justify-center shadow-sm border border-slate-100">
-                                    <i class="bi bi-pie-chart-fill text-slate-300 text-2xl"></i>
-                                </div>
-                            </div>
+                            <svg id="donut-chart-svg" width="220" height="220" viewBox="0 0 220 220">
+                                <g id="donut-segments"></g>
+                                <circle cx="110" cy="110" r="60" fill="white"/>
+                                <text id="donut-center-count" x="110" y="104" text-anchor="middle" font-size="28" font-weight="900" fill="#0f172a">—</text>
+                                <text id="donut-center-label" x="110" y="124" text-anchor="middle" font-size="11" font-weight="600" fill="#64748b">FARES</text>
+                            </svg>
                         </div>
-                        <div id="pie-legend" class="flex flex-col gap-2.5 min-w-0 w-full max-w-[200px]">
+                        <div id="pie-legend" class="flex flex-col gap-2 min-w-0 w-full max-w-[220px]">
                             <p class="text-[12px] text-text-muted opacity-50 italic">Generate a report to see breakdown</p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- ── Leaderboard Row ────────────────────────────────────── -->
+            <div id="report-leaderboards" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
+                    <div class="px-6 pt-5 pb-4 border-b border-slate-100">
+                        <h3 class="font-bold text-[15px] text-navy">Top Agents</h3>
+                        <p class="text-[12px] text-text-muted mt-0.5">Ranked by volume of fares submitted</p>
+                    </div>
+                    <div id="leaderboard-agents" class="px-6 py-4 flex flex-col gap-3"></div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
+                    <div class="px-6 pt-5 pb-4 border-b border-slate-100">
+                        <h3 class="font-bold text-[15px] text-navy">Cheapest Sectors</h3>
+                        <p class="text-[12px] text-text-muted mt-0.5">Sorted by average fare (lowest first)</p>
+                    </div>
+                    <div id="leaderboard-sectors" class="px-6 py-4 flex flex-col gap-3"></div>
                 </div>
             </div>
 

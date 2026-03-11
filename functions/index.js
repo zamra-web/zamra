@@ -254,9 +254,10 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
 
     // Per-sector aggregation
     if (!sectorStats[sid]) {
-      sectorStats[sid] = { sectorId: sid, name: sectorMap[sid] || sid, count: 0 };
+      sectorStats[sid] = { sectorId: sid, name: sectorMap[sid] || sid, count: 0, totalRate: 0 };
     }
     sectorStats[sid].count += 1;
+    sectorStats[sid].totalRate += rate;
   });
 
   // Grouped detailed data payload
@@ -305,7 +306,10 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
     minRate: a.minRate === Infinity ? 0 : a.minRate,
   })).sort((a, b) => b.count - a.count);
 
-  const sectorReport = Object.values(sectorStats).sort((a, b) => b.count - a.count);
+  const sectorReport = Object.values(sectorStats).map((s) => ({
+    ...s,
+    avgRate: s.count > 0 ? Math.round(s.totalRate / s.count) : 0,
+  })).sort((a, b) => b.count - a.count);
 
   return {
     success: true,

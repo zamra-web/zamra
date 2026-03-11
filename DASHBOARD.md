@@ -87,7 +87,8 @@ web/
 ### 2. 👥 Agents Tab
 - **Full CRUD** — Add / Edit (modal form) / Delete agents
 - **Commission field** — Each agent has a `commission` (₹) value set via the Add/Edit modal. This value is automatically stamped onto every fare ingested for that agent via `ingestFaresFromN8n`. Default is ₹500 if not specified.
-- **Pagination** — 10 agents per page with Previous/Next/page-number controls
+- **Table Controls** — "Show N entries" dropdown (10, 25, 50, 100, All) and a real-time Search bar (filters by name, email, phone, or ID).
+- **Pagination** — Previous/Next/page-number controls that integrate seamlessly with the search and entries limit.
 - **Hide All / Show All** — calls `bulkToggleAgentVisibility` Cloud Function, which updates the agent's `isActive` flag AND toggles `isHidden` on all their fares at once
 - **Bulk Delete Fares** — deletes fares matching any combination of optional filters: Agent, Sector, Start Date, End Date. At least one filter must be set. Calls `bulkDeleteFares` Cloud Function.
 - Confirm dialog shows a human-readable summary of the exact filter combination before deletion
@@ -110,13 +111,17 @@ web/
 - **Filter Bar** — premium card with icon header. Fields: Sector, Agent (optional), From Date (optional), To Date (optional), and a gradient **Generate Report** button with a lightning icon.
 - **Only one filter is required** — pick a sector alone to run a report; agent and dates further narrow the aggregation.
 - Calls `generateAgentReport` Cloud Function for summary stats (charts), then fetches raw fares via `getFares()` for the full table.
-- **Stat Cards (4)** — appear after a report is generated, showing real-time counts from `_reportFares`:
+- **Stat Cards (5)** — appear after a report is generated, showing real-time counts from `_reportFares`:
   - 🎫 **Total Fares** — total count returned
   - 👁️ **Live** — fares where `isHidden === false`
   - 🚫 **Hidden** — fares where `isHidden === true`
   - 👥 **Agents** — unique agent count in the result set
-- **Bar Chart — Fares per Agent** — top 8 agents, each bar has a unique gradient colour pair, count labels appear on hover (CSS group), grid lines via `repeating-linear-gradient` background.
-- **Donut Chart — Fares per Sector** — CSS `conic-gradient` pie with a centre donut-hole overlay (`w-[88px]` white circle). Legend shows sector name, count, and percentage per slice.
+  - 💰 **Avg Fare** — average rate calculated dynamically from the fetched fares
+- **Bar Chart — Fares per Agent (SVG)** — interactive gradient bars with tooltips for count/avg rate and dynamic Y-axis. Smooth growing animations.
+- **Donut Chart — Fares per Sector (SVG)** — interactive pie segments. Hovering highlights slices, updates the center count/label dynamically, and cross-highlights the respective legend item.
+- **Leaderboards** — Two ranking cards generated below charts:
+  - 🏆 **Top Agents** (ranked by highest volume of fares)
+  - 🏷️ **Cheapest Sectors** (ranked by lowest average fare, includes progress bars)
 - **Fares Table** — rendered inside the outer table card (no inner wrapper card). Features:
   - Alternating row striping (`bg-slate-50/60` on odd rows)
   - Sector codes shown as blue pill badges (`bg-primary/10`)
@@ -229,7 +234,7 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 | `bulkDeleteFares` | Batch-deletes `agent_fares` matching optional filters: `agentId`, `sectorId`, `startDate`, `endDate`. At least one filter required. Builds query dynamically. |
 | `bulkToggleAgentVisibility` | Sets `isActive` on agent + `isHidden` on all their fares |
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
-| `generateAgentReport` | Aggregates fares with optional filters (sector, agent, date range). All filters optional individually — at least one required. Returns per-agent count/avgRate + per-sector count. |
+| `generateAgentReport` | Aggregates fares with optional filters (sector, agent, date range). All filters optional individually — at least one required. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
 | `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, and **`agents`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. Batch-writes to `agent_fares`. |
 
 ---

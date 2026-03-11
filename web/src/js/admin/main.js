@@ -42,7 +42,14 @@ function applySortAndFilter(data, tab) {
   let filtered = data;
   const q = tableSearch[tab]?.toLowerCase();
   
-  if (q && tab === 'sectors') {
+  if (q && tab === 'agents') {
+    filtered = filtered.filter(a =>
+      (a.name || '').toLowerCase().includes(q) ||
+      (a.email || '').toLowerCase().includes(q) ||
+      (a.contactPhone || '').toLowerCase().includes(q) ||
+      (a.id || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'sectors') {
     filtered = filtered.filter(s => 
       (s.sectorFrom || '').toLowerCase().includes(q) || 
       (s.sectorTo || '').toLowerCase().includes(q) || 
@@ -289,7 +296,7 @@ async function renderPoster(fares, sectorId) {
   // Set header title
   const sector = _sectors.find(s => s.id === sectorId);
   const codeParts = sector ? sector.sectorCode.split(' ') : ['', ''];
-  titleEl.innerHTML = `${codeParts[0] || 'DEP'} <i class="bi bi-arrow-right-short text-primary"></i> ${codeParts[1] || 'ARR'}`;
+  titleEl.innerHTML = `${codeParts[0] || 'DEP'} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${codeParts[1] || 'ARR'}`;
 
   // Sort fares by date, limit to 10
   const sortedFares = [...fares].sort((a, b) => {
@@ -320,25 +327,45 @@ async function renderPoster(fares, sectorId) {
     if (blobUrl) blobUrlMap[a.id] = blobUrl;
   }));
 
-  // Render table rows
+  // Render table rows — use only explicit hex/rgb inline styles; no Tailwind classes
+  // that would resolve to oklch() (which html2canvas 1.4.x cannot parse).
   tbody.innerHTML = sortedFares.map((f, i) => {
     const dt = f.flightDate instanceof Date
       ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
       : f.flightDate;
     const airline = airlineMap[f.airlineId];
-    const bgClass = i % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+    const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
     const logoSrc = blobUrlMap[f.airlineId] || null;
-    const logoHtml = logoSrc
-      ? `<img src="${logoSrc}" class="h-8 object-contain mx-auto" alt="${airline?.name || ''}">`
-      : `<span class="font-bold text-navy truncate block mx-auto text-lg">${airline?.name || f.airlineId}</span>`;
+
+    // Airline cell: logo if available; airline name as fallback
+    const airlineCell = logoSrc
+      ? `<img src="${logoSrc}" style="height:40px;max-width:100px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
+      : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:15px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
+
+    // Time cell: parse "HH:MM - HH:MM" or "HH:MM" from flightTime
+    let timeCell = '<span style="color:#94a3b8;font-size:14px;">—</span>';
+    if (f.flightTime) {
+      const parts = f.flightTime.split('-').map(s => s.trim());
+      if (parts.length >= 2) {
+        timeCell = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.2;">
+            <span style="font-weight:800;font-size:17px;color:#0f172a;">${parts[0]}</span>
+            <span style="font-size:11px;color:#94a3b8;font-weight:600;">&#8595;</span>
+            <span style="font-weight:800;font-size:17px;color:#0c4a8a;">${parts[1]}</span>
+          </div>`;
+      } else {
+        timeCell = `<span style="font-weight:700;font-size:17px;color:#0f172a;">${f.flightTime}</span>`;
+      }
+    }
 
     return `
-      <tr class="${bgClass} border-b border-slate-100 last:border-0">
-        <td class="py-5 px-4 font-black text-navy text-2xl">${dt}</td>
-        <td class="py-5 px-4 text-center align-middle">${logoHtml}</td>
-        <td class="py-5 px-4 text-right">
-          <div class="inline-block bg-navy text-white px-5 py-2 rounded-xl font-black shadow-md text-2xl">
-            ₹${(f.finalRate || 0).toLocaleString()}
+      <tr style="background-color:${rowBg};border-bottom:1px solid #f1f5f9;">
+        <td style="padding:16px 12px;font-weight:900;color:#0f172a;font-size:22px;white-space:nowrap;">${dt}</td>
+        <td style="padding:16px 12px;text-align:center;vertical-align:middle;">${airlineCell}</td>
+        <td style="padding:16px 12px;text-align:center;vertical-align:middle;">${timeCell}</td>
+        <td style="padding:16px 12px;text-align:right;vertical-align:middle;">
+          <div style="display:inline-block;background-color:#0f172a;color:#ffffff;padding:8px 18px;border-radius:12px;font-weight:900;font-size:22px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+            &#8377;${(f.finalRate || 0).toLocaleString()}
           </div>
         </td>
       </tr>`;
@@ -393,19 +420,16 @@ async function downloadPoster(format) {
             )
         );
 
-        // html2canvas 1.4.x cannot parse oklch() (Tailwind v4 default).
-        // Inline all computed colors as rgb() values before capture.
-        inlineColorsForCanvas(posterEl);
-
-        // Render to canvas at 2× resolution for crisp output
+        // Render to canvas at 2× resolution for crisp output.
+        // The poster element uses only explicit hex/rgb inline styles (no oklch).
+        // inlineColorsForCanvas is kept in onclone as a last-resort safety net.
         const canvas = await html2canvas(posterEl, {
             scale: 2,
-            useCORS: false,       // blob: URLs are same-origin — no CORS needed
+            useCORS: false,
             allowTaint: true,
             backgroundColor: '#ffffff',
             logging: false,
             onclone: (doc) => {
-              // Also inline colors in the cloned document that html2canvas works on
               const clonedEl = doc.getElementById('poster-render-frame');
               if (clonedEl) inlineColorsForCanvas(clonedEl);
             }
@@ -592,6 +616,16 @@ async function renderAgentsTab(fetchData = true) {
   if (fetchData) { _agents = await getAgents(); tablePage.agents = 1; }
   const tbody = document.querySelector('#agents-tab .admin-table tbody');
   if (!tbody) return;
+
+  // Wire up filter inputs if not already (same pattern as sectors/airlines)
+  const searchInp = document.getElementById('agents-search');
+  const limitSel = document.getElementById('agents-limit');
+  if (searchInp && !searchInp.dataset.wired) {
+    searchInp.dataset.wired = '1';
+    if (limitSel) limitSel.dataset.wired = '1';
+    searchInp.addEventListener('input', (e) => { tableSearch.agents = e.target.value; tablePage.agents = 1; renderAgentsTab(false); });
+    if (limitSel) limitSel.addEventListener('change', (e) => { tableLimit.agents = parseInt(e.target.value); tablePage.agents = 1; renderAgentsTab(false); });
+  }
 
   // Sort ALL agents first, then paginate from the full sorted array
   const sorted = applySortAndFilter(_agents, 'agents');
@@ -1140,12 +1174,13 @@ async function renderReportsTab() {
           callGenerateAgentReport(startDate, endDate, sectorId, agentId),
           getFares({ sectorId, agentId, startDate, endDate, includeHidden: true })
         ]);
-        
+
+        // ★ Must set _reportFares BEFORE renderReportCharts — it reads it for avg/live/hidden stats
+        _reportFares = fares;
         renderReportCharts(report, tab);
-        
+
         // Render the detailed fares table
         tablePage.reportFares = 1;
-        _reportFares = fares;
         renderReportFaresTable(_reportFares);
         
       } catch (e) { toast('error', 'Report Failed', e.message); }
@@ -1167,71 +1202,42 @@ function renderReportCharts(report, tab) {
     const liveFares   = (_reportFares || []).filter(f => !f.isHidden).length;
     const hiddenFares = (_reportFares || []).filter(f => f.isHidden).length;
     const agentsCount = new Set((_reportFares || []).map(f => f.agentId)).size;
+    const rates = (_reportFares || []).map(f => f.finalRate || 0).filter(r => r > 0);
+    const avgFare = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0;
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val.toLocaleString(); };
-    setEl('stat-total-fares', totalFares);
-    setEl('stat-live-fares',  liveFares);
+    setEl('stat-total-fares',  totalFares);
+    setEl('stat-live-fares',   liveFares);
     setEl('stat-hidden-fares', hiddenFares);
     setEl('stat-agents-count', agentsCount);
+    const avgEl = document.getElementById('stat-avg-fare');
+    if (avgEl) avgEl.textContent = avgFare > 0 ? `₹${avgFare.toLocaleString()}` : '—';
   }
 
-  // ── Update fares table header subtitle ──────────────────────────────────────
+  // ── Fares table subtitle ────────────────────────────────────────────────────
   const totalEl = document.getElementById('report-total-fares');
   if (totalEl) totalEl.textContent = `${totalFares} fare${totalFares !== 1 ? 's' : ''} matched your filter`;
 
-  // ── Bar Chart — Fares per Agent ─────────────────────────────────────────────
-  const barChartContainer = document.getElementById('bar-chart-container');
-  if (barChartContainer && agentReport.length) {
-    const maxCount = Math.max(...agentReport.map(a => a.count));
-    const GRAD_COLORS = [
-      ['#6ee7f7','#0ea5e9'],['#a5f3be','#22c55e'],['#fde68a','#f59e0b'],
-      ['#fca5a5','#ef4444'],['#c4b5fd','#8b5cf6'],['#99f6e4','#14b8a6'],
-      ['#fdba74','#f97316'],['#94a3b8','#64748b'],
-    ];
-    // Use absolute positioning within a relative container so % heights work correctly
-    const chartHeight = 220; // px — matches the inner usable area
-    barChartContainer.innerHTML = agentReport.slice(0, 8).map((a, i) => {
-      const pct = maxCount > 0 ? Math.max(4, Math.round((a.count / maxCount) * 100)) : 4;
-      const barH = Math.round((pct / 100) * chartHeight);
-      const [c1, c2] = GRAD_COLORS[i % GRAD_COLORS.length];
-      return `<div class="flex flex-col items-end justify-end flex-1 min-w-0 group cursor-default h-full" style="min-height:${chartHeight}px">
-        <span class="text-[11px] font-black opacity-0 group-hover:opacity-100 transition-opacity mb-1" style="color:#0f172a">${a.count}</span>
-        <div class="w-full rounded-t-lg transition-all duration-700" style="height:${barH}px;background:linear-gradient(to top,${c1},${c2});box-shadow:0 -2px 8px 0 ${c2}40"
-          title="${a.name}: ${a.count} fares • avg ₹${(a.avgRate || 0).toLocaleString()}"></div>
-        <span class="text-[9px] font-semibold truncate w-full text-center px-0.5 mt-1.5" style="color:#64748b">${a.name?.split(' ')[0]}</span>
-      </div>`;
-    }).join('');
+  // ── Bar Chart (SVG) — Fares per Agent ──────────────────────────────────────
+  const barContainer = document.getElementById('bar-chart-container');
+  if (barContainer && agentReport.length) {
+    renderBarChart(agentReport.slice(0, 8), barContainer);
   }
 
-  // ── Pie / Donut Chart — Fares per Sector ────────────────────────────────────
-  const COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316','#64748b'];
-  const pieContainer = document.getElementById('pie-chart-container');
-  if (pieContainer && sectorReport.length) {
-    const total = sectorReport.reduce((s, r) => s + r.count, 0);
-    let deg = 0;
-    const segments = sectorReport.slice(0, 8).map((s, i) => {
-      const pct = total > 0 ? (s.count / total) * 100 : 0;
-      const start = deg; deg += pct;
-      return `${COLORS[i % COLORS.length]} ${start.toFixed(1)}% ${deg.toFixed(1)}%`;
-    });
-    pieContainer.style.background = `conic-gradient(${segments.join(', ')})`;
-    pieContainer.title = sectorReport.map(s => `${s.name}: ${s.count}`).join('\n');
-
-    const legendEl = document.getElementById('pie-legend');
-    if (legendEl) {
-      const total2 = sectorReport.reduce((s, r) => s + r.count, 0);
-      legendEl.innerHTML = sectorReport.slice(0, 8).map((s, i) => {
-        const pct = total2 > 0 ? ((s.count / total2) * 100).toFixed(1) : '0.0';
-        return `<div class="flex items-center gap-2 text-[12px] group">
-          <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-offset-1" style="background:${COLORS[i % COLORS.length]};ring-color:${COLORS[i % COLORS.length]}40"></span>
-          <span class="truncate text-text-muted group-hover:text-navy transition-colors">${s.name}</span>
-          <span class="font-black text-navy ml-auto">${s.count}</span>
-          <span class="text-text-soft text-[10px] w-9 text-right">${pct}%</span>
-        </div>`;
-      }).join('');
-    }
+  // ── Donut Chart (SVG) — Fares per Sector ────────────────────────────────────
+  const donutSvg    = document.getElementById('donut-chart-svg');
+  const legendEl    = document.getElementById('pie-legend');
+  if (donutSvg && sectorReport.length) {
+    renderDonutChart(sectorReport.slice(0, 8), donutSvg, legendEl);
   }
 
-  // ── Wire Export CSV button ───────────────────────────────────────────────────
+  // ── Leaderboards ─────────────────────────────────────────────────────────────
+  const lbRow = document.getElementById('report-leaderboards');
+  if (lbRow) {
+    lbRow.classList.remove('hidden');
+    renderLeaderboards(agentReport, sectorReport);
+  }
+
+  // ── Wire CSV export button ───────────────────────────────────────────────────
   const csvBtn = document.getElementById('download-report-csv');
   if (csvBtn) {
     const newBtn = csvBtn.cloneNode(true);
@@ -1245,6 +1251,259 @@ function renderReportCharts(report, tab) {
   }
 
   toast('success', 'Report Ready', `${totalFares} fare${totalFares !== 1 ? 's' : ''} aggregated.`);
+}
+
+// ── SVG Bar Chart ─────────────────────────────────────────────────────────────
+function renderBarChart(data, container) {
+  const W = container.clientWidth || 480;
+  const H = 260;
+  const PAD = { top: 32, right: 16, bottom: 48, left: 48 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const maxCount = Math.max(...data.map(d => d.count), 1);
+  const BRAND_COLORS = [
+    ['#0c4a8a','#3b82f6'],['#065f46','#22c55e'],['#78350f','#f59e0b'],
+    ['#7f1d1d','#ef4444'],['#4c1d95','#8b5cf6'],['#134e4a','#14b8a6'],
+    ['#7c2d12','#f97316'],['#1e293b','#64748b'],
+  ];
+
+  // Y-axis ticks
+  const ticks = 4;
+  const tickStep = Math.ceil(maxCount / ticks);
+  const yTicks = Array.from({ length: ticks + 1 }, (_, i) => i * tickStep);
+  const yTickLines = yTicks.map(v => {
+    const y = PAD.top + chartH - (v / (yTicks[yTicks.length - 1] || 1)) * chartH;
+    return `<line x1="${PAD.left}" y1="${y.toFixed(1)}" x2="${W - PAD.right}" y2="${y.toFixed(1)}" stroke="#f1f5f9" stroke-width="1"/>
+            <text x="${PAD.left - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#94a3b8" font-weight="600">${v}</text>`;
+  }).join('');
+
+  const barW = Math.min(48, (chartW / data.length) * 0.6);
+  const barSpacing = chartW / data.length;
+
+  const bars = data.map((d, i) => {
+    const barH = Math.max(4, (d.count / (yTicks[yTicks.length - 1] || 1)) * chartH);
+    const x = PAD.left + i * barSpacing + barSpacing / 2 - barW / 2;
+    const y = PAD.top + chartH - barH;
+    const [c1, c2] = BRAND_COLORS[i % BRAND_COLORS.length];
+    const gradId = `bg${i}`;
+    const avgTip = d.avgRate ? `avg ₹${Math.round(d.avgRate).toLocaleString()}` : '';
+    return `<defs><linearGradient id="${gradId}" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stop-color="${c1}"/>
+              <stop offset="100%" stop-color="${c2}"/>
+            </linearGradient></defs>
+            <g class="bar-group" data-name="${d.name}" data-count="${d.count}" data-avg="${avgTip}" style="cursor:pointer;">
+              <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${barH.toFixed(1)}"
+                rx="6" fill="url(#${gradId})" opacity="0.92"
+                style="transform-origin:${(x + barW/2).toFixed(1)}px ${(PAD.top+chartH).toFixed(1)}px;
+                       animation:barGrow 0.6s cubic-bezier(.34,1.56,.64,1) ${i*0.07}s both;"/>
+              <text x="${(x + barW/2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle"
+                font-size="11" font-weight="900" fill="${c2}">${d.count}</text>
+              <text x="${(x + barW/2).toFixed(1)}" y="${(PAD.top + chartH + 16).toFixed(1)}" text-anchor="middle"
+                font-size="10" font-weight="700" fill="#64748b">${(d.name || '').split(' ')[0].slice(0,8)}</text>
+            </g>`;
+  }).join('');
+
+  const tooltipId = 'bar-tooltip';
+  container.innerHTML = `
+    <style>
+      @keyframes barGrow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+      #bar-svg .bar-group:hover rect { opacity: 1; filter: brightness(1.1); }
+    </style>
+    <div id="${tooltipId}" style="position:absolute;display:none;background:#0f172a;color:#fff;font-size:12px;font-weight:700;
+      padding:8px 12px;border-radius:10px;pointer-events:none;z-index:10;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.2);
+      line-height:1.6;"></div>
+    <svg id="bar-svg" width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;">
+      ${yTickLines}
+      <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + chartH}" stroke="#cbd5e1" stroke-width="1.5"/>
+      <line x1="${PAD.left}" y1="${PAD.top + chartH}" x2="${W - PAD.right}" y2="${PAD.top + chartH}" stroke="#cbd5e1" stroke-width="1.5"/>
+      ${bars}
+    </svg>`;
+
+  // Wire hover tooltip
+  const svg = container.querySelector('#bar-svg');
+  const tip = container.querySelector(`#${tooltipId}`);
+  if (svg && tip) {
+    svg.querySelectorAll('.bar-group').forEach(g => {
+      g.addEventListener('mousemove', e => {
+        const rect = container.getBoundingClientRect();
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX - rect.left + 12) + 'px';
+        tip.style.top  = (e.clientY - rect.top  - 40) + 'px';
+        const avg = g.dataset.avg ? `<br><span style="opacity:.7;font-weight:500;">${g.dataset.avg}</span>` : '';
+        tip.innerHTML = `${g.dataset.name}<br><span style="color:#60a5fa;">${g.dataset.count} fares</span>${avg}`;
+      });
+      g.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+    });
+  }
+}
+
+// ── SVG Donut Chart ───────────────────────────────────────────────────────────
+function renderDonutChart(data, svg, legendEl) {
+  const COLORS = ['#1558c0','#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316'];
+  const CX = 110, CY = 110, R_OUTER = 95, R_INNER = 60;
+  const total = data.reduce((s, r) => s + r.count, 0);
+
+  const segGroup = svg.getElementById ? svg.getElementById('donut-segments') : svg.querySelector('#donut-segments');
+  const centerCount = svg.querySelector('#donut-center-count');
+  const centerLabel = svg.querySelector('#donut-center-label');
+  if (!segGroup) return;
+
+  if (centerCount) centerCount.textContent = total;
+  if (centerLabel) centerLabel.textContent = 'FARES';
+
+  // Helper: polar to cartesian
+  const polar = (cx, cy, r, deg) => ({
+    x: cx + r * Math.cos((deg - 90) * Math.PI / 180),
+    y: cy + r * Math.sin((deg - 90) * Math.PI / 180),
+  });
+
+  // Build arc paths
+  let startDeg = 0;
+  const paths = data.map((d, i) => {
+    const sweep = total > 0 ? (d.count / total) * 360 : 0;
+    const endDeg = startDeg + sweep;
+    const large = sweep > 180 ? 1 : 0;
+    const s = polar(CX, CY, R_OUTER, startDeg);
+    const e = polar(CX, CY, R_OUTER, endDeg);
+    const si = polar(CX, CY, R_INNER, startDeg);
+    const ei = polar(CX, CY, R_INNER, endDeg);
+    const pathD = [
+      `M ${s.x.toFixed(2)} ${s.y.toFixed(2)}`,
+      `A ${R_OUTER} ${R_OUTER} 0 ${large} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`,
+      `L ${ei.x.toFixed(2)} ${ei.y.toFixed(2)}`,
+      `A ${R_INNER} ${R_INNER} 0 ${large} 0 ${si.x.toFixed(2)} ${si.y.toFixed(2)}`,
+      'Z',
+    ].join(' ');
+    const mid = startDeg + sweep / 2;
+    startDeg = endDeg;
+    const pct = total > 0 ? ((d.count / total) * 100).toFixed(1) : '0.0';
+    return { pathD, color: COLORS[i % COLORS.length], name: d.name, count: d.count, pct, mid };
+  });
+
+  // Render paths
+  const NS = 'http://www.w3.org/2000/svg';
+  segGroup.innerHTML = '';
+  const pathEls = paths.map((p, i) => {
+    const el = document.createElementNS(NS, 'path');
+    el.setAttribute('d', p.pathD);
+    el.setAttribute('fill', p.color);
+    el.setAttribute('stroke', 'white');
+    el.setAttribute('stroke-width', '2');
+    el.style.cursor = 'pointer';
+    el.style.transition = 'transform 0.2s, filter 0.2s';
+    el.style.transformOrigin = `${CX}px ${CY}px`;
+    el.setAttribute('data-index', i);
+    segGroup.appendChild(el);
+    return el;
+  });
+
+  // Highlight helper
+  const highlight = (idx) => {
+    pathEls.forEach((el, j) => {
+      if (j === idx) {
+        el.style.transform = 'scale(1.04)';
+        el.style.filter = 'brightness(1.1)';
+        el.setAttribute('stroke-width', '3');
+      } else {
+        el.style.transform = 'scale(1)';
+        el.style.filter = 'brightness(1)';
+        el.setAttribute('stroke-width', '2');
+      }
+    });
+    if (idx >= 0 && idx < paths.length) {
+      if (centerCount) centerCount.textContent = paths[idx].count;
+      if (centerLabel) centerLabel.textContent = paths[idx].name.split(' ')[0].toUpperCase().slice(0, 7);
+    } else {
+      if (centerCount) centerCount.textContent = total;
+      if (centerLabel) centerLabel.textContent = 'FARES';
+    }
+  };
+
+  pathEls.forEach((el, i) => {
+    el.addEventListener('mouseover', () => { highlight(i); highlightLegend(i); });
+    el.addEventListener('mouseout',  () => { highlight(-1); highlightLegend(-1); });
+  });
+
+  // Legend
+  if (legendEl) {
+    legendEl.innerHTML = paths.map((p, i) => `
+      <div class="flex items-center gap-2 text-[12px] cursor-default legend-row" data-legend-idx="${i}"
+        style="padding:4px 6px;border-radius:8px;transition:background 0.15s;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${p.color};flex-shrink:0;"></span>
+        <span class="truncate" style="color:#64748b;flex:1;">${p.name}</span>
+        <span style="font-weight:900;color:#0f172a;margin-left:auto;">${p.count}</span>
+        <span style="color:#94a3b8;font-size:10px;width:36px;text-align:right;">${p.pct}%</span>
+      </div>`).join('');
+
+    const highlightLegendRows = (idx) => {
+      legendEl.querySelectorAll('.legend-row').forEach((row, j) => {
+        row.style.background = j === idx ? '#f1f5f9' : '';
+      });
+    };
+    // Expose so segment hover can call it
+    window._highlightLegendRows = highlightLegendRows;
+
+    legendEl.querySelectorAll('.legend-row').forEach((row, i) => {
+      row.addEventListener('mouseover', () => { highlight(i); highlightLegendRows(i); });
+      row.addEventListener('mouseout',  () => { highlight(-1); highlightLegendRows(-1); });
+    });
+  }
+
+  function highlightLegend(idx) {
+    if (window._highlightLegendRows) window._highlightLegendRows(idx);
+  }
+}
+
+// ── Leaderboard Cards ─────────────────────────────────────────────────────────
+function renderLeaderboards(agentReport, sectorReport) {
+  const BRAND = ['#1558c0','#3b82f6','#22c55e','#f59e0b','#ef4444'];
+
+  // Top agents by count
+  const agentsEl = document.getElementById('leaderboard-agents');
+  if (agentsEl && agentReport.length) {
+    const top = [...agentReport].sort((a, b) => b.count - a.count).slice(0, 5);
+    const maxCount = top[0].count || 1;
+    agentsEl.innerHTML = top.map((a, i) => {
+      const pct = Math.max(6, Math.round((a.count / maxCount) * 100));
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      return `<div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:16px;width:28px;text-align:center;flex-shrink:0;">${medal}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px;">
+            <span class="truncate">${a.name}</span>
+            <span style="color:${BRAND[i]};margin-left:8px;">${a.count} fares</span>
+          </div>
+          <div style="background:#f1f5f9;border-radius:99px;height:6px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${BRAND[i]};border-radius:99px;transition:width 0.8s cubic-bezier(.34,1.56,.64,1);"></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Cheapest sectors by avg rate
+  const sectorsEl = document.getElementById('leaderboard-sectors');
+  if (sectorsEl && sectorReport.length) {
+    const withAvg = sectorReport.filter(s => s.avgRate > 0);
+    const sorted = [...withAvg].sort((a, b) => a.avgRate - b.avgRate).slice(0, 5);
+    const minRate = sorted[0]?.avgRate || 1;
+    const maxRate = sorted[sorted.length - 1]?.avgRate || 1;
+    sectorsEl.innerHTML = sorted.map((s, i) => {
+      const pct = maxRate > minRate ? Math.max(6, Math.round(((s.avgRate - minRate) / (maxRate - minRate)) * 100)) : 50;
+      return `<div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;font-weight:900;color:#94a3b8;width:20px;text-align:center;flex-shrink:0;">${i+1}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px;">
+            <span class="truncate">${s.name}</span>
+            <span style="color:#f59e0b;margin-left:8px;">avg ₹${Math.round(s.avgRate).toLocaleString()}</span>
+          </div>
+          <div style="background:#f1f5f9;border-radius:99px;height:6px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:linear-gradient(to right,#22c55e,#f59e0b);border-radius:99px;transition:width 0.8s cubic-bezier(.34,1.56,.64,1);"></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
 }
 
 function downloadReportCSV(fares) {
