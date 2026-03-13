@@ -142,6 +142,14 @@ web/
 - **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
 - Submission history stored in `localStorage` (last 15 sessions)
 
+### 7. 🎟️ E-Ticket Tab
+- **Manual E-Ticket Generator** — issue professional, branded e-tickets directly from the dashboard.
+- **Dynamic Selectors** — pulls active airlines, origins, and destinations from Firestore to pre-populate dropdowns.
+- **Airline Logos** — dynamically fetches and embeds airline logos from Firebase Storage into the ticket header.
+- **Dynamic Passenger Rows** — allows adding multiple passengers and specifying check-in/carry-on baggage per passenger.
+- **Automated Formatting** — precisely structured classic ticket layout with travel details, pax details, passenger flight segments, dynamic baggage mapping, and appended travel rules.
+- **Print / PDF Export** — specifically designed with CSS `@media print` rules for clean, A4-native PDF generation via the browser's native print dialog.
+
 ---
 
 ## Firestore Database Schema

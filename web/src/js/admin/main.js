@@ -201,7 +201,7 @@ async function renderActiveTab() {
   else if (id === 'flights-tab') await renderFlightsTab();
   else if (id === 'dashboard-tab') await renderDashboardTab();
   else if (id === 'reports-tab') await renderReportsTab();
-  // agent-charts-tab removed
+  else if (id === 'eticket-tab') await renderETicketTab();
 }
 
 
@@ -1800,6 +1800,289 @@ function renderHistory() {
       <div class="w-2.5 h-2.5 rounded-full ${h.status==='ok'?'bg-green-500':h.status==='err'?'bg-red-500':'bg-yellow-400'}"></div>
     </div>`;
   }).join('');
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E-TICKET GENERATOR
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function renderETicketTab() {
+  const tab = document.getElementById('eticket-tab');
+  if (!tab) return;
+
+  const form = document.getElementById('eticket-form');
+  const addPaxBtn = document.getElementById('et-add-passenger');
+  const paxContainer = document.getElementById('et-passengers-container');
+  const airlineSelect = document.getElementById('et-airline');
+  const originSelect = document.getElementById('et-origin');
+  const destinationSelect = document.getElementById('et-destination');
+
+  // Ensure data is loaded
+  if (_airlines.length === 0) _airlines = await getAirlines();
+  if (_sectors.length === 0) _sectors = await getSectors();
+
+  // Prevent double-binding by checking dataset.wired
+  if (!tab.dataset.wired) {
+    tab.dataset.wired = '1';
+
+    // Populate dropdowns with current global data
+    if (airlineSelect && _airlines) {
+      airlineSelect.innerHTML = '<option value="">Select Airline</option>' + 
+        _airlines.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+    }
+    
+    if (originSelect && _sectors) {
+      const uniqueOrigins = [...new Set(_sectors.map(s => s.sectorFrom).filter(Boolean))].sort();
+      originSelect.innerHTML = '<option value="">Select Origin</option>' + 
+        uniqueOrigins.map(o => `<option value="${o}">${o}</option>`).join('');
+    }
+
+    if (destinationSelect && _sectors) {
+      const uniqueDests = [...new Set(_sectors.map(s => s.sectorTo).filter(Boolean))].sort();
+      destinationSelect.innerHTML = '<option value="">Select Destination</option>' + 
+        uniqueDests.map(d => `<option value="${d}">${d}</option>`).join('');
+    }
+
+    // Add Passenger Row Logic
+    addPaxBtn?.addEventListener('click', () => {
+      const idx = paxContainer.children.length;
+      const rowHtml = `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 border border-border rounded-lg bg-white et-pax-row relative">
+          <button type="button" class="absolute -top-3 -right-3 w-7 h-7 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors border border-red-200" onclick="this.closest('.et-pax-row').remove()" title="Remove passenger">×</button>
+          
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold text-text-muted mb-1">Title</label>
+            <select name="paxTitle[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+              <option value="MR">MR</option>
+              <option value="MRS">MRS</option>
+              <option value="MS">MS</option>
+              <option value="MSTR">MSTR</option>
+              <option value="MISS">MISS</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block text-xs font-semibold text-text-muted mb-1">Passenger Name *</label>
+            <input type="text" name="paxName[]" required placeholder="e.g. JOHN DOE" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none uppercase placeholder:normal-case">
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold text-text-muted mb-1">Category</label>
+            <select name="paxType[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+              <option value="ADT">Adult</option>
+              <option value="CHD">Child</option>
+              <option value="INF">Infant</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-5 grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-text-muted mb-1">Check-in Bag</label>
+              <select name="paxCheckBag[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                <option value="15 Kilograms">15 Kilograms</option>
+                <option value="20 Kilograms">20 Kilograms</option>
+                <option value="25 Kilograms">25 Kilograms</option>
+                <option value="30 Kilograms" selected>30 Kilograms</option>
+                <option value="35 Kilograms">35 Kilograms</option>
+                <option value="40 Kilograms">40 Kilograms</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-text-muted mb-1">Carry-on</label>
+              <select name="paxCarryBag[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                <option value="7 Kilograms" selected>7 Kilograms</option>
+                <option value="10 Kilograms">10 Kilograms</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+      paxContainer.insertAdjacentHTML('beforeend', rowHtml);
+    });
+
+    // Add first row default
+    if (paxContainer.children.length === 0) {
+      addPaxBtn?.click();
+    }
+
+    // Form submission wrapper to build and show the preview
+    // Note: Use 'submit' event to leverage native form validation
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await generateETicket(new FormData(form));
+    });
+
+    // Wire Print Ticket Button (inside preview action bar)
+    document.getElementById('et-print-btn')?.addEventListener('click', () => {
+      window.print();
+    });
+
+    // Wire Reset form button
+    form?.addEventListener('reset', () => {
+      // Small timeout allows native reset to happen, then we clean up passenger rows
+      setTimeout(() => {
+        // Keep only first passenger row
+        Array.from(paxContainer.children).forEach((child, index) => {
+          if (index > 0) child.remove();
+        });
+        document.getElementById('eticket-output-wrapper')?.classList.add('hidden');
+      }, 10);
+      toast('info', 'Form Reset', 'The E-Ticket form has been cleared.');
+    });
+  }
+}
+
+async function generateETicket(formData) {
+  const pnr = formData.get('etPnr')?.toUpperCase();
+  const airline = formData.get('etAirline')?.toUpperCase();
+  const flightNo = formData.get('etFlightNo')?.toUpperCase();
+  let dateRaw = formData.get('etDate');
+  const depTime = formData.get('etDepTime');
+  const arrTime = formData.get('etArrTime');
+  const phone = formData.get('etPhone');
+
+  // Parse origin and destination into array to split city and airport code if formatted like "Kozhikode (CCJ)"
+  const parseLoc = (val) => {
+    let raw = (val || '').trim();
+    let city = raw, code = '';
+    const match = raw.match(/^(.*?)\\s*\\((.*?)\\)$/);
+    if (match) {
+      city = match[1].trim();
+      code = match[2].trim();
+    }
+    return { city, code };
+  };
+
+  const origin = parseLoc(formData.get('etOrigin'));
+  const dest = parseLoc(formData.get('etDest'));
+
+  // Format date to "SAT, 03 MAY 2025"
+  let formattedDate = dateRaw;
+  if (dateRaw) {
+    const d = new Date(dateRaw);
+    if (!isNaN(d.getTime())) {
+      const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      formattedDate = `${days[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+  }
+
+  // Inject top-level flight details
+  const el = (id) => document.getElementById(id);
+
+  if (el('t-pnr')) el('t-pnr').textContent = pnr || '—';
+  if (el('t-crs-pnr')) el('t-crs-pnr').textContent = pnr || '—';
+  if (el('t-booking-ref')) el('t-booking-ref').textContent = pnr || '—';
+  if (el('t-airline-tollfree')) el('t-airline-tollfree').textContent = '';
+  
+  const fullOrg = formData.get('etOrigin') || '—';
+  const fullDst = formData.get('etDest') || '—';
+
+  if (el('t-issued-by')) el('t-issued-by').textContent = airline || '—';
+  if (el('t-customer-phone')) el('t-customer-phone').textContent = phone || '—';
+  
+  // Booked on - today
+  const today = new Date();
+  const ddays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const dmonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  if (el('t-booked-on')) el('t-booked-on').textContent = `${String(today.getDate()).padStart(2, '0')}-${dmonths[today.getMonth()]}-${today.getFullYear()} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+
+  // Set airline logo (requires looking up _airlines array)
+  if (el('t-airline-logo')) {
+    const matchedAirline = typeof _airlines !== 'undefined' ? _airlines.find(a => a.name.toUpperCase() === airline) : null;
+    if (matchedAirline && matchedAirline.logoUrl && el('t-airline-logo')) {
+      el('t-airline-logo').src = matchedAirline.logoUrl;
+      el('t-airline-logo').classList.remove('hidden');
+      if (el('t-issued-by')) {
+          el('t-issued-by').classList.remove('mt-1');
+          el('t-issued-by').textContent = airline;
+      }
+    } else {
+      el('t-airline-logo').classList.add('hidden');
+      if(el('t-issued-by')) {
+          el('t-issued-by').classList.add('mt-1');
+          el('t-issued-by').textContent = airline;
+      }
+    }
+  }
+
+  // Extract passenger arrays
+  const paxTitles = formData.getAll('paxTitle[]');
+  const paxNames = formData.getAll('paxName[]');
+  const paxTypes = formData.getAll('paxType[]');
+  const paxCheckBag = formData.getAll('paxCheckBag[]');
+  const paxCarryBag = formData.getAll('paxCarryBag[]');
+
+  const paxTbody = document.getElementById('t-passengers-tbody');
+  if (paxTbody) paxTbody.innerHTML = '';
+
+  for (let i = 0; i < paxNames.length; i++) {
+    const title = (paxTitles[i] || 'MR').toUpperCase();
+    const name = (paxNames[i] || '').toUpperCase();
+    const type = (paxTypes[i] || 'ADT').toUpperCase();
+    const checkbag = (paxCheckBag[i] || '').toUpperCase();
+    const carrybag = (paxCarryBag[i] || '').toUpperCase();
+
+    const formattedName = `${title}. ${name} (${type})`;
+    const segString = `${origin.code || origin.city || '—'} - ${dest.code || dest.city || '—'}`.toUpperCase();
+
+    // Generate inner row markup
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = 'none'; // border handled at td layer
+    
+    tr.innerHTML = `
+      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800">${title}. ${name}<br><span class="text-gray-500 text-[10px] uppercase"></span></td>
+      <td class="border-b border-gray-200 p-2 align-top text-gray-800"></td>
+      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800">${segString}</td>
+      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800">${flightNo || ''}</td>
+      <td class="border-b border-r border-gray-200 p-2 align-top text-[#1e3a8a] text-center font-bold">${pnr || ''}</td>
+      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800 text-center">${carrybag}</td>
+      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800 px-2">${checkbag}</td>
+      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800 px-2 border-r-0"></td>
+      <td class="border-b border-gray-200 p-2 align-top text-gray-800"></td>
+      <td class="border-b border-gray-200 p-2 align-top text-gray-800">Confirmed</td>
+    `;
+    if (paxTbody) paxTbody.appendChild(tr);
+  }
+
+  // Travel Details Row
+  const travelTbody = document.getElementById('t-travel-tbody');
+  if (travelTbody) {
+    travelTbody.innerHTML = `
+      <tr class="text-black">
+        <td class="p-2 border-b border-gray-300 align-top">
+          <div class="flex items-center gap-1 mb-1 text-[#00b2b2] text-[10px] font-bold">
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14h-2v-2h2v2zm0-4h-2V7h2v5z" fill="currentColor"/></svg> flynas
+          </div>
+          <div class="font-normal text-[11px]">${flightNo || '—'}</div>
+          <div class="font-bold text-[11px]">ECONOMY</div>
+          <div class="text-[10px] text-gray-600 mt-0.5">Non-Refundable</div>
+        </td>
+        <td class="p-2 border-l border-b border-gray-300 align-top">
+          <div class="font-bold uppercase">${fullOrg.toUpperCase()}</div>
+          <div class="text-[13px] mt-1"><span class="font-bold">${depTime || '—'}</span> <span class="text-gray-600 ml-1 text-[11px]">${formattedDate || '—'}</span></div>
+        </td>
+        <td class="p-2 border-l border-b border-gray-300 align-top">
+          <div class="font-bold uppercase">${fullDst.toUpperCase()}</div>
+          <div class="text-[13px] mt-1"><span class="font-bold">${arrTime || '—'}</span> <span class="text-gray-600 ml-1 text-[11px]">${formattedDate || '—'}</span></div>
+        </td>
+        <td class="p-2 border-l border-b border-gray-300 align-top text-gray-500 text-[10px]">
+          I
+        </td>
+        <td class="p-2 border-l border-b border-gray-300 align-top">
+          Confirmed
+        </td>
+      </tr>
+    `;
+  }
+
+  // Show the preview wrapper
+  const wrapper = document.getElementById('eticket-output-wrapper');
+  if (wrapper) {
+    wrapper.classList.remove('hidden');
+    wrapper.scrollIntoView({ behavior: 'smooth' });
+  }
 }
 
 

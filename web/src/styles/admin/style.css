@@ -208,3 +208,50 @@ input[type="date"]::-webkit-inner-spin-button,
 input[type="date"]::-webkit-clear-button {
     display: none;
 }
+
+/* ─── Web/Print E-Ticket Styles ─── */
+@media print {
+    body {
+        background-color: #ffffff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .no-print, nav, #toastsEl, dialog {
+        display: none !important;
+    }
+
+    body * {
+        visibility: hidden;
+    }
+    
+    #eticket-output-wrapper, #eticket-output-wrapper * {
+        visibility: visible;
+    }
+
+    #eticket-output-wrapper {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    #eticket-print-area {
+        box-shadow: none !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        border: none !important;
+    }
+    
+    .aurora-bg {
+        display: none !important;
+    }
+    
+    @page { margin: 0; size: A4 portrait; }
+}

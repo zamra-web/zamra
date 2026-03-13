@@ -25,6 +25,7 @@
     <!-- Export Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
 
     <style>
@@ -97,6 +98,8 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Reports</a>
                         <a href="#" data-tab="agent-sheets-tab" data-title="Rate Upload"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Rate Upload</a>
+                        <a href="#" data-tab="eticket-tab" data-title="E-ticket"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">E-Ticket</a>
                     </div>
                 </div>
 
@@ -879,6 +882,200 @@ Example:
                 </div>
             </div>
 
+        </div>
+
+        <!-- E-TICKET TAB -->
+        <div id="eticket-tab" class="tab-content">
+            <div class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main mb-8 no-print">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-navy">Generate E-Ticket</h2>
+                        <p class="text-sm text-text-muted mt-1">Fill in the details to manually generate an e-ticket.</p>
+                    </div>
+                </div>
+
+                <form id="eticket-form">
+                    <!-- Flight Details input -->
+                    <h3 class="font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2">Flight Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Airline PNR *</label>
+                            <input id="et-pnr" name="etPnr" type="text" required class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none uppercase font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Airline Name *</label>
+                            <select id="et-airline" name="etAirline" required class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                <option value="">Select Airline</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Flight No *</label>
+                            <input id="et-flight-no" name="etFlightNo" type="text" required value="XY-328" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Origin *</label>
+                            <select id="et-origin" name="etOrigin" required class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                <option value="">Select Origin</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Destination *</label>
+                            <select id="et-destination" name="etDest" required class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                <option value="">Select Destination</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Travel Date *</label>
+                            <input id="et-date" name="etDate" type="date" required class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Departure Time *</label>
+                            <input id="et-dep-time" name="etDepTime" type="time" required value="07:25" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Arrival Time *</label>
+                            <input id="et-arr-time" name="etArrTime" type="time" required value="10:00" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-[13px] font-semibold text-text-muted mb-1.5">Customer Phone *</label>
+                            <input id="et-phone" name="etPhone" type="text" required class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Passenger Details -->
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                        <h3 class="font-bold text-gray-800">Passenger Information</h3>
+                        <button type="button" id="et-add-passenger" class="text-primary font-semibold text-sm hover:underline hover:text-blue-600 transition-colors bg-blue-50 px-3 py-1.5 rounded-md"><i class="bi bi-person-plus-fill"></i> Add Passenger</button>
+                    </div>
+                    
+                    <div id="et-passengers-container" class="space-y-4 mb-6">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                        <button type="button" id="et-reset-btn" class="text-gray-500 font-semibold py-2.5 px-6 rounded-xl border border-gray-300 hover:bg-gray-50 transition-all text-sm">
+                            Clear
+                        </button>
+                        <button type="submit" id="et-generate-btn" class="bg-primary text-white font-semibold py-2.5 px-8 rounded-xl hover:bg-blue-600 transition-all shadow shadow-primary/30 text-sm">
+                            Generate E-Ticket
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Ticket Output -->
+            <div id="eticket-output-wrapper" class="hidden">
+                 <div class="mb-4 flex justify-end no-print max-w-4xl mx-auto">
+                    <button id="et-print-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-2 py-2 px-6 rounded shadow transition">
+                      <i class="bi bi-printer"></i> Print / Save as PDF
+                    </button>
+                 </div>
+
+                 <!-- THE TICKET -->
+                 <div class="ticket-paper max-w-4xl mx-auto bg-white px-8 py-10 text-[13px] leading-tight text-black" style="font-family: 'Times New Roman', Times, serif; min-height: 1122px;" id="eticket-print-area">
+                    
+                    <!-- Top PNR Header -->
+                    <div class="text-center mb-8 pt-4">
+                      <p class="text-sm font-medium">Airline PNR</p>
+                      <p id="t-pnr" class="text-[28px] font-bold tracking-widest mt-1 uppercase text-black">XXXXXX</p>
+                    </div>
+                    
+                    <!-- Left/Right Contact Details block -->
+                    <div class="flex justify-between items-start mb-6">
+                      <!-- Left Side -->
+                      <div class="space-y-[6px]">
+                        <h2 class="font-bold text-[15px] uppercase">ZAMRA TRAVELS</h2>
+                        <p class="text-[13px]">KIZHAKETHALA DOWN HILL ,Malappuram</p>
+                        <p class="text-[13px] font-boldtext-black">KL - <span class="text-[#1e3a8a] font-bold">676519</span></p>
+                        <p class="text-[13px] font-bold mt-2">Email : <span class="font-normal">zamratravelsmlp@gmail.com</span></p>
+                        <p class="text-[15px] font-bold mt-1">Mobile No : <span class="text-[#1e3a8a] tracking-wide">9846606739</span></p>
+                      </div>
+                      
+                      <!-- Right Side -->
+                      <div class="text-right flex flex-col items-end">
+                        <div class="flex items-center gap-2 mb-3">
+                           <span class="text-[11px] font-normal">Issued By: </span>
+                           <div class="flex flex-col items-center">
+                              <img id="t-airline-logo" src="" class="h-8 object-contain hidden" alt="Airline Logo">
+                              <span id="t-issued-by" class="font-bold text-[11px] mt-0.5 uppercase">Airline</span>
+                           </div>
+                        </div>
+                        <p class="text-[11px] font-bold mb-1">Customer Phone No: <span id="t-customer-phone"></span></p>
+                        <p class="text-[9px] text-gray-600">Booked On: <span id="t-booked-on"></span></p>
+                      </div>
+                    </div>
+                    
+                    <!-- Travel Details (Moved ABOVE Pax Details) -->
+                    <div class="mt-8 mb-6">
+                      <div class="bg-gray-300 font-bold px-3 py-1.5 border border-gray-300 text-xs">FLIGHT DETAILS</div>
+                      <table class="w-full border-collapse border border-gray-300 text-xs text-left table-fixed">
+                        <thead class="bg-white">
+                          <tr class="text-[11px] text-gray-600 border-b border-gray-300">
+                            <th class="p-2 font-normal w-[25%]">Flight</th>
+                            <th class="p-2 font-normal w-[25%] border-l border-gray-300">Depart</th>
+                            <th class="p-2 font-normal w-[25%] border-l border-gray-300">Arrive</th>
+                            <th class="p-2 font-normal w-[15%] border-l border-gray-300"></th>
+                            <th class="p-2 font-normal w-[10%] border-l border-gray-300">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="t-travel-tbody">
+                          <!-- Generated via JS -->
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- Passenger Details -->
+                    <div class="mb-14">
+                      <div class="bg-gray-400/80 font-bold px-3 py-1.5 border border-gray-400 text-xs">Passenger Details</div>
+                      <table class="w-full border-collapse border border-gray-200 text-xs mb-8">
+                        <thead class="bg-white">
+                          <tr class="align-bottom">
+                            <th class="border-b border-r border-gray-200 p-2 text-left font-bold w-[25%]" rowspan="2">Passenger Name</th>
+                            <th class="border-b border-gray-200 p-2 font-bold w-12" rowspan="2"></th> <!-- empty col mapping -->
+                            <th class="border-b border-r border-gray-200 p-2 font-bold text-left" rowspan="2">Segment</th>
+                            <th class="border-b border-r border-gray-200 p-2 font-bold text-left" rowspan="2">Flight No</th>
+                            <th class="border-b border-r border-gray-200 p-2 font-bold text-[#1e3a8a] text-center uppercase" rowspan="2">pnr</th>
+                            <th class="border-b border-gray-200 p-1 font-bold text-left" colspan="3">Baggage</th>
+                            <th class="border-b border-gray-200 p-2 font-bold w-12" rowspan="2"></th> <!-- empty gap -->
+                            <th class="border-b border-gray-200 p-2 font-bold text-left" rowspan="2">Status</th>
+                          </tr>
+                          <tr class="text-left align-top">
+                            <th class="border-b border-r border-gray-200 p-1 font-bold w-12">Hand</th>
+                            <th class="border-b border-r border-gray-200 p-1 font-bold px-2">Free</th>
+                            <th class="border-b border-r border-gray-200 p-1 font-bold px-2 border-r-0"></th>
+                          </tr>
+                        </thead>
+                        <tbody id="t-passengers-tbody">
+                          <!-- Passenger Row via JS -->
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <!-- Important Info Blocks - Direct match to reference rules -->
+                    <div class="mt-8 space-y-4">
+                      <h3 class="font-bold text-[13px] uppercase text-[#1e3a8a]">IMPORTANT INFORMATION</h3>
+                      
+                      <p class="text-[12px] text-[#1e3a8a] leading-relaxed">
+                        <span class="font-bold">• Transit Visa Requirement :</span> Please note that travellers are solely responsible for ensuring their eligibility to enter the destination or transit countries. We accept no liability in this regard. Please check the travel rules of all regulatory websites before commencing travel.
+                      </p>
+                      
+                      <p class="text-[12px] text-[#1e3a8a] leading-relaxed">
+                        <span class="font-bold">• Ensure Compliance with Visa/Transit Visa Requirements :</span> Please ensure you verify and adhere to the visa and transit visa requirements based on your nationality, passport type, and destination country. For the most reliable and up-to-date visa requirements, check reputable regulatory websites like IATA or with the airline.
+                      </p>
+                      
+                      <p class="text-[12px] text-[#1e3a8a] leading-relaxed">
+                        <span class="font-bold">• Items not allowed in the aircraft :</span> Lighters, matchsticks, flammable liquids, toxic, corrosives, pepper spray, flammable gas, e-cigarette, infectious substances, radioactive materials, explosive ammunitions
+                      </p>
+                      
+                      <p class="text-[12px] text-[#1e3a8a] leading-relaxed mb-4">
+                        <span class="font-bold">• Items allowed only in Hand-baggage :</span> Lithium batteries, power banks
+                      </p>
+                    </div>
+                 </div>
+            </div>
         </div>
 
 

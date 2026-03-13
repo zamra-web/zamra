@@ -15,7 +15,7 @@
 Zamra Travels is a premium flight booking and travel services web portal with a full Firebase backend. It has two main surfaces:
 
 1. **Public Website** (`web/index.html`) — Live flight search, sectors, services. Read-only Firestore. See [WEBSITE.md](./WEBSITE.md).
-2. **Admin Dashboard** (`web/admin.html`) — Poster Generator, CRUD for agents/sectors/airlines/fares, reports. Firebase-integrated with Cloud Functions. See [DASHBOARD.md](./DASHBOARD.md).
+2. **Admin Dashboard** (`web/admin.html`) — E-Ticket Generator, Poster Generator, CRUD for agents/sectors/airlines/fares, reports. Firebase-integrated with Cloud Functions. See [DASHBOARD.md](./DASHBOARD.md).
 
 **Live URL:** https://zamra-web.web.app  
 **Firebase Project:** `zamra-web` (Blaze plan)
@@ -156,3 +156,4 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Reports tab card split** — The fares table card (`bg-white rounded-2xl`) lives in the static `admin.html`. `renderReportFaresTable()` injects only the `<table>` + `#reportFares-pagination-footer` into `#report-fares-results`. Do **not** re-introduce an inner card wrapper in `renderReportFaresTable()` — the outer card already provides the border/shadow/header.
 - **Reports pagination bug (fixed)** — `renderReportFaresTable()` must do its own sort + slice. Do **not** pipe the fares array through `applySortAndFilter()` (which also applies `tableLimit` slicing) — doing so double-slices the data and breaks pagination beyond page 1.
 - **Reports SVG Charts & Leaderboards** — The Bar and Donut charts in the Reports tab natively render via raw SVG generation in `main.js`. Do **not** introduce external charting libraries (Chart.js, D3, etc.) to keep the bundle lightweight. Leaderboards use array sorting and generic Tailwind progress bars.
+- **E-Ticket Generator Output** — The ticket preview strictly uses native HTML/CSS and relies on the browser's native `@media print` rules for generating high-quality PDFs without external heavier canvas libs. This ensures crispy vectors over blurred raster images.
