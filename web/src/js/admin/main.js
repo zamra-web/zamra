@@ -242,7 +242,7 @@ async function renderDashboardTab() {
   const sectorSel = document.getElementById('poster-sector-sel');
   if (sectorSel && sectorSel.options.length <= 1) {
     _sectors.forEach(s => {
-      const opt = new Option(`${s.sectorFrom} ✈ ${s.sectorTo} (${s.sectorCode})`, s.id);
+      const opt = new Option(s.sectorCode, s.id);
       sectorSel.appendChild(opt);
     });
   }
@@ -618,6 +618,8 @@ function renderReportFaresTable(fares) {
               </td>
               <td class="whitespace-nowrap">
                 <div class="flex gap-1">
+                  <button onclick="window.__openEditFareModal('${f.id}')"
+                    class="bg-blue-50 text-blue-600 border border-blue-200 px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-blue-500 hover:text-white transition-colors">Edit</button>
                   <button onclick="window.__toggleFare('${f.id}', ${!f.isHidden})"
                     class="${f.isHidden ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-500' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-500'} border px-2.5 py-1 rounded-lg text-[11px] font-bold hover:text-white transition-colors">
                     ${f.isHidden ? 'Show' : 'Hide'}
@@ -684,6 +686,135 @@ function renderReportFaresTable(fares) {
   };
 
   updateSortIcons('reportFares');
+
+  window.__openEditFareModal = (fareId) => {
+    const fare = _reportFares.find(f => f.id === fareId);
+    if (!fare) return;
+
+    let dateVal = '';
+    if (fare.flightDate instanceof Date) {
+      // Need local date string as YYYY-MM-DD
+      const offset = fare.flightDate.getTimezoneOffset();
+      dateVal = new Date(fare.flightDate.getTime() - (offset*60*1000)).toISOString().split('T')[0];
+    } else if (typeof fare.flightDate === 'string') {
+      dateVal = fare.flightDate.split('T')[0];
+    }
+
+    const html = `
+      <form id="edit-fare-form" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Date</label>
+            <input type="date" id="ef-date" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${dateVal}" required>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Time</label>
+            <input type="text" id="ef-time" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 04:05 - 11:10" value="${fare.flightTime || ''}">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Sector</label>
+            <select id="ef-sector" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+              ${_sectors.map(s => `<option value="${s.id}" ${s.id === fare.sectorId ? 'selected' : ''}>${s.sectorCode}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Airline</label>
+            <select id="ef-airline" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+              <option value="">-- None --</option>
+              ${_airlines.map(a => `<option value="${a.id}" ${a.id === fare.airlineId ? 'selected' : ''}>${a.code}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Agent</label>
+            <select id="ef-agent" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+              <option value="">-- None --</option>
+              ${_agents.map(a => `<option value="${a.id}" ${a.id === fare.agentId ? 'selected' : ''}>${a.name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">SP Rate (₹)</label>
+            <input type="number" id="ef-sprate" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.specialRate || 0}" required>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Final Rate (₹)</label>
+            <input type="number" id="ef-finalrate" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.finalRate || 0}" required>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Baggage (kg)</label>
+            <input type="number" id="ef-bag" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.baggage || 0}">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Ex. Baggage (kg)</label>
+            <input type="number" id="ef-exbag" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.extraBaggage || 0}">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-navy mb-1">Status</label>
+            <select id="ef-status" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+              <option value="live" ${!fare.isHidden ? 'selected' : ''}>Live</option>
+              <option value="hidden" ${fare.isHidden ? 'selected' : ''}>Hidden</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('admin-modal').close()" class="px-5 py-2.5 rounded-xl font-bold text-sm text-text-muted bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-dark transition-colors shadow-md hover:shadow-lg shadow-primary/20">Save Changes</button>
+        </div>
+      </form>
+    `;
+
+    openModal('Edit Fare', html);
+
+    document.getElementById('edit-fare-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const ogText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        let fdDateStr = document.getElementById('ef-date').value;
+        const updates = {
+          flightDate: fdDateStr ? new Date(fdDateStr + 'T00:00:00') : null,
+          flightTime: document.getElementById('ef-time').value.trim(),
+          sectorId: document.getElementById('ef-sector').value,
+          airlineId: document.getElementById('ef-airline').value,
+          agentId: document.getElementById('ef-agent').value,
+          specialRate: parseFloat(document.getElementById('ef-sprate').value) || 0,
+          finalRate: parseFloat(document.getElementById('ef-finalrate').value) || 0,
+          baggage: parseFloat(document.getElementById('ef-bag').value) || 0,
+          extraBaggage: parseFloat(document.getElementById('ef-exbag').value) || 0,
+          isHidden: document.getElementById('ef-status').value === 'hidden'
+        };
+        updates.commission = Math.max(0, updates.finalRate - updates.specialRate);
+
+        await updateFare(fareId, updates);
+        
+        // Update local cache
+        const idx = _reportFares.findIndex(f => f.id === fareId);
+        if (idx !== -1) {
+          _reportFares[idx] = { ..._reportFares[idx], ...updates };
+        }
+
+        document.getElementById('admin-modal').close();
+        toast('success', 'Updated', 'Fare updated successfully.');
+        renderReportFaresTable(_reportFares);
+      } catch (err) {
+        toast('error', 'Error', err.message);
+        btn.disabled = false;
+        btn.textContent = ogText;
+      }
+    };
+  };
 }
 
 
@@ -2087,19 +2218,23 @@ async function generateETicket(formData) {
 
   // Find codes if not present in dropdown value
   let originCode = origin.code;
-  if (!originCode && typeof _sectors !== 'undefined') {
-    const match = _sectors.find(s => s.sectorFrom === fullOrg);
-    if (match && match.sectorCode) originCode = match.sectorCode.split('-')[0];
-  }
   let destCode = dest.code;
-  if (!destCode && typeof _sectors !== 'undefined') {
-    const match = _sectors.find(s => s.sectorTo === fullDst);
-    if (match && match.sectorCode) destCode = match.sectorCode.split('-')[1];
+  let matchedSector = null;
+
+  if (typeof _sectors !== 'undefined') {
+    matchedSector = _sectors.find(s => s.sectorFrom === fullOrg && s.sectorTo === fullDst);
+    if (!matchedSector && fullOrg) {
+      const match = _sectors.find(s => s.sectorFrom === fullOrg);
+      if (match && match.sectorCode) originCode = match.sectorCode.split(/[ -]+/)[0];
+    }
+    if (!matchedSector && fullDst) {
+      const match = _sectors.find(s => s.sectorTo === fullDst);
+      if (match && match.sectorCode) destCode = match.sectorCode.split(/[ -]+/).pop();
+    }
   }
 
-  const originDisplay = (originCode ? `${origin.city} (${originCode})` : origin.city).toUpperCase();
-  const destDisplay = (destCode ? `${dest.city} (${destCode})` : dest.city).toUpperCase();
-
+  const originDisplay = origin.city.toUpperCase();
+  const destDisplay = dest.city.toUpperCase();
 
   // Extract passenger arrays
   const paxTitles = formData.getAll('paxTitle[]');
@@ -2119,7 +2254,12 @@ async function generateETicket(formData) {
     const carrybag = (paxCarryBag[i] || '').toUpperCase();
 
     const formattedName = `${title}. ${name} (${type})`;
-    const segString = `${originCode || origin.city || '—'} - ${destCode || dest.city || '—'}`.toUpperCase();
+    let segString = '';
+    if (matchedSector && matchedSector.sectorCode) {
+        segString = matchedSector.sectorCode.toUpperCase();
+    } else {
+        segString = `${originCode || origin.city || '—'} - ${destCode || dest.city || '—'}`.toUpperCase();
+    }
 
     // Generate inner row markup
     const tr = document.createElement('tr');
@@ -2147,7 +2287,6 @@ async function generateETicket(formData) {
       <tr class="text-black">
         <td class="p-2 border-b border-gray-300 align-top">
           <div class="font-normal text-[11px]">${flightNo || '—'}</div>
-          <div class="font-bold text-[11px]">ECONOMY</div>
           <div class="text-[10px] text-gray-600 mt-0.5">Non-Refundable</div>
         </td>
         <td class="p-2 border-l border-b border-gray-300 align-top">
@@ -2158,10 +2297,7 @@ async function generateETicket(formData) {
           <div class="font-bold uppercase">${destDisplay}</div>
           <div class="text-[13px] mt-1"><span class="font-bold">${arrTime || '—'}</span> <span class="text-gray-600 ml-1 text-[11px]">${formattedDate || '—'}</span></div>
         </td>
-        <td class="p-2 border-l border-b border-gray-300 align-top text-gray-500 text-[10px]">
-          I
-        </td>
-        <td class="p-2 border-l border-b border-gray-300 align-top">
+        <td class="p-2 border-l border-b border-gray-300 align-top text-center text-[12px]">
           Confirmed
         </td>
       </tr>
@@ -2184,13 +2320,19 @@ const TICONS = {
   success: `<svg viewBox="0 0 16 16" fill="none" class="w-5 h-5"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   error: `<svg viewBox="0 0 16 16" fill="none" class="w-5 h-5"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
   warning: `<svg viewBox="0 0 16 16" fill="none" class="w-5 h-5"><path d="M8 2L14 14H2L8 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3M8 11v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  info: `<svg class="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`
 };
 
 function toast(type, title, msg) {
   const tEl = document.getElementById('toastsEl');
   if (!tEl) return;
   const el = document.createElement('div');
-  const styles = { success:'border-green-500 bg-green-50 text-green-800', error:'border-red-500 bg-red-50 text-red-800', warning:'border-yellow-500 bg-yellow-50 text-yellow-800' };
+  const styles = { 
+    success:'border-green-500 bg-green-50 text-green-800', 
+    error:'border-red-500 bg-red-50 text-red-800', 
+    warning:'border-yellow-500 bg-yellow-50 text-yellow-800',
+    info:'border-primary bg-primary/10 text-[var(--color-primary-dark)]'
+  };
   el.className = `flex items-start gap-3 p-4 border-l-4 rounded shadow-md w-80 pointer-events-auto ${styles[type] || styles.error}`;
   el.innerHTML = `<div class="mt-0.5">${TICONS[type]||TICONS.error}</div>
     <div class="flex-1"><div class="font-bold text-sm leading-tight">${title}</div><div class="text-xs opacity-90 mt-1">${msg}</div></div>
@@ -2200,6 +2342,9 @@ function toast(type, title, msg) {
   tEl.appendChild(el);
   setTimeout(() => el.isConnected && el.remove(), 7000);
 }
+
+// Ensure the toast function is globally available for video-export.js and other external modules
+window.toast = toast;
 
 // ── Rebuild chips when the sheets tab becomes active ─────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

@@ -80,7 +80,8 @@ web/
   - **Airline logos** are pre-fetched as blob URLs before rendering — sidesteps CORS for `html2canvas`
   - **Download JPEG** — renders poster to canvas at 2× resolution and triggers a `.jpg` download
   - **Download PDF** — converts canvas to mm-based jsPDF page exactly sized to the poster dimensions
-  - Both export buttons disable during generation and re-enable once done
+  - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively.
+  - Export buttons disable during generation and re-enable once done
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
 - All data from Firestore `agent_fares` + `airlines`
 
@@ -128,9 +129,9 @@ web/
   - `● Live` / `● Hidden` status badges with contextual colours
   - **Hide/Show** button is green when fare is hidden; slate when live
   - **Del** button beside each row
-  - Fully sortable (click column headers), paginated, and filterable
+  - Fully sortable (click column headers), paginated, and filterable. Includes a general 'Edit' inline button to open a modal where you can deeply live-edit the loaded Fare entry.
   - Columns: **Date · Time · Sector · Airline · Agent · SP Rate · Rate · Comm · Bag · Ex.Bag · Status · Actions**
-  - Inline per-row **Delete** and **Hide/Show** — update `_reportFares` in place without re-fetching
+  - Inline per-row **Edit**, **Delete** and **Hide/Show** — update `_reportFares` in place without re-fetching
 - **Export CSV** — greyed out until data is loaded; unlocked automatically after a successful report fetch. Downloads full filtered set (not just current page). All IDs resolved to human-readable names. UTF-8 BOM prefix for correct Excel rendering.
 
 > **Implementation note:** `renderReportCharts()` populates the stat cards and both charts, then wires the CSV button via `cloneNode` to avoid duplicate listeners. `renderReportFaresTable()` injects only the `<table>` + pagination footer into `#report-fares-results` — it does **not** wrap in its own card (the outer HTML card in `admin.html` already wraps it).

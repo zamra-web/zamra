@@ -244,7 +244,6 @@ input[type="date"]::-webkit-clear-button {
     #eticket-print-area {
         box-shadow: none !important;
         margin: 0 auto !important;
-        padding: 0 !important;
         max-width: 100% !important;
         border: none !important;
     }
@@ -253,5 +252,5 @@ input[type="date"]::-webkit-clear-button {
         display: none !important;
     }
     
-    @page { margin: 0; size: A4 portrait; }
+    @page { margin: 15mm; size: A4 portrait; }
 }

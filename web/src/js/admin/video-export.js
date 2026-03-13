@@ -80,12 +80,12 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             // 3. Start Recording
             const stream = canvas.captureStream(30); // 30 FPS
             
-            // Prefer MP4 if available (Safari/Chrome), fallback to webm
-            let mimeType = 'video/webm; codecs=vp9';
+            // Prefer MP4 if available (Safari/Chrome 129+), fallback to webm with h264, then standard webm
+            let mimeType = 'video/mp4';
             if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/webm';
+                mimeType = 'video/webm; codecs=h264';
                 if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = 'video/mp4'; // Safari
+                    mimeType = 'video/webm';
                 }
             }
             
@@ -341,9 +341,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                // extension handling
-                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-                a.download = `zamra-video-${ratio}-${Date.now()}.${ext}`;
+                // Force .mp4 extension for maximum compatibility across devices
+                a.download = `zamra-video-${ratio}-${Date.now()}.mp4`;
                 a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
