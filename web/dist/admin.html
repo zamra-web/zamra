@@ -65,11 +65,11 @@
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
         }
     </style>
-  <script type="module" crossorigin src="/assets/admin-CUOW-cD5.js"></script>
+  <script type="module" crossorigin src="/assets/admin-26SR7BeV.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/firebase-config-zYKzaodH.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-kyPpTIkn.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-4YumcuBQ.js">
   <link rel="modulepreload" crossorigin href="/assets/db-DN85Zd7Y.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-ALvGEQWr.css">
+  <link rel="stylesheet" crossorigin href="/assets/auth-cbcX_owR.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -172,6 +172,17 @@
                     <button id="poster-download-pdf" class="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all hover:-translate-y-0.5">
                         <i class="bi bi-file-earmark-pdf"></i> Download PDF
                     </button>
+                    
+                    <div class="relative group">
+                        <button class="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all hover:-translate-y-0.5">
+                            <i class="bi bi-camera-video"></i> Create Video <i class="bi bi-chevron-down text-xs ml-1"></i>
+                        </button>
+                        <div class="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 hidden group-hover:block z-50 overflow-hidden">
+                            <button id="poster-download-vid-1x1" class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-50">1:1 (Instagram/Post)</button>
+                            <button id="poster-download-vid-9x16" class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-50">9:16 (Story/Reel)</button>
+                            <button id="poster-download-vid-16x9" class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50">16:9 (YouTube/TV)</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Actual Poster Element (to be captured) -->
@@ -185,7 +196,7 @@
                         <div style="position: absolute; inset: 0; background: linear-gradient(to top, #1e293b, transparent); opacity: 0.8;"></div>
                         <div style="position: relative; z-index: 10; text-align: center; padding-left: 40px; padding-right: 40px;">
                             <div style="display: inline-block; background-color: rgba(37, 99, 235, 0.2); backdrop-filter: blur(8px); border: 1px solid rgba(37, 99, 235, 0.3); padding: 8px 24px; border-radius: 9999px; color: #bfdbfe; font-weight: 700; letter-spacing: 0.05em; font-size: 14px; margin-bottom: 16px; text-transform: uppercase; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">Exclusive Deals</div>
-                            <h1 id="poster-sector-title" style="color: #ffffff; font-size: 60px; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.025em; filter: drop-shadow(0 10px 8px rgba(0,0,0,0.04)) drop-shadow(0 4px 3px rgba(0,0,0,0.1)); font-family: 'Outfit', sans-serif;">CCJ <i class="bi bi-arrow-right-short" style="color: #2563eb;"></i> JED</h1>
+                            <h1 id="poster-sector-title" style="color: #ffffff; font-size: 48px; line-height: 1.1; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.025em; filter: drop-shadow(0 10px 8px rgba(0,0,0,0.04)) drop-shadow(0 4px 3px rgba(0,0,0,0.1)); font-family: 'Outfit', sans-serif;">CCJ <i class="bi bi-arrow-right-short" style="color: #2563eb;"></i> JED</h1>
                             <p style="color: #dbeafe; font-size: 20px; font-weight: 500; letter-spacing: 0.025em;">SPECIAL FARES AVAILABLE NOW</p>
                         </div>
                     </div>
@@ -979,7 +990,7 @@ Example:
                  </div>
 
                  <!-- THE TICKET -->
-                 <div class="ticket-paper max-w-4xl mx-auto bg-white px-8 py-10 text-[13px] leading-tight text-black" style="font-family: 'Times New Roman', Times, serif; min-height: 1122px;" id="eticket-print-area">
+                 <div class="ticket-paper max-w-4xl mx-auto bg-white px-12 py-12 text-[13px] leading-tight text-black" style="font-family: 'Times New Roman', Times, serif; min-height: 1122px;" id="eticket-print-area">
                     
                     <!-- Top PNR Header -->
                     <div class="text-center mb-8 pt-4">
@@ -993,7 +1004,7 @@ Example:
                       <div class="space-y-[6px]">
                         <h2 class="font-bold text-[15px] uppercase">ZAMRA TRAVELS</h2>
                         <p class="text-[13px]">KIZHAKETHALA DOWN HILL ,Malappuram</p>
-                        <p class="text-[13px] font-boldtext-black">KL - <span class="text-[#1e3a8a] font-bold">676519</span></p>
+                        <p class="text-[13px] font-bold text-black">KL - <span class="text-[#1e3a8a] font-bold">676519</span></p>
                         <p class="text-[13px] font-bold mt-2">Email : <span class="font-normal">zamratravelsmlp@gmail.com</span></p>
                         <p class="text-[15px] font-bold mt-1">Mobile No : <span class="text-[#1e3a8a] tracking-wide">9846606739</span></p>
                       </div>

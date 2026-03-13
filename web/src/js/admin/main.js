@@ -16,6 +16,8 @@ import {
   callGenerateAgentReport,
 } from './db.js';
 
+import { downloadVideoPoster } from './video-export.js';
+
 // ── Global State ──────────────────────────────────────────────────────────────
 let _agents = [];
 let _sectors = [];
@@ -282,6 +284,36 @@ async function renderDashboardTab() {
     // Wire up download buttons
     document.getElementById('poster-download-jpg')?.addEventListener('click', () => downloadPoster('jpeg'));
     document.getElementById('poster-download-pdf')?.addEventListener('click', () => downloadPoster('pdf'));
+    
+    // Wire up video download buttons
+    document.getElementById('poster-download-vid-1x1')?.addEventListener('click', () => handleVideoPoster('1x1'));
+    document.getElementById('poster-download-vid-9x16')?.addEventListener('click', () => handleVideoPoster('9x16'));
+    document.getElementById('poster-download-vid-16x9')?.addEventListener('click', () => handleVideoPoster('16x9'));
+  }
+}
+
+async function handleVideoPoster(ratio) {
+  const sectorSel = document.getElementById('poster-sector-sel');
+  const startInput = document.getElementById('poster-start-date');
+  const endInput = document.getElementById('poster-end-date');
+  const sectorId = sectorSel?.value;
+  const startDate = startInput?.value || null;
+  const endDate = endInput?.value || null;
+
+  if (!sectorId) {
+    toast('warning', 'Validation Error', 'Please select a sector to generate the poster.');
+    return;
+  }
+  
+  try {
+    const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
+    if (!fares || !fares.length) {
+      toast('warning', 'No Fares', 'No live fares found for the selected sector and dates.');
+      return;
+    }
+    await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines);
+  } catch (e) {
+    console.error('Video generation failed', e);
   }
 }
 
@@ -295,8 +327,9 @@ async function renderPoster(fares, sectorId) {
 
   // Set header title
   const sector = _sectors.find(s => s.id === sectorId);
-  const codeParts = sector ? sector.sectorCode.split(' ') : ['', ''];
-  titleEl.innerHTML = `${codeParts[0] || 'DEP'} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${codeParts[1] || 'ARR'}`;
+  const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
+  const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
+  titleEl.innerHTML = `${originName} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${destName}`;
 
   // Sort fares by date, limit to 10
   const sortedFares = [...fares].sort((a, b) => {
@@ -306,7 +339,12 @@ async function renderPoster(fares, sectorId) {
     return valA - valB;
   }).slice(0, 10);
 
-  const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a]));
+  const airlineMap = {};
+  _airlines.forEach(a => {
+    if (a.id) airlineMap[a.id] = a;
+    if (a.code) airlineMap[a.code] = a;
+    if (a.name) airlineMap[a.name] = a;
+  });
 
   // Pre-fetch airline logos as blob URLs — sidesteps CORS for html2canvas
   async function fetchLogoBlob(url) {
@@ -347,14 +385,9 @@ async function renderPoster(fares, sectorId) {
     if (f.flightTime) {
       const parts = f.flightTime.split('-').map(s => s.trim());
       if (parts.length >= 2) {
-        timeCell = `
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.2;">
-            <span style="font-weight:800;font-size:17px;color:#0f172a;">${parts[0]}</span>
-            <span style="font-size:11px;color:#94a3b8;font-weight:600;">&#8595;</span>
-            <span style="font-weight:800;font-size:17px;color:#0c4a8a;">${parts[1]}</span>
-          </div>`;
+        timeCell = `<span style="font-weight:800;font-size:17px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
       } else {
-        timeCell = `<span style="font-weight:700;font-size:17px;color:#0f172a;">${f.flightTime}</span>`;
+        timeCell = `<span style="font-weight:800;font-size:17px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
       }
     }
 
@@ -557,9 +590,25 @@ function renderReportFaresTable(fares) {
               </td>
               <td class="whitespace-nowrap font-semibold text-[13px]">${airlineMap[f.airlineId] || f.airlineId}</td>
               <td class="whitespace-nowrap text-text-muted text-[12px]">${agentMap[f.agentId] || f.agentId}</td>
-              <td class="whitespace-nowrap text-[13px] text-text-muted">₹${(f.specialRate || 0).toLocaleString()}</td>
-              <td class="whitespace-nowrap font-black text-navy text-[14px]">₹${(f.finalRate || 0).toLocaleString()}</td>
-              <td class="whitespace-nowrap text-[12px] text-text-muted">₹${(f.commission || 0).toLocaleString()}</td>
+              <td class="whitespace-nowrap">
+                <div class="flex items-center">
+                  <span class="text-text-muted text-[13px] mr-0.5">₹</span>
+                  <input type="number" 
+                    value="${f.specialRate || 0}"
+                    onblur="window.__updateFareRate('${f.id}', 'specialRate', this.value)"
+                    class="bg-transparent border border-transparent hover:border-slate-200 focus:border-primary/50 focus:bg-white rounded px-1 text-[13px] text-text-muted outline-none w-20 transition-colors shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                </div>
+              </td>
+              <td class="whitespace-nowrap">
+                <div class="flex items-center">
+                  <span class="text-navy font-black text-[14px] mr-0.5">₹</span>
+                  <input type="number" 
+                    value="${f.finalRate || 0}"
+                    onblur="window.__updateFareRate('${f.id}', 'finalRate', this.value)"
+                    class="bg-transparent border border-transparent hover:border-slate-200 focus:border-primary/50 focus:bg-white rounded px-1 font-black text-navy text-[14px] outline-none w-20 transition-colors shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                </div>
+              </td>
+              <td class="whitespace-nowrap text-[12px] text-text-muted" id="comm-${f.id}">₹${(f.commission || 0).toLocaleString()}</td>
               <td class="whitespace-nowrap text-[12px]">${f.baggage ? f.baggage + ' kg' : '—'}</td>
               <td class="whitespace-nowrap text-[12px]">${f.extraBaggage ? f.extraBaggage + ' kg' : '—'}</td>
               <td class="whitespace-nowrap">
@@ -603,6 +652,35 @@ function renderReportFaresTable(fares) {
       toast('success', 'Updated', `Fare ${isHidden ? 'hidden' : 'shown'}.`);
       renderReportFaresTable(_reportFares);
     } catch (e) { toast('error', 'Error', e.message); }
+  };
+
+  window.__updateFareRate = async (fareId, field, valueStr) => {
+    const newVal = parseFloat(valueStr) || 0;
+    const fare = _reportFares.find(f => f.id === fareId);
+    if (!fare || fare[field] === newVal) return;
+
+    try {
+      const updateData = { [field]: newVal };
+      if (field === 'specialRate') {
+        updateData.commission = Math.max(0, fare.finalRate - newVal);
+        fare.commission = updateData.commission;
+      } else if (field === 'finalRate') {
+        updateData.commission = Math.max(0, newVal - fare.specialRate);
+        fare.commission = updateData.commission;
+      }
+
+      await updateFare(fareId, updateData);
+      fare[field] = newVal;
+      
+      toast('success', 'Rate Updated', 'Fare successfully updated.');
+      
+      // Update DOM for commission text safely and re-render only if sorting changes, 
+      // but to keep it simple and ensure pagination/sorting works, we re-render everything
+      renderReportFaresTable(_reportFares);
+    } catch (e) {
+      toast('error', 'Update Failed', e.message);
+      renderReportFaresTable(_reportFares); // reset input
+    }
   };
 
   updateSortIcons('reportFares');
@@ -2007,6 +2085,22 @@ async function generateETicket(formData) {
     }
   }
 
+  // Find codes if not present in dropdown value
+  let originCode = origin.code;
+  if (!originCode && typeof _sectors !== 'undefined') {
+    const match = _sectors.find(s => s.sectorFrom === fullOrg);
+    if (match && match.sectorCode) originCode = match.sectorCode.split('-')[0];
+  }
+  let destCode = dest.code;
+  if (!destCode && typeof _sectors !== 'undefined') {
+    const match = _sectors.find(s => s.sectorTo === fullDst);
+    if (match && match.sectorCode) destCode = match.sectorCode.split('-')[1];
+  }
+
+  const originDisplay = (originCode ? `${origin.city} (${originCode})` : origin.city).toUpperCase();
+  const destDisplay = (destCode ? `${dest.city} (${destCode})` : dest.city).toUpperCase();
+
+
   // Extract passenger arrays
   const paxTitles = formData.getAll('paxTitle[]');
   const paxNames = formData.getAll('paxName[]');
@@ -2025,7 +2119,7 @@ async function generateETicket(formData) {
     const carrybag = (paxCarryBag[i] || '').toUpperCase();
 
     const formattedName = `${title}. ${name} (${type})`;
-    const segString = `${origin.code || origin.city || '—'} - ${dest.code || dest.city || '—'}`.toUpperCase();
+    const segString = `${originCode || origin.city || '—'} - ${destCode || dest.city || '—'}`.toUpperCase();
 
     // Generate inner row markup
     const tr = document.createElement('tr');
@@ -2052,19 +2146,16 @@ async function generateETicket(formData) {
     travelTbody.innerHTML = `
       <tr class="text-black">
         <td class="p-2 border-b border-gray-300 align-top">
-          <div class="flex items-center gap-1 mb-1 text-[#00b2b2] text-[10px] font-bold">
-            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14h-2v-2h2v2zm0-4h-2V7h2v5z" fill="currentColor"/></svg> flynas
-          </div>
           <div class="font-normal text-[11px]">${flightNo || '—'}</div>
           <div class="font-bold text-[11px]">ECONOMY</div>
           <div class="text-[10px] text-gray-600 mt-0.5">Non-Refundable</div>
         </td>
         <td class="p-2 border-l border-b border-gray-300 align-top">
-          <div class="font-bold uppercase">${fullOrg.toUpperCase()}</div>
+          <div class="font-bold uppercase">${originDisplay}</div>
           <div class="text-[13px] mt-1"><span class="font-bold">${depTime || '—'}</span> <span class="text-gray-600 ml-1 text-[11px]">${formattedDate || '—'}</span></div>
         </td>
         <td class="p-2 border-l border-b border-gray-300 align-top">
-          <div class="font-bold uppercase">${fullDst.toUpperCase()}</div>
+          <div class="font-bold uppercase">${destDisplay}</div>
           <div class="text-[13px] mt-1"><span class="font-bold">${arrTime || '—'}</span> <span class="text-gray-600 ml-1 text-[11px]">${formattedDate || '—'}</span></div>
         </td>
         <td class="p-2 border-l border-b border-gray-300 align-top text-gray-500 text-[10px]">
