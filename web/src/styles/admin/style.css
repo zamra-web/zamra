@@ -246,6 +246,8 @@ input[type="date"]::-webkit-clear-button {
         margin: 0 auto !important;
         max-width: 100% !important;
         border: none !important;
+        border-radius: 0 !important;
+        min-height: auto !important;
     }
     
     .aurora-bg {

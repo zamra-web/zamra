@@ -25,6 +25,28 @@ let _airlines = [];
 let _dashboardFares = []; // Kept for any stale references
 let _reportFares = [];
 
+function normalizeDamammText(value) {
+  if (value === null || value === undefined) return value;
+  return String(value).replace(/damamm/gi, (match) => {
+    if (match === match.toUpperCase()) return 'DAMMAM';
+    if (match === match.toLowerCase()) return 'dammam';
+    return 'Dammam';
+  });
+}
+
+function normalizeSectorRecord(sector = {}) {
+  return {
+    ...sector,
+    sectorFrom: normalizeDamammText(sector.sectorFrom || ''),
+    sectorTo: normalizeDamammText(sector.sectorTo || ''),
+    sectorCode: normalizeDamammText(sector.sectorCode || ''),
+  };
+}
+
+function normalizeSectors(list = []) {
+  return list.map((sector) => normalizeSectorRecord(sector));
+}
+
 // ── Sorting & Search State ────────────────────────────────────────────────────
 let tableSort = {
   agents: { key: 'id', asc: true },
@@ -157,11 +179,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Pre-load global lookup data ───────────────────────────────────────────────
 async function loadGlobalData() {
   try {
-    [_agents, _sectors, _airlines] = await Promise.all([
+    const [agents, sectors, airlines] = await Promise.all([
       getAgents(),
       getSectors(),
       getAirlines(),
     ]);
+    _agents = agents;
+    _sectors = normalizeSectors(sectors);
+    _airlines = airlines;
   } catch (e) {
     console.error('loadGlobalData error:', e);
   }
@@ -873,7 +898,7 @@ function agentRow(a) {
     : `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-600">Hidden</span>`;
   const comm = a.commission !== undefined ? `₹${Number(a.commission).toLocaleString()}` : '—';
   return `<tr data-agent-id="${a.id}">
-    <td class="font-mono text-xs text-text-muted">${a.id.slice(0, 8)}…</td>
+    <td class="font-mono text-xs text-text-muted">${a.id || '—'}</td>
     <td class="font-semibold">${a.name}</td>
     <td>${a.email || '—'}</td>
     <td>${a.contactPhone || '—'}</td>
@@ -1082,7 +1107,7 @@ function populateAgentBulkSelect() {
 // SECTORS TAB — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderSectorsTab(fetchData = true) {
-  if (fetchData) { _sectors = await getSectors(); tablePage.sectors = 1; }
+  if (fetchData) { _sectors = normalizeSectors(await getSectors()); tablePage.sectors = 1; }
   
   // Wire up filter inputs if not already
   const searchInp = document.getElementById('sectors-search');
@@ -1121,11 +1146,12 @@ async function renderSectorsTab(fetchData = true) {
 }
 
 function sectorRow(s) {
+  const sector = normalizeSectorRecord(s);
   return `<tr data-sector-id="${s.id}">
-    <td class="font-mono text-xs text-text-muted">${s.id.slice(0,8)}…</td>
-    <td class="font-semibold">${s.sectorFrom}</td>
-    <td class="font-semibold">${s.sectorTo}</td>
-    <td><span class="font-mono font-bold text-primary">${s.sectorCode}</span></td>
+    <td class="font-mono text-xs text-text-muted">${s.id || '—'}</td>
+    <td class="font-semibold">${sector.sectorFrom}</td>
+    <td class="font-semibold">${sector.sectorTo}</td>
+    <td><span class="font-mono font-bold text-primary">${sector.sectorCode}</span></td>
     <td class="flex gap-1">
       <button data-action="edit-sector" data-id="${s.id}" class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-yellow-500">Edit</button>
       <button data-action="delete-sector" data-id="${s.id}" class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-red-600">Delete</button>
@@ -1199,9 +1225,9 @@ function openSectorModal(sector) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
-    data.sectorCode = data.sectorCode.toUpperCase();
-    data.sectorFrom = data.sectorFrom.toUpperCase();
-    data.sectorTo = data.sectorTo.toUpperCase();
+    data.sectorCode = normalizeDamammText(data.sectorCode.toUpperCase());
+    data.sectorFrom = normalizeDamammText(data.sectorFrom.toUpperCase());
+    data.sectorTo = normalizeDamammText(data.sectorTo.toUpperCase());
     const btn = e.target.querySelector('[type=submit]');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
@@ -2029,7 +2055,7 @@ async function renderETicketTab() {
 
   // Ensure data is loaded
   if (_airlines.length === 0) _airlines = await getAirlines();
-  if (_sectors.length === 0) _sectors = await getSectors();
+  if (_sectors.length === 0) _sectors = normalizeSectors(await getSectors());
 
   // Prevent double-binding by checking dataset.wired
   if (!tab.dataset.wired) {
@@ -2053,67 +2079,99 @@ async function renderETicketTab() {
         uniqueDests.map(d => `<option value="${d}">${d}</option>`).join('');
     }
 
+    const syncPassengerRows = () => {
+      const rows = Array.from(paxContainer.querySelectorAll('.et-pax-row'));
+      rows.forEach((row, index) => {
+        const title = row.querySelector('.et-passenger-index');
+        if (title) title.textContent = `Passenger ${index + 1}`;
+
+        const removeBtn = row.querySelector('.et-remove-passenger');
+        if (!removeBtn) return;
+        if (rows.length <= 1) {
+          removeBtn.classList.add('opacity-40', 'pointer-events-none');
+          removeBtn.setAttribute('aria-disabled', 'true');
+        } else {
+          removeBtn.classList.remove('opacity-40', 'pointer-events-none');
+          removeBtn.removeAttribute('aria-disabled');
+        }
+      });
+    };
+
     // Add Passenger Row Logic
     addPaxBtn?.addEventListener('click', () => {
-      const idx = paxContainer.children.length;
       const rowHtml = `
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 border border-border rounded-lg bg-white et-pax-row relative">
-          <button type="button" class="absolute -top-3 -right-3 w-7 h-7 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors border border-red-200" onclick="this.closest('.et-pax-row').remove()" title="Remove passenger">×</button>
-          
-          <div class="md:col-span-2">
-            <label class="block text-xs font-semibold text-text-muted mb-1">Title</label>
-            <select name="paxTitle[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
-              <option value="MR">MR</option>
-              <option value="MRS">MRS</option>
-              <option value="MS">MS</option>
-              <option value="MSTR">MSTR</option>
-              <option value="MISS">MISS</option>
-            </select>
+        <div class="et-pax-row relative rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:p-5">
+          <div class="flex items-center justify-between mb-3 pr-8">
+            <p class="et-passenger-index text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Passenger</p>
           </div>
+          <button type="button" class="et-remove-passenger absolute top-3 right-3 w-7 h-7 rounded-full border border-red-200 bg-red-100 text-red-600 hover:bg-red-500 hover:text-white transition-colors" title="Remove passenger" aria-label="Remove passenger">
+            <i class="bi bi-x-lg text-[11px]"></i>
+          </button>
 
-          <div class="md:col-span-3">
-            <label class="block text-xs font-semibold text-text-muted mb-1">Passenger Name *</label>
-            <input type="text" name="paxName[]" required placeholder="e.g. JOHN DOE" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none uppercase placeholder:normal-case">
-          </div>
-
-          <div class="md:col-span-2">
-            <label class="block text-xs font-semibold text-text-muted mb-1">Category</label>
-            <select name="paxType[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
-              <option value="ADT">Adult</option>
-              <option value="CHD">Child</option>
-              <option value="INF">Infant</option>
-            </select>
-          </div>
-
-          <div class="md:col-span-5 grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-text-muted mb-1">Check-in Bag</label>
-              <select name="paxCheckBag[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
-                <option value="15 Kilograms">15 Kilograms</option>
-                <option value="20 Kilograms">20 Kilograms</option>
-                <option value="25 Kilograms">25 Kilograms</option>
-                <option value="30 Kilograms" selected>30 Kilograms</option>
-                <option value="35 Kilograms">35 Kilograms</option>
-                <option value="40 Kilograms">40 Kilograms</option>
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4">
+            <div class="md:col-span-2">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Title</label>
+              <select name="paxTitle[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                <option value="MR">MR</option>
+                <option value="MRS">MRS</option>
+                <option value="MS">MS</option>
+                <option value="MSTR">MSTR</option>
+                <option value="MISS">MISS</option>
               </select>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-text-muted mb-1">Carry-on</label>
-              <select name="paxCarryBag[]" class="w-full border border-border rounded-lg h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
-                <option value="7 Kilograms" selected>7 Kilograms</option>
-                <option value="10 Kilograms">10 Kilograms</option>
+
+            <div class="md:col-span-4">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Passenger Name *</label>
+              <input type="text" name="paxName[]" required placeholder="e.g. JOHN DOE" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none uppercase placeholder:normal-case bg-white">
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Category</label>
+              <select name="paxType[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                <option value="ADT">Adult</option>
+                <option value="CHD">Child</option>
+                <option value="INF">Infant</option>
+              </select>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Cabin Bag</label>
+              <select name="paxCarryBag[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                <option value="7 Kg" selected>7 Kg</option>
+                <option value="10 Kg">10 Kg</option>
+              </select>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Check-in Bag</label>
+              <select name="paxCheckBag[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                <option value="15 Kg">15 Kg</option>
+                <option value="20 Kg">20 Kg</option>
+                <option value="25 Kg">25 Kg</option>
+                <option value="30 Kg" selected>30 Kg</option>
+                <option value="35 Kg">35 Kg</option>
+                <option value="40 Kg">40 Kg</option>
               </select>
             </div>
           </div>
         </div>
       `;
       paxContainer.insertAdjacentHTML('beforeend', rowHtml);
+      syncPassengerRows();
+    });
+
+    paxContainer?.addEventListener('click', (event) => {
+      const removeBtn = event.target.closest('.et-remove-passenger');
+      if (!removeBtn) return;
+      removeBtn.closest('.et-pax-row')?.remove();
+      syncPassengerRows();
     });
 
     // Add first row default
     if (paxContainer.children.length === 0) {
       addPaxBtn?.click();
     }
+    syncPassengerRows();
 
     // Form submission wrapper to build and show the preview
     // Note: Use 'submit' event to leverage native form validation
@@ -2135,6 +2193,8 @@ async function renderETicketTab() {
         Array.from(paxContainer.children).forEach((child, index) => {
           if (index > 0) child.remove();
         });
+        if (paxContainer.children.length === 0) addPaxBtn?.click();
+        syncPassengerRows();
         document.getElementById('eticket-output-wrapper')?.classList.add('hidden');
       }, 10);
       toast('info', 'Form Reset', 'The E-Ticket form has been cleared.');
@@ -2146,16 +2206,35 @@ async function generateETicket(formData) {
   const pnr = formData.get('etPnr')?.toUpperCase();
   const airline = formData.get('etAirline')?.toUpperCase();
   const flightNo = formData.get('etFlightNo')?.toUpperCase();
-  let dateRaw = formData.get('etDate');
+  const dateRaw = formData.get('etDate');
   const depTime = formData.get('etDepTime');
   const arrTime = formData.get('etArrTime');
   const phone = formData.get('etPhone');
 
+  const escapeHtml = (value = '') => String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+  const parseTimeToMinutes = (value) => {
+    const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value || '');
+    if (!match) return null;
+    return (Number(match[1]) * 60) + Number(match[2]);
+  };
+
+  const cityToCode = (city = '') => {
+    const letters = city.replace(/[^A-Za-z]/g, '').toUpperCase();
+    return letters.slice(0, 3) || '---';
+  };
+
   // Parse origin and destination into array to split city and airport code if formatted like "Kozhikode (CCJ)"
   const parseLoc = (val) => {
-    let raw = (val || '').trim();
-    let city = raw, code = '';
-    const match = raw.match(/^(.*?)\\s*\\((.*?)\\)$/);
+    const raw = (val || '').trim();
+    let city = raw;
+    let code = '';
+    const match = raw.match(/^(.*?)\s*\((.*?)\)$/);
     if (match) {
       city = match[1].trim();
       code = match[2].trim();
@@ -2165,9 +2244,11 @@ async function generateETicket(formData) {
 
   const origin = parseLoc(formData.get('etOrigin'));
   const dest = parseLoc(formData.get('etDest'));
+  const fullOrg = formData.get('etOrigin') || '—';
+  const fullDst = formData.get('etDest') || '—';
 
   // Format date to "SAT, 03 MAY 2025"
-  let formattedDate = dateRaw;
+  let formattedDate = '—';
   if (dateRaw) {
     const d = new Date(dateRaw);
     if (!isNaN(d.getTime())) {
@@ -2177,44 +2258,7 @@ async function generateETicket(formData) {
     }
   }
 
-  // Inject top-level flight details
   const el = (id) => document.getElementById(id);
-
-  if (el('t-pnr')) el('t-pnr').textContent = pnr || '—';
-  if (el('t-crs-pnr')) el('t-crs-pnr').textContent = pnr || '—';
-  if (el('t-booking-ref')) el('t-booking-ref').textContent = pnr || '—';
-  if (el('t-airline-tollfree')) el('t-airline-tollfree').textContent = '';
-  
-  const fullOrg = formData.get('etOrigin') || '—';
-  const fullDst = formData.get('etDest') || '—';
-
-  if (el('t-issued-by')) el('t-issued-by').textContent = airline || '—';
-  if (el('t-customer-phone')) el('t-customer-phone').textContent = phone || '—';
-  
-  // Booked on - today
-  const today = new Date();
-  const ddays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-  const dmonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  if (el('t-booked-on')) el('t-booked-on').textContent = `${String(today.getDate()).padStart(2, '0')}-${dmonths[today.getMonth()]}-${today.getFullYear()} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
-
-  // Set airline logo (requires looking up _airlines array)
-  if (el('t-airline-logo')) {
-    const matchedAirline = typeof _airlines !== 'undefined' ? _airlines.find(a => a.name.toUpperCase() === airline) : null;
-    if (matchedAirline && matchedAirline.logoUrl && el('t-airline-logo')) {
-      el('t-airline-logo').src = matchedAirline.logoUrl;
-      el('t-airline-logo').classList.remove('hidden');
-      if (el('t-issued-by')) {
-          el('t-issued-by').classList.remove('mt-1');
-          el('t-issued-by').textContent = airline;
-      }
-    } else {
-      el('t-airline-logo').classList.add('hidden');
-      if(el('t-issued-by')) {
-          el('t-issued-by').classList.add('mt-1');
-          el('t-issued-by').textContent = airline;
-      }
-    }
-  }
 
   // Find codes if not present in dropdown value
   let originCode = origin.code;
@@ -2233,8 +2277,57 @@ async function generateETicket(formData) {
     }
   }
 
-  const originDisplay = origin.city.toUpperCase();
-  const destDisplay = dest.city.toUpperCase();
+  const resolvedOriginCode = (originCode || cityToCode(origin.city)).toUpperCase();
+  const resolvedDestCode = (destCode || cityToCode(dest.city)).toUpperCase();
+  const routeCode = `${resolvedOriginCode} - ${resolvedDestCode}`;
+  const routeLong = `${(origin.city || fullOrg || 'ORIGIN').toUpperCase()} to ${(dest.city || fullDst || 'DESTINATION').toUpperCase()}`;
+  const originDisplay = (origin.city || fullOrg || '—').toUpperCase();
+  const destDisplay = (dest.city || fullDst || '—').toUpperCase();
+
+  const depMinutes = parseTimeToMinutes(depTime);
+  const arrMinutes = parseTimeToMinutes(arrTime);
+  let durationText = 'N/A';
+  if (depMinutes !== null && arrMinutes !== null) {
+    let diff = arrMinutes - depMinutes;
+    if (diff < 0) diff += 24 * 60;
+    const hours = Math.floor(diff / 60);
+    const minutes = diff % 60;
+    durationText = `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  }
+
+  if (el('t-pnr')) el('t-pnr').textContent = pnr || '—';
+  if (el('t-issued-by')) el('t-issued-by').textContent = airline || '—';
+  if (el('t-customer-phone')) el('t-customer-phone').textContent = phone || '—';
+  if (el('t-flight-code')) el('t-flight-code').textContent = flightNo || '—';
+  if (el('t-travel-date')) el('t-travel-date').textContent = formattedDate || '—';
+  if (el('t-route-code')) el('t-route-code').textContent = routeCode;
+  if (el('t-route-long')) el('t-route-long').textContent = routeLong;
+  if (el('t-duration')) el('t-duration').textContent = durationText;
+
+  // Booked on - today
+  const today = new Date();
+  const dmonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const bookedOnText = `${String(today.getDate()).padStart(2, '0')} ${dmonths[today.getMonth()]} ${today.getFullYear()} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+  if (el('t-booked-on')) el('t-booked-on').textContent = bookedOnText;
+
+  // Set airline logo (requires looking up _airlines array)
+  const logoEl = el('t-airline-logo');
+  const logoFallbackEl = el('t-issued-by-fallback');
+  if (logoEl) {
+    const matchedAirline = typeof _airlines !== 'undefined' ? _airlines.find(a => a.name.toUpperCase() === airline) : null;
+    if (matchedAirline && matchedAirline.logoUrl) {
+      logoEl.src = matchedAirline.logoUrl;
+      logoEl.classList.remove('hidden');
+      if (logoFallbackEl) logoFallbackEl.classList.add('hidden');
+    } else {
+      logoEl.removeAttribute('src');
+      logoEl.classList.add('hidden');
+      if (logoFallbackEl) {
+        logoFallbackEl.classList.remove('hidden');
+        logoFallbackEl.textContent = (airline || 'No logo').toUpperCase();
+      }
+    }
+  }
 
   // Extract passenger arrays
   const paxTitles = formData.getAll('paxTitle[]');
@@ -2242,63 +2335,63 @@ async function generateETicket(formData) {
   const paxTypes = formData.getAll('paxType[]');
   const paxCheckBag = formData.getAll('paxCheckBag[]');
   const paxCarryBag = formData.getAll('paxCarryBag[]');
+  if (el('t-pax-count')) el('t-pax-count').textContent = String(paxNames.length);
 
   const paxTbody = document.getElementById('t-passengers-tbody');
-  if (paxTbody) paxTbody.innerHTML = '';
+  if (paxTbody) {
+    const rowHtml = paxNames.map((_, i) => {
+      const title = escapeHtml((paxTitles[i] || 'MR').toUpperCase());
+      const name = escapeHtml((paxNames[i] || '').toUpperCase());
+      const type = escapeHtml((paxTypes[i] || 'ADT').toUpperCase());
+      const checkBag = escapeHtml((paxCheckBag[i] || '—').toUpperCase());
+      const carryBag = escapeHtml((paxCarryBag[i] || '—').toUpperCase());
+      const segment = matchedSector && matchedSector.sectorCode
+        ? escapeHtml(matchedSector.sectorCode.toUpperCase())
+        : escapeHtml(routeCode);
+      const rowShade = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/80';
 
-  for (let i = 0; i < paxNames.length; i++) {
-    const title = (paxTitles[i] || 'MR').toUpperCase();
-    const name = (paxNames[i] || '').toUpperCase();
-    const type = (paxTypes[i] || 'ADT').toUpperCase();
-    const checkbag = (paxCheckBag[i] || '').toUpperCase();
-    const carrybag = (paxCarryBag[i] || '').toUpperCase();
+      return `
+        <tr class="${rowShade} text-slate-800">
+          <td class="p-2.5 border-t border-slate-200 align-top font-semibold">${i + 1}</td>
+          <td class="p-2.5 border-l border-t border-slate-200 align-top">${title}. ${name}</td>
+          <td class="p-2.5 border-l border-t border-slate-200 align-top">${type}</td>
+          <td class="p-2.5 border-l border-t border-slate-200 align-top">${segment}</td>
+          <td class="p-2.5 border-l border-t border-slate-200 align-top">${escapeHtml(flightNo || '—')}</td>
+          <td class="p-2.5 border-l border-t border-slate-200 align-top font-semibold">${escapeHtml(pnr || '—')}</td>
+          <td class="p-2.5 border-l border-t border-slate-200 align-top">${carryBag}</td>
+          <td class="p-2.5 border-l border-t border-slate-200 align-top">${checkBag}</td>
+        </tr>
+      `;
+    }).join('');
 
-    const formattedName = `${title}. ${name} (${type})`;
-    let segString = '';
-    if (matchedSector && matchedSector.sectorCode) {
-        segString = matchedSector.sectorCode.toUpperCase();
-    } else {
-        segString = `${originCode || origin.city || '—'} - ${destCode || dest.city || '—'}`.toUpperCase();
-    }
-
-    // Generate inner row markup
-    const tr = document.createElement('tr');
-    tr.style.borderBottom = 'none'; // border handled at td layer
-    
-    tr.innerHTML = `
-      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800">${title}. ${name}<br><span class="text-gray-500 text-[10px] uppercase"></span></td>
-      <td class="border-b border-gray-200 p-2 align-top text-gray-800"></td>
-      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800">${segString}</td>
-      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800">${flightNo || ''}</td>
-      <td class="border-b border-r border-gray-200 p-2 align-top text-[#1e3a8a] text-center font-bold">${pnr || ''}</td>
-      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800 text-center">${carrybag}</td>
-      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800 px-2">${checkbag}</td>
-      <td class="border-b border-r border-gray-200 p-2 align-top text-gray-800 px-2 border-r-0"></td>
-      <td class="border-b border-gray-200 p-2 align-top text-gray-800"></td>
-      <td class="border-b border-gray-200 p-2 align-top text-gray-800">Confirmed</td>
+    paxTbody.innerHTML = rowHtml || `
+      <tr>
+        <td colspan="8" class="p-3 text-center text-slate-500 border-t border-slate-200">No passengers found.</td>
+      </tr>
     `;
-    if (paxTbody) paxTbody.appendChild(tr);
   }
 
   // Travel Details Row
   const travelTbody = document.getElementById('t-travel-tbody');
   if (travelTbody) {
     travelTbody.innerHTML = `
-      <tr class="text-black">
-        <td class="p-2 border-b border-gray-300 align-top">
-          <div class="font-normal text-[11px]">${flightNo || '—'}</div>
-          <div class="text-[10px] text-gray-600 mt-0.5">Non-Refundable</div>
+      <tr class="text-slate-800">
+        <td class="p-2.5 border-t border-slate-200 align-top">
+          <div class="font-semibold">${escapeHtml(flightNo || '—')}</div>
+          <div class="text-[10px] text-slate-500 mt-1">Economy | Non-Refundable</div>
         </td>
-        <td class="p-2 border-l border-b border-gray-300 align-top">
-          <div class="font-bold uppercase">${originDisplay}</div>
-          <div class="text-[13px] mt-1"><span class="font-bold">${depTime || '—'}</span> <span class="text-gray-600 ml-1 text-[11px]">${formattedDate || '—'}</span></div>
+        <td class="p-2.5 border-l border-t border-slate-200 align-top">
+          <div class="font-semibold uppercase">${escapeHtml(originDisplay)}</div>
+          <div class="text-[10px] text-slate-500 uppercase">${escapeHtml(resolvedOriginCode)}</div>
+          <div class="text-[13px] mt-1"><span class="font-bold">${escapeHtml(depTime || '—')}</span> <span class="text-slate-500 ml-1 text-[11px]">${escapeHtml(formattedDate || '—')}</span></div>
         </td>
-        <td class="p-2 border-l border-b border-gray-300 align-top">
-          <div class="font-bold uppercase">${destDisplay}</div>
-          <div class="text-[13px] mt-1"><span class="font-bold">${arrTime || '—'}</span> <span class="text-gray-600 ml-1 text-[11px]">${formattedDate || '—'}</span></div>
+        <td class="p-2.5 border-l border-t border-slate-200 align-top">
+          <div class="font-semibold uppercase">${escapeHtml(destDisplay)}</div>
+          <div class="text-[10px] text-slate-500 uppercase">${escapeHtml(resolvedDestCode)}</div>
+          <div class="text-[13px] mt-1"><span class="font-bold">${escapeHtml(arrTime || '—')}</span> <span class="text-slate-500 ml-1 text-[11px]">${escapeHtml(formattedDate || '—')}</span></div>
         </td>
-        <td class="p-2 border-l border-b border-gray-300 align-top text-center text-[12px]">
-          Confirmed
+        <td class="p-2.5 border-l border-t border-slate-200 align-middle text-center">
+          <span class="inline-flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold px-2.5 py-1">Confirmed</span>
         </td>
       </tr>
     `;
@@ -2350,4 +2443,3 @@ window.toast = toast;
 document.addEventListener('DOMContentLoaded', () => {
   // Chips built after auth resolves in the onAuthChange handler above
 });
-

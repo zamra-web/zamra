@@ -145,6 +145,7 @@ web/
 
 ### 7. 🎟️ E-Ticket Tab
 - **Manual E-Ticket Generator** — issue professional, branded e-tickets directly from the dashboard.
+- **Premium Layout System** — ticket output now uses a structured document layout (header meta, route summary cards, flight table, passenger manifest, advisory block) optimized for both on-screen preview and A4 print/PDF.
 - **Dynamic Selectors** — pulls active airlines, origins, and destinations from Firestore to pre-populate dropdowns.
 - **Airline Logos** — dynamically fetches and embeds airline logos from Firebase Storage into the ticket header.
 - **Dynamic Passenger Rows** — allows adding multiple passengers and specifying check-in/carry-on baggage per passenger.
