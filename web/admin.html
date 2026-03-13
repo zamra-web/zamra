@@ -27,45 +27,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-
-    <style>
-        /* Custom Keyframes for Aurora */
-        @keyframes aurora-flow {
-            0% {
-                background-position: 0% 50%;
-            }
-
-            50% {
-                background-position: 100% 50%;
-            }
-
-            100% {
-                background-position: 0% 50%;
-            }
-        }
-
-        .aurora-container {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .aurora-bg {
-            background: radial-gradient(circle at 0% 0%, var(--primary-light) 0%, transparent 50%),
-                radial-gradient(circle at 100% 0%, var(--primary) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, #38BDF8 0%, transparent 50%),
-                radial-gradient(circle at 0% 100%, var(--bg-main) 0%, transparent 50%);
-            background-size: 200% 200%;
-            animation: aurora-flow 15s ease infinite alternate;
-        }
-
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
-        }
-    </style>
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -109,8 +70,7 @@
                         <i class="bi bi-person-circle text-primary text-base"></i>
                         <span id="admin-user-name" class="text-text-muted font-medium">Admin</span>
                     </div>
-                    <button id="admin-logout-btn"
-                        class="flex items-center gap-1.5 border border-red-200 bg-red-50 text-red-600 rounded-md px-3 py-1.5 text-[13px] font-semibold hover:bg-red-100 transition-colors"
+                    <button id="admin-logout-btn" class="admin-btn admin-btn-danger h-[36px] px-3.5 !text-[12px]"
                         title="Sign Out">
                         <i class="bi bi-box-arrow-right text-sm"></i>
                         <span class="hidden sm:inline">Logout</span>
@@ -127,7 +87,7 @@
 
         <!-- DASHBOARD TAB (Poster Generator) -->
         <div id="dashboard-tab" class="tab-content active">
-            <div class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main mb-8">
+            <div class="admin-panel p-6 text-text-main mb-8">
                 <div class="flex items-center justify-between mb-6">
                     <div>
                         <h2 class="text-xl font-bold text-navy">Poster Generator</h2>
@@ -136,25 +96,23 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                     <div class="md:col-span-1">
-                        <label class="block text-sm font-semibold text-text-muted mb-2">Select Sector *</label>
+                        <label class="admin-label text-[11px]">Select Sector *</label>
                         <select id="poster-sector-sel"
-                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                            class="admin-control">
                             <option value="">Choose Sector</option>
                         </select>
                     </div>
                     <div class="md:col-span-1">
-                        <label class="block text-sm font-semibold text-text-muted mb-2">Start Date</label>
-                        <input id="poster-start-date" type="date"
-                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                        <label class="admin-label text-[11px]">Start Date</label>
+                        <input id="poster-start-date" type="date" class="admin-control">
                     </div>
                     <div class="md:col-span-1">
-                        <label class="block text-sm font-semibold text-text-muted mb-2">End Date</label>
-                        <input id="poster-end-date" type="date"
-                            class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-text-main bg-gray-50/50">
+                        <label class="admin-label text-[11px]">End Date</label>
+                        <input id="poster-end-date" type="date" class="admin-control">
                     </div>
                     <div class="md:col-span-1">
-                        <button id="poster-generate-btn"
-                            class="w-full bg-primary text-white font-semibold h-11 rounded-lg shadow-[0_4px_14px_rgba(37,99,235,0.25)] hover:bg-blue-600 transition-all hover:-translate-y-0.5 text-sm">Generate Poster</button>
+                        <button id="poster-generate-btn" class="admin-btn admin-btn-primary w-full">Generate
+                            Poster</button>
                     </div>
                 </div>
             </div>
@@ -162,21 +120,27 @@
             <!-- Poster Preview Area -->
             <div id="poster-preview-container" class="hidden flex-col items-center">
                 <div class="flex gap-4 mb-6">
-                    <button id="poster-download-jpg" class="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all hover:-translate-y-0.5">
+                    <button id="poster-download-jpg" class="admin-btn admin-btn-soft px-6">
                         <i class="bi bi-image"></i> Download JPEG
                     </button>
-                    <button id="poster-download-pdf" class="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all hover:-translate-y-0.5">
+                    <button id="poster-download-pdf" class="admin-btn admin-btn-danger px-6">
                         <i class="bi bi-file-earmark-pdf"></i> Download PDF
                     </button>
                     
                     <div class="relative group">
-                        <button class="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all hover:-translate-y-0.5">
+                        <button class="admin-btn admin-btn-primary px-6">
                             <i class="bi bi-camera-video"></i> Create Video <i class="bi bi-chevron-down text-xs ml-1"></i>
                         </button>
                         <div class="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 hidden group-hover:block z-50 overflow-hidden">
-                            <button id="poster-download-vid-1x1" class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-50">1:1 (Instagram/Post)</button>
-                            <button id="poster-download-vid-9x16" class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-50">9:16 (Story/Reel)</button>
-                            <button id="poster-download-vid-16x9" class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50">16:9 (YouTube/TV)</button>
+                            <button id="poster-download-vid-1x1"
+                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-50">1:1
+                                (Instagram/Post)</button>
+                            <button id="poster-download-vid-9x16"
+                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-50">9:16
+                                (Story/Reel)</button>
+                            <button id="poster-download-vid-16x9"
+                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50">16:9
+                                (YouTube/TV)</button>
                         </div>
                     </div>
                 </div>
@@ -243,50 +207,48 @@
             <div class="flex justify-between items-center mb-6">
                 <div></div>
                 <button id="agents-add-btn"
-                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-200 premium-hover-lift premium-transition">+
+                    class="admin-btn admin-btn-secondary h-[42px] px-5">+
                     Add Agent</button>
             </div>
 
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main mb-8">
-                <h3 class="font-bold text-gray-300 mb-6 text-sm uppercase tracking-wide">Bulk Delete Fares
+            <div class="admin-panel p-6 text-text-main mb-8">
+                <h3 class="font-bold text-text-soft mb-6 text-sm uppercase tracking-wide">Bulk Delete Fares
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Agent <span class="font-normal opacity-60">(optional)</span></label>
-                        <select id="agents-bulk-agent-sel" class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                        <label class="admin-label text-[11px]">Agent <span class="font-normal opacity-60">(optional)</span></label>
+                        <select id="agents-bulk-agent-sel" class="admin-control">
                             <option value="">All Agents</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Sector <span class="font-normal opacity-60">(optional)</span></label>
-                        <select id="agents-bulk-sector-sel" class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                        <label class="admin-label text-[11px]">Sector <span class="font-normal opacity-60">(optional)</span></label>
+                        <select id="agents-bulk-sector-sel" class="admin-control">
                             <option value="">All Sectors</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">Start Date <span class="font-normal opacity-60">(optional)</span></label>
+                        <label class="admin-label text-[11px]">Start Date <span class="font-normal opacity-60">(optional)</span></label>
                         <input id="agents-bulk-start" type="date"
-                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                            class="admin-control">
                     </div>
                     <div>
-                        <label class="block text-[13px] font-semibold text-text-muted mb-2">End Date <span class="font-normal opacity-60">(optional)</span></label>
+                        <label class="admin-label text-[11px]">End Date <span class="font-normal opacity-60">(optional)</span></label>
                         <input id="agents-bulk-end" type="date"
-                            class="w-full border border-border rounded-lg h-[42px] px-3 outline-none text-[14px]">
+                            class="admin-control">
                     </div>
                     <div>
                         <button id="agents-bulk-delete-btn"
-                            class="w-full bg-red-500 text-white font-semibold h-[42px] rounded-lg shadow-sm hover:opacity-90 transition-all text-[14px]">Bulk
+                            class="admin-btn admin-btn-danger w-full">Bulk
                             Delete</button>
                     </div>
                 </div>
             </div>
 
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
+            <div class="admin-panel p-6 text-text-main">
                 <div class="flex justify-between items-center mb-6">
                     <div class="text-[14px] flex items-center">
-                        Show <select id="agents-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                        Show <select id="agents-limit" class="mx-2 admin-control admin-control-sm">
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50">50</option>
@@ -296,7 +258,7 @@
                     </div>
                     <div class="flex items-center text-[14px]">
                         Search: <input type="text" id="agents-search"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                            class="ml-2 admin-control admin-control-sm w-[200px]">
                     </div>
                 </div>
                 <div class="admin-table-container">
@@ -616,15 +578,14 @@ Example:
             <div class="flex justify-between items-center mb-6">
                 <div></div>
                 <button
-                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-200 premium-hover-lift premium-transition">+
+                    class="admin-btn admin-btn-secondary h-[42px] px-5">+
                     Add Sector</button>
             </div>
 
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
+            <div class="admin-panel p-6 text-text-main">
                 <div class="flex justify-between items-center mb-6">
                     <div class="text-[14px] flex items-center">
-                        Show <select id="sectors-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                        Show <select id="sectors-limit" class="mx-2 admin-control admin-control-sm">
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50">50</option>
@@ -634,7 +595,7 @@ Example:
                     </div>
                     <div class="flex items-center text-[14px]">
                         Search: <input type="text" id="sectors-search"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                            class="ml-2 admin-control admin-control-sm w-[200px]">
                     </div>
                 </div>
 
@@ -663,15 +624,14 @@ Example:
             <div class="flex justify-between items-center mb-6">
                 <div></div>
                 <button
-                    class="bg-white text-navy font-bold text-[14px] px-5 py-2.5 rounded-xl shadow-[var(--shadow-premium-soft)] border border-slate-200 premium-hover-lift premium-transition">+
+                    class="admin-btn admin-btn-secondary h-[42px] px-5">+
                     Add Flight</button>
             </div>
 
-            <div
-                class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main">
+            <div class="admin-panel p-6 text-text-main">
                 <div class="flex justify-between items-center mb-6">
                     <div class="text-[14px] flex items-center">
-                        Show <select id="airlines-limit" class="mx-2 border border-border rounded p-1 text-[13px]">
+                        Show <select id="airlines-limit" class="mx-2 admin-control admin-control-sm">
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50">50</option>
@@ -681,7 +641,7 @@ Example:
                     </div>
                     <div class="flex items-center text-[14px]">
                         Search: <input type="text" id="airlines-search"
-                            class="ml-2 border border-border rounded px-2 py-1 outline-none focus:border-primary w-[200px]">
+                            class="ml-2 admin-control admin-control-sm w-[200px]">
                     </div>
                 </div>
 
@@ -708,7 +668,7 @@ Example:
         <div id="reports-tab" class="tab-content">
 
             <!-- ── Filter Bar ─────────────────────────────────────────── -->
-            <div class="bg-white rounded-2xl p-6 shadow-[var(--shadow-premium-soft)] border border-slate-100 mb-6">
+            <div class="admin-panel p-6 mb-6">
                 <div class="flex items-center gap-3 mb-5">
                     <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
                         <i class="bi bi-bar-chart-fill text-white text-[15px]"></i>
@@ -721,31 +681,29 @@ Example:
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
                     <div>
                         <label class="block text-[12px] font-bold text-text-muted uppercase tracking-wider mb-2">Sector</label>
-                        <select id="reports-sector-sel"
-                            class="w-full border border-border bg-slate-50 focus:bg-white rounded-xl h-[44px] px-3.5 outline-none text-[14px] text-text-main focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all">
+                        <select id="reports-sector-sel" class="admin-control">
                             <option value="all">All Sectors</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-[12px] font-bold text-text-muted uppercase tracking-wider mb-2">Agent</label>
-                        <select id="reports-agent-sel"
-                            class="w-full border border-border bg-slate-50 focus:bg-white rounded-xl h-[44px] px-3.5 outline-none text-[14px] text-text-main focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all">
+                        <select id="reports-agent-sel" class="admin-control">
                             <option value="all">All Agents</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-[12px] font-bold text-text-muted uppercase tracking-wider mb-2">From Date</label>
                         <input id="reports-start-date" type="date"
-                            class="w-full border border-border bg-slate-50 focus:bg-white rounded-xl h-[44px] px-3.5 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all">
+                            class="admin-control">
                     </div>
                     <div>
                         <label class="block text-[12px] font-bold text-text-muted uppercase tracking-wider mb-2">To Date</label>
                         <input id="reports-end-date" type="date"
-                            class="w-full border border-border bg-slate-50 focus:bg-white rounded-xl h-[44px] px-3.5 outline-none text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all">
+                            class="admin-control">
                     </div>
                     <div>
                         <button id="generate-report-btn"
-                            class="w-full bg-gradient-to-r from-primary to-blue-500 text-white font-bold h-[44px] rounded-xl shadow-md hover:shadow-lg hover:from-primary-dark hover:to-primary transition-all text-[14px] flex items-center justify-center gap-2">
+                            class="admin-btn admin-btn-primary w-full">
                             <i class="bi bi-lightning-fill text-[13px]"></i> Generate Report
                         </button>
                     </div>
@@ -754,7 +712,7 @@ Example:
 
             <!-- ── Summary Stat Cards ──────────────────────────────────── -->
             <div id="report-stats-row" class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 hidden">
-                <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-[var(--shadow-premium-soft)] flex items-center gap-4">
+                <div class="admin-panel p-5 flex items-center gap-4">
                     <div class="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
                         <i class="bi bi-ticket-perforated-fill text-primary text-[18px]"></i>
                     </div>
@@ -763,7 +721,7 @@ Example:
                         <p id="stat-total-fares" class="text-[22px] font-black text-navy leading-tight">—</p>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-[var(--shadow-premium-soft)] flex items-center gap-4">
+                <div class="admin-panel p-5 flex items-center gap-4">
                     <div class="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
                         <i class="bi bi-eye-fill text-green-500 text-[18px]"></i>
                     </div>
@@ -772,7 +730,7 @@ Example:
                         <p id="stat-live-fares" class="text-[22px] font-black text-green-600 leading-tight">—</p>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-[var(--shadow-premium-soft)] flex items-center gap-4">
+                <div class="admin-panel p-5 flex items-center gap-4">
                     <div class="w-11 h-11 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
                         <i class="bi bi-eye-slash-fill text-red-400 text-[18px]"></i>
                     </div>
@@ -781,7 +739,7 @@ Example:
                         <p id="stat-hidden-fares" class="text-[22px] font-black text-red-500 leading-tight">—</p>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-[var(--shadow-premium-soft)] flex items-center gap-4">
+                <div class="admin-panel p-5 flex items-center gap-4">
                     <div class="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
                         <i class="bi bi-people-fill text-purple-500 text-[18px]"></i>
                     </div>
@@ -790,7 +748,7 @@ Example:
                         <p id="stat-agents-count" class="text-[22px] font-black text-purple-600 leading-tight">—</p>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-[var(--shadow-premium-soft)] flex items-center gap-4">
+                <div class="admin-panel p-5 flex items-center gap-4">
                     <div class="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
                         <i class="bi bi-currency-rupee text-amber-500 text-[18px]"></i>
                     </div>
@@ -805,7 +763,7 @@ Example:
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
                 <!-- Bar Chart -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
+                <div class="admin-panel overflow-hidden">
                     <div class="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
                         <div>
                             <h3 class="font-bold text-[15px] text-navy">Fares per Agent</h3>
@@ -826,7 +784,7 @@ Example:
                 </div>
 
                 <!-- Donut Chart -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
+                <div class="admin-panel overflow-hidden">
                     <div class="px-6 pt-5 pb-4 border-b border-slate-100">
                         <h3 class="font-bold text-[15px] text-navy">Fares per Sector</h3>
                         <p class="text-[12px] text-text-muted mt-0.5">Distribution of fares across all sectors</p>
@@ -849,14 +807,14 @@ Example:
 
             <!-- ── Leaderboard Row ────────────────────────────────────── -->
             <div id="report-leaderboards" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
+                <div class="admin-panel overflow-hidden">
                     <div class="px-6 pt-5 pb-4 border-b border-slate-100">
                         <h3 class="font-bold text-[15px] text-navy">Top Agents</h3>
                         <p class="text-[12px] text-text-muted mt-0.5">Ranked by volume of fares submitted</p>
                     </div>
                     <div id="leaderboard-agents" class="px-6 py-4 flex flex-col gap-3"></div>
                 </div>
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
+                <div class="admin-panel overflow-hidden">
                     <div class="px-6 pt-5 pb-4 border-b border-slate-100">
                         <h3 class="font-bold text-[15px] text-navy">Cheapest Sectors</h3>
                         <p class="text-[12px] text-text-muted mt-0.5">Sorted by average fare (lowest first)</p>
@@ -866,7 +824,7 @@ Example:
             </div>
 
             <!-- ── Fares Table ─────────────────────────────────────────── -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-[var(--shadow-premium-soft)] overflow-hidden">
+            <div class="admin-panel overflow-hidden">
                 <div class="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-50 to-white">
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shadow">
@@ -878,7 +836,7 @@ Example:
                         </div>
                     </div>
                     <button id="download-report-csv"
-                        class="opacity-50 pointer-events-none flex items-center gap-2 bg-white hover:bg-green-50 text-navy hover:text-green-700 font-semibold px-4 py-2 rounded-xl transition-all text-[13px] border border-slate-200 hover:border-green-300 shadow-sm">
+                        class="admin-btn admin-btn-secondary opacity-50 pointer-events-none">
                         <i class="bi bi-file-earmark-spreadsheet-fill text-green-500"></i> Export CSV
                     </button>
                 </div>
@@ -897,7 +855,7 @@ Example:
 
         <!-- E-TICKET TAB -->
         <div id="eticket-tab" class="tab-content">
-            <div class="bg-white rounded-3xl p-6 md:p-8 shadow-[var(--shadow-premium-soft)] border border-slate-100 text-text-main mb-8 no-print">
+            <div class="admin-panel rounded-3xl p-6 md:p-8 text-text-main mb-8 no-print">
                 <div class="flex flex-wrap items-start justify-between gap-4 mb-6 md:mb-8">
                     <div>
                         <span class="inline-flex items-center gap-1.5 bg-primary/10 text-primary text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-[0.12em]">Manual Issuance</span>
@@ -964,7 +922,8 @@ Example:
                                 <h3 class="font-bold text-[15px] text-navy tracking-[0.02em]">Passenger Manifest</h3>
                                 <p class="text-[12px] text-text-muted mt-0.5">Add every traveller exactly as per passport.</p>
                             </div>
-                            <button type="button" id="et-add-passenger" class="inline-flex items-center gap-2 text-primary font-semibold text-sm bg-primary/10 hover:bg-primary hover:text-white transition-colors px-4 py-2 rounded-xl">
+                            <button type="button" id="et-add-passenger"
+                                class="admin-btn admin-btn-soft h-10 px-4 text-sm">
                                 <i class="bi bi-person-plus-fill"></i> Add Passenger
                             </button>
                         </div>
@@ -974,10 +933,10 @@ Example:
                     </section>
 
                     <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                        <button type="reset" id="et-reset-btn" class="text-text-muted font-semibold py-2.5 px-6 rounded-xl border border-slate-300 hover:bg-slate-50 transition-all text-sm">
+                        <button type="reset" id="et-reset-btn" class="admin-btn admin-btn-ghost px-6 text-sm">
                             Clear
                         </button>
-                        <button type="submit" id="et-generate-btn" class="bg-gradient-to-r from-primary to-blue-700 text-white font-semibold py-2.5 px-8 rounded-xl hover:opacity-95 transition-all shadow-lg shadow-primary/20 text-sm">
+                        <button type="submit" id="et-generate-btn" class="admin-btn admin-btn-primary px-8 text-sm">
                             Generate E-Ticket
                         </button>
                     </div>
@@ -992,7 +951,7 @@ Example:
                             <p class="text-[11px] uppercase tracking-[0.12em] text-slate-300">Preview Ready</p>
                             <p class="text-sm font-semibold">Review ticket details, then print or save as PDF.</p>
                         </div>
-                        <button id="et-print-btn" class="bg-white text-slate-900 hover:bg-slate-100 font-semibold flex items-center gap-2 py-2.5 px-6 rounded-xl transition shadow">
+                        <button id="et-print-btn" class="admin-btn admin-btn-secondary px-6 !text-slate-900">
                             <i class="bi bi-printer-fill"></i> Print / Save as PDF
                         </button>
                     </div>
@@ -1145,12 +1104,6 @@ Example:
     <!-- Custom JS -->
     <script type="module" src="/src/js/admin/main.js"></script>
 
-    <style>
-        @keyframes fadeInScale {
-            from { opacity: 0; transform: scale(0.95) translateY(-8px); }
-            to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-    </style>
 </body>
 
 </html>

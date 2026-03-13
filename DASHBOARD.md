@@ -61,7 +61,7 @@ zamra/                          # Firebase project root
 web/
 ├── admin.html                          # Dashboard HTML — all tab panels + modal dialog
 └── src/
-    ├── styles/admin/style.css          # Admin-specific CSS (chips, progress bar, etc.)
+    ├── styles/admin/style.css          # Admin-specific CSS + shared UI system (`admin-panel`, `admin-control`, `admin-btn`, `admin-action-btn`, `admin-status-pill`)
     └── js/admin/
         ├── firebase-config.js          # Firebase init — exports: auth, db, storage, functions
         ├── auth.js                     # onAuthChange(), logoutUser()

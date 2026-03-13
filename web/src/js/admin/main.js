@@ -203,8 +203,8 @@ function initTabs() {
   navLinks.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
-      navLinks.forEach(l => { l.classList.remove('active', 'text-primary'); l.classList.add('text-gray-500'); });
-      link.classList.remove('text-gray-500');
+      navLinks.forEach(l => { l.classList.remove('active', 'text-primary'); l.classList.add('text-text-muted'); });
+      link.classList.remove('text-text-muted');
       link.classList.add('active', 'text-primary');
 
       const targetId = link.getAttribute('data-tab');
@@ -607,7 +607,7 @@ function renderReportFaresTable(fares) {
               ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
               : (f.flightDate || '—');
             const rowBg = idx % 2 === 1 ? 'bg-slate-50/60' : '';
-            return `<tr class="${rowBg} hover:bg-blue-50/40 transition-colors">
+            return `<tr class="${rowBg} hover:bg-slate-100/80 transition-colors">
               <td class="whitespace-nowrap font-semibold text-navy text-[13px]">${dateStr}</td>
               <td class="whitespace-nowrap text-text-muted text-[12px]">${f.flightTime || '—'}</td>
               <td class="whitespace-nowrap">
@@ -637,20 +637,20 @@ function renderReportFaresTable(fares) {
               <td class="whitespace-nowrap text-[12px]">${f.baggage ? f.baggage + ' kg' : '—'}</td>
               <td class="whitespace-nowrap text-[12px]">${f.extraBaggage ? f.extraBaggage + ' kg' : '—'}</td>
               <td class="whitespace-nowrap">
-                <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${f.isHidden ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}">
+                <span class="admin-status-pill ${f.isHidden ? 'admin-status-hidden' : 'admin-status-live'}">
                   ${f.isHidden ? '● Hidden' : '● Live'}
                 </span>
               </td>
               <td class="whitespace-nowrap">
                 <div class="flex gap-1">
                   <button onclick="window.__openEditFareModal('${f.id}')"
-                    class="bg-blue-50 text-blue-600 border border-blue-200 px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-blue-500 hover:text-white transition-colors">Edit</button>
+                    class="admin-action-btn admin-action-edit">Edit</button>
                   <button onclick="window.__toggleFare('${f.id}', ${!f.isHidden})"
-                    class="${f.isHidden ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-500' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-500'} border px-2.5 py-1 rounded-lg text-[11px] font-bold hover:text-white transition-colors">
+                    class="admin-action-btn ${f.isHidden ? 'admin-action-show' : 'admin-action-toggle'}">
                     ${f.isHidden ? 'Show' : 'Hide'}
                   </button>
                   <button onclick="window.__deleteFare('${f.id}')"
-                    class="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-red-500 hover:text-white transition-colors">Del</button>
+                    class="admin-action-btn admin-action-delete">Del</button>
                 </div>
               </td>
             </tr>`;
@@ -729,32 +729,32 @@ function renderReportFaresTable(fares) {
       <form id="edit-fare-form" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Date</label>
-            <input type="date" id="ef-date" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${dateVal}" required>
+            <label class="admin-label text-[10px] mb-1">Date</label>
+            <input type="date" id="ef-date" class="admin-control h-10" value="${dateVal}" required>
           </div>
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Time</label>
-            <input type="text" id="ef-time" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 04:05 - 11:10" value="${fare.flightTime || ''}">
+            <label class="admin-label text-[10px] mb-1">Time</label>
+            <input type="text" id="ef-time" class="admin-control h-10" placeholder="e.g. 04:05 - 11:10" value="${fare.flightTime || ''}">
           </div>
         </div>
 
         <div class="grid grid-cols-3 gap-4">
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Sector</label>
-            <select id="ef-sector" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+            <label class="admin-label text-[10px] mb-1">Sector</label>
+            <select id="ef-sector" class="admin-control h-10" required>
               ${_sectors.map(s => `<option value="${s.id}" ${s.id === fare.sectorId ? 'selected' : ''}>${s.sectorCode}</option>`).join('')}
             </select>
           </div>
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Airline</label>
-            <select id="ef-airline" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+            <label class="admin-label text-[10px] mb-1">Airline</label>
+            <select id="ef-airline" class="admin-control h-10" required>
               <option value="">-- None --</option>
               ${_airlines.map(a => `<option value="${a.id}" ${a.id === fare.airlineId ? 'selected' : ''}>${a.code}</option>`).join('')}
             </select>
           </div>
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Agent</label>
-            <select id="ef-agent" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" required>
+            <label class="admin-label text-[10px] mb-1">Agent</label>
+            <select id="ef-agent" class="admin-control h-10" required>
               <option value="">-- None --</option>
               ${_agents.map(a => `<option value="${a.id}" ${a.id === fare.agentId ? 'selected' : ''}>${a.name}</option>`).join('')}
             </select>
@@ -763,27 +763,27 @@ function renderReportFaresTable(fares) {
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">SP Rate (₹)</label>
-            <input type="number" id="ef-sprate" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.specialRate || 0}" required>
+            <label class="admin-label text-[10px] mb-1">SP Rate (₹)</label>
+            <input type="number" id="ef-sprate" class="admin-control h-10" value="${fare.specialRate || 0}" required>
           </div>
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Final Rate (₹)</label>
-            <input type="number" id="ef-finalrate" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.finalRate || 0}" required>
+            <label class="admin-label text-[10px] mb-1">Final Rate (₹)</label>
+            <input type="number" id="ef-finalrate" class="admin-control h-10" value="${fare.finalRate || 0}" required>
           </div>
         </div>
 
         <div class="grid grid-cols-3 gap-4">
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Baggage (kg)</label>
-            <input type="number" id="ef-bag" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.baggage || 0}">
+            <label class="admin-label text-[10px] mb-1">Baggage (kg)</label>
+            <input type="number" id="ef-bag" class="admin-control h-10" value="${fare.baggage || 0}">
           </div>
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Ex. Baggage (kg)</label>
-            <input type="number" id="ef-exbag" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" value="${fare.extraBaggage || 0}">
+            <label class="admin-label text-[10px] mb-1">Ex. Baggage (kg)</label>
+            <input type="number" id="ef-exbag" class="admin-control h-10" value="${fare.extraBaggage || 0}">
           </div>
           <div>
-            <label class="block text-xs font-bold text-navy mb-1">Status</label>
-            <select id="ef-status" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+            <label class="admin-label text-[10px] mb-1">Status</label>
+            <select id="ef-status" class="admin-control h-10">
               <option value="live" ${!fare.isHidden ? 'selected' : ''}>Live</option>
               <option value="hidden" ${fare.isHidden ? 'selected' : ''}>Hidden</option>
             </select>
@@ -791,8 +791,8 @@ function renderReportFaresTable(fares) {
         </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button type="button" onclick="document.getElementById('admin-modal').close()" class="px-5 py-2.5 rounded-xl font-bold text-sm text-text-muted bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-          <button type="submit" class="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-dark transition-colors shadow-md hover:shadow-lg shadow-primary/20">Save Changes</button>
+          <button type="button" onclick="document.getElementById('admin-modal').close()" class="admin-btn admin-btn-ghost px-5">Cancel</button>
+          <button type="submit" class="admin-btn admin-btn-primary px-5">Save Changes</button>
         </div>
       </form>
     `;
@@ -894,8 +894,8 @@ async function renderAgentsTab(fetchData = true) {
 
 function agentRow(a) {
   const statusBadge = a.isActive !== false
-    ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700">Active</span>`
-    : `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-600">Hidden</span>`;
+    ? `<span class="admin-status-pill admin-status-active">Active</span>`
+    : `<span class="admin-status-pill admin-status-inactive">Hidden</span>`;
   const comm = a.commission !== undefined ? `₹${Number(a.commission).toLocaleString()}` : '—';
   return `<tr data-agent-id="${a.id}">
     <td class="font-mono text-xs text-text-muted">${a.id || '—'}</td>
@@ -905,10 +905,10 @@ function agentRow(a) {
     <td class="font-semibold text-navy">${comm}</td>
     <td>${statusBadge}</td>
     <td class="flex gap-1 flex-wrap">
-      <button data-action="edit-agent" data-id="${a.id}" class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-yellow-500">Edit</button>
-      <button data-action="delete-agent" data-id="${a.id}" class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-red-600">Delete</button>
+      <button data-action="edit-agent" data-id="${a.id}" class="admin-action-btn admin-action-edit">Edit</button>
+      <button data-action="delete-agent" data-id="${a.id}" class="admin-action-btn admin-action-delete">Delete</button>
       <button data-action="toggle-agent" data-id="${a.id}" data-active="${a.isActive !== false}"
-        class="px-3 py-1 rounded text-[12px] font-bold ${a.isActive !== false ? 'bg-slate-400 text-white hover:bg-slate-500' : 'bg-green-500 text-white hover:bg-green-600'}">
+        class="admin-action-btn ${a.isActive !== false ? 'admin-action-toggle' : 'admin-action-show'}">
         ${a.isActive !== false ? 'Hide Fares' : 'Show Fares'}</button>
     </td>
   </tr>`;
@@ -953,14 +953,14 @@ function renderPaginationFooter(tabName, total, totalPages, start, limit) {
   footer.innerHTML = `
     <div class="flex items-center justify-between px-2 py-3 text-sm text-text-muted overflow-x-auto whitespace-nowrap">
       <span>Showing ${total ? start + 1 : 0} to ${end} of ${total} entries</span>
-      <div class="flex items-center gap-1 ml-4 shadow-[var(--shadow-premium-soft)] rounded">
-        <button data-pg-action="prev" class="px-3 py-1.5 border border-border rounded-l bg-white text-sm font-semibold hover:bg-slate-50 hover:text-navy disabled:opacity-40 premium-transition" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>
+      <div class="admin-pagination-wrap">
+        <button data-pg-action="prev" class="admin-pagination-btn" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>
         ${Array.from({ length: totalPages }, (_, i) => i + 1).map(p =>
-          `<button data-pg-action="goto" data-pg="${p}" class="px-3 py-1.5 border-y border-r border-border text-sm font-bold bg-white premium-transition ${
-            p === currentPage ? 'text-primary bg-primary-light shadow-inner border-primary/20 relative z-10' : 'text-text-mid hover:bg-slate-50 hover:text-navy'
+          `<button data-pg-action="goto" data-pg="${p}" class="admin-pagination-btn ${
+            p === currentPage ? 'admin-pagination-btn-active' : ''
           }">${p}</button>`
         ).join('')}
-        <button data-pg-action="next" class="px-3 py-1.5 border-y border-r border-border rounded-r bg-white text-sm font-semibold hover:bg-slate-50 hover:text-navy disabled:opacity-40 premium-transition" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
+        <button data-pg-action="next" class="admin-pagination-btn" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
       </div>
     </div>`;
 
@@ -986,40 +986,40 @@ function openAgentModal(agent) {
   openModal(isEdit ? 'Edit Agent' : 'Add New Agent', `
     <form id="agent-form" class="flex flex-col gap-4">
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Agent ID *</label>
+        <label class="admin-label text-[11px] mb-1">Agent ID *</label>
         <input name="id" required value="${agent?.id || ''}" placeholder="e.g. AGENT1"
-          ${isEdit ? 'readonly class="w-full bg-slate-100 border border-border rounded-lg h-11 px-3 text-sm focus:outline-none cursor-not-allowed text-slate-500"' : 'class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"'}>
+          ${isEdit ? 'readonly class="admin-control cursor-not-allowed bg-slate-100 text-slate-500"' : 'class="admin-control"'}>
         ${isEdit ? '<p class="text-[11px] text-text-soft mt-1">Agent ID cannot be changed after creation.</p>' : ''}
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Name *</label>
+        <label class="admin-label text-[11px] mb-1">Name *</label>
         <input name="name" required value="${agent?.name || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+          class="admin-control">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Email</label>
+        <label class="admin-label text-[11px] mb-1">Email</label>
         <input name="email" type="email" value="${agent?.email || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+          class="admin-control">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Phone</label>
+        <label class="admin-label text-[11px] mb-1">Phone</label>
         <input name="contactPhone" value="${agent?.contactPhone || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+          class="admin-control">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Commission (₹) *</label>
+        <label class="admin-label text-[11px] mb-1">Commission (₹) *</label>
         <input name="commission" type="number" min="0" required value="${agent?.commission !== undefined ? agent.commission : 500}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          class="admin-control"
           placeholder="e.g. 500">
         <p class="text-[11px] text-text-soft mt-1">This commission is auto-applied to all fares ingested for this agent.</p>
       </div>
       <div class="flex gap-3 pt-2">
         <button type="submit"
-          class="flex-1 bg-primary text-white font-semibold h-11 rounded-lg hover:bg-blue-600 transition-all text-sm">
+          class="admin-btn admin-btn-primary flex-1 text-sm">
           ${isEdit ? 'Save Changes' : 'Add Agent'}
         </button>
         <button type="button" id="modal-cancel"
-          class="px-6 h-11 rounded-lg border border-border text-text-muted hover:bg-slate-50 text-sm">Cancel</button>
+          class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
       </div>
     </form>`);
 
@@ -1153,10 +1153,10 @@ function sectorRow(s) {
     <td class="font-semibold">${sector.sectorTo}</td>
     <td><span class="font-mono font-bold text-primary">${sector.sectorCode}</span></td>
     <td class="flex gap-1">
-      <button data-action="edit-sector" data-id="${s.id}" class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-yellow-500">Edit</button>
-      <button data-action="delete-sector" data-id="${s.id}" class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-red-600">Delete</button>
+      <button data-action="edit-sector" data-id="${s.id}" class="admin-action-btn admin-action-edit">Edit</button>
+      <button data-action="delete-sector" data-id="${s.id}" class="admin-action-btn admin-action-delete">Delete</button>
       <button data-action="toggle-sector" data-id="${s.id}" data-hidden="${s.isHidden === true}"
-        class="px-3 py-1 rounded text-[12px] font-bold ${s.isHidden === true ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-slate-400 text-white hover:bg-slate-500'}">
+        class="admin-action-btn ${s.isHidden === true ? 'admin-action-show' : 'admin-action-toggle'}">
         ${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
     </td>
   </tr>`;
@@ -1198,25 +1198,25 @@ function openSectorModal(sector) {
   openModal(isEdit ? 'Edit Sector' : 'Add New Sector', `
     <form id="sector-form" class="flex flex-col gap-4">
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">From City *</label>
+        <label class="admin-label text-[11px] mb-1">From City *</label>
         <input name="sectorFrom" required placeholder="e.g. Kozhikode" value="${sector?.sectorFrom || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+          class="admin-control">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">To City *</label>
+        <label class="admin-label text-[11px] mb-1">To City *</label>
         <input name="sectorTo" required placeholder="e.g. Jeddah" value="${sector?.sectorTo || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+          class="admin-control">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Sector Code *</label>
+        <label class="admin-label text-[11px] mb-1">Sector Code *</label>
         <input name="sectorCode" required placeholder="e.g. CCJ JED" value="${sector?.sectorCode || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none font-mono tracking-wide">
+          class="admin-control font-mono tracking-wide">
       </div>
       <div class="flex gap-3 pt-2">
-        <button type="submit" class="flex-1 bg-primary text-white font-semibold h-11 rounded-lg hover:bg-blue-600 text-sm">
+        <button type="submit" class="admin-btn admin-btn-primary flex-1 text-sm">
           ${isEdit ? 'Save Changes' : 'Add Sector'}
         </button>
-        <button type="button" id="modal-cancel" class="px-6 h-11 rounded-lg border border-border text-text-muted hover:bg-slate-50 text-sm">Cancel</button>
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
       </div>
     </form>`);
 
@@ -1291,8 +1291,8 @@ function airlineRow(a) {
     <td class="font-semibold">${a.name}</td>
     <td><span class="font-mono font-bold text-primary">${a.code}</span></td>
     <td class="flex gap-1">
-      <button data-action="edit-airline" data-id="${a.id}" class="bg-yellow-400 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-yellow-500">Edit</button>
-      <button data-action="delete-airline" data-id="${a.id}" class="bg-red-500 text-white px-3 py-1 rounded text-[12px] font-bold hover:bg-red-600">Delete</button>
+      <button data-action="edit-airline" data-id="${a.id}" class="admin-action-btn admin-action-edit">Edit</button>
+      <button data-action="delete-airline" data-id="${a.id}" class="admin-action-btn admin-action-delete">Delete</button>
     </td>
   </tr>`;
 }
@@ -1323,26 +1323,26 @@ function openAirlineModal(airline) {
   openModal(isEdit ? 'Edit Airline' : 'Add New Airline', `
     <form id="airline-form" class="flex flex-col gap-4">
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Airline Name *</label>
+        <label class="admin-label text-[11px] mb-1">Airline Name *</label>
         <input name="name" required placeholder="e.g. Air India Express" value="${airline?.name || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+          class="admin-control">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">IATA Code *</label>
+        <label class="admin-label text-[11px] mb-1">IATA Code *</label>
         <input name="code" required maxlength="3" placeholder="e.g. IX" value="${airline?.code || ''}"
-          class="w-full border border-border rounded-lg h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none font-mono tracking-widest uppercase">
+          class="admin-control font-mono tracking-widest uppercase">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-text-muted mb-1">Logo (optional)</label>
+        <label class="admin-label text-[11px] mb-1">Logo (optional)</label>
         <input type="file" name="logoFile" accept="image/*"
           class="w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-light file:text-primary cursor-pointer">
         ${airline?.logoUrl ? `<img src="${airline.logoUrl}" class="mt-2 h-8 object-contain rounded" alt="current logo">` : ''}
       </div>
       <div class="flex gap-3 pt-2">
-        <button type="submit" class="flex-1 bg-primary text-white font-semibold h-11 rounded-lg hover:bg-blue-600 text-sm">
+        <button type="submit" class="admin-btn admin-btn-primary flex-1 text-sm">
           ${isEdit ? 'Save Changes' : 'Add Airline'}
         </button>
-        <button type="button" id="modal-cancel" class="px-6 h-11 rounded-lg border border-border text-text-muted hover:bg-slate-50 text-sm">Cancel</button>
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
       </div>
     </form>`);
 
@@ -1861,7 +1861,6 @@ function buildChips() {
     c.className = 'rp-chip';
     c.dataset.agentId = agent.id;
     c.textContent = agent.id;
-    c.style.cssText = 'height:48px;padding:0 12px;display:flex;align-items:center;justify-content:center;border:2px solid #b8cce4;border-radius:10px;font-size:13px;font-weight:700;color:#1e293b;cursor:pointer;background:#ffffff;user-select:none;box-shadow:0 1px 4px rgba(13,31,60,.10);transition:all .16s ease;white-space:nowrap;';
     c.addEventListener('click', () => pickAgent(agent.id, agent.name, c));
     cGrid.appendChild(c);
   });
@@ -1873,13 +1872,9 @@ function pickAgent(agentId, agentName, el) {
   document.getElementById('manualAgent').value = '';
   document.querySelectorAll('.rp-chip').forEach(c => {
     c.classList.remove('on');
-    c.style.background = '#ffffff'; c.style.color = '#1e293b';
-    c.style.borderColor = '#b8cce4'; c.style.boxShadow = '0 1px 4px rgba(13,31,60,.10)'; c.style.transform = '';
   });
   if (el) {
     el.classList.add('on');
-    el.style.background = '#1a73e8'; el.style.color = '#ffffff';
-    el.style.borderColor = '#1a73e8'; el.style.boxShadow = '0 4px 14px rgba(26,115,232,.3)'; el.style.transform = 'translateY(-1px)';
   }
   syncPill(); validate();
 }
@@ -2042,6 +2037,39 @@ function renderHistory() {
 // E-TICKET GENERATOR
 // ══════════════════════════════════════════════════════════════════════════════
 
+const ETICKET_A4_WIDTH_PX = (210 / 25.4) * 96;
+const ETICKET_A4_HEIGHT_PX = (297 / 25.4) * 96;
+
+function applyETicketPrintFit() {
+  const wrapper = document.getElementById('eticket-output-wrapper');
+  const printArea = document.getElementById('eticket-print-area');
+  if (!wrapper || !printArea) return;
+  if (wrapper.classList.contains('hidden')) return;
+
+  // Reset first so measurements are based on the full preview size.
+  printArea.style.zoom = '1';
+  printArea.style.removeProperty('--eticket-print-scale');
+
+  const contentWidth = Math.max(printArea.scrollWidth, printArea.offsetWidth);
+  const contentHeight = Math.max(printArea.scrollHeight, printArea.offsetHeight);
+  if (!contentWidth || !contentHeight) return;
+
+  const widthScale = ETICKET_A4_WIDTH_PX / contentWidth;
+  const heightScale = ETICKET_A4_HEIGHT_PX / contentHeight;
+  let scale = Math.min(1, widthScale, heightScale);
+  if (scale < 1) scale = Math.max(0.7, scale * 0.985);
+
+  printArea.style.zoom = String(scale);
+  printArea.style.setProperty('--eticket-print-scale', String(scale));
+}
+
+function resetETicketPrintFit() {
+  const printArea = document.getElementById('eticket-print-area');
+  if (!printArea) return;
+  printArea.style.zoom = '1';
+  printArea.style.removeProperty('--eticket-print-scale');
+}
+
 async function renderETicketTab() {
   const tab = document.getElementById('eticket-tab');
   if (!tab) return;
@@ -2111,7 +2139,7 @@ async function renderETicketTab() {
           <div class="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4">
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Title</label>
-              <select name="paxTitle[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+              <select name="paxTitle[]" class="admin-control h-10">
                 <option value="MR">MR</option>
                 <option value="MRS">MRS</option>
                 <option value="MS">MS</option>
@@ -2122,12 +2150,12 @@ async function renderETicketTab() {
 
             <div class="md:col-span-4">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Passenger Name *</label>
-              <input type="text" name="paxName[]" required placeholder="e.g. JOHN DOE" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none uppercase placeholder:normal-case bg-white">
+              <input type="text" name="paxName[]" required placeholder="e.g. JOHN DOE" class="admin-control h-10 uppercase placeholder:normal-case">
             </div>
 
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Category</label>
-              <select name="paxType[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+              <select name="paxType[]" class="admin-control h-10">
                 <option value="ADT">Adult</option>
                 <option value="CHD">Child</option>
                 <option value="INF">Infant</option>
@@ -2136,7 +2164,7 @@ async function renderETicketTab() {
 
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Cabin Bag</label>
-              <select name="paxCarryBag[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+              <select name="paxCarryBag[]" class="admin-control h-10">
                 <option value="7 Kg" selected>7 Kg</option>
                 <option value="10 Kg">10 Kg</option>
               </select>
@@ -2144,7 +2172,7 @@ async function renderETicketTab() {
 
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Check-in Bag</label>
-              <select name="paxCheckBag[]" class="w-full border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+              <select name="paxCheckBag[]" class="admin-control h-10">
                 <option value="15 Kg">15 Kg</option>
                 <option value="20 Kg">20 Kg</option>
                 <option value="25 Kg">25 Kg</option>
@@ -2182,8 +2210,12 @@ async function renderETicketTab() {
 
     // Wire Print Ticket Button (inside preview action bar)
     document.getElementById('et-print-btn')?.addEventListener('click', () => {
-      window.print();
+      applyETicketPrintFit();
+      requestAnimationFrame(() => window.print());
     });
+
+    window.addEventListener('beforeprint', applyETicketPrintFit);
+    window.addEventListener('afterprint', resetETicketPrintFit);
 
     // Wire Reset form button
     form?.addEventListener('reset', () => {
