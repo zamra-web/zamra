@@ -420,7 +420,7 @@ async function renderDashboardTab() {
 
   // Populate sector dropdown from live Firestore data
   const sectorSel = document.getElementById('poster-sector-sel');
-  if (sectorSel && sectorSel.options.length <= 1) {
+  if (sectorSel && sectorSel.options.length <= 2) {
     _sectors.forEach(s => {
       const opt = new Option(s.sectorCode, s.id);
       sectorSel.appendChild(opt);
@@ -506,25 +506,49 @@ async function renderPoster(fares, sectorId) {
   if (!container || !tbody || !titleEl) return;
 
   // Set header title
-  const sector = _sectors.find(s => s.id === sectorId);
-  const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
-  const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
-  titleEl.innerHTML = `${originName} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${destName}`;
+  if (sectorId === 'all') {
+    titleEl.innerHTML = `MULTIPLE <span style="color:#60a5fa;font-weight:900;">&#8594;</span> SECTORS`;
+  } else {
+    const sector = _sectors.find(s => s.id === sectorId);
+    const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
+    const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
+    titleEl.innerHTML = `${originName} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${destName}`;
+  }
 
-  // Sort fares by date, limit to 10
-  const sortedFares = [...fares].sort((a, b) => {
+  // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
+  const groupedFaresMap = new Map();
+  fares.forEach(fare => {
+    const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
+    const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
+    if (!groupedFaresMap.has(key)) {
+      groupedFaresMap.set(key, fare);
+    } else {
+      if (fare.finalRate < groupedFaresMap.get(key).finalRate) {
+        groupedFaresMap.set(key, fare);
+      }
+    }
+  });
+  const uniqueLowestFares = Array.from(groupedFaresMap.values());
+
+  // Sort fares by date
+  const sortedFares = uniqueLowestFares.sort((a, b) => {
     let valA = a.flightDate, valB = b.flightDate;
     if (valA instanceof Date) valA = valA.getTime();
     if (valB instanceof Date) valB = valB.getTime();
     return valA - valB;
-  }).slice(0, 10);
+  });
 
   const airlineMap = {};
   _airlines.forEach(a => {
-    if (a.id) airlineMap[a.id] = a;
-    if (a.code) airlineMap[a.code] = a;
-    if (a.name) airlineMap[a.name] = a;
+    if (a.id) airlineMap[a.id.trim().toLowerCase()] = a;
+    if (a.code) airlineMap[a.code.trim().toLowerCase()] = a;
+    if (a.name) airlineMap[a.name.trim().toLowerCase()] = a;
   });
+
+  const getAirline = (rawId) => {
+    if (!rawId) return null;
+    return airlineMap[String(rawId).trim().toLowerCase()];
+  };
 
   // Pre-fetch airline logos as blob URLs — sidesteps CORS for html2canvas
   async function fetchLogoBlob(url) {
@@ -537,13 +561,19 @@ async function renderPoster(fares, sectorId) {
   }
 
   const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))]
-    .map(id => airlineMap[id])
-    .filter(a => a?.logoUrl);
+    .map(id => getAirline(id))
+    .filter(a => a && a.logoUrl);
+  
   const blobUrlMap = {};
   await Promise.all(uniqueAirlines.map(async a => {
     const blobUrl = await fetchLogoBlob(a.logoUrl);
-    if (blobUrl) blobUrlMap[a.id] = blobUrl;
+    if (blobUrl) {
+      blobUrlMap[a.id] = blobUrl; // Key the blob directly by the standard airline document ID
+    }
   }));
+
+  const sectorMap = {};
+  _sectors.forEach(s => sectorMap[s.id] = s.sectorCode);
 
   // Render table rows — use only explicit hex/rgb inline styles; no Tailwind classes
   // that would resolve to oklch() (which html2canvas 1.4.x cannot parse).
@@ -551,33 +581,38 @@ async function renderPoster(fares, sectorId) {
     const dt = f.flightDate instanceof Date
       ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
       : f.flightDate;
-    const airline = airlineMap[f.airlineId];
+    
+    const airline = getAirline(f.airlineId);
     const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
-    const logoSrc = blobUrlMap[f.airlineId] || null;
+    const logoSrc = airline ? blobUrlMap[airline.id] : null;
 
     // Airline cell: logo if available; airline name as fallback
     const airlineCell = logoSrc
-      ? `<img src="${logoSrc}" style="height:40px;max-width:100px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
-      : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:15px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
+      ? `<img src="${logoSrc}" style="height:24px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
+      : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:13px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
+
+    // Sector cell
+    const sectorCell = `<span style="font-weight:700;color:#2563eb;background-color:rgba(37,99,235,0.1);padding:4px 8px;border-radius:6px;font-size:12px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
 
     // Time cell: parse "HH:MM - HH:MM" or "HH:MM" from flightTime
-    let timeCell = '<span style="color:#94a3b8;font-size:14px;">—</span>';
+    let timeCell = '<span style="color:#94a3b8;font-size:13px;">—</span>';
     if (f.flightTime) {
       const parts = f.flightTime.split('-').map(s => s.trim());
       if (parts.length >= 2) {
-        timeCell = `<span style="font-weight:800;font-size:17px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
+        timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
       } else {
-        timeCell = `<span style="font-weight:800;font-size:17px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
+        timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
       }
     }
 
     return `
       <tr style="background-color:${rowBg};border-bottom:1px solid #f1f5f9;">
-        <td style="padding:16px 12px;font-weight:900;color:#0f172a;font-size:22px;white-space:nowrap;">${dt}</td>
-        <td style="padding:16px 12px;text-align:center;vertical-align:middle;">${airlineCell}</td>
-        <td style="padding:16px 12px;text-align:center;vertical-align:middle;">${timeCell}</td>
-        <td style="padding:16px 12px;text-align:right;vertical-align:middle;">
-          <div style="display:inline-block;background-color:#0f172a;color:#ffffff;padding:8px 18px;border-radius:12px;font-weight:900;font-size:22px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+        <td style="padding:10px 8px;font-weight:700;color:#0f172a;font-size:13px;white-space:nowrap;">${dt}</td>
+        <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
+        <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
+        <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
+        <td style="padding:10px 8px;text-align:right;vertical-align:middle;">
+          <div style="display:inline-block;color:#0f172a;font-weight:900;font-size:15px;">
             &#8377;${(f.finalRate || 0).toLocaleString()}
           </div>
         </td>
@@ -1958,6 +1993,41 @@ function wireDatabaseTableEvents() {
       return;
     }
 
+    if (action === 'share') {
+      const dbFare = _databaseFares.find(f => f.id === fareId) || _databaseDrafts[fareId] || {};
+      const merged = getMergedDatabaseFare(dbFare) || dbFare;
+
+      const sector = _sectors.find(s => s.id === merged.sectorId) || {};
+      const airline = _airlines.find(a => a.id === merged.airlineId) || {};
+
+      const airlineName = airline.name || merged.airlineId || 'Unknown Airline';
+      const originName = sector.sectorFrom || 'TBA';
+      const destName = sector.sectorTo || 'TBA';
+
+      const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+      let dateStr = 'TBA';
+      if (merged.flightDate) {
+        const dt = merged.flightDate instanceof Date ? merged.flightDate : new Date(merged.flightDate);
+        if (!isNaN(dt)) {
+           dateStr = dt.toLocaleDateString('en-GB', dateOptions).replace(/,/g, ''); 
+        }
+      }
+
+      const dep = (merged.flightTime && merged.flightTime.split('-')[0]) ? merged.flightTime.split('-')[0].trim() : 'TBA';
+      const arr = (merged.flightTime && merged.flightTime.includes('-')) ? merged.flightTime.split('-')[1].trim() : 'TBA';
+      const price = "₹" + (Number(merged.finalRate) || 0).toLocaleString('en-IN');
+
+      const waMsg = `Hello Zamra Travels, I'm interested in booking this flight:\n\n✈️ *${airlineName.toUpperCase()}*\n🛫 From: *${originName}*\n🛬 To: *${destName}*\n📅 Date: *${dateStr}*\n⏰ Dep: ${dep} | Arr: ${arr}\n💵 Price: *${price}*\n\nPlease confirm availability!`;
+
+      try {
+        await navigator.clipboard.writeText(waMsg);
+        toast('success', 'Copied!', 'Flight details copied to clipboard.');
+      } catch (err) {
+        toast('error', 'Copy failed', err.message);
+      }
+      return;
+    }
+
     if (action === 'reset') {
       delete _databaseDrafts[fareId];
       renderDatabaseTable();
@@ -2328,6 +2398,7 @@ function renderDatabaseTable() {
               <td>
                 <div class="flex gap-1">
                   <button data-db-action="save" data-id="${fare.id}" class="admin-action-btn admin-action-edit" ${dirty ? '' : 'disabled'}><i class="bi bi-check2-circle"></i>Save</button>
+                  <button data-db-action="share" data-id="${fare.id}" class="admin-action-btn admin-action-show"><i class="bi bi-box-arrow-up"></i>Share</button>
                   <button data-db-action="reset" data-id="${fare.id}" class="admin-action-btn admin-action-toggle" ${dirty ? '' : 'disabled'}><i class="bi bi-arrow-counterclockwise"></i>Reset</button>
                   <button data-db-action="delete" data-id="${fare.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
                 </div>
@@ -3176,7 +3247,7 @@ async function generateETicket(formData) {
   if (el('t-travel-date')) el('t-travel-date').textContent = formattedDate || '—';
   if (el('t-route-code')) el('t-route-code').textContent = routeCode;
   if (el('t-route-long')) el('t-route-long').textContent = routeLong;
-  if (el('t-duration')) el('t-duration').textContent = durationText;
+  // duration text was removed, we use t-top-pax-count below
 
   // Booked on - today
   const today = new Date();
@@ -3210,6 +3281,7 @@ async function generateETicket(formData) {
   const paxCheckBag = formData.getAll('paxCheckBag[]');
   const paxCarryBag = formData.getAll('paxCarryBag[]');
   if (el('t-pax-count')) el('t-pax-count').textContent = String(paxNames.length);
+  if (el('t-top-pax-count')) el('t-top-pax-count').textContent = String(paxNames.length);
 
   const paxTbody = document.getElementById('t-passengers-tbody');
   if (paxTbody) {

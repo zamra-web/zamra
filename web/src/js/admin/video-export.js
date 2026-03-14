@@ -19,22 +19,51 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             ctx.imageSmoothingEnabled = true;
 
             // 2. Pre-load assets
-            const sector = sectors.find(s => s.id === sectorId);
-            const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
-            const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
+            let titleText = 'MULTIPLE → SECTORS';
+            if (sectorId !== 'all') {
+                const sector = sectors.find(s => s.id === sectorId);
+                const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
+                const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
+                titleText = `${originName} → ${destName}`;
+            }
 
-            const sortedFares = [...fares].sort((a, b) => {
+            // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
+            const groupedFaresMap = new Map();
+            fares.forEach(fare => {
+                const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
+                const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
+                if (!groupedFaresMap.has(key)) {
+                    groupedFaresMap.set(key, fare);
+                } else {
+                    if (fare.finalRate < groupedFaresMap.get(key).finalRate) {
+                        groupedFaresMap.set(key, fare);
+                    }
+                }
+            });
+            const uniqueLowestFares = Array.from(groupedFaresMap.values());
+
+            const sortedFares = uniqueLowestFares.sort((a, b) => {
                 let valA = a.flightDate, valB = b.flightDate;
                 if (valA instanceof Date) valA = valA.getTime();
                 if (valB instanceof Date) valB = valB.getTime();
                 return valA - valB;
-            }).slice(0, 10); // Standard poster limits to 10
+            });
 
             const airlineMap = {};
             airlines.forEach(a => {
-                if (a.id) airlineMap[a.id] = a;
-                if (a.code) airlineMap[a.code] = a;
-                if (a.name) airlineMap[a.name] = a;
+                if (a.id) airlineMap[a.id.trim().toLowerCase()] = a;
+                if (a.code) airlineMap[a.code.trim().toLowerCase()] = a;
+                if (a.name) airlineMap[a.name.trim().toLowerCase()] = a;
+            });
+
+            const getAirline = (rawId) => {
+                if (!rawId) return null;
+                return airlineMap[String(rawId).trim().toLowerCase()];
+            };
+
+            const sectorMap = {};
+            sectors.forEach(s => {
+                sectorMap[s.id] = s.sectorCode || s.id;
             });
 
             async function fetchLogoImage(url) {
@@ -71,10 +100,12 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             // Preload Airline Logos
             const loadedLogos = {};
-            const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))].map(id => airlineMap[id]).filter(a => a?.logoUrl);
+            const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))].map(id => getAirline(id)).filter(a => a && a.logoUrl);
             await Promise.all(uniqueAirlines.map(async a => {
                 const img = await fetchLogoImage(a.logoUrl);
-                if (img) loadedLogos[a.id] = img;
+                if (img) {
+                    loadedLogos[a.id] = img;
+                }
             }));
 
             // 3. Start Recording
@@ -185,7 +216,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 // Title
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '900 ' + (ratio === '16x9' ? '70px' : '56px') + ' Arial, sans-serif';
-                ctx.fillText(`${originName} → ${destName}`, width/2, badgeY + 80);
+                ctx.fillText(titleText, width/2, badgeY + 80);
                 
                 // Subtitle
                 ctx.fillStyle = '#dbeafe';
@@ -206,7 +237,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.fillText('DATE', marginX + 20, startY - 20);
                 
                 ctx.textAlign = 'center';
-                ctx.fillText('AIRLINE', marginX + (listWidth * 0.35), startY - 20);
+                ctx.fillText('SECTOR', marginX + (listWidth * 0.25), startY - 20);
+                ctx.fillText('AIRLINE', marginX + (listWidth * 0.45), startY - 20);
                 ctx.fillText('TIME', marginX + (listWidth * 0.65), startY - 20);
                 
                 ctx.textAlign = 'right';
@@ -248,9 +280,18 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.font = '900 26px Arial, sans-serif';
                     ctx.fillText(dt, marginX + 20, y + (rowHeight/2) - 5);
 
+                    // Sector
+                    ctx.font = '700 22px Arial, sans-serif';
+                    ctx.fillStyle = '#2563eb';
+                    ctx.textAlign = 'center';
+                    const sName = sectorMap[f.sectorId] || f.sectorId;
+                    ctx.fillText(sName, marginX + (listWidth * 0.25), y + (rowHeight/2) - 5);
+                    ctx.fillStyle = '#0f172a'; // reset
+
                     // Airline Logo/Text
-                    const centerX = marginX + (listWidth * 0.35);
-                    const logo = loadedLogos[f.airlineId];
+                    const centerX = marginX + (listWidth * 0.45);
+                    const airlineObj = getAirline(f.airlineId);
+                    const logo = airlineObj ? loadedLogos[airlineObj.id] : null;
                     if (logo && logo.width > 0) {
                         const logoW = Math.min(100, logo.width);
                         const logoH = 40;
@@ -258,7 +299,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     } else {
                         ctx.font = '700 20px Arial, sans-serif';
                         ctx.textAlign = 'center';
-                        const aName = airlineMap[f.airlineId]?.name || f.airlineId || '—';
+                        const aName = airlineObj?.name || f.airlineId || '—';
                         ctx.fillText(aName, centerX, y + (rowHeight/2) - 5);
                     }
 

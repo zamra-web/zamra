@@ -202,10 +202,20 @@ document.addEventListener('DOMContentLoaded', () => {
           const today = new Date();
           today.setHours(0,0,0,0);
 
-          let fares = await getFares({
-            sectorId: sector.id,
-            startDate: today.toISOString()
+          // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
+          const groupedFaresMap = new Map();
+          fares.forEach(fare => {
+            const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
+            const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
+            if (!groupedFaresMap.has(key)) {
+              groupedFaresMap.set(key, fare);
+            } else {
+              if (fare.finalRate < groupedFaresMap.get(key).finalRate) {
+                groupedFaresMap.set(key, fare);
+              }
+            }
           });
+          fares = Array.from(groupedFaresMap.values());
 
           fares.sort((a, b) => {
              if (a.flightDate.getTime() === b.flightDate.getTime()) {
@@ -399,6 +409,21 @@ async function searchFlights() {
         sectorId: sector.id,
         startDate: today.toISOString()
       });
+      
+      // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
+      const groupedFaresMap = new Map();
+      fares.forEach(fare => {
+        const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
+        const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
+        if (!groupedFaresMap.has(key)) {
+          groupedFaresMap.set(key, fare);
+        } else {
+          if (fare.finalRate < groupedFaresMap.get(key).finalRate) {
+            groupedFaresMap.set(key, fare);
+          }
+        }
+      });
+      fares = Array.from(groupedFaresMap.values());
       
       fares.sort((a, b) => {
          if (a.flightDate.getTime() === b.flightDate.getTime()) {
