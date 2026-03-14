@@ -165,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const routeBtn = document.createElement('button');
       routeBtn.className = 'bg-white p-4 rounded-xl border border-border shadow-sm hover:shadow-md hover:border-primary transition-all flex items-center justify-between group cursor-pointer w-full text-left';
       routeBtn.innerHTML = `
-        <span class="font-bold text-navy text-[15px]">${dest.name}</span>
+        <span class="font-bold text-navy text-[15px]">${origin.name} to ${dest.name}</span>
         <i class="bi bi-chevron-right text-text-muted group-hover:text-primary transition-colors"></i>
       `;
       routeBtn.onclick = () => {

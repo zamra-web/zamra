@@ -26,11 +26,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-  <script type="module" crossorigin src="/assets/admin-RTp-_DYg.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/firebase-config-DOwAESyl.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-DtGgaMUX.js">
-  <link rel="modulepreload" crossorigin href="/assets/db-DZVTNuCV.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-CufULIJv.css">
+  <script type="module" crossorigin src="/assets/admin-C_ZpGiFa.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/firebase-config-C3FJvAwC.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-BH7Zihzs.js">
+  <link rel="modulepreload" crossorigin href="/assets/db-VIz2p67e.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-DmpBu_rz.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -67,6 +67,8 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-signpost-split"></i><span>Sectors</span></a>
                         <a href="#" data-tab="flights-tab" data-title="Flights"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-airplane"></i><span>Flights</span></a>
+                        <a href="#" data-tab="visas-tab" data-title="Visas"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-passport"></i><span>Visas</span></a>
                     </div>
                 </div>
 
@@ -266,86 +268,69 @@
 
         <!-- AGENT SHEETS TAB -->
         <div id="agent-sheets-tab" class="tab-content">
-            <div class="max-w-[1200px] mx-auto py-12 px-2 relative z-10">
+            <div class="admin-tab-head admin-reveal mb-6" style="--reveal-delay: 0ms">
+                <div>
+                    <span class="admin-tab-kicker"><i class="bi bi-cloud-arrow-up"></i> Rate Upload</span>
+                    <h2 class="admin-tab-title">AI Rate Intake</h2>
+                    <p class="admin-tab-subtitle">Send raw agent fare dumps to the AI parser. Parsed fares land in Firestore within moments.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-2 px-3 h-[34px] rounded-full bg-blue-50 text-primary border border-blue-100 text-[11px] font-bold uppercase tracking-[0.06em]">
+                        <i class="bi bi-lightning-fill text-[12px]"></i>
+                        AI Pipeline Live
+                    </span>
+                </div>
+            </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 relative">
+            <div class="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
+                <div class="flex flex-col gap-6">
 
-                    <div>
-
-                        <div
-                            class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 relative overflow-hidden mb-[30px] ring-1 ring-slate-50">
-                            <div
-                                class="h-[4px] w-full bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)]">
+                    <div class="admin-panel admin-reveal relative overflow-hidden" style="--reveal-delay: 60ms">
+                        <div id="progBar" class="absolute top-0 left-0 w-full h-[3px] bg-slate-100 hidden [&.on]:block">
+                            <div id="progFill" class="h-full w-0 bg-gradient-to-r from-primary to-blue-400 transition-[width] duration-300 ease-out"></div>
+                        </div>
+                        <div class="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-primary flex items-center justify-center">
+                                <i class="bi bi-person-badge text-[18px]"></i>
                             </div>
-                            <div class="absolute top-[4px] left-0 w-full h-[3px] bg-[#e2e8f0] hidden [&.on]:block"
-                                id="progBar">
-                                <div class="h-full w-0 bg-primary transition-[width] duration-300 ease-in-out"
-                                    id="progFill"></div>
+                            <div>
+                                <div class="text-[11px] font-bold text-text-soft uppercase tracking-[0.12em]">Step 1</div>
+                                <div class="text-[15px] font-bold text-navy">Select Agent ID</div>
                             </div>
-                            <div class="flex items-center gap-[16px] p-[24px_32px] border-b border-border bg-[#f8fafc]">
-                                <div
-                                    class="w-[48px] h-[48px] rounded-[14px] bg-primary-light text-primary flex items-center justify-center shrink-0">
-                                    <svg class="w-[24px] h-[24px]" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" />
-                                        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2"
-                                            stroke-linecap="round" />
-                                    </svg>
-                                </div>
-                                <div class="flex-1">
-                                    <div
-                                        class="text-[12px] font-bold text-text-muted uppercase tracking-[1px] mb-[2px]">
-                                        Step 1</div>
-                                    <div class="text-[18px] font-black text-navy m-0">Select Agent Number</div>
-                                </div>
-                                <div
-                                    class="w-[36px] h-[36px] rounded-full border-2 border-border flex items-center justify-center text-[15px] font-black text-text-muted ml-auto bg-white">
-                                    1</div>
+                            <div class="ml-auto w-8 h-8 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center text-[12px] font-bold bg-white">1</div>
+                        </div>
+                        <div class="p-6">
+                            <label class="admin-label text-[11px]">Quick Select</label>
+                            <div class="flex flex-wrap gap-2 mb-4" id="chipGrid"></div>
+                            <div class="flex items-center gap-3 text-[10px] font-bold text-text-soft uppercase tracking-[0.2em] mb-4">
+                                <span class="h-px bg-border flex-1"></span>
+                                or enter manually
+                                <span class="h-px bg-border flex-1"></span>
                             </div>
-                            <div class="p-[32px]">
-                                <div class="text-[13px] font-bold text-text-mid mb-[8px]">Quick Select</div>
-                                <div class="flex flex-wrap gap-[10px] mb-[24px]" id="chipGrid"></div>
-                                <div
-                                    class="flex items-center text-[13px] font-bold text-text-muted uppercase tracking-[0.05em] mb-[24px] before:content-[''] before:flex-1 before:h-[1px] before:bg-border before:mr-[16px] after:content-[''] after:flex-1 after:h-[1px] after:bg-border after:ml-[16px]">
-                                    or enter manually</div>
-                                <div class="flex gap-[16px] items-center">
-                                    <input type="text"
-                                        class="w-full bg-[#f8fafc] border border-border rounded-xl px-[16px] h-[52px] text-[15px] text-text-main font-bold premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 placeholder:text-text-muted/60"
-                                        id="manualAgent" placeholder="e.g. AGENT-123">
-                                    <div class="shrink-0 px-[16px] h-[40px] rounded-[8px] bg-[#dcfce7] text-[#16a34a] font-bold text-[14px] flex items-center justify-center border border-[rgba(22,163,74,0.2)] transition-all [&.empty]:bg-[#f1f5f9] [&.empty]:text-[#64748b] [&.empty]:border-border"
-                                        id="agentPill">No agent selected</div>
-                                </div>
+                            <div class="flex flex-col md:flex-row md:items-center gap-3">
+                                <input type="text" class="admin-control flex-1" id="manualAgent" placeholder="e.g. 102">
+                                <div class="inline-flex items-center justify-center px-3 h-[36px] rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[12px] font-bold tracking-tight shadow-sm transition-all [&.empty]:bg-slate-50 [&.empty]:text-slate-500 [&.empty]:border-slate-200" id="agentPill">Select an agent to continue</div>
                             </div>
                         </div>
+                    </div>
 
-                        <div
-                            class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 relative overflow-hidden mb-[30px] ring-1 ring-slate-50">
-                            <div
-                                class="h-[4px] w-full bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)]">
+                    <div class="admin-panel admin-reveal" style="--reveal-delay: 120ms">
+                        <div class="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-primary flex items-center justify-center">
+                                <i class="bi bi-clipboard2-data text-[18px]"></i>
                             </div>
-                            <div class="flex items-center gap-[16px] p-[24px_32px] border-b border-border bg-[#f8fafc]">
-                                <div
-                                    class="w-[48px] h-[48px] rounded-[14px] bg-primary-light text-primary flex items-center justify-center shrink-0">
-                                    <svg class="w-[24px] h-[24px]" viewBox="0 0 24 24" fill="none">
-                                        <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor"
-                                            stroke-width="2" />
-                                        <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2"
-                                            stroke-linecap="round" />
-                                    </svg>
-                                </div>
-                                <div class="flex-1">
-                                    <div
-                                        class="text-[12px] font-bold text-text-muted uppercase tracking-[1px] mb-[2px]">
-                                        Step 2</div>
-                                    <div class="text-[18px] font-black text-navy m-0">Paste Rate Data</div>
-                                </div>
-                                <div
-                                    class="w-[36px] h-[36px] rounded-full border-2 border-border flex items-center justify-center text-[15px] font-black text-text-muted ml-auto bg-white">
-                                    2</div>
+                            <div>
+                                <div class="text-[11px] font-bold text-text-soft uppercase tracking-[0.12em]">Step 2</div>
+                                <div class="text-[15px] font-bold text-navy">Paste Rate Data</div>
                             </div>
-                            <div class="p-[32px]">
-                                <textarea
-                                    class="w-full bg-[#f8fafc] border border-border rounded-xl px-[16px] py-[16px] text-[14px] font-mono text-text-main font-bold premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 placeholder:text-text-muted/60 min-h-[140px] resize-y leading-[1.5]"
-                                    id="rateData" placeholder="Paste your rate data here...
+                            <div class="ml-auto w-8 h-8 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center text-[12px] font-bold bg-white">2</div>
+                        </div>
+                        <div class="p-6">
+                            <label class="admin-label text-[11px]">Raw Fares</label>
+                            <p class="text-[12px] text-text-muted -mt-2 mb-3">Supports WhatsApp, email, and plain-text formats.</p>
+                            <textarea
+                                class="admin-control h-auto min-h-[180px] py-3 font-mono text-[13px] leading-relaxed"
+                                id="rateData" placeholder="Paste your rate data here...
 
 Example:
 *CCJ JED IX FARES*
@@ -358,195 +343,148 @@ Example:
 05 MAR 14900
 ..." spellcheck="false"></textarea>
 
-                                <div class="flex justify-between items-center mt-[12px]">
-                                    <span class="text-[13px] text-text-soft font-semibold" id="charCount">0
-                                        characters</span>
-                                    <div class="flex gap-[6px]">
-                                        <span
-                                            class="bg-bg-main px-[10px] py-[4px] rounded-[6px] text-[11px] text-text-mid font-bold uppercase tracking-[0.5px]">WhatsApp</span>
-                                        <span
-                                            class="bg-bg-main px-[10px] py-[4px] rounded-[6px] text-[11px] text-text-mid font-bold uppercase tracking-[0.5px]">Plain
-                                            text</span>
-                                        <span
-                                            class="bg-bg-main px-[10px] py-[4px] rounded-[6px] text-[11px] text-text-mid font-bold uppercase tracking-[0.5px]">Any
-                                            format</span>
-                                    </div>
-                                </div>
-
-                                <div class="mt-[24px] bg-[#f8fafc] border border-border rounded-[12px] hidden overflow-hidden [&.on]:block [&.on]:animate-[expandIn_0.3s_ease]"
-                                    id="prevBox">
-                                    <div class="bg-[#e2e8f0] p-[10px_16px] flex justify-between items-center">
-                                        <div class="text-[12px] font-extrabold text-navy uppercase">Detected Entries
-                                        </div>
-                                        <span
-                                            class="bg-primary text-white text-[11px] px-[8px] py-[2px] rounded-full font-bold"
-                                            id="prevCount">0</span>
-                                    </div>
-                                    <div class="max-h-[240px] overflow-y-auto">
-                                        <table class="w-full border-collapse text-[13px]">
-                                            <thead>
-                                                <tr>
-                                                    <th
-                                                        class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
-                                                        Sector</th>
-                                                    <th
-                                                        class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
-                                                        Date</th>
-                                                    <th
-                                                        class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
-                                                        Airline</th>
-                                                    <th
-                                                        class="text-left p-[10px_16px] border-b border-border text-text-mid font-bold sticky top-0 bg-[#f8fafc]">
-                                                        Rate (₹)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="prevBody"></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-wrap gap-[16px] mt-[32px] pt-[24px] border-t border-border">
-                                    <button
-                                        class="flex-[2] min-w-[200px] h-[52px] bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)] text-white rounded-[12px] font-bold text-[15px] cursor-pointer premium-transition flex items-center justify-center gap-[8px] premium-hover-lift hover:shadow-[var(--shadow-premium-hover)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none relative overflow-hidden"
-                                        id="submitBtn" disabled>
-                                        <svg class="w-[20px] h-[20px]" viewBox="0 0 24 24" fill="none">
-                                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2.2"
-                                                stroke-linecap="round" />
-                                            <path d="M22 2L15 22l-4-9-9-4 20-7z" stroke="currentColor"
-                                                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                                        </svg>
-                                        Submit Rate Data
-                                    </button>
-                                    <button
-                                        class="flex-1 min-w-[120px] h-[52px] bg-white border border-border text-text-mid rounded-[12px] font-bold text-[15px] cursor-pointer premium-transition flex items-center justify-center gap-[8px] hover:bg-bg-main hover:text-navy"
-                                        id="resetBtn">
-                                        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none">
-                                            <path d="M4 4v5h5" stroke="currentColor" stroke-width="2"
-                                                stroke-linecap="round" stroke-linejoin="round" />
-                                            <path d="M4 9A9 9 0 1112 3a9 9 0 016.364 2.636" stroke="currentColor"
-                                                stroke-width="2" stroke-linecap="round" />
-                                        </svg>
-                                        Reset
-                                    </button>
+                            <div class="flex flex-wrap items-center justify-between gap-3 mt-3">
+                                <span class="text-[12px] text-text-muted font-semibold" id="charCount">0 characters</span>
+                                <div class="flex flex-wrap gap-2">
+                                    <span class="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-[10px] text-text-mid font-bold uppercase tracking-[0.08em]">WhatsApp</span>
+                                    <span class="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-[10px] text-text-mid font-bold uppercase tracking-[0.08em]">Plain text</span>
+                                    <span class="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-[10px] text-text-mid font-bold uppercase tracking-[0.08em]">Any format</span>
                                 </div>
                             </div>
-                        </div>
 
-                    </div>
-                    <div class="flex flex-col gap-[20px]">
-
-                        <div
-                            class="bg-white shadow-[var(--shadow-premium-soft)] border border-slate-100 rounded-[16px] p-[20px] relative overflow-hidden">
-                            <div
-                                class="absolute top-0 left-0 w-[4px] h-full bg-gradient-to-b from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)]">
-                            </div>
-                            <div
-                                class="text-[15px] font-extrabold text-navy flex items-center gap-[10px] pb-[16px] mb-[16px] border-b border-dotted border-[#cbd5e1] [&>svg]:w-[20px] [&>svg]:h-[20px] [&>svg]:text-primary">
-                                <svg viewBox="0 0 24 24" fill="none">
-                                    <path d="M4 20V14M9 20V8M14 20v-6M19 20V4" stroke="currentColor" stroke-width="2"
-                                        stroke-linecap="round" />
-                                </svg>
-                                Session Stats
-                            </div>
-                            <div>
-                                <div class="flex flex-col gap-[12px]">
-                                    <div
-                                        class="bg-white border border-border rounded-[10px] p-[12px] flex justify-between items-center">
-                                        <div class="text-[20px] font-black text-navy tracking-[-0.02em]" id="statSubs">0
-                                        </div>
-                                        <div class="text-[12px] font-bold uppercase text-text-soft tracking-[0.05em]">
-                                            Submissions</div>
+                            <div class="mt-5 bg-slate-50/70 border border-slate-200 rounded-xl hidden overflow-hidden [&.on]:block [&.on]:animate-[expandIn_0.3s_ease]"
+                                id="prevBox">
+                                <div class="bg-white/70 p-[10px_16px] flex justify-between items-center border-b border-border">
+                                    <div class="text-[11px] font-extrabold text-text-muted uppercase tracking-[0.08em]">Detected Entries
                                     </div>
-                                    <div
-                                        class="bg-white border border-border rounded-[10px] p-[12px] flex justify-between items-center">
-                                        <div class="text-[20px] font-black text-navy tracking-[-0.02em]"
-                                            id="statEntries">0</div>
-                                        <div class="text-[12px] font-bold uppercase text-text-soft tracking-[0.05em]">
-                                            Entries</div>
-                                    </div>
+                                    <span
+                                        class="bg-primary text-white text-[10px] px-[8px] py-[2px] rounded-full font-bold"
+                                        id="prevCount">0</span>
+                                </div>
+                                <div class="max-h-[240px] overflow-y-auto">
+                                    <table class="w-full border-collapse text-[12px]">
+                                        <thead class="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                                            <tr>
+                                                <th
+                                                    class="text-center p-[10px_16px] border-b border-border bg-white/60 sticky top-0">
+                                                    Sector</th>
+                                                <th
+                                                    class="text-center p-[10px_16px] border-b border-border bg-white/60 sticky top-0">
+                                                    Date</th>
+                                                <th
+                                                    class="text-center p-[10px_16px] border-b border-border bg-white/60 sticky top-0">
+                                                    Airline</th>
+                                                <th
+                                                    class="text-center p-[10px_16px] border-b border-border bg-white/60 sticky top-0">
+                                                    Rate (₹)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="prevBody"></tbody>
+                                    </table>
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="bg-[#f8fafc] border border-border rounded-[16px] p-[20px] relative overflow-hidden">
-                            <div
-                                class="absolute top-0 left-0 w-[4px] h-full bg-gradient-to-b from-primary to-[#1558c0]">
-                            </div>
-                            <div
-                                class="text-[15px] font-extrabold text-navy flex items-center gap-[10px] pb-[16px] mb-[16px] border-b border-dotted border-[#cbd5e1] [&>svg]:w-[20px] [&>svg]:h-[20px] [&>svg]:text-primary">
-                                <svg viewBox="0 0 24 24" fill="none">
-                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
-                                    <path d="M12 8v4l3 3" stroke="currentColor" stroke-width="2"
-                                        stroke-linecap="round" />
-                                </svg>
-                                Recent Submissions
+                            <div class="flex flex-col sm:flex-row gap-3 mt-6 pt-5 border-t border-slate-100">
                                 <button
-                                    class="ml-auto bg-[rgba(220,38,38,0.1)] text-[#dc2626] border-none px-[10px] py-[4px] rounded-[6px] font-bold text-[10px] uppercase cursor-pointer transition-colors hover:bg-[rgba(220,38,38,0.15)]"
-                                    id="clearBtn">Clear</button>
+                                    class="admin-btn admin-btn-primary flex-1 h-[46px] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    id="submitBtn" disabled>
+                                    <i class="bi bi-send-fill text-[13px]"></i>
+                                    Submit Rate Data
+                                </button>
+                                <button
+                                    class="admin-btn admin-btn-secondary flex-1 h-[46px]"
+                                    id="resetBtn">
+                                    <i class="bi bi-arrow-counterclockwise text-[13px]"></i>
+                                    Reset
+                                </button>
                             </div>
-                            <div id="historyWrap"></div>
                         </div>
+                    </div>
 
-                        <div class="bg-[#f8fafc] border border-border rounded-[16px] p-[20px] relative overflow-hidden">
-                            <div
-                                class="absolute top-0 left-0 w-[4px] h-full bg-gradient-to-b from-primary to-[#1558c0]">
-                            </div>
-                            <div
-                                class="text-[15px] font-extrabold text-navy flex items-center gap-[10px] pb-[16px] mb-[16px] border-b border-dotted border-[#cbd5e1] [&>svg]:w-[20px] [&>svg]:h-[20px] [&>svg]:text-primary">
-                                <svg viewBox="0 0 24 24" fill="none">
-                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
-                                    <path d="M12 11v6M12 8v.5" stroke="currentColor" stroke-width="2.2"
-                                        stroke-linecap="round" />
-                                </svg>
-                                How It Works
+                </div>
+                <div class="flex flex-col gap-6">
+
+                    <div class="admin-panel admin-reveal p-5" style="--reveal-delay: 180ms">
+                        <div class="flex items-center gap-3 pb-4 mb-4 border-b border-slate-100">
+                            <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                                <i class="bi bi-activity text-[16px]"></i>
                             </div>
                             <div>
-                                <div class="flex flex-col gap-[14px]">
-                                    <div class="flex gap-[12px]">
-                                        <div
-                                            class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
-                                            1</div>
-                                        <div
-                                            class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
-                                            <strong>Select your agent number</strong> from the grid or type it in
-                                            manually.
-                                        </div>
-                                    </div>
-                                    <div class="flex gap-[12px]">
-                                        <div
-                                            class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
-                                            2</div>
-                                        <div
-                                            class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
-                                            <strong>Paste rate data</strong> from WhatsApp or any source — all formats
-                                            accepted.
-                                        </div>
-                                    </div>
-                                    <div class="flex gap-[12px]">
-                                        <div
-                                            class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
-                                            3</div>
-                                        <div
-                                            class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
-                                            Check the <strong>live preview table</strong> to confirm entries are
-                                            detected
-                                            correctly.</div>
-                                    </div>
-                                    <div class="flex gap-[12px]">
-                                        <div
-                                            class="w-[22px] h-[22px] rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">
-                                            4</div>
-                                        <div
-                                            class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
-                                            Click <strong>Submit</strong> — AI parses the data and saves it to Google
-                                            Sheets
-                                            automatically.</div>
-                                    </div>
+                                <div class="text-[14px] font-extrabold text-navy">Session Stats</div>
+                                <div class="text-[11px] text-text-muted">Live totals for this browser</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-white border border-border rounded-xl p-3">
+                                <div class="text-[18px] font-black text-navy tracking-[-0.02em]" id="statSubs">0</div>
+                                <div class="text-[10px] font-bold uppercase text-text-soft tracking-[0.08em]">Submissions</div>
+                            </div>
+                            <div class="bg-white border border-border rounded-xl p-3">
+                                <div class="text-[18px] font-black text-navy tracking-[-0.02em]" id="statEntries">0</div>
+                                <div class="text-[10px] font-bold uppercase text-text-soft tracking-[0.08em]">Entries</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="admin-panel admin-reveal p-5" style="--reveal-delay: 240ms">
+                        <div class="flex items-center gap-3 pb-4 mb-4 border-b border-slate-100">
+                            <div class="w-9 h-9 rounded-xl bg-blue-50 text-primary flex items-center justify-center">
+                                <i class="bi bi-clock-history text-[16px]"></i>
+                            </div>
+                            <div>
+                                <div class="text-[14px] font-extrabold text-navy">Recent Submissions</div>
+                                <div class="text-[11px] text-text-muted">Last 15 uploads</div>
+                            </div>
+                            <button
+                                class="ml-auto admin-btn admin-btn-ghost h-[30px] px-3 text-[10px] uppercase"
+                                id="clearBtn">Clear</button>
+                        </div>
+                        <div id="historyWrap"></div>
+                    </div>
+
+                    <div class="admin-panel admin-reveal p-5" style="--reveal-delay: 300ms">
+                        <div class="flex items-center gap-3 pb-4 mb-4 border-b border-slate-100">
+                            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                                <i class="bi bi-info-circle text-[16px]"></i>
+                            </div>
+                            <div class="text-[14px] font-extrabold text-navy">How It Works</div>
+                        </div>
+                        <div class="flex flex-col gap-4">
+                            <div class="flex gap-3">
+                                <div
+                                    class="w-6 h-6 rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">1</div>
+                                <div
+                                    class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                                    <strong>Select your agent number</strong> from the grid or type it manually.
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div
+                                    class="w-6 h-6 rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">2</div>
+                                <div
+                                    class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                                    <strong>Paste rate data</strong> from WhatsApp or any source - all formats accepted.
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div
+                                    class="w-6 h-6 rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">3</div>
+                                <div
+                                    class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                                    Check the <strong>live preview table</strong> to confirm entries are detected correctly.
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div
+                                    class="w-6 h-6 rounded-full bg-primary-light text-primary flex items-center justify-center text-[11px] font-black shrink-0">4</div>
+                                <div
+                                    class="text-[13px] text-text-mid leading-[1.5] [&>strong]:text-navy [&>strong]:font-extrabold">
+                                    Click <strong>Submit</strong> - AI parses the data and syncs fares to Firestore automatically.
                                 </div>
                             </div>
                         </div>
-
                     </div>
+
                 </div>
             </div>
         </div>
@@ -652,6 +590,155 @@ Example:
                 </div>
                 <div id="airlines-pagination-footer" class="border-t border-slate-100 bg-slate-50 rounded-b-[20px]"></div>
             </div>
+        </div>
+
+        <!-- VISAS TAB -->
+        <div id="visas-tab" class="tab-content">
+            
+            <!-- 1. Tourist Visas -->
+            <div class="admin-panel p-6 mb-6 mt-0">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-passport text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Tourist Visas</h2>
+                        <p class="text-[12px] text-text-muted">Manage destination countries and visa rates</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="visas-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Tourist Visa
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Flag</th>
+                                <th>Country</th>
+                                <th>Visa Type</th>
+                                <th>Processing Time</th>
+                                <th>Rate (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="visas-table-body">
+                            <!-- populated by JS: renderVisasTab() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. Visa Stamping -->
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-journal-check text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Visa Stamping</h2>
+                        <p class="text-[12px] text-text-muted">Manage visa stamping details</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="visa-stamping-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Visa Stamping
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>Description</th>
+                                <th>Processing Time</th>
+                                <th>Cost (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="visa-stamping-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. Attestations -->
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-patch-check text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Attestations</h2>
+                        <p class="text-[12px] text-text-muted">Manage certificate attestations</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="attestation-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Attestation
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>Certificate Type</th>
+                                <th>Cost (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attestations-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 4. Passport Services -->
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-book text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Passport Services</h2>
+                        <p class="text-[12px] text-text-muted">Manage passport services (New, Renewal, etc.)</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="passport-service-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Passport Service
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Service Type</th>
+                                <th>Description</th>
+                                <th>Cost (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="passport-services-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
 
         <!-- REPORTS TAB -->
@@ -1198,6 +1285,123 @@ Example:
          TOAST CONTAINER (rendered by JS)
          ══════════════════════════════════════════════════════════════════════ -->
     <div id="toastsEl" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         VISAS TEMPLATES
+         ══════════════════════════════════════════════════════════════════════ -->
+    <template id="modal-visa-form">
+        <form id="visa-form" class="space-y-4">
+            <input type="hidden" id="visa-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Country Name *</label>
+                    <input type="text" id="visa-country" class="admin-control" placeholder="e.g. UAE" required>
+                </div>
+                <div>
+                    <label class="admin-label">Visa Type *</label>
+                    <input type="text" id="visa-type" class="admin-control" placeholder="e.g. 30 Days Tourist" required>
+                </div>
+                <div>
+                    <label class="admin-label">Rate (AED) *</label>
+                    <input type="number" id="visa-rate" class="admin-control" placeholder="0" required>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Processing Time *</label>
+                    <input type="text" id="visa-processing" class="admin-control" placeholder="e.g. 2-3 Working Days" required>
+                </div>
+                <div class="sm:col-span-2 mt-2">
+                    <label class="admin-label">Country Flag (Image)</label>
+                    <div class="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors">
+                        <input type="file" id="visa-flag" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer">
+                        <p class="text-xs text-slate-400 mt-2">Leave blank to keep existing image (if editing).</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Visa</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Visa Stamping Modal -->
+    <template id="modal-visa-stamping-form">
+        <form id="visa-stamping-form" class="space-y-4">
+            <input type="hidden" id="visa-stamping-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Country Name *</label>
+                    <input type="text" id="visa-stamping-country" class="admin-control" placeholder="e.g. UAE" required>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Description *</label>
+                    <input type="text" id="visa-stamping-desc" class="admin-control" placeholder="e.g. Visa Stamping" required>
+                </div>
+                <div>
+                    <label class="admin-label">Processing Time *</label>
+                    <input type="text" id="visa-stamping-time" class="admin-control" placeholder="e.g. 2-3 Days" required>
+                </div>
+                <div>
+                    <label class="admin-label">Cost (AED) *</label>
+                    <input type="number" id="visa-stamping-cost" class="admin-control" placeholder="0" required>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Attestations Modal -->
+    <template id="modal-attestation-form">
+        <form id="attestation-form" class="space-y-4">
+            <input type="hidden" id="attestation-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Country Name *</label>
+                    <input type="text" id="attestation-country" class="admin-control" placeholder="e.g. Saudi Arabia" required>
+                </div>
+                <div>
+                    <label class="admin-label">Certificate Type *</label>
+                    <input type="text" id="attestation-cert" class="admin-control" placeholder="e.g. Marriage Certificate" required>
+                </div>
+                <div>
+                    <label class="admin-label">Cost (AED) *</label>
+                    <input type="number" id="attestation-cost" class="admin-control" placeholder="0" required>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Passport Services Modal -->
+    <template id="modal-passport-service-form">
+        <form id="passport-service-form" class="space-y-4">
+            <input type="hidden" id="passport-service-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Service Type *</label>
+                    <input type="text" id="passport-service-type" class="admin-control" placeholder="e.g. Fresh Passport / Renewal" required>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Description *</label>
+                    <textarea id="passport-service-desc" class="admin-control" rows="3" placeholder="e.g. Required documents: Aadhar, Birth Certificate..." required></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Cost (AED) *</label>
+                    <input type="number" id="passport-service-cost" class="admin-control" placeholder="0" required>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
 
     <!-- Custom JS -->
 

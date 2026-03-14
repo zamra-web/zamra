@@ -63,6 +63,8 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-signpost-split"></i><span>Sectors</span></a>
                         <a href="#" data-tab="flights-tab" data-title="Flights"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-airplane"></i><span>Flights</span></a>
+                        <a href="#" data-tab="visas-tab" data-title="Visas"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-passport"></i><span>Visas</span></a>
                     </div>
                 </div>
 
@@ -584,6 +586,155 @@ Example:
                 </div>
                 <div id="airlines-pagination-footer" class="border-t border-slate-100 bg-slate-50 rounded-b-[20px]"></div>
             </div>
+        </div>
+
+        <!-- VISAS TAB -->
+        <div id="visas-tab" class="tab-content">
+            
+            <!-- 1. Tourist Visas -->
+            <div class="admin-panel p-6 mb-6 mt-0">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-passport text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Tourist Visas</h2>
+                        <p class="text-[12px] text-text-muted">Manage destination countries and visa rates</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="visas-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Tourist Visa
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Flag</th>
+                                <th>Country</th>
+                                <th>Visa Type</th>
+                                <th>Processing Time</th>
+                                <th>Rate (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="visas-table-body">
+                            <!-- populated by JS: renderVisasTab() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. Visa Stamping -->
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-journal-check text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Visa Stamping</h2>
+                        <p class="text-[12px] text-text-muted">Manage visa stamping details</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="visa-stamping-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Visa Stamping
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>Description</th>
+                                <th>Processing Time</th>
+                                <th>Cost (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="visa-stamping-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. Attestations -->
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-patch-check text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Attestations</h2>
+                        <p class="text-[12px] text-text-muted">Manage certificate attestations</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="attestation-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Attestation
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>Certificate Type</th>
+                                <th>Cost (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attestations-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 4. Passport Services -->
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-book text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Passport Services</h2>
+                        <p class="text-[12px] text-text-muted">Manage passport services (New, Renewal, etc.)</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="passport-service-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Passport Service
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Service Type</th>
+                                <th>Description</th>
+                                <th>Cost (AED)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="passport-services-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
 
         <!-- REPORTS TAB -->
@@ -1130,6 +1281,123 @@ Example:
          TOAST CONTAINER (rendered by JS)
          ══════════════════════════════════════════════════════════════════════ -->
     <div id="toastsEl" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         VISAS TEMPLATES
+         ══════════════════════════════════════════════════════════════════════ -->
+    <template id="modal-visa-form">
+        <form id="visa-form" class="space-y-4">
+            <input type="hidden" id="visa-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Country Name *</label>
+                    <input type="text" id="visa-country" class="admin-control" placeholder="e.g. UAE" required>
+                </div>
+                <div>
+                    <label class="admin-label">Visa Type *</label>
+                    <input type="text" id="visa-type" class="admin-control" placeholder="e.g. 30 Days Tourist" required>
+                </div>
+                <div>
+                    <label class="admin-label">Rate (AED) *</label>
+                    <input type="number" id="visa-rate" class="admin-control" placeholder="0" required>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Processing Time *</label>
+                    <input type="text" id="visa-processing" class="admin-control" placeholder="e.g. 2-3 Working Days" required>
+                </div>
+                <div class="sm:col-span-2 mt-2">
+                    <label class="admin-label">Country Flag (Image)</label>
+                    <div class="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors">
+                        <input type="file" id="visa-flag" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer">
+                        <p class="text-xs text-slate-400 mt-2">Leave blank to keep existing image (if editing).</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Visa</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Visa Stamping Modal -->
+    <template id="modal-visa-stamping-form">
+        <form id="visa-stamping-form" class="space-y-4">
+            <input type="hidden" id="visa-stamping-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Country Name *</label>
+                    <input type="text" id="visa-stamping-country" class="admin-control" placeholder="e.g. UAE" required>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Description *</label>
+                    <input type="text" id="visa-stamping-desc" class="admin-control" placeholder="e.g. Visa Stamping" required>
+                </div>
+                <div>
+                    <label class="admin-label">Processing Time *</label>
+                    <input type="text" id="visa-stamping-time" class="admin-control" placeholder="e.g. 2-3 Days" required>
+                </div>
+                <div>
+                    <label class="admin-label">Cost (AED) *</label>
+                    <input type="number" id="visa-stamping-cost" class="admin-control" placeholder="0" required>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Attestations Modal -->
+    <template id="modal-attestation-form">
+        <form id="attestation-form" class="space-y-4">
+            <input type="hidden" id="attestation-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Country Name *</label>
+                    <input type="text" id="attestation-country" class="admin-control" placeholder="e.g. Saudi Arabia" required>
+                </div>
+                <div>
+                    <label class="admin-label">Certificate Type *</label>
+                    <input type="text" id="attestation-cert" class="admin-control" placeholder="e.g. Marriage Certificate" required>
+                </div>
+                <div>
+                    <label class="admin-label">Cost (AED) *</label>
+                    <input type="number" id="attestation-cost" class="admin-control" placeholder="0" required>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Passport Services Modal -->
+    <template id="modal-passport-service-form">
+        <form id="passport-service-form" class="space-y-4">
+            <input type="hidden" id="passport-service-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Service Type *</label>
+                    <input type="text" id="passport-service-type" class="admin-control" placeholder="e.g. Fresh Passport / Renewal" required>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Description *</label>
+                    <textarea id="passport-service-desc" class="admin-control" rows="3" placeholder="e.g. Required documents: Aadhar, Birth Certificate..." required></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Cost (AED) *</label>
+                    <input type="number" id="passport-service-cost" class="admin-control" placeholder="0" required>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
 
     <!-- Custom JS -->
     <script type="module" src="/src/js/admin/main.js"></script>

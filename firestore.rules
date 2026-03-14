@@ -54,5 +54,29 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── visas ────────────────────────────────────────────────────────────────
+    match /visas/{visaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── visa_stamping ────────────────────────────────────────────────────────
+    match /visa_stamping/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── attestations ─────────────────────────────────────────────────────────
+    match /attestations/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── passport_services ────────────────────────────────────────────────────
+    match /passport_services/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
   }
 }

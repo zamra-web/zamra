@@ -382,6 +382,136 @@ export async function deleteService(serviceId) {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// VISAS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getVisas() {
+  const snap = await getDocs(query(collection(db, 'visas'), orderBy('countryName')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function addVisa(data, flagFile = null) {
+  let flagUrl = data.flagUrl || '';
+  if (flagFile) {
+    flagUrl = await uploadLogo('country_flags', flagFile);
+  }
+  const docRef = await addDoc(collection(db, 'visas'), {
+    countryName: data.countryName || '',
+    visaType: data.visaType || '',
+    processingTime: data.processingTime || '',
+    rate: Number(data.rate) || 0,
+    flagUrl,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateVisa(visaId, data, flagFile = null) {
+  let updates = {
+    ...data,
+    updatedAt: serverTimestamp()
+  };
+  if (updates.rate !== undefined) updates.rate = Number(updates.rate);
+  if (flagFile) {
+    updates.flagUrl = await uploadLogo('country_flags', flagFile);
+  }
+  await updateDoc(doc(db, 'visas', visaId), updates);
+}
+
+export async function deleteVisa(visaId) {
+  await deleteDoc(doc(db, 'visas', visaId));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VISA STAMPING
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getVisaStampings() {
+  const snap = await getDocs(query(collection(db, 'visa_stamping'), orderBy('country')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function addVisaStamping(data) {
+  const docRef = await addDoc(collection(db, 'visa_stamping'), {
+    country: data.country || '',
+    description: data.description || '',
+    processingTime: data.processingTime || '',
+    cost: Number(data.cost) || 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateVisaStamping(id, data) {
+  let updates = { ...data, updatedAt: serverTimestamp() };
+  if (updates.cost !== undefined) updates.cost = Number(updates.cost);
+  await updateDoc(doc(db, 'visa_stamping', id), updates);
+}
+
+export async function deleteVisaStamping(id) {
+  await deleteDoc(doc(db, 'visa_stamping', id));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTESTATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getAttestations() {
+  const snap = await getDocs(query(collection(db, 'attestations'), orderBy('country')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function addAttestation(data) {
+  const docRef = await addDoc(collection(db, 'attestations'), {
+    country: data.country || '',
+    certificate: data.certificate || '',
+    cost: Number(data.cost) || 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateAttestation(id, data) {
+  let updates = { ...data, updatedAt: serverTimestamp() };
+  if (updates.cost !== undefined) updates.cost = Number(updates.cost);
+  await updateDoc(doc(db, 'attestations', id), updates);
+}
+
+export async function deleteAttestation(id) {
+  await deleteDoc(doc(db, 'attestations', id));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PASSPORT SERVICES
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getPassportServices() {
+  const snap = await getDocs(query(collection(db, 'passport_services'), orderBy('type')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function addPassportService(data) {
+  const docRef = await addDoc(collection(db, 'passport_services'), {
+    type: data.type || '',
+    description: data.description || '',
+    cost: Number(data.cost) || 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updatePassportService(id, data) {
+  let updates = { ...data, updatedAt: serverTimestamp() };
+  if (updates.cost !== undefined) updates.cost = Number(updates.cost);
+  await updateDoc(doc(db, 'passport_services', id), updates);
+}
+
+export async function deletePassportService(id) {
+  await deleteDoc(doc(db, 'passport_services', id));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // STORAGE HELPERS — Firebase Storage
 // ─────────────────────────────────────────────────────────────────────────────
 

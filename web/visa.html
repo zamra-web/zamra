@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visa Assistance - Zamra Travels</title>
+
+  <!-- Favicons -->
+  <link href="/assets/img/favicon.webp?v=2" rel="icon">
+  <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/src/styles/web/style.css">
+</head>
+
+<body>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-[1000] glass-effect border-b border-white/20 transition-all bg-white" id="header">
+    <div class="w-full max-w-[1280px] mx-auto px-6 flex justify-between items-center h-[80px]">
+      <a href="/index.html" class="flex items-center">
+        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[56px] w-auto mix-blend-multiply">
+      </a>
+
+      <nav class="hidden md:block" id="nav-menu">
+        <ul class="flex gap-8 list-none m-0 p-0">
+          <li><a href="/index.html#about"
+              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">About</a>
+          </li>
+          <li><a href="/index.html#services"
+              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Services</a>
+          </li>
+          <li><a href="/index.html#tours"
+              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Tours</a>
+          </li>
+          <li><a href="/visa.html"
+              class="text-primary font-heading font-bold text-[15px] relative py-2 transition-colors">Visa</a>
+          </li>
+          <li><a href="/index.html#flights"
+              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Flights</a>
+          </li>
+          <li><a href="/index.html#hajj-umrah"
+              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Hajj-Umrah</a>
+          </li>
+          <li><a href="/index.html#contact"
+              class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Contact</a>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <a href="/index.html#enquiry"
+          class="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full font-heading font-semibold text-[15px] bg-primary text-white shadow-[var(--shadow-premium-soft)] premium-hover-lift max-md:hidden">Enquiry
+          <i class="bi bi-arrow-right"></i></a>
+        <button class="md:hidden text-[28px] bg-transparent border-none text-text-main cursor-pointer"
+          id="mobile-toggle" aria-label="Toggle mobile menu" aria-expanded="false" aria-controls="nav-menu">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="relative py-[80px] md:py-[120px] bg-gradient-to-br from-slate-50 to-slate-100 overflow-hidden">
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] translate-x-1/2 -translate-y-1/2"></div>
+      <div class="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-400/5 rounded-full blur-[80px] -translate-x-1/2 translate-y-1/2"></div>
+    </div>
+    <div class="w-full max-w-[1280px] mx-auto px-6 relative z-10 text-center">
+      <span class="inline-block px-4 py-1.5 bg-[#1a73e81a] text-primary font-heading font-bold text-[13px] uppercase tracking-[1px] rounded-full mb-4">Visa Assistance</span>
+      <h1 class="font-heading text-[40px] md:text-[56px] font-bold text-navy mb-6 leading-tight">Explore the World<br>With Tourist Visas</h1>
+      <p class="text-text-muted text-[18px] max-w-[600px] mx-auto">Get your tourist visa easily. Choose your destination, check requirements, and start your journey with our seamless processing system.</p>
+    </div>
+  </section>
+
+  <!-- Visas Grid Section -->
+  <section class="py-[80px] bg-white">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      
+      <!-- Loading State -->
+      <div id="visas-loading" class="flex flex-col items-center justify-center py-[100px]">
+        <div class="w-[40px] h-[40px] border-[3px] border-[#f3f3f3] border-t-primary rounded-full animate-spin mb-4"></div>
+        <p class="text-text-muted font-medium">Loading Visa destinations...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div id="visas-empty" class="hidden text-center py-[100px]">
+        <div class="w-20 h-20 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
+          <i class="bi bi-passport"></i>
+        </div>
+        <h3 class="text-[20px] font-bold text-navy mb-2">No Visas Available</h3>
+        <p class="text-text-muted">Currently, there are no visas available. Please check back later.</p>
+      </div>
+
+      <!-- Grid -->
+      <div id="visas-grid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Visa Stamping Section -->
+  <section class="py-[80px] bg-slate-50">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      <div class="text-center mb-12">
+        <h2 class="font-heading text-[32px] md:text-[40px] font-bold text-navy mb-4">Visa Stamping Services</h2>
+        <p class="text-text-muted text-[16px] max-w-[600px] mx-auto">Professional and reliable visa stamping services for your travel needs.</p>
+      </div>
+      
+      <div id="visa-stamping-loading" class="flex flex-col items-center justify-center py-[40px]">
+        <div class="w-[40px] h-[40px] border-[3px] border-[#f3f3f3] border-t-primary rounded-full animate-spin mb-4"></div>
+      </div>
+      <div id="visa-stamping-empty" class="hidden text-center py-[40px] text-text-muted">No visa stamping services currently listed.</div>
+      
+      <div id="visa-stamping-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Attestations Section -->
+  <section class="py-[80px] bg-white">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      <div class="text-center mb-12">
+        <h2 class="font-heading text-[32px] md:text-[40px] font-bold text-navy mb-4">Certificate Attestations</h2>
+        <p class="text-text-muted text-[16px] max-w-[600px] mx-auto">Fast and secure attestation for educational, personal, and commercial documents.</p>
+      </div>
+      
+      <div id="attestations-loading" class="flex flex-col items-center justify-center py-[40px]">
+        <div class="w-[40px] h-[40px] border-[3px] border-[#f3f3f3] border-t-primary rounded-full animate-spin mb-4"></div>
+      </div>
+      <div id="attestations-empty" class="hidden text-center py-[40px] text-text-muted">No attestations currently listed.</div>
+      
+      <div id="attestations-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Passport Services Section -->
+  <section class="py-[80px] bg-slate-50">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      <div class="text-center mb-12">
+        <h2 class="font-heading text-[32px] md:text-[40px] font-bold text-navy mb-4">Passport Services</h2>
+        <p class="text-text-muted text-[16px] max-w-[600px] mx-auto">Hassle-free passport application, renewal, and related services.</p>
+      </div>
+      
+      <div id="passport-services-loading" class="flex flex-col items-center justify-center py-[40px]">
+        <div class="w-[40px] h-[40px] border-[3px] border-[#f3f3f3] border-t-primary rounded-full animate-spin mb-4"></div>
+      </div>
+      <div id="passport-services-empty" class="hidden text-center py-[40px] text-text-muted">No passport services currently listed.</div>
+      
+      <div id="passport-services-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-navy-dark text-white pt-[60px] md:pt-[80px]">
+    <div class="w-full max-w-[1280px] mx-auto px-6">
+      <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-[60px] pb-[60px] border-b border-white/10">
+        <div>
+          <a href="/index.html" class="block mb-[20px]">
+            <img src="/assets/img/favicon.webp?v=2" alt="Zamra Travels" class="h-[80px] w-auto">
+          </a>
+          <p class="text-text-soft leading-[1.6] mb-[24px] max-w-[400px]">Your trusted travel companion offering the
+            best deals on flights, visas, tours, and more. Experience the world with comfort and ease.</p>
+          <div class="flex gap-[12px]">
+            <a href="https://www.facebook.com/share/19ptsreQGF/" class="w-[40px] h-[40px] rounded-full bg-white/10 flex items-center justify-center text-white no-underline transition-all duration-300 hover:bg-primary hover:-translate-y-[3px]"><i class="bi bi-facebook"></i></a>
+            <a href="https://wa.me/919846606739" class="w-[40px] h-[40px] rounded-full bg-white/10 flex items-center justify-center text-white no-underline transition-all duration-300 hover:bg-primary hover:-translate-y-[3px]"><i class="bi bi-whatsapp"></i></a>
+            <a href="https://www.instagram.com/zamratravels?igsh=dXF0eDRxM2R3bmN3" class="w-[40px] h-[40px] rounded-full bg-white/10 flex items-center justify-center text-white no-underline transition-all duration-300 hover:bg-primary hover:-translate-y-[3px]"><i class="bi bi-instagram"></i></a>
+          </div>
+        </div>
+        <div>
+          <h4 class="text-[18px] font-bold mb-[24px] text-white">Quick Links</h4>
+          <ul class="list-none">
+            <li class="mb-[12px]"><a href="/index.html" class="text-text-soft no-underline transition-colors hover:text-primary">Home</a></li>
+            <li class="mb-[12px]"><a href="/index.html#about" class="text-text-soft no-underline transition-colors hover:text-primary">About Us</a></li>
+            <li class="mb-[12px]"><a href="/index.html#services" class="text-text-soft no-underline transition-colors hover:text-primary">Our Services</a></li>
+            <li class="mb-[12px]"><a href="/index.html#flights" class="text-text-soft no-underline transition-colors hover:text-primary">Flight Offers</a></li>
+            <li class="mb-[12px]"><a href="/index.html#contact" class="text-text-soft no-underline transition-colors hover:text-primary">Contact Us</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-[18px] font-bold mb-[24px] text-white">Contact Info</h4>
+          <ul class="list-none">
+            <li class="flex gap-[16px] text-text-soft items-start mb-[12px]">
+              <i class="bi bi-geo-alt text-white text-[18px] mt-[2px]"></i>
+              <span>Malappuram Melmuri<br>Kerala, India</span>
+            </li>
+            <li class="flex gap-[16px] text-text-soft items-start mb-[12px]">
+              <i class="bi bi-telephone text-white text-[18px] mt-[2px]"></i>
+              <span>+91 9846606739</span>
+            </li>
+            <li class="flex gap-[16px] text-text-soft items-start mb-[12px]">
+              <i class="bi bi-envelope text-white text-[18px] mt-[2px]"></i>
+              <span>zamratravelsmlp@gmail.com</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="py-[24px] text-center text-text-muted">
+        <p>&copy; 2026 <strong class="text-white">Zamra Travels</strong>. All Rights Reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Floating Social Icons -->
+  <div class="fixed bottom-[30px] right-[30px] flex flex-col gap-[12px] z-[99]">
+    <a href="https://wa.me/919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-[#25D366]"><i class="bi bi-whatsapp"></i></a>
+    <a href="tel:+919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-primary"><i class="bi bi-telephone-fill"></i></a>
+  </div>
+
+  <!-- Visa Details Modal -->
+  <div class="fixed inset-0 bg-[#0d1f3c]/60 backdrop-blur-sm z-[1000] flex items-center justify-center opacity-0 pointer-events-none transition-all duration-300 [&.active]:opacity-100 [&.active]:pointer-events-auto" id="visa-modal">
+    <div class="bg-white border border-white/20 shadow-[0_20px_40px_rgba(13,31,60,0.15)] w-[90%] max-w-[480px] rounded-[24px] overflow-hidden relative translate-y-[20px] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]" id="visa-modal-content">
+      
+      <!-- Close Btn -->
+      <button class="absolute top-[20px] right-[20px] z-10 bg-white/50 backdrop-blur-md border border-white/50 w-[36px] h-[36px] rounded-full flex items-center justify-center text-[16px] cursor-pointer text-navy transition-all duration-200 hover:bg-white hover:text-red-500 shadow-sm" id="modal-close">
+        <i class="bi bi-x-lg"></i>
+      </button>
+
+      <!-- Banner -->
+      <div class="h-[140px] bg-gradient-to-br from-primary to-blue-500 relative flex items-center justify-center overflow-hidden p-6" id="modal-banner">
+         <!-- Populated via JS -->
+      </div>
+
+      <!-- Body -->
+      <div class="p-8">
+        <h3 id="modal-country" class="text-[24px] font-heading font-bold text-navy text-center mb-6 leading-tight">Country Name</h3>
+        
+        <div class="space-y-4 mb-8">
+          <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div class="flex items-center gap-3 text-text-muted text-[14px]">
+              <i class="bi bi-file-earmark-check text-primary text-[18px]"></i>
+              <span class="font-medium">Type</span>
+            </div>
+            <div id="modal-type" class="font-semibold text-navy text-[15px] max-w-[180px] text-right">30 Days</div>
+          </div>
+          
+          <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div class="flex items-center gap-3 text-text-muted text-[14px]">
+              <i class="bi bi-hourglass-split text-primary text-[18px]"></i>
+              <span class="font-medium">Processing Time</span>
+            </div>
+            <div id="modal-time" class="font-semibold text-navy text-[15px] max-w-[180px] text-right">2-3 Days</div>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
+            <div class="flex items-center gap-3 text-primary text-[14px]">
+              <i class="bi bi-tag-fill text-[18px]"></i>
+              <span class="font-semibold">Rate</span>
+            </div>
+            <div id="modal-rate" class="font-black text-primary text-[20px]">AED 300</div>
+          </div>
+        </div>
+
+        <a href="#" id="modal-enquire-btn" target="_blank" class="flex items-center justify-center gap-2 w-full py-4 rounded-xl font-heading font-semibold text-[16px] bg-[#25D366] hover:bg-[#1fae54] text-white shadow-lg shadow-[#25D366]/30 transition-all duration-300 hover:-translate-y-1">
+          <i class="bi bi-whatsapp"></i> Enquire Now
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module" src="/src/js/web/visa.js"></script>
+</body>
+
+</html>

@@ -12,6 +12,10 @@ import {
   getSectors, addSector, updateSector, deleteSector,
   getAirlines, addAirline, updateAirline, deleteAirline,
   getFares, addFare, saveFares, deleteFare, updateFare,
+  getVisas, addVisa, updateVisa, deleteVisa,
+  getVisaStampings, addVisaStamping, updateVisaStamping, deleteVisaStamping,
+  getAttestations, addAttestation, updateAttestation, deleteAttestation,
+  getPassportServices, addPassportService, updatePassportService, deletePassportService,
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
 } from './db.js';
@@ -22,6 +26,10 @@ import { downloadVideoPoster } from './video-export.js';
 let _agents = [];
 let _sectors = [];
 let _airlines = [];
+let _visas = [];
+let _visaStampings = [];
+let _attestations = [];
+let _passportServices = [];
 let _dashboardFares = []; // Kept for any stale references
 let _reportFares = [];
 let _databaseFares = [];
@@ -131,12 +139,15 @@ let tableSort = {
   agents: { key: 'id', asc: true },
   sectors: { key: 'id', asc: true },
   airlines: { key: 'name', asc: true },
+  visas: { key: 'countryName', asc: true },
+  visaStampings: { key: 'countryName', asc: true },
+  attestations: { key: 'countryName', asc: true },
+  passportServices: { key: 'serviceName', asc: true },
   reportFares: { key: 'flightDate', asc: true },
   databaseFares: { key: 'flightDate', asc: true },
 };
-let tableSearch = { agents: '', sectors: '', airlines: '' };
-let tableLimit = { agents: 10, sectors: 10, airlines: 10, reportFares: 20, databaseFares: 20 };
-let tablePage = { agents: 1, sectors: 1, airlines: 1, reportFares: 1, databaseFares: 1 };
+let tableSearch = { agents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '' };
+let tablePage = { agents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, reportFares: 1, databaseFares: 1 };
 
 const databaseFilters = {
   search: '',
@@ -173,6 +184,26 @@ function applySortAndFilter(data, tab) {
     filtered = filtered.filter(s => 
       (s.name || '').toLowerCase().includes(q) || 
       (s.code || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'visas') {
+    filtered = filtered.filter(v => 
+      (v.countryName || '').toLowerCase().includes(q) || 
+      (v.visaType || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'visaStampings') {
+    filtered = filtered.filter(v => 
+      (v.countryName || '').toLowerCase().includes(q) || 
+      (v.description || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'attestations') {
+    filtered = filtered.filter(v => 
+      (v.countryName || '').toLowerCase().includes(q) || 
+      (v.certificateType || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'passportServices') {
+    filtered = filtered.filter(v => 
+      (v.serviceType || '').toLowerCase().includes(q) || 
+      (v.description || '').toLowerCase().includes(q)
     );
   }
 
@@ -229,6 +260,7 @@ document.addEventListener('click', (e) => {
   if (tab === 'agents') renderAgentsTab(false);
   else if (tab === 'sectors') renderSectorsTab(false);
   else if (tab === 'airlines') renderFlightsTab(false);
+  else if (tab === 'visas') renderVisasTab(false);
   else if (tab === 'reportFares' && _reportFares.length) renderReportFaresTable(_reportFares);
   else if (tab === 'databaseFares') renderDatabaseTable();
 });
@@ -270,14 +302,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Pre-load global lookup data ───────────────────────────────────────────────
 async function loadGlobalData() {
   try {
-    const [agents, sectors, airlines] = await Promise.all([
+    const [agents, sectors, airlines, visas] = await Promise.all([
       getAgents(),
       getSectors(),
       getAirlines(),
+      getVisas()
     ]);
     _agents = agents;
     _sectors = normalizeSectors(sectors);
     _airlines = airlines;
+    _visas = visas;
   } catch (e) {
     console.error('loadGlobalData error:', e);
   }
@@ -320,6 +354,7 @@ async function renderActiveTab() {
   else if (id === 'dashboard-tab') await renderDashboardTab();
   else if (id === 'reports-tab') await renderReportsTab();
   else if (id === 'database-tab') await renderDatabaseTab();
+  else if (id === 'visas-tab') await renderVisasTab();
   else if (id === 'agent-sheets-tab') {
     buildChips();
     syncPill();
@@ -3263,3 +3298,485 @@ window.toast = toast;
 document.addEventListener('DOMContentLoaded', () => {
   // Chips built after auth resolves in the onAuthChange handler above
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VISAS TAB — Full CRUD
+// ══════════════════════════════════════════════════════════════════════════════
+async function renderVisasTab(fetchData = true) {
+  if (fetchData) {
+    try {
+      const [v, vs, att, ps] = await Promise.all([
+        getVisas(),
+        getVisaStampings(),
+        getAttestations(),
+        getPassportServices()
+      ]);
+      _visas = v;
+      _visaStampings = vs;
+      _attestations = att;
+      _passportServices = ps;
+      
+      tablePage.visas = 1;
+      tablePage.visaStampings = 1;
+      tablePage.attestations = 1;
+      tablePage.passportServices = 1;
+    } catch (e) {
+      toast('error', 'Error loading Visas tab data', e.message);
+    }
+  }
+
+  // 1. Render Tourist Visas
+  const tbodyVisas = document.querySelector('#visas-tab #visas-table-body');
+  if (tbodyVisas) {
+    const sorted = applySortAndFilter(_visas, 'visas');
+    const limit = tableLimit.visas;
+    const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+    if (tablePage.visas > totalPages) tablePage.visas = totalPages;
+    const start = (tablePage.visas - 1) * limit;
+    const pageData = sorted.slice(start, start + limit);
+
+    tbodyVisas.innerHTML = pageData.length
+      ? pageData.map(v => visaRow(v)).join('')
+      : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No tourist visas yet. Click "Add Tourist Visa".</td></tr>`;
+    wireVisaActions();
+  }
+
+  // 2. Render Visa Stamping
+  const tbodyStamping = document.querySelector('#visa-stamping-table-body');
+  if (tbodyStamping) {
+    const sorted = applySortAndFilter(_visaStampings, 'visaStampings');
+    const limit = tableLimit.visaStampings;
+    const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+    if (tablePage.visaStampings > totalPages) tablePage.visaStampings = totalPages;
+    const start = (tablePage.visaStampings - 1) * limit;
+    const pageData = sorted.slice(start, start + limit);
+
+    tbodyStamping.innerHTML = pageData.length
+      ? pageData.map(v => visaStampingRow(v)).join('')
+      : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No visa stampings yet. Click "Add Visa Stamping".</td></tr>`;
+    wireVisaStampingActions();
+  }
+
+  // 3. Render Attestations
+  const tbodyAtt = document.querySelector('#attestations-table-body');
+  if (tbodyAtt) {
+    const sorted = applySortAndFilter(_attestations, 'attestations');
+    const limit = tableLimit.attestations;
+    const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+    if (tablePage.attestations > totalPages) tablePage.attestations = totalPages;
+    const start = (tablePage.attestations - 1) * limit;
+    const pageData = sorted.slice(start, start + limit);
+
+    tbodyAtt.innerHTML = pageData.length
+      ? pageData.map(v => attestationRow(v)).join('')
+      : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No attestations yet. Click "Add Attestation".</td></tr>`;
+    wireAttestationActions();
+  }
+
+  // 4. Render Passport Services
+  const tbodyPass = document.querySelector('#passport-services-table-body');
+  if (tbodyPass) {
+    const sorted = applySortAndFilter(_passportServices, 'passportServices');
+    const limit = tableLimit.passportServices;
+    const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+    if (tablePage.passportServices > totalPages) tablePage.passportServices = totalPages;
+    const start = (tablePage.passportServices - 1) * limit;
+    const pageData = sorted.slice(start, start + limit);
+
+    tbodyPass.innerHTML = pageData.length
+      ? pageData.map(v => passportServiceRow(v)).join('')
+      : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No passport services yet. Click "Add Passport Service".</td></tr>`;
+    wirePassportServiceActions();
+  }
+
+  // Add wiring for the static add buttons
+  wireVisasAddButtons();
+}
+
+function wireVisasAddButtons() {
+  const btnVisa = document.getElementById('visas-add-btn');
+  if (btnVisa && !btnVisa.dataset.wired) {
+    btnVisa.dataset.wired = '1';
+    btnVisa.addEventListener('click', () => openVisaModal(null));
+  }
+
+  const btnStamping = document.getElementById('visa-stamping-add-btn');
+  if (btnStamping && !btnStamping.dataset.wired) {
+    btnStamping.dataset.wired = '1';
+    btnStamping.addEventListener('click', () => openVisaStampingModal(null));
+  }
+
+  const btnAttestation = document.getElementById('attestation-add-btn');
+  if (btnAttestation && !btnAttestation.dataset.wired) {
+    btnAttestation.dataset.wired = '1';
+    btnAttestation.addEventListener('click', () => openAttestationModal(null));
+  }
+
+  const btnPassport = document.getElementById('passport-service-add-btn');
+  if (btnPassport && !btnPassport.dataset.wired) {
+    btnPassport.dataset.wired = '1';
+    btnPassport.addEventListener('click', () => openPassportServiceModal(null));
+  }
+}
+
+function visaRow(v) {
+  const flag = v.flagUrl
+    ? `<span class="admin-logo-wrap"><img src="${v.flagUrl}" alt="${escapeHtml(v.countryName || 'Country')}"></span>`
+    : `<span class="admin-logo-wrap"><span class="admin-logo-fallback"><i class="bi bi-flag"></i></span></span>`;
+  return `<tr data-visa-id="${v.id}">
+    <td class="w-16">${flag}</td>
+    <td class="font-bold text-navy">${escapeHtml(v.countryName)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(v.visaType)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(v.processingTime)}</td>
+    <td class="font-black text-[15px] text-navy">AED ${(v.rate || 0).toLocaleString()}</td>
+    <td>
+      <div class="flex justify-end gap-1.5 items-center">
+        <button data-action="edit-visa" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-visa" data-id="${v.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireVisaActions() {
+  const tbody = document.querySelector('#visas-tab .admin-table tbody');
+  if (!tbody) return;
+  delete tbody.dataset.actionsWired;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const visa = _visas.find(v => v.id === id);
+
+    if (action === 'edit-visa') openVisaModal(visa);
+    if (action === 'delete-visa') {
+      if (!confirm(`Delete visa for "${visa?.countryName}"?`)) return;
+      try { 
+        await deleteVisa(id); 
+        toast('success', 'Deleted', `Visa for "${visa?.countryName}" removed.`); 
+        await renderVisasTab(); 
+      }
+      catch (e) { toast('error', 'Error', e.message); }
+    }
+  });
+}
+
+function openVisaModal(visa) {
+  const tpl = document.getElementById('modal-visa-form');
+  if (!tpl) return;
+  
+  openModal(visa ? 'Edit Visa' : 'Add New Visa', tpl.innerHTML);
+  
+  // Re-fetch elements from the newly cloned form in the modal!
+  const modalForm = document.getElementById('visa-form');
+  const idInput = document.getElementById('visa-id');
+  const countryInput = document.getElementById('visa-country');
+  const typeInput = document.getElementById('visa-type');
+  const rateInput = document.getElementById('visa-rate');
+  const processInput = document.getElementById('visa-processing');
+
+  if (visa) {
+    idInput.value = visa.id;
+    countryInput.value = visa.countryName || '';
+    typeInput.value = visa.visaType || '';
+    rateInput.value = visa.rate || 0;
+    processInput.value = visa.processingTime || '';
+  }
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = modalForm.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    
+    try {
+      const vId = idInput.value;
+      const data = {
+        countryName: countryInput.value.trim(),
+        visaType: typeInput.value.trim(),
+        rate: Number(rateInput.value),
+        processingTime: processInput.value.trim(),
+      };
+      
+      const fileInput = document.getElementById('visa-flag');
+      const file = fileInput.files[0];
+
+      if (vId) await updateVisa(vId, data, file);
+      else await addVisa(data, file);
+
+      toast('success', 'Saved!', `Visa for ${data.countryName} saved.`);
+      document.getElementById('admin-modal').close();
+      await renderVisasTab();
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Save Visa';
+    }
+  });
+}
+
+// --- Visa Stamping ---
+
+function visaStampingRow(v) {
+  return `<tr data-id="${v.id}">
+    <td class="font-bold text-navy">${escapeHtml(v.country)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(v.description)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(v.processingTime)}</td>
+    <td class="font-black text-[15px] text-navy">AED ${(v.cost || 0).toLocaleString()}</td>
+    <td>
+      <div class="flex justify-end gap-1.5 items-center">
+        <button data-action="edit-visa-stamping" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-visa-stamping" data-id="${v.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireVisaStampingActions() {
+  const tbody = document.getElementById('visa-stamping-table-body');
+  if (!tbody) return;
+  delete tbody.dataset.actionsWired;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const item = _visaStampings.find(i => i.id === id);
+
+    if (action === 'edit-visa-stamping') openVisaStampingModal(item);
+    if (action === 'delete-visa-stamping') {
+      if (!confirm(`Delete visa stamping for "${item?.country}"?`)) return;
+      try { 
+        await deleteVisaStamping(id); 
+        toast('success', 'Deleted', `Visa Stamping for "${item?.country}" removed.`); 
+        await renderVisasTab(true); 
+      }
+      catch (e) { toast('error', 'Error', e.message); }
+    }
+  });
+}
+
+function openVisaStampingModal(item) {
+  const tpl = document.getElementById('modal-visa-stamping-form');
+  if (!tpl) return;
+  
+  openModal(item ? 'Edit Visa Stamping' : 'Add Visa Stamping', tpl.innerHTML);
+  
+  const modalForm = document.getElementById('visa-stamping-form');
+  const idInput = document.getElementById('visa-stamping-id');
+  const countryInput = document.getElementById('visa-stamping-country');
+  const descInput = document.getElementById('visa-stamping-desc');
+  const timeInput = document.getElementById('visa-stamping-time');
+  const costInput = document.getElementById('visa-stamping-cost');
+
+  if (item) {
+    idInput.value = item.id;
+    countryInput.value = item.country || '';
+    descInput.value = item.description || '';
+    timeInput.value = item.processingTime || '';
+    costInput.value = item.cost || 0;
+  }
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = modalForm.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    
+    try {
+      const vId = idInput.value;
+      const data = {
+        country: countryInput.value.trim(),
+        description: descInput.value.trim(),
+        processingTime: timeInput.value.trim(),
+        cost: Number(costInput.value),
+      };
+      
+      if (vId) await updateVisaStamping(vId, data);
+      else await addVisaStamping(data);
+
+      toast('success', 'Saved!', `Visa stamping for ${data.country} saved.`);
+      document.getElementById('admin-modal').close();
+      await renderVisasTab(true);
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  });
+}
+
+// --- Attestations ---
+
+function attestationRow(v) {
+  return `<tr data-id="${v.id}">
+    <td class="font-bold text-navy">${escapeHtml(v.country)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(v.certificate)}</td>
+    <td class="font-black text-[15px] text-navy">AED ${(v.cost || 0).toLocaleString()}</td>
+    <td>
+      <div class="flex justify-end gap-1.5 items-center">
+        <button data-action="edit-attestation" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-attestation" data-id="${v.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireAttestationActions() {
+  const tbody = document.getElementById('attestations-table-body');
+  if (!tbody) return;
+  delete tbody.dataset.actionsWired;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const item = _attestations.find(i => i.id === id);
+
+    if (action === 'edit-attestation') openAttestationModal(item);
+    if (action === 'delete-attestation') {
+      if (!confirm(`Delete attestation for "${item?.country}"?`)) return;
+      try { 
+        await deleteAttestation(id); 
+        toast('success', 'Deleted', `Attestation for "${item?.country}" removed.`); 
+        await renderVisasTab(true); 
+      }
+      catch (e) { toast('error', 'Error', e.message); }
+    }
+  });
+}
+
+function openAttestationModal(item) {
+  const tpl = document.getElementById('modal-attestation-form');
+  if (!tpl) return;
+  
+  openModal(item ? 'Edit Attestation' : 'Add Attestation', tpl.innerHTML);
+  
+  const modalForm = document.getElementById('attestation-form');
+  const idInput = document.getElementById('attestation-id');
+  const countryInput = document.getElementById('attestation-country');
+  const certInput = document.getElementById('attestation-cert');
+  const costInput = document.getElementById('attestation-cost');
+
+  if (item) {
+    idInput.value = item.id;
+    countryInput.value = item.country || '';
+    certInput.value = item.certificate || '';
+    costInput.value = item.cost || 0;
+  }
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = modalForm.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    
+    try {
+      const vId = idInput.value;
+      const data = {
+        country: countryInput.value.trim(),
+        certificate: certInput.value.trim(),
+        cost: Number(costInput.value),
+      };
+      
+      if (vId) await updateAttestation(vId, data);
+      else await addAttestation(data);
+
+      toast('success', 'Saved!', `Attestation for ${data.country} saved.`);
+      document.getElementById('admin-modal').close();
+      await renderVisasTab(true);
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  });
+}
+
+// --- Passport Services ---
+
+function passportServiceRow(v) {
+  return `<tr data-id="${v.id}">
+    <td class="font-bold text-navy">${escapeHtml(v.type)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(v.description)}</td>
+    <td class="font-black text-[15px] text-navy">AED ${(v.cost || 0).toLocaleString()}</td>
+    <td>
+      <div class="flex justify-end gap-1.5 items-center">
+        <button data-action="edit-passport-service" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-passport-service" data-id="${v.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wirePassportServiceActions() {
+  const tbody = document.getElementById('passport-services-table-body');
+  if (!tbody) return;
+  delete tbody.dataset.actionsWired;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const item = _passportServices.find(i => i.id === id);
+
+    if (action === 'edit-passport-service') openPassportServiceModal(item);
+    if (action === 'delete-passport-service') {
+      if (!confirm(`Delete passport service "${item?.type}"?`)) return;
+      try { 
+        await deletePassportService(id); 
+        toast('success', 'Deleted', `Passport service "${item?.type}" removed.`); 
+        await renderVisasTab(true); 
+      }
+      catch (e) { toast('error', 'Error', e.message); }
+    }
+  });
+}
+
+function openPassportServiceModal(item) {
+  const tpl = document.getElementById('modal-passport-service-form');
+  if (!tpl) return;
+  
+  openModal(item ? 'Edit Passport Service' : 'Add Passport Service', tpl.innerHTML);
+  
+  const modalForm = document.getElementById('passport-service-form');
+  const idInput = document.getElementById('passport-service-id');
+  const typeInput = document.getElementById('passport-service-type');
+  const descInput = document.getElementById('passport-service-desc');
+  const costInput = document.getElementById('passport-service-cost');
+
+  if (item) {
+    idInput.value = item.id;
+    typeInput.value = item.type || '';
+    descInput.value = item.description || '';
+    costInput.value = item.cost || 0;
+  }
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = modalForm.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    
+    try {
+      const vId = idInput.value;
+      const data = {
+        type: typeInput.value.trim(),
+        description: descInput.value.trim(),
+        cost: Number(costInput.value),
+      };
+      
+      if (vId) await updatePassportService(vId, data);
+      else await addPassportService(data);
+
+      toast('success', 'Saved!', `Passport service ${data.type} saved.`);
+      document.getElementById('admin-modal').close();
+      await renderVisasTab(true);
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  });
+}
