@@ -108,6 +108,7 @@
                         <select id="poster-sector-sel"
                             class="admin-control">
                             <option value="">Choose Sector</option>
+                            <option value="all">All Sectors</option>
                         </select>
                     </div>
                     <div class="md:col-span-1">
@@ -175,13 +176,14 @@
                             <table style="width: 100%; text-align: left; border-collapse: collapse;">
                                 <thead>
                                     <tr style="border-bottom: 2px solid #f1f5f9;">
-                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
-                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Airline</th>
-                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Time</th>
-                                        <th style="padding: 16px 8px; color: #64748b; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Fare</th>
+                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
+                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Sector</th>
+                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Airline</th>
+                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Time</th>
+                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Fare</th>
                                     </tr>
                                 </thead>
-                                <tbody id="poster-fares-tbody" style="font-size: 20px;">
+                                <tbody id="poster-fares-tbody" style="font-size: 15px;">
                                     <!-- Injected by JS -->
                                 </tbody>
                             </table>
@@ -1247,7 +1249,7 @@ Example:
                             </div>
                             <div class="md:text-right">
                                 <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Airline PNR</p>
-                                <p id="t-pnr" class="text-[30px] md:text-[34px] font-bold tracking-[0.18em] text-slate-900 mt-1 uppercase">XXXXXX</p>
+                                <p id="t-pnr" class="text-[30px] md:text-[34px] font-bold tracking-[0.05em] text-slate-900 mt-1 uppercase">XXXXXX</p>
                                 <p class="text-[11px] text-slate-500 mt-1">Document Type: Passenger Itinerary Receipt</p>
                             </div>
                         </header>
@@ -1290,8 +1292,8 @@ Example:
                                 <p id="t-travel-date" class="text-[14px] font-bold text-slate-900 mt-1">SAT, 03 MAY 2025</p>
                             </div>
                             <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <p class="text-[10px] uppercase tracking-[0.12em] text-slate-500">Estimated Duration</p>
-                                <p id="t-duration" class="text-[14px] font-bold text-slate-900 mt-1">2h 35m</p>
+                                <p class="text-[10px] uppercase tracking-[0.12em] text-slate-500">No. of Passengers</p>
+                                <p id="t-top-pax-count" class="text-[14px] font-bold text-slate-900 mt-1">1</p>
                             </div>
                         </section>
 

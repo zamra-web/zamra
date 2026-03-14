@@ -918,6 +918,9 @@ input[type="date"]::-webkit-clear-button {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         overflow: hidden !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
     }
 
     .aurora-bg {
