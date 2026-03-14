@@ -323,7 +323,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     // Contact
                     ctx.font = '700 20px Arial, sans-serif';
                     ctx.textAlign = 'right';
-                    ctx.fillText('zamratravels.com  |  +91 98765 43210', width - marginX, height - (fHeight/2));
+                    ctx.fillText('zamratravels.com  |  +91 98466 06739', width - marginX, height - (fHeight/2));
 
                     ctx.globalAlpha = 1.0;
                 }

@@ -17,6 +17,7 @@ import {
   getAttestations, addAttestation, updateAttestation, deleteAttestation,
   getPassportServices, addPassportService, updatePassportService, deletePassportService,
   getTours, addTour, updateTour, deleteTour,
+  getHajjUmrahPackages, addHajjUmrahPackage, updateHajjUmrahPackage, deleteHajjUmrahPackage,
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
 } from './db.js';
@@ -33,7 +34,6 @@ let _attestations = [];
 let _passportServices = [];
 let _tours = [];
 let _hajjUmrahPackages = [];
-let _dashboardFares = []; // Kept for any stale references
 let _reportFares = [];
 let _databaseFares = [];
 let _databaseDrafts = {};

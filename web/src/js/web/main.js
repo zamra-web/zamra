@@ -418,6 +418,13 @@ async function searchFlights() {
         const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
         const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
         
+        const baggageVal = Number(fare.baggage) || 0;
+        const extraBaggageVal = Number(fare.extraBaggage) || 0;
+        const checkInBaggageStr = baggageVal ? `${baggageVal} KG` : 'No Check-in';
+        const cabinBaggageStr = extraBaggageVal ? `+ ${extraBaggageVal} KG` : '';
+        const totalBaggage = baggageVal + extraBaggageVal;
+        const baggageLabelStr = totalBaggage > 0 ? `${totalBaggage}KG` : '0KG';
+
         return {
           airline: airlineMap[fare.airlineId] || 'Unknown Airline',
           origin: sector.sectorFrom,
@@ -428,7 +435,10 @@ async function searchFlights() {
           departure: dep,
           arrival: arr,
           price: "₹" + fare.finalRate.toLocaleString('en-IN'),
-          seats: fare.seatsAvailable || 0
+          seats: fare.seatsAvailable || 0,
+          checkInBaggage: checkInBaggageStr,
+          cabinBaggage: cabinBaggageStr,
+          baggageLabel: baggageLabelStr
         };
       });
     }
@@ -484,7 +494,7 @@ async function searchFlights() {
       else if (airlineName.includes("FLYNAS") || airlineName === "XY") matchedLogo = zamraLogos["FLYNAS"];
       else if (airlineName.includes("OMAN") || airlineName === "WY") matchedLogo = zamraLogos["OMAN AIR"];
       else if (airlineName.includes("SALAM") || airlineName === "OV") matchedLogo = zamraLogos["SALAM AIR"];
-      else matchedLogo = `https://flycreativekdr.com:8443/FlyCreativeNG/css2/img/Flight_Logo/${item.airline}.png`;
+      else matchedLogo = '';
 
       htmlContent += `
         <div class="bg-white rounded-[16px] p-4 lg:p-6 mb-4 shadow-[0_2px_12px_rgba(13,31,60,0.06)] border border-border transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(13,31,60,0.1)] relative">
@@ -514,7 +524,7 @@ async function searchFlights() {
               <!-- Mobile Connector -->
               <div class="flex flex-col items-center px-2">
                 <i class="bi bi-arrow-right text-primary text-[24px]"></i>
-                <div class="text-[10px] text-text-muted font-bold mt-1">37KG</div>
+                <div class="text-[10px] text-text-muted font-bold mt-1">${item.baggageLabel}</div>
               </div>
 
               <div class="text-right flex-none">
@@ -579,8 +589,8 @@ async function searchFlights() {
                 </div>
                 <div class="text-left">
                   <div class="text-[14px] font-bold text-navy mb-3">Luggage</div>
-                  <div class="text-[13px] text-text-muted font-medium mb-1.5 flex items-center">30 KG</div>
-                  <div class="text-[14px] font-bold text-navy flex items-center">+ 7 KG</div>
+                  <div class="text-[13px] text-text-muted font-medium mb-1.5 flex items-center">${item.checkInBaggage}</div>
+                  <div class="text-[14px] font-bold text-navy flex items-center">${item.cabinBaggage}</div>
                 </div>
               </div>
               

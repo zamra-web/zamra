@@ -6,7 +6,7 @@
  */
 
 import {
-  collection, doc, getDocs, addDoc, updateDoc, deleteDoc, setDoc,
+  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, setDoc,
   query, where, orderBy, Timestamp, serverTimestamp, writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -354,11 +354,6 @@ async function syncAgentFareCommission(agentId, commission) {
 // SERVICES
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function getServices() {
-  const snap = await getDocs(collection(db, 'services'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
 export async function addService(data) {
   const docRef = await addDoc(collection(db, 'services'), {
     ...data,
@@ -566,9 +561,8 @@ export async function deleteTour(tourId) {
 
 /** Fetch a single tour by doc ID */
 export async function getTourById(tourId) {
-  const snap = await getDocs(query(collection(db, 'tours')));
-  const docSnap = snap.docs.find(d => d.id === tourId);
-  if (!docSnap) return null;
+  const docSnap = await getDoc(doc(db, 'tours', tourId));
+  if (!docSnap.exists()) return null;
   return { id: docSnap.id, ...docSnap.data() };
 }
 
@@ -661,25 +655,6 @@ export async function deleteLogo(downloadUrl) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CLOUD FUNCTION WRAPPERS
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Bulk delete fares matching any combination of optional filters.
- * At least one filter must be meaningful (non-null / non-'all').
- * @param {string|null} agentId
- * @param {string|null} startDate  — 'YYYY-MM-DD'
- * @param {string|null} endDate    — 'YYYY-MM-DD'
- * @param {string|null} sectorId
- */
-export async function callBulkDeleteFares(agentId = null, startDate = null, endDate = null, sectorId = null) {
-  const fn = httpsCallable(functions, 'bulkDeleteFares');
-  const payload = {};
-  if (agentId && agentId !== 'all') payload.agentId = agentId;
-  if (sectorId && sectorId !== 'all') payload.sectorId = sectorId;
-  if (startDate) payload.startDate = startDate;
-  if (endDate) payload.endDate = endDate;
-  const result = await fn(payload);
-  return result.data;
-}
 
 /**
  * Hide or show all fares for an agent. Also updates the agent's isActive status.
