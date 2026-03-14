@@ -122,7 +122,7 @@ zamra/                              # Firebase project root — run firebase CLI
 - Edit `web/admin.html`, `web/src/js/admin/main.js`, `web/src/styles/admin/style.css`
 - All data operations go through `web/src/js/admin/db.js`
 - Bulk operations use Cloud Functions via `callXxx()` wrappers in `db.js`
-- Use the `openModal(title, html)` helper in `main.js` for any new modal forms
+- Use the `openModal(title, html, wide = false)` helper in `main.js` for any new modal forms. Pass `wide = true` for forms that need extra width (currently: Tours). This toggles the modal between `max-w-lg` (default) and `max-w-2xl`.
 - Use the `toast(type, title, msg)` helper for all user feedback
 
 ### Working on Cloud Functions
@@ -175,5 +175,7 @@ zamra/                              # Firebase project root — run firebase CLI
 - **E-Ticket Generator Output** — The ticket preview strictly uses native HTML/CSS and relies on the browser's native `@media print` rules for generating high-quality PDFs without external heavier canvas libs. This ensures crispy vectors over blurred raster images.
 - **`wireXxxActions()` functions must bail early, not re-wire** — All `wireVisaActions`, `wireVisaStampingActions`, `wireAttestationActions`, `wirePassportServiceActions`, `wireSectorActions`, `wireAirlineActions`, `wireTourActions`, `wireHajjUmrahActions` guard with `if (!tbody || tbody.dataset.actionsWired) return;`. Do **not** use the `delete tbody.dataset.actionsWired` + re-set pattern — it bypasses the guard and stacks a new `addEventListener` on every render, causing N confirm dialogs and N toast messages for a single click after N tab refreshes.
 - **Visa page styles in `visa.html`** — The premium visa page styles live in a `<style>` block co-located inside `visa.html`, not in `style.css`. This is intentional: they are numerous and only apply to that one page. Design tokens from `style.css` (`--color-primary`, etc.) are still used.
-- **Tours itinerary is stored as a JSON array** — The `itinerary` field on `tours` documents is an `Array<{day: string, activities: string[]}>`. The admin modal accepts raw JSON and validates before saving. Invalid JSON shows a toast error and blocks the save. On the public detail page, the JS parses this array and renders a timeline. Never store itinerary as a raw string or markdown.
+- **Tours itinerary uses a dynamic day-builder UI** — The `itinerary` field on `tours` documents is stored as `Array<{day: string, activities: string[]}>`. The admin modal now uses a card-based builder (Add Day / Remove Day buttons) exactly like the E-Ticket passenger manifest — **do not reintroduce a raw JSON textarea**. Helper functions `_tourItineraryDayHtml`, `_syncTourDayNumbers`, and `_readTourItinerary` in `main.js` manage the UI and serialise the data on submit.
+- **Admin modal is scrollable** — `#modal-body` has `overflow-y-auto` and the dialog caps at `max-h-[90vh]`. The header (`shrink-0`) stays pinned. Do not add a fixed height or overflow to `#modal-body` — it is already handled.
 - **Tours and Hajj/Umrah listings only show `isActive === true`** — by default filter for active packages on public pages. The admin dashboard fetches all packages to show all entries including hidden ones.
+- **Hajj/Umrah public fetch must NOT use `orderBy` alongside `where`** — `hajj-umrah.js` fetches with `where('isActive','==',true)` only (no `orderBy`). Adding an `orderBy` on a different field would require a Firestore composite index that doesn't exist and would silently return empty results. Sort is done **client-side** after fetch.

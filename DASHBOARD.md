@@ -182,7 +182,12 @@ web/
   - Price in ₹ (set `0` for "Call for Price")
   - Active toggle — controls visibility on public `/tours.html`
   - Description, Highlights (newline-separated list)
-  - Itinerary — **JSON array** of day objects `[{"day":"Day 1 – Arrival","activities":[...]}]`; invalid JSON blocked with toast error
+  - **Itinerary — dynamic day builder** — an "Add Day" button dynamically appends day cards (same UX pattern as the E-Ticket passenger manifest). Each card contains:
+    - **Day Label / Title** field (e.g. `Day 1 – Arrival`)
+    - **Activities** textarea (one activity per line)
+    - **× Remove** button (disabled when only one day remains)
+    - Cards are re-numbered automatically after removal. On load, one blank Day 1 card is pre-inserted. When editing an existing tour, all saved `itinerary` days are pre-populated.
+    - No JSON input required — the form serialises into the `Array<{day, activities[]}>` structure automatically on submit.
   - Inclusions / Exclusions (newline-separated lists)
   - Cover Image upload → Firebase Storage `tour_images/` folder
 - **Live Sync** — data drives `/tours.html` and `/tour-detail.html` public pages.
@@ -412,6 +417,8 @@ Functions:
 ## UI System
 
 - **Modal:** Native `<dialog>` element (`#admin-modal`) — JS sets `#modal-title` and `#modal-body` HTML, then calls `.showModal()`
+  - **Width:** defaults to `max-w-lg`; switches to `max-w-2xl` when `openModal()` is called with `wide = true` (used for Tours and similar wide forms)
+  - **Scrollable body:** `#modal-body` has `overflow-y-auto`; the header is `shrink-0` so it stays pinned while the body scrolls. Max height is `90vh` so tall forms (e.g. tour with many itinerary days) never overflow the viewport.
 - **Toasts:** `#toastsEl` container — `toast(type, title, msg)` renders success/error/warning notifications with auto-dismiss (7s)
 - **Tables:** `.admin-table` CSS class with alternating row striping and hover states; each tab renders into its own `<div id="[tab]-results">` container
 - **Auth guard:** Page is hidden via `document.documentElement.style.visibility = 'hidden'` until `onAuthChange` confirms valid admin session
@@ -462,7 +469,8 @@ npx firebase-tools@latest deploy --only functions
 | **Multi-page routing broken on refresh** | `firebase.json` had a catch-all rewrite rule (`**` to `/index.html`) spanning the entire site, which directed requests for `/admin.html` to the index page instead. | Removed the catch-all and added specific targeted rewrites for `/admin` and `/login` (while Vercel handles the heavy lifting for multi-page frontend routing normally). |
 | **Inefficient `getTourById`** | Used `getDocs` with a `where()` filter instead of direct `getDoc`. | Refactored `getTourById(id)` to use `doc(db, 'tours', id)` and `getDoc()`, optimizing read operations and latency. |
 | **PDF E-Ticket Print Margins/UI elements** | The PDF export included UI webpage borders, rounded corners, and box-shadows on the wrapper. | Overrode CSS under `@media print` to force `border: none`, `box-shadow: none`, and `border-radius: 0` inside the printable area container. |
+| **Hajj & Umrah packages not showing on public page** | `hajj-umrah.js` used `where('isActive','==',true) + orderBy('createdAt','desc')` — Firestore requires a composite index for this combination which didn't exist, causing silently empty results. | Removed `orderBy` from the Firestore query; packages are now fetched with only `where('isActive','==',true)` (no index needed) and sorted client-side by `departureDate`. |
 
 ---
 
-_Last audited: 2026-03-14 — Added fare deduplication logic for identical flights in Poster and Video generation, ensuring only cheapest rates display. Added Database row "Share" WhatsApp integration. Poster Generator supports 'All Sectors' and responsive row sizing. E-Ticket generator passenger counters and PDF print improvements._
+_Last audited: 2026-03-14 — Tours tab itinerary upgraded from raw JSON textarea to dynamic day-builder UI (Add Day / Remove Day cards). Admin modal made scrollable (`overflow-y-auto`, `max-h-[90vh]`) and supports wide mode (`max-w-2xl`) for complex forms. Fixed Hajj & Umrah packages not appearing on public site due to missing Firestore composite index._

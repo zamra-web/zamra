@@ -176,6 +176,7 @@ Loads the tour document ID from the URL query param `?id=`.
 - **Package cards** — displays cover image, package type (Hajj/Umrah), days/nights, title, and price. Includes a primary CTA button to book via WhatsApp.
 - **CTA strip** — Contact buttons for custom Hajj & Umrah packages.
 - Logic in `src/js/web/hajj-umrah.js` — fetches only `isActive === true` packages from the `hajj_umrah_packages` collection.
+  - Query uses **only** `where('isActive', '==', true)` — no `orderBy` clause. This avoids requiring a Firestore composite index. Results are sorted **client-side** by `departureDate` (ascending) after fetch.
 
 ---
 
@@ -253,4 +254,4 @@ cd web && npm run build        # outputs to web/dist/
 
 ---
 
-_Last audited: 2026-03-14 — Added frontend fare deduplication ensuring only the lowest rate is shown for identical flights. Verified frontend multi-page routing and premium design consistencies across the site. See DASHBOARD.md for Admin Dashboard E-Ticket, Share functionality, and Poster features._
+_Last audited: 2026-03-14 — Fixed Hajj & Umrah public page showing no packages: removed compound `where + orderBy` query (required a missing Firestore composite index) and replaced with client-side sort by `departureDate`. Added dynamic tour itinerary day-builder in admin. Admin modal is now scrollable and supports a wide mode for complex forms._
