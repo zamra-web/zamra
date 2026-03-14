@@ -875,8 +875,21 @@ input[type="date"]::-webkit-clear-button {
 
 /* ─── Web/Print E-Ticket Styles ─── */
 @media print {
+    html,
+    body {
+        height: auto !important;
+    }
+
+    main {
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: none !important;
+        width: 210mm !important;
+    }
+
     body {
         margin: 0 !important;
+        display: block !important;
         background-color: #ffffff;
         background-image: none !important;
         -webkit-print-color-adjust: exact;
@@ -911,13 +924,13 @@ input[type="date"]::-webkit-clear-button {
     }
 
     #eticket-print-area {
-        width: 210mm !important;
-        max-width: 210mm !important;
-        margin: 0 auto !important;
+        width: calc(210mm / var(--eticket-print-scale, 1)) !important;
+        max-width: calc(210mm / var(--eticket-print-scale, 1)) !important;
+        margin: 0 !important;
         min-height: auto !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
-        overflow: hidden !important;
+        overflow: visible !important;
         border: none !important;
         box-shadow: none !important;
         border-radius: 0 !important;
