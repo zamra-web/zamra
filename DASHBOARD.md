@@ -108,8 +108,8 @@ web/
 - Data from Firestore `airlines` collection (fields: `name`, `code`, `logoUrl`)
 
 ### 5. 📈 Reports Tab
-- **Filter Bar** — premium card with icon header. Fields: Sector, Agent (optional), From Date (optional), To Date (optional), and a gradient **Generate Report** button with a lightning icon.
-- **Only one filter is required** — pick a sector alone to run a report; agent and dates further narrow the aggregation.
+- **Filter Bar** — premium card with icon header. Fields: Sector (optional), Agent (optional), From Date (optional), To Date (optional), and a gradient **Generate Report** button with a lightning icon.
+- **All filters are fully optional** — leave everything at their defaults (`All Sectors`, `All Agents`, no dates) to generate a full-dataset report across the entire timeline. Any combination of filters is valid.
 - Calls `generateAgentReport` Cloud Function for summary stats (charts), then fetches raw fares via `getFares()` for the full table.
 - **Stat Cards (5)** — appear after a report is generated, showing real-time counts from `_reportFares`:
   - 🎫 **Total Fares** — total count returned
@@ -341,15 +341,19 @@ web/
 
 ## Firestore Indexes
 
-5 compound indexes on `agent_fares` for dashboard queries:
+7 compound indexes on `agent_fares` for dashboard queries:
 
-| Fields | Order |
-|---|---|
-| `agentId` + `flightDate` | ASC, ASC |
-| `sectorId` + `flightDate` | ASC, ASC |
-| `agentId` + `sectorId` + `flightDate` | ASC, ASC, ASC |
-| `isHidden` + `flightDate` | ASC, ASC |
-| `agentId` + `isHidden` + `flightDate` | ASC, ASC, ASC |
+| Fields | Order | Used By |
+|---|---|---|
+| `agentId` + `flightDate` | ASC, ASC | Fares filtered by single agent |
+| `sectorId` + `flightDate` | ASC, ASC | Fares filtered by single sector |
+| `agentId` + `sectorId` + `flightDate` | ASC, ASC, ASC | Fares filtered by agent + sector |
+| `isHidden` + `sectorId` + `flightDate` | ASC, ASC, ASC | Public site live fares per sector |
+| `agentId` + `isHidden` + `flightDate` | ASC, ASC, ASC | Agent visibility toggle queries |
+| `isHidden` + `flightDate` | ASC, ASC | **Poster & Reports — All Sectors** (no sectorId/agentId filter) |
+| `agentId` + `sectorId` + `isHidden` + `flightDate` | ASC, ASC, ASC, ASC | Full 4-field filter queries |
+
+> **Important:** The `isHidden + flightDate` index (6th row) is the one required when generating a poster or report for **All Sectors** with no agent or sector constraint. It was added in March 2026 to fix the "Generation Failed — query requires an index" error.
 
 ---
 
@@ -363,7 +367,7 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 | `bulkDeleteFares` | Batch-deletes `agent_fares` matching optional filters: `agentId`, `sectorId`, `startDate`, `endDate`. At least one filter required. Builds query dynamically. |
 | `bulkToggleAgentVisibility` | Sets `isActive` on agent + `isHidden` on all their fares |
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
-| `generateAgentReport` | Aggregates fares with optional filters (sector, agent, date range). All filters optional individually — at least one required. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
+| `generateAgentReport` | Aggregates fares with fully optional filters (sector, agent, date range). **All filters are optional** — passing no filters returns stats across the entire dataset. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
 | `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, and **`agents`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. Batch-writes to `agent_fares`. |
 
 ---
@@ -409,7 +413,7 @@ Functions:
   callToggleAgentVisibility(agentId, isActive)
   callToggleSectorVisibility(sectorId, isHidden)
   callGenerateAgentReport(startDate?, endDate?, sectorId?, agentId?)
-    — all params optional; at least one required
+    — all params fully optional; passing none returns full-dataset aggregation
 ```
 
 ---
@@ -470,7 +474,9 @@ npx firebase-tools@latest deploy --only functions
 | **Inefficient `getTourById`** | Used `getDocs` with a `where()` filter instead of direct `getDoc`. | Refactored `getTourById(id)` to use `doc(db, 'tours', id)` and `getDoc()`, optimizing read operations and latency. |
 | **PDF E-Ticket Print Margins/UI elements** | The PDF export included UI webpage borders, rounded corners, and box-shadows on the wrapper. | Overrode CSS under `@media print` to force `border: none`, `box-shadow: none`, and `border-radius: 0` inside the printable area container. |
 | **Hajj & Umrah packages not showing on public page** | `hajj-umrah.js` used `where('isActive','==',true) + orderBy('createdAt','desc')` — Firestore requires a composite index for this combination which didn't exist, causing silently empty results. | Removed `orderBy` from the Firestore query; packages are now fetched with only `where('isActive','==',true)` (no index needed) and sorted client-side by `departureDate`. |
+| **Poster "Generation Failed" on All Sectors** | `getFares({ sectorId: 'all', includeHidden: false })` with no agentId/sectorId equality filter produces `where('isHidden','==',false) + orderBy('flightDate')` — a combination Firestore requires a composite index for. The `isHidden + flightDate` index was missing from `firestore.indexes.json`. | Added `isHidden + flightDate` (ASC, ASC) and `agentId + sectorId + isHidden + flightDate` composite indexes and deployed them via `firebase deploy --only firestore:indexes`. |
+| **Reports blocked for All Sectors + All Agents + no dates** | Both the frontend (`renderReportsTab` in `main.js`) and the `generateAgentReport` Cloud Function had a guard that threw an error when all filters were at their defaults, preventing any full-dataset report. | Removed the `'No Filter Selected'` toast guard from `main.js` and the `HttpsError('invalid-argument')` throw from `functions/index.js`. All filters are now fully optional in both layers. |
 
 ---
 
-_Last audited: 2026-03-14 — Tours tab itinerary upgraded from raw JSON textarea to dynamic day-builder UI (Add Day / Remove Day cards). Admin modal made scrollable (`overflow-y-auto`, `max-h-[90vh]`) and supports wide mode (`max-w-2xl`) for complex forms. Fixed Hajj & Umrah packages not appearing on public site due to missing Firestore composite index._
+_Last audited: 2026-03-14 — Added missing Firestore composite indexes (`isHidden + flightDate`, `agentId + sectorId + isHidden + flightDate`) to fix poster "All Sectors" query. Removed filter guards from both the Reports tab frontend and the `generateAgentReport` Cloud Function so full-dataset reports (all sectors, all agents, entire timeline) can now be generated. Tours tab itinerary upgraded from raw JSON textarea to dynamic day-builder UI. Admin modal made scrollable and supports wide mode._
