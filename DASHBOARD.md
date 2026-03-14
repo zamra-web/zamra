@@ -146,11 +146,14 @@ web/
 - **Add Fare** — opens a modal form to insert a brand-new fare row into Firestore.
 
 ### 7. 📋 Rate Upload Tab
-- **Agent selector** — chips populated from live Firestore `agents` list
-- **Paste raw rate text** — agent-formatted WhatsApp/text fare data
+- **AI Rate Intake** — premium step-by-step UI for agent selection and raw fare submission
+- **Agent selector** — chips populated from live Firestore `agents` list (manual override supported)
+- **Paste raw rate text** — WhatsApp, email, or plain-text fare dumps
+- **Live preview** — lightweight client-side parse shows detected entries before submit
 - **Submit** — Sends raw text payload securely to the **n8n AI webhook** at `https://n8n.srv1046139.hstgr.cloud/webhook/zamra`. The frontend no longer parses and saves this locally.
 - **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
-- Submission history stored in `localStorage` (last 15 sessions)
+- **Session cards** — local browser stats (submissions + entries) and recent submissions list stored in `localStorage` (last 15 sessions)
+- **Staggered reveal** — cards animate in on tab activation for a premium feel (respects `prefers-reduced-motion`)
 
 ### 8. 🎟️ E-Ticket Tab
 - **Manual E-Ticket Generator** — issue professional, branded e-tickets directly from the dashboard.
@@ -160,6 +163,15 @@ web/
 - **Dynamic Passenger Rows** — allows adding multiple passengers and specifying check-in/carry-on baggage per passenger.
 - **Automated Formatting** — precisely structured classic ticket layout with travel details, pax details, passenger flight segments, dynamic baggage mapping, and appended travel rules.
 - **Print / PDF Export** — specifically designed with CSS `@media print` rules for clean, A4-native PDF generation via the browser's native print dialog.
+
+### 9. 🛂 Visas Tab
+- **Comprehensive Visa Services Management** — Full CRUD management for four distinct service types via isolated inner tabs:
+  - **Visas** — standard tourist/business visas (Country, Type, Rate, Processing Time, Optional Flag Image stored in Storage).
+  - **Visa Stamping** — country-specific stamping services.
+  - **Attestations** — document/certificate attestation services.
+  - **Passport Services** — fresh, renewal, and detail update services.
+- **Live Sync** — data drives the dynamic tables and modal inquiries directly on the public `visa.html` page.
+- **Sub-Tabs** — seamless client-side toggling between the 4 sub-collections without page reload.
 
 ---
 
@@ -226,6 +238,37 @@ web/
 | `title` | String | |
 | `basePrice` | Number | |
 | `isActive` | Boolean | |
+
+### `visas`
+| Field | Type | Notes |
+|---|---|---|
+| `countryName` | String | Country name e.g. `'UAE'` |
+| `visaType` | String | Visa type e.g. `'30 Days Tourist'` |
+| `rate` | Number | Cost in AED |
+| `processingTime` | String | e.g. `'2-3 Working Days'` |
+| `flagUrl` | String | Optional image URL for flag |
+
+### `visa_stamping`
+| Field | Type | Notes |
+|---|---|---|
+| `country` | String | Country name |
+| `description` | String | Description of stamping |
+| `cost` | Number | Cost in AED |
+| `processingTime` | String | Processing details |
+
+### `attestations`
+| Field | Type | Notes |
+|---|---|---|
+| `country` | String | Target country |
+| `certificate` | String | Type of certificate e.g. `'Marriage'` |
+| `cost` | Number | Cost in AED |
+
+### `passport_services`
+| Field | Type | Notes |
+|---|---|---|
+| `type` | String | Service type e.g. `'Fresh / Renewal'` |
+| `description` | String | Requirements or process details |
+| `cost` | Number | Cost in AED |
 
 ---
 
@@ -340,4 +383,4 @@ npx firebase-tools@latest deploy --only hosting
 
 ---
 
-_Last audited: 2026-03-14 — Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal), removed fare edit controls from Reports and bulk fare delete controls from Agents, and set Database tab rate logic to `Final Rate = SP Rate + Commission`._
+_Last audited: 2026-03-14 — Added Visas tab with sub-categories (Visas, Stamping, Attestations, Passport Services); Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal), removed fare edit controls from Reports and bulk fare delete controls from Agents, set Database tab rate logic to `Final Rate = SP Rate + Commission`, and refreshed the Rate Upload tab UI (premium layout + staggered reveal)._ 

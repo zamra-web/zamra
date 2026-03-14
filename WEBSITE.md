@@ -30,6 +30,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | File | Route | Purpose |
 |---|---|---|
 | `web/index.html` | `/` | Homepage — hero, flight search, sectors, services |
+| `web/visa.html` | `/visa.html` | Visa services — Visas, Stamping, Attestations, Passport Services |
 | `web/login.html` | `/login.html` | Admin login page (Firebase Auth) |
 | `web/admin.html` | `/admin.html` | Admin dashboard (auth-gated, see DASHBOARD.md) |
 
@@ -40,6 +41,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 ```
 web/
 ├── index.html                  # Homepage entry point
+├── visa.html                   # Visa services page
 ├── login.html                  # Admin login page
 ├── admin.html                  # Admin dashboard (auth-gated)
 ├── vite.config.js              # Multi-page Vite config (index + login + admin)
@@ -57,7 +59,8 @@ web/
     │
     └── js/
         ├── web/
-        │   └── main.js         # All frontend logic (flight search, UI interactions)
+        │   ├── main.js         # All frontend logic (flight search, UI interactions)
+        │   └── visa.js         # Visa page logic (services fetch, modal, whatsapp link)
         └── admin/
             ├── firebase-config.js  # Firebase app init — exports auth, db, storage, functions
             ├── auth.js             # onAuthChange, logoutUser helpers
@@ -163,3 +166,7 @@ npx firebase-tools@latest deploy --only hosting
 | `airlines` | `name`, `code`, `logoUrl` |
 | `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `flightTime`, `isHidden` |
 | `services` | `serviceType`, `title`, `basePrice`, `isActive` |
+| `visas` | `countryName`, `visaType`, `processingTime`, `rate`, `flagUrl` |
+| `visa_stamping` | `country`, `description`, `processingTime`, `cost` |
+| `attestations` | `country`, `certificate`, `cost` |
+| `passport_services` | `type`, `description`, `cost` |

@@ -102,7 +102,7 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Update docs:** Whenever you make significant structural changes, update the relevant `.md` file.
 
 ### Working on the Public Website
-- Edit `web/index.html`, `web/src/js/web/main.js`, `web/src/styles/web/style.css`
+- Edit `web/index.html`, `web/visa.html`, `web/src/js/web/main.js`, `web/src/js/web/visa.js`, `web/src/styles/web/style.css`
 - Reference images as `/assets/img/filename` (served from `web/public/assets/img/`)
 - Do **not** add external image URLs — add images to `web/public/assets/img/` instead
 
