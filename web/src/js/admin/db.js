@@ -49,10 +49,19 @@ export async function addAgent(data) {
 /** Update an existing agent */
 export async function updateAgent(agentId, data) {
   const { id, ...updates } = data;
+  const hasCommission = updates.commission !== undefined && updates.commission !== null && updates.commission !== '';
+  if (hasCommission) {
+    updates.commission = Number(updates.commission) || 0;
+  }
+
   await updateDoc(doc(db, 'agents', agentId), {
     ...updates,
     updatedAt: serverTimestamp(),
   });
+
+  if (hasCommission) {
+    await syncAgentFareCommission(agentId, updates.commission);
+  }
 }
 
 /** Delete an agent */
@@ -297,6 +306,47 @@ export async function updateFare(fareId, data) {
 /** Delete a single fare record */
 export async function deleteFare(fareId) {
   await deleteDoc(doc(db, 'agent_fares', fareId));
+}
+
+/**
+ * Sync commission across all fares for a given agent.
+ * Updates both commission and finalRate (specialRate + commission).
+ */
+async function syncAgentFareCommission(agentId, commission) {
+  if (!agentId) return 0;
+  const normalizedCommission = Number(commission) || 0;
+  const snap = await getDocs(query(collection(db, 'agent_fares'), where('agentId', '==', agentId)));
+  if (snap.empty) return 0;
+
+  const CHUNK = 400;
+  let batch = writeBatch(db);
+  let count = 0;
+  let updated = 0;
+
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data() || {};
+    const specialRate = Number(data.specialRate) || 0;
+    const finalRate = Math.max(0, specialRate + normalizedCommission);
+    batch.update(docSnap.ref, {
+      commission: normalizedCommission,
+      finalRate,
+      updatedAt: serverTimestamp(),
+    });
+    count += 1;
+    if (count >= CHUNK) {
+      await batch.commit();
+      updated += count;
+      batch = writeBatch(db);
+      count = 0;
+    }
+  }
+
+  if (count > 0) {
+    await batch.commit();
+    updated += count;
+  }
+
+  return updated;
 }
 
 

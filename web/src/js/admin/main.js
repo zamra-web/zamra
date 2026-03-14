@@ -64,16 +64,18 @@ function toSafeNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-const ETICKET_CABIN_BAG_OPTIONS = [7, 10];
-const ETICKET_CHECKIN_BAG_OPTIONS = [15, 20, 25, 30, 35, 40];
+const ETICKET_CABIN_BAG_OPTIONS = [5, 7, 10];
+const ETICKET_CHECKIN_BAG_OPTIONS = [20, 25, 30, 35, 40];
 
 function buildKgOptionsHtml(options = [], selectedValue = 0) {
   const selected = Math.max(0, parseBaggageNumber(selectedValue));
-  const unique = [...new Set(options.map(v => Math.max(0, parseBaggageNumber(v))))];
-  if (!unique.includes(selected)) unique.push(selected);
-  unique.sort((a, b) => a - b);
+  const unique = [...new Set(options.map(v => Math.max(0, parseBaggageNumber(v))))]
+    .filter(v => v > 0)
+    .sort((a, b) => a - b);
+  if (!unique.length) return '';
+  const resolvedSelected = unique.includes(selected) ? selected : unique[0];
   return unique
-    .map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v} Kg</option>`)
+    .map(v => `<option value="${v}" ${v === resolvedSelected ? 'selected' : ''}>${v} Kg</option>`)
     .join('');
 }
 
@@ -821,12 +823,14 @@ function agentRow(a) {
     <td>${a.contactPhone || '—'}</td>
     <td class="font-semibold text-navy">${comm}</td>
     <td>${statusBadge}</td>
-    <td class="flex gap-1 flex-wrap">
-      <button data-action="edit-agent" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
-      <button data-action="delete-agent" data-id="${a.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
-      <button data-action="toggle-agent" data-id="${a.id}" data-active="${a.isActive !== false}"
-        class="admin-action-btn ${a.isActive !== false ? 'admin-action-toggle' : 'admin-action-show'}">
-        <i class="bi ${a.isActive !== false ? 'bi-eye-slash' : 'bi-eye'}"></i>${a.isActive !== false ? 'Hide Fares' : 'Show Fares'}</button>
+    <td>
+      <div class="flex gap-1 flex-wrap items-center">
+        <button data-action="edit-agent" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-agent" data-id="${a.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+        <button data-action="toggle-agent" data-id="${a.id}" data-active="${a.isActive !== false}"
+          class="admin-action-btn ${a.isActive !== false ? 'admin-action-toggle' : 'admin-action-show'}">
+          <i class="bi ${a.isActive !== false ? 'bi-eye-slash' : 'bi-eye'}"></i>${a.isActive !== false ? 'Hide Fares' : 'Show Fares'}</button>
+      </div>
     </td>
   </tr>`;
 }
@@ -1006,12 +1010,14 @@ function sectorRow(s) {
     <td class="font-semibold">${sector.sectorFrom}</td>
     <td class="font-semibold">${sector.sectorTo}</td>
     <td><span class="font-mono font-bold text-primary">${sector.sectorCode}</span></td>
-    <td class="flex gap-1">
-      <button data-action="edit-sector" data-id="${s.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
-      <button data-action="delete-sector" data-id="${s.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
-      <button data-action="toggle-sector" data-id="${s.id}" data-hidden="${s.isHidden === true}"
-        class="admin-action-btn ${s.isHidden === true ? 'admin-action-show' : 'admin-action-toggle'}">
-        <i class="bi ${s.isHidden === true ? 'bi-eye' : 'bi-eye-slash'}"></i>${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
+    <td>
+      <div class="flex gap-1 items-center">
+        <button data-action="edit-sector" data-id="${s.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-sector" data-id="${s.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+        <button data-action="toggle-sector" data-id="${s.id}" data-hidden="${s.isHidden === true}"
+          class="admin-action-btn ${s.isHidden === true ? 'admin-action-show' : 'admin-action-toggle'}">
+          <i class="bi ${s.isHidden === true ? 'bi-eye' : 'bi-eye-slash'}"></i>${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
+      </div>
     </td>
   </tr>`;
 }
@@ -1144,9 +1150,11 @@ function airlineRow(a) {
     <td>${logo}</td>
     <td class="font-semibold">${a.name}</td>
     <td><span class="font-mono font-bold text-primary">${a.code}</span></td>
-    <td class="flex gap-1">
-      <button data-action="edit-airline" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
-      <button data-action="delete-airline" data-id="${a.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+    <td>
+      <div class="flex gap-1 items-center">
+        <button data-action="edit-airline" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-airline" data-id="${a.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
     </td>
   </tr>`;
 }
@@ -1659,6 +1667,13 @@ function getDatabaseLookupMaps() {
   };
 }
 
+function getAgentCommissionValue(agentId, fallback = 0) {
+  if (!agentId) return fallback;
+  const agent = _agents.find(a => a.id === agentId);
+  const commission = Number(agent?.commission);
+  return Number.isFinite(commission) ? Math.max(0, commission) : fallback;
+}
+
 function normalizeFieldForDraft(field, value) {
   if (field === 'specialRate' || field === 'finalRate' || field === 'commission' || field === 'extraBaggage') {
     return value === '' ? '' : toSafeNumber(value, 0);
@@ -1825,6 +1840,16 @@ function wireDatabaseTableEvents() {
     const nextDraft = { ...(_databaseDrafts[fareId] || {}) };
     if (changed) nextDraft[field] = draftValue;
     else delete nextDraft[field];
+
+    if (field === 'agentId') {
+      const commissionInput = row.querySelector('[data-db-field="commission"]');
+      const agentCommission = getAgentCommissionValue(draftValue, 0);
+      if (commissionInput) commissionInput.value = String(agentCommission);
+      const baseCommission = getCommissionValue(baseFare);
+      if (agentCommission !== baseCommission) nextDraft.commission = agentCommission;
+      else delete nextDraft.commission;
+      updateDerivedRateInRow(row);
+    }
 
     if (Object.keys(nextDraft).length) _databaseDrafts[fareId] = nextDraft;
     else delete _databaseDrafts[fareId];
@@ -2173,16 +2198,16 @@ function renderDatabaseTable() {
         <tr>
           <th class="w-[36px] text-center"><input id="database-select-all" type="checkbox" ${allSelectedOnPage ? 'checked' : ''}></th>
           <th class="w-[56px]">#</th>
+          ${TH('agentId', 'Agent')}
+          ${TH('sectorId', 'Sector Code')}
           ${TH('flightDate', 'Date')}
           ${TH('flightTime', 'Time')}
-          ${TH('agentId', 'Agent')}
-          ${TH('sectorId', 'Sector')}
-          ${TH('airlineId', 'Airline')}
+          ${TH('airlineId', 'Flight Code')}
+          ${TH('baggage', 'Baggage')}
+          ${TH('extraBaggage', 'Extra Baggage')}
           ${TH('specialRate', 'SP Rate')}
+          ${TH('commission', 'Commission')}
           ${TH('finalRate', 'Rate')}
-          ${TH('commission', 'Comm')}
-          ${TH('baggage', 'Bag')}
-          ${TH('extraBaggage', 'Ex.Bag')}
           ${TH('isHidden', 'Status')}
           <th>Actions</th>
         </tr>
@@ -2198,12 +2223,6 @@ function renderDatabaseTable() {
               </td>
               <td class="font-mono text-[11px] text-text-soft">${start + idx + 1}</td>
               <td>
-                <input type="date" data-db-field="flightDate" class="db-cell-input" value="${toDateInputValue(fare.flightDate)}">
-              </td>
-              <td>
-                <input type="text" data-db-field="flightTime" class="db-cell-input min-w-[128px]" value="${escapeHtml(fare.flightTime || '')}" placeholder="04:05 - 11:10">
-              </td>
-              <td>
                 <select data-db-field="agentId" class="db-cell-select min-w-[180px]">
                   <option value="">Select Agent</option>
                   ${buildAgentOptions(fare.agentId)}
@@ -2216,19 +2235,16 @@ function renderDatabaseTable() {
                 </select>
               </td>
               <td>
+                <input type="date" data-db-field="flightDate" class="db-cell-input" value="${toDateInputValue(fare.flightDate)}">
+              </td>
+              <td>
+                <input type="text" data-db-field="flightTime" class="db-cell-input min-w-[128px]" value="${escapeHtml(fare.flightTime || '')}" placeholder="04:05 - 11:10">
+              </td>
+              <td>
                 <select data-db-field="airlineId" class="db-cell-select min-w-[170px]">
                   <option value="">No Airline</option>
                   ${buildAirlineOptions(fare.airlineId)}
                 </select>
-              </td>
-              <td>
-                <input type="number" data-db-field="specialRate" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.specialRate, 0)}" min="0" step="1">
-              </td>
-              <td>
-                <input type="number" data-db-field="finalRate" class="db-cell-input db-cell-num bg-slate-50 text-slate-500" value="${toSafeNumber(fare.finalRate, 0)}" min="0" step="1" readonly tabindex="-1">
-              </td>
-              <td>
-                <input type="number" data-db-field="commission" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.commission, 0)}" min="0" step="1">
               </td>
               <td>
                 <select data-db-field="baggage" class="db-cell-select min-w-[110px]">
@@ -2239,6 +2255,15 @@ function renderDatabaseTable() {
                 <select data-db-field="extraBaggage" class="db-cell-select min-w-[110px]">
                   ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, toSafeNumber(fare.extraBaggage, 0))}
                 </select>
+              </td>
+              <td>
+                <input type="number" data-db-field="specialRate" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.specialRate, 0)}" min="0" step="1">
+              </td>
+              <td>
+                <input type="number" data-db-field="commission" class="db-cell-input db-cell-num bg-slate-50 text-slate-500" value="${toSafeNumber(fare.commission, 0)}" min="0" step="1" readonly tabindex="-1">
+              </td>
+              <td>
+                <input type="number" data-db-field="finalRate" class="db-cell-input db-cell-num bg-slate-50 text-slate-500" value="${toSafeNumber(fare.finalRate, 0)}" min="0" step="1" readonly tabindex="-1">
               </td>
               <td>
                 <select data-db-field="isHidden" class="db-cell-select min-w-[94px]">
@@ -2436,7 +2461,7 @@ function openDatabaseAddFareModal() {
         </div>
         <div>
           <label class="admin-label text-[10px] mb-1">Commission (₹)</label>
-          <input id="db-add-comm" type="number" class="admin-control h-10" min="0" step="1" value="0">
+          <input id="db-add-comm" type="number" class="admin-control h-10 bg-slate-50 text-slate-500" min="0" step="1" value="0" readonly tabindex="-1">
         </div>
         <div>
           <label class="admin-label text-[10px] mb-1">Final Rate (₹)</label>
@@ -2455,7 +2480,7 @@ function openDatabaseAddFareModal() {
         <div>
           <label class="admin-label text-[10px] mb-1">Extra Baggage (kg)</label>
           <select id="db-add-exbag" class="admin-control h-10">
-            ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 0)}
+            ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 20)}
           </select>
         </div>
       </div>
@@ -2481,14 +2506,22 @@ function openDatabaseAddFareModal() {
   const spInput = document.getElementById('db-add-sp');
   const commInput = document.getElementById('db-add-comm');
   const rateInput = document.getElementById('db-add-rate');
+  const agentSelect = document.getElementById('db-add-agent');
   const syncAddRate = () => {
     if (!rateInput) return;
     const specialRate = toSafeNumber(spInput?.value, 0);
     const commission = Math.max(0, toSafeNumber(commInput?.value, 0));
     rateInput.value = String(getCalculatedFinalRate(specialRate, commission));
   };
+  const syncAddCommission = () => {
+    if (!commInput) return;
+    const agentCommission = getAgentCommissionValue(agentSelect?.value, 0);
+    commInput.value = String(agentCommission);
+    syncAddRate();
+  };
   spInput?.addEventListener('input', syncAddRate);
-  commInput?.addEventListener('input', syncAddRate);
+  agentSelect?.addEventListener('change', syncAddCommission);
+  syncAddCommission();
   syncAddRate();
 
   form.addEventListener('submit', async (e) => {
@@ -2648,7 +2681,7 @@ function syncPill() {
     p.textContent = `Agent ${agent?.id || selAgent} selected ✓`;
     p.classList.remove('empty');
   } else {
-    p.textContent = 'No agent selected';
+    p.textContent = 'Select an agent to continue';
     p.classList.add('empty');
   }
 }
@@ -2714,7 +2747,7 @@ async function handleSheetSubmit() {
   const btn = document.getElementById('submitBtn');
   const orig = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = `<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Sending to AI...`;
+  btn.innerHTML = `<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Sending to AI pipeline...`;
 
   const bar = document.getElementById('progBar');
   const fill = document.getElementById('progFill');
@@ -2748,7 +2781,7 @@ async function handleSheetSubmit() {
       // Use estimated rows just for UI stat
       totalEntries += parsedRows.length; 
       saveHistory(); renderHistory(); updateStats();
-      toast('success', 'Submitted', 'Rates dispatched to AI Agent. The database will reflect parsing results momentarily.');
+      toast('success', 'Submitted', 'Rates sent to the AI parser. Firestore will update in a moment.');
       setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
     } else {
       throw new Error('N8N webhook rejected payload');
