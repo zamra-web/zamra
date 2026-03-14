@@ -26,11 +26,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-  <script type="module" crossorigin src="/assets/admin-C_ZpGiFa.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/firebase-config-C3FJvAwC.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-BH7Zihzs.js">
-  <link rel="modulepreload" crossorigin href="/assets/db-VIz2p67e.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-DmpBu_rz.css">
+  <script type="module" crossorigin src="/assets/admin-Dr9V1f18.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/index.esm-kRT_WKqT.js">
+  <link rel="modulepreload" crossorigin href="/assets/firebase-config-aHS-3htW.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-C-uPoXNt.js">
+  <link rel="modulepreload" crossorigin href="/assets/db-vX1QkBnN.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-_D7zd0nv.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -69,6 +70,10 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-airplane"></i><span>Flights</span></a>
                         <a href="#" data-tab="visas-tab" data-title="Visas"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-passport"></i><span>Visas</span></a>
+                        <a href="#" data-tab="tours-tab" data-title="Tours"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-map"></i><span>Tours</span></a>
+                        <a href="#" data-tab="hajjumrah-tab" data-title="Hajj/Umrah"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-moon-stars"></i><span>Hajj/Umrah</span></a>
                     </div>
                 </div>
 
@@ -622,7 +627,7 @@ Example:
                                 <th>Country</th>
                                 <th>Visa Type</th>
                                 <th>Processing Time</th>
-                                <th>Rate (AED)</th>
+                                <th>Rate (₹)</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
@@ -659,7 +664,7 @@ Example:
                                 <th>Country</th>
                                 <th>Description</th>
                                 <th>Processing Time</th>
-                                <th>Cost (AED)</th>
+                                <th>Cost (₹)</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
@@ -694,7 +699,7 @@ Example:
                             <tr>
                                 <th>Country</th>
                                 <th>Certificate Type</th>
-                                <th>Cost (AED)</th>
+                                <th>Cost (₹)</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
@@ -729,11 +734,102 @@ Example:
                             <tr>
                                 <th>Service Type</th>
                                 <th>Description</th>
-                                <th>Cost (AED)</th>
+                                <th>Cost (₹)</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="passport-services-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- TOURS TAB -->
+        <div id="tours-tab" class="tab-content">
+
+            <!-- Header + Add Button -->
+            <div class="admin-panel p-6 mb-6 mt-0">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-map text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Tour Packages</h2>
+                        <p class="text-[12px] text-text-muted">Manage holiday and travel packages</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="tours-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Tour Package
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>Duration</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tours-table-body">
+                            <!-- populated by JS: renderToursTab() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- HAJJ & UMRAH TAB -->
+        <div id="hajjumrah-tab" class="tab-content">
+
+            <!-- Header + Add Button -->
+            <div class="admin-panel p-6 mb-6 mt-0">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-moon-stars text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Hajj & Umrah Packages</h2>
+                        <p class="text-[12px] text-text-muted">Manage pilgrimage packages</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="hajjumrah-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Package
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Departure City</th>
+                                <th>Airline</th>
+                                <th>Date</th>
+                                <th>Days</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hajjumrah-table-body">
+                            <!-- populated by JS: renderHajjUmrahTab() -->
                         </tbody>
                     </table>
                 </div>
@@ -1302,7 +1398,7 @@ Example:
                     <input type="text" id="visa-type" class="admin-control" placeholder="e.g. 30 Days Tourist" required>
                 </div>
                 <div>
-                    <label class="admin-label">Rate (AED) *</label>
+                    <label class="admin-label">Rate (₹) *</label>
                     <input type="number" id="visa-rate" class="admin-control" placeholder="0" required>
                 </div>
                 <div class="sm:col-span-2">
@@ -1342,7 +1438,7 @@ Example:
                     <input type="text" id="visa-stamping-time" class="admin-control" placeholder="e.g. 2-3 Days" required>
                 </div>
                 <div>
-                    <label class="admin-label">Cost (AED) *</label>
+                    <label class="admin-label">Cost (₹) *</label>
                     <input type="number" id="visa-stamping-cost" class="admin-control" placeholder="0" required>
                 </div>
             </div>
@@ -1367,7 +1463,7 @@ Example:
                     <input type="text" id="attestation-cert" class="admin-control" placeholder="e.g. Marriage Certificate" required>
                 </div>
                 <div>
-                    <label class="admin-label">Cost (AED) *</label>
+                    <label class="admin-label">Cost (₹) *</label>
                     <input type="number" id="attestation-cost" class="admin-control" placeholder="0" required>
                 </div>
             </div>
@@ -1392,13 +1488,144 @@ Example:
                     <textarea id="passport-service-desc" class="admin-control" rows="3" placeholder="e.g. Required documents: Aadhar, Birth Certificate..." required></textarea>
                 </div>
                 <div class="sm:col-span-2">
-                    <label class="admin-label">Cost (AED) *</label>
+                    <label class="admin-label">Cost (₹) *</label>
                     <input type="number" id="passport-service-cost" class="admin-control" placeholder="0" required>
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
                 <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
                 <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Tour Package Modal -->
+    <template id="modal-tour-form">
+        <form id="tour-form" class="space-y-4">
+            <input type="hidden" id="tour-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Tour Title *</label>
+                    <input type="text" id="tour-title" class="admin-control" placeholder="e.g. Malaysia 4D/3N Package" required>
+                </div>
+                <div>
+                    <label class="admin-label">Category *</label>
+                    <select id="tour-category" class="admin-control" required>
+                        <option value="International">International</option>
+                        <option value="Domestic">Domestic</option>
+                        <option value="Hajj-Umrah">Hajj / Umrah</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="admin-label">Duration *</label>
+                    <input type="text" id="tour-duration" class="admin-control" placeholder="e.g. 4 Days / 3 Nights" required>
+                </div>
+                <div>
+                    <label class="admin-label">Price (₹) <span class="text-text-muted text-[11px]">(0 = Call for Price)</span></label>
+                    <input type="number" id="tour-price" class="admin-control" placeholder="0" min="0" value="0">
+                </div>
+                <div class="flex items-center gap-3 pt-6">
+                    <input type="checkbox" id="tour-active" class="w-4 h-4 accent-primary" checked>
+                    <label for="tour-active" class="admin-label mb-0">Active (visible on website)</label>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Description *</label>
+                    <textarea id="tour-description" class="admin-control" rows="3" placeholder="Brief overview of the tour package…" required></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Highlights <span class="text-text-muted text-[11px]">(one per line)</span></label>
+                    <textarea id="tour-highlights" class="admin-control" rows="3" placeholder="Petronas Twin Towers&#10;Batu Caves&#10;Langkawi Beach"></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Itinerary <span class="text-text-muted text-[11px]">(JSON array of day objects with "day" and "activities" keys)</span></label>
+                    <textarea id="tour-itinerary" class="admin-control font-mono text-[12px]" rows="5" placeholder='[{"day":"Day 1 – Arrival","activities":["Airport pickup","Hotel check-in"]}]'></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Inclusions <span class="text-text-muted text-[11px]">(one per line)</span></label>
+                    <textarea id="tour-inclusions" class="admin-control" rows="3" placeholder="Return airfare&#10;Hotel accommodation&#10;Daily breakfast"></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Exclusions <span class="text-text-muted text-[11px]">(one per line)</span></label>
+                    <textarea id="tour-exclusions" class="admin-control" rows="3" placeholder="Visa fees&#10;Travel insurance&#10;Personal expenses"></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Cover Image</label>
+                    <input type="file" id="tour-image" class="admin-control" accept="image/*">
+                    <p class="text-[11px] text-text-muted mt-1">Leave blank to keep existing image.</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Tour</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Hajj & Umrah Modal -->
+    <template id="modal-hajjumrah-form">
+        <form id="hajjumrah-form" class="space-y-4">
+            <input type="hidden" id="hajjumrah-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Package Title *</label>
+                    <input type="text" id="hajjumrah-title" class="admin-control" placeholder="e.g. Economy Umrah 15 Days" required>
+                </div>
+                <div>
+                    <label class="admin-label">Type *</label>
+                    <select id="hajjumrah-type" class="admin-control" required>
+                        <option value="Umrah">Umrah</option>
+                        <option value="Hajj">Hajj</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="admin-label">Departure City *</label>
+                    <input type="text" id="hajjumrah-city" class="admin-control" placeholder="e.g. Kozhikode" required>
+                </div>
+                <div>
+                    <label class="admin-label">Airline *</label>
+                    <input type="text" id="hajjumrah-airline" class="admin-control" placeholder="e.g. Indigo" required>
+                </div>
+                <div>
+                    <label class="admin-label">Departure Date *</label>
+                    <input type="text" id="hajjumrah-date" class="admin-control" placeholder="e.g. 09-Jan" required>
+                </div>
+                <div>
+                    <label class="admin-label">Total Days *</label>
+                    <input type="number" id="hajjumrah-days" class="admin-control" placeholder="15" min="1" value="15" required>
+                </div>
+                <div>
+                    <label class="admin-label">Total Nights *</label>
+                    <input type="number" id="hajjumrah-nights" class="admin-control" placeholder="14" min="1" value="14" required>
+                </div>
+                <div>
+                    <label class="admin-label">Price (₹) <span class="text-text-muted text-[11px]">(0 = Call for Price)</span></label>
+                    <input type="number" id="hajjumrah-price" class="admin-control" placeholder="0" min="0" value="0">
+                </div>
+                <div class="flex items-center gap-3 pt-6">
+                    <input type="checkbox" id="hajjumrah-active" class="w-4 h-4 accent-primary" checked>
+                    <label for="hajjumrah-active" class="admin-label mb-0">Active (visible on website)</label>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Description</label>
+                    <textarea id="hajjumrah-description" class="admin-control" rows="3" placeholder="Brief overview of the package…"></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Highlights <span class="text-text-muted text-[11px]">(one per line)</span></label>
+                    <textarea id="hajjumrah-highlights" class="admin-control" rows="3" placeholder="Stay near Haram&#10;Guided Ziyarat&#10;Direct Flights"></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Inclusions <span class="text-text-muted text-[11px]">(one per line)</span></label>
+                    <textarea id="hajjumrah-inclusions" class="admin-control" rows="3" placeholder="Return airfare&#10;Hotel accommodation&#10;Visa processing"></textarea>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="admin-label">Cover Image</label>
+                    <input type="file" id="hajjumrah-image" class="admin-control" accept="image/*">
+                    <p class="text-[11px] text-text-muted mt-1">Leave blank to keep existing image.</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Package</button>
             </div>
         </form>
     </template>

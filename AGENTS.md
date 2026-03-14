@@ -71,6 +71,10 @@ zamra/                              # Firebase project root — run firebase CLI
     ├── index.html                  # Public homepage
     ├── login.html                  # Admin login
     ├── admin.html                  # Admin dashboard
+    ├── visa.html                   # Visa services page
+    ├── tours.html                  # Tours listing page
+    ├── tour-detail.html            # Tour detail page (loaded via ?id= query param)
+    ├── hajj-umrah.html             # Hajj & Umrah packages page
     ├── vite.config.js              # Multi-page Vite config
     ├── package.json                # vite, tailwindcss, firebase SDK
     │
@@ -82,6 +86,10 @@ zamra/                              # Firebase project root — run firebase CLI
         │   └── admin/style.css     # Admin-specific CSS
         └── js/
             ├── web/main.js         # Public site logic (flight search, UI)
+            ├── web/visa.js         # Visa page logic (tabs, card render, modal)
+            ├── web/tours.js        # Tours listing (fetch, filter chips, search)
+            ├── web/tour-detail.js  # Tour detail (reads ?id=, single tour + sidebar)
+            ├── web/hajj-umrah.js   # Hajj & Umrah page (fetch, filter, render grid)
             └── admin/
                 ├── firebase-config.js  # Firebase init (auth, db, storage, functions)
                 ├── auth.js             # Auth state helpers
@@ -102,7 +110,9 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Update docs:** Whenever you make significant structural changes, update the relevant `.md` file.
 
 ### Working on the Public Website
-- Edit `web/index.html`, `web/visa.html`, `web/src/js/web/main.js`, `web/src/js/web/visa.js`, `web/src/styles/web/style.css`
+- Edit `web/index.html`, `web/visa.html`, `web/tours.html`, `web/tour-detail.html`, `web/hajj-umrah.html`,  
+  `web/src/js/web/main.js`, `web/src/js/web/visa.js`, `web/src/js/web/tours.js`,  
+  `web/src/js/web/tour-detail.js`, `web/src/js/web/hajj-umrah.js`, `web/src/styles/web/style.css`
 - Reference images as `/assets/img/filename` (served from `web/public/assets/img/`)
 - Do **not** add external image URLs — add images to `web/public/assets/img/` instead
 
@@ -131,6 +141,9 @@ zamra/                              # Firebase project root — run firebase CLI
 - External images were migrated from Unsplash/CDN using `download_images.sh`
 - Reference in code as `/assets/img/filename.jpg`
 - Airline/agent logos are uploaded to **Firebase Storage** via the admin dashboard and stored as URLs in Firestore
+- **Country flag images** for the Visas tab are stored in `country_flags/` in Firebase Storage — same pattern as `airline_logos/`
+- **Tour cover images** are uploaded via the Tours tab and stored in `tour_images/` in Firebase Storage — URL saved as `coverImageUrl` on the Firestore `tours` document
+- **Hajj & Umrah cover images** are uploaded via the admin dashboard and stored in `hajj_umrah_images/` in Firebase Storage.
 
 ---
 
@@ -157,3 +170,7 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Reports pagination bug (fixed)** — `renderReportFaresTable()` must do its own sort + slice. Do **not** pipe the fares array through `applySortAndFilter()` (which also applies `tableLimit` slicing) — doing so double-slices the data and breaks pagination beyond page 1.
 - **Reports SVG Charts & Leaderboards** — The Bar and Donut charts in the Reports tab natively render via raw SVG generation in `main.js`. Do **not** introduce external charting libraries (Chart.js, D3, etc.) to keep the bundle lightweight. Leaderboards use array sorting and generic Tailwind progress bars.
 - **E-Ticket Generator Output** — The ticket preview strictly uses native HTML/CSS and relies on the browser's native `@media print` rules for generating high-quality PDFs without external heavier canvas libs. This ensures crispy vectors over blurred raster images.
+- **`wireXxxActions()` functions must bail early, not re-wire** — All `wireVisaActions`, `wireVisaStampingActions`, `wireAttestationActions`, `wirePassportServiceActions`, `wireSectorActions`, `wireAirlineActions`, `wireTourActions`, `wireHajjUmrahActions` guard with `if (!tbody || tbody.dataset.actionsWired) return;`. Do **not** use the `delete tbody.dataset.actionsWired` + re-set pattern — it bypasses the guard and stacks a new `addEventListener` on every render, causing N confirm dialogs and N toast messages for a single click after N tab refreshes.
+- **Visa page styles in `visa.html`** — The premium visa page styles live in a `<style>` block co-located inside `visa.html`, not in `style.css`. This is intentional: they are numerous and only apply to that one page. Design tokens from `style.css` (`--color-primary`, etc.) are still used.
+- **Tours itinerary is stored as a JSON array** — The `itinerary` field on `tours` documents is an `Array<{day: string, activities: string[]}>`. The admin modal accepts raw JSON and validates before saving. Invalid JSON shows a toast error and blocks the save. On the public detail page, the JS parses this array and renders a timeline. Never store itinerary as a raw string or markdown.
+- **Tours and Hajj/Umrah listings only show `isActive === true`** — by default filter for active packages on public pages. The admin dashboard fetches all packages to show all entries including hidden ones.

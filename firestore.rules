@@ -78,5 +78,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── tours ─────────────────────────────────────────────────────────────────
+    match /tours/{tourId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── hajj_umrah_packages ───────────────────────────────────────────────────
+    match /hajj_umrah_packages/{pkgId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
   }
 }

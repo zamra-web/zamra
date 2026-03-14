@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Seed Dummy Data</title>
+</head>
+<body>
+    <h2 id="status">Seeding Data... Please wait.</h2>
+    <script type="module" src="./src/js/admin/firebase-config.js"></script>
+    <script type="module">
+        import { addVisa, addVisaStamping, addAttestation, addPassportService } from './src/js/admin/db.js';
+
+        async function seed() {
+            try {
+                const visas = [
+                    { countryName: 'United Arab Emirates', visaType: '30 Days Tourist', processingTime: '2-3 Working Days', rate: 8000 },
+                    { countryName: 'Saudi Arabia', visaType: '90 Days Multiple Entry', processingTime: '1 Week', rate: 25000 },
+                    { countryName: 'Singapore', visaType: '30 Days Tourist', processingTime: '3-4 Working Days', rate: 3500 },
+                    { countryName: 'Malaysia', visaType: 'eVisa 30 Days', processingTime: '2 Working Days', rate: 4500 }
+                ];
+                for (const v of visas) await addVisa(v);
+
+                const stampings = [
+                    { country: 'Saudi Arabia', description: 'Employment Visa Stamping', processingTime: '3 Weeks', cost: 12000 },
+                    { country: 'Kuwait', description: 'Family Visit Visa Stamping', processingTime: '2 Weeks', cost: 9000 }
+                ];
+                for (const s of stampings) await addVisaStamping(s);
+
+                const attestations = [
+                    { country: 'United Arab Emirates', certificate: 'Degree Certificate Attestation', cost: 5500 },
+                    { country: 'Qatar', certificate: 'Marriage Certificate Attestation', cost: 6000 },
+                    { country: 'Oman', certificate: 'Birth Certificate Attestation', cost: 4500 }
+                ];
+                for (const a of attestations) await addAttestation(a);
+
+                const pass = [
+                    { type: 'New Passport', description: 'Normal Processing', cost: 1500 },
+                    { type: 'Passport Renewal', description: 'Tatkal Processing', cost: 3500 }
+                ];
+                for (const p of pass) await addPassportService(p);
+
+                document.getElementById('status').innerText = 'Seeding Complete! You can close this tab and refresh the dashboard.';
+            } catch (e) {
+                console.error(e);
+                document.getElementById('status').innerText = 'Error Seeding Data: ' + e.message;
+            }
+        }
+        
+        // Wait briefly for firebase auth state
+        setTimeout(() => seed(), 1000);
+    </script>
+</body>
+</html>

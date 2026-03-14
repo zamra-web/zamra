@@ -173,7 +173,32 @@ web/
 - **Live Sync** — data drives the dynamic tables and modal inquiries directly on the public `visa.html` page.
 - **Sub-Tabs** — seamless client-side toggling between the 4 sub-collections without page reload.
 
----
+### 10. 🗺️ Tours Tab
+- **Full CRUD for tour packages** — Add / Edit (modal form) / Delete.
+- **Table columns:** Cover Image · Title · Category · Duration · Price · Status (Active / Hidden) · Actions
+- **Add/Edit modal fields:**
+  - Title, Category (`International` / `Domestic` / `Hajj-Umrah`), Duration
+  - Price in ₹ (set `0` for "Call for Price")
+  - Active toggle — controls visibility on public `/tours.html`
+  - Description, Highlights (newline-separated list)
+  - Itinerary — **JSON array** of day objects `[{"day":"Day 1 – Arrival","activities":[...]}]`; invalid JSON blocked with toast error
+  - Inclusions / Exclusions (newline-separated lists)
+  - Cover Image upload → Firebase Storage `tour_images/` folder
+- **Live Sync** — data drives `/tours.html` and `/tour-detail.html` public pages.
+- Data from Firestore `tours` collection.
+
+### 11. 🕋 Hajj & Umrah Tab
+- **Full CRUD for Hajj & Umrah packages** — Add / Edit (modal form) / Delete.
+- **Table columns:** Cover Image · Title · Type · Days/Nights · Price · Status (Active / Hidden) · Actions
+- **Add/Edit modal fields:**
+  - Title, Type (`Hajj` / `Umrah`), Departure City, Airline, Departure Date
+  - Days & Nights numbers
+  - Price in ₹ (set `0` for "Call for Price")
+  - Active toggle — controls visibility on public `/hajj-umrah.html`
+  - Description, Highlights (newline-separated list), Inclusions (newline-separated list)
+  - Cover Image upload → Firebase Storage `hajj_umrah_images/` folder
+- **Live Sync** — data drives `/hajj-umrah.html` public page.
+- Data from Firestore `hajj_umrah_packages` collection.
 
 ## Firestore Database Schema
 
@@ -244,7 +269,7 @@ web/
 |---|---|---|
 | `countryName` | String | Country name e.g. `'UAE'` |
 | `visaType` | String | Visa type e.g. `'30 Days Tourist'` |
-| `rate` | Number | Cost in AED |
+| `rate` | Number | Cost in ₹ |
 | `processingTime` | String | e.g. `'2-3 Working Days'` |
 | `flagUrl` | String | Optional image URL for flag |
 
@@ -253,7 +278,7 @@ web/
 |---|---|---|
 | `country` | String | Country name |
 | `description` | String | Description of stamping |
-| `cost` | Number | Cost in AED |
+| `cost` | Number | Cost in ₹ |
 | `processingTime` | String | Processing details |
 
 ### `attestations`
@@ -261,14 +286,50 @@ web/
 |---|---|---|
 | `country` | String | Target country |
 | `certificate` | String | Type of certificate e.g. `'Marriage'` |
-| `cost` | Number | Cost in AED |
+| `cost` | Number | Cost in ₹ |
 
 ### `passport_services`
 | Field | Type | Notes |
 |---|---|---|
 | `type` | String | Service type e.g. `'Fresh / Renewal'` |
 | `description` | String | Requirements or process details |
-| `cost` | Number | Cost in AED |
+| `cost` | Number | Cost in ₹ |
+
+### `tours`
+| Field | Type | Notes |
+|---|---|---|
+| `title` | String | Tour package name e.g. `'Malaysia 4D/3N'` |
+| `category` | String | `'International'`, `'Domestic'`, or `'Hajj-Umrah'` |
+| `duration` | String | e.g. `'4 Days / 3 Nights'` |
+| `price` | Number | Price in ₹; `0` means "Call for Price" |
+| `description` | String | Short overview for the listing page |
+| `highlights` | Array\<String\> | Bullet-point highlights |
+| `itinerary` | Array\<Object\> | Day-by-day itinerary: `[{day: string, activities: string[]}]` |
+| `inclusions` | Array\<String\> | What's included in the package |
+| `exclusions` | Array\<String\> | What's not included |
+| `coverImageUrl` | String | Firebase Storage download URL for hero image |
+| `isActive` | Boolean | `false` = hidden from public listing and denied on detail page |
+| `createdAt` | Timestamp | Server timestamp |
+| `updatedAt` | Timestamp | Server timestamp |
+
+### `hajj_umrah_packages`
+| Field | Type | Notes |
+|---|---|---|
+| `title` | String | Package title e.g. `'Premium Hajj Package'` |
+| `type` | String | `'Hajj'` or `'Umrah'` |
+| `departureCity` | String | e.g. `'Kozhikode'` |
+| `airline` | String | e.g. `'Saudi Airlines'` |
+| `departureDate` | String | e.g. `'2024-06-15'` (Stored as String) |
+| `days` | Number | e.g. `14` |
+| `nights` | Number | e.g. `13` |
+| `price` | Number | Price in ₹; `0` means "Call for Price" |
+| `description` | String | Description of the package |
+| `highlights` | Array\<String\> | Bullet-point highlights |
+| `inclusions` | Array\<String\> | What's included (visa, flights, hotels, etc.) |
+| `coverImageUrl` | String | Firebase Storage download URL |
+| `isActive` | Boolean | `false` = hidden from public page |
+| `createdAt` | Timestamp | Server timestamp |
+| `updatedAt` | Timestamp | Server timestamp |
 
 ---
 
@@ -309,8 +370,11 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 
 ### Storage (`storage.rules`)
 - **Public read:** All files
-- **Admin write only:** `/agent_logos/**`, `/airline_logos/**`, `/generated_posters/**`
-- Validates: image MIME type + max 5MB file size
+- **Admin write only:** `/agent_logos/**`, `/airline_logos/**`, `/country_flags/**`, `/generated_posters/**`, `/tour_images/**`, `/hajj_umrah_images/**`
+- Validates: image MIME type + max 5MB file size (generated_posters exempt from size check)
+- `country_flags/` path: stores flag images uploaded via the Visas tab for display on the public visa page
+- `tour_images/` path: stores cover images uploaded via the Tours tab for display on public tour pages
+- `hajj_umrah_images/` path: stores cover images for the Hajj & Umrah tab for display on its public page
 
 ---
 
@@ -326,6 +390,14 @@ Sectors:  getSectors(), addSector(), updateSector(), deleteSector()
 Airlines: getAirlines(), addAirline(), updateAirline(), deleteAirline()
 Fares:    getFares(filters), addFare(data), deleteFare(), updateFare()
           getFares({ agentId?, sectorId?, startDate?, endDate?, includeHidden? })
+Visas:    getVisas(), addVisa(), updateVisa(), deleteVisa()
+          getVisaStampings(), addVisaStamping(), updateVisaStamping(), deleteVisaStamping()
+          getAttestations(), addAttestation(), updateAttestation(), deleteAttestation()
+          getPassportServices(), addPassportService(), updatePassportService(), deletePassportService()
+Tours:    getTours({ includeInactive? }), addTour(data, imageFile?),
+          updateTour(id, data, imageFile?), deleteTour(id), getTourById(id)
+Hajj/Umrah: getHajjUmrahPackages({ includeInactive? }), addHajjUmrahPackage(data, imageFile?),
+            updateHajjUmrahPackage(id, data, imageFile?), deleteHajjUmrahPackage(id)
 Storage:  uploadLogo(folder, file), deleteLogo(url)
 Functions:
   callBulkDeleteFares(agentId?, startDate?, endDate?, sectorId?)
@@ -383,4 +455,14 @@ npx firebase-tools@latest deploy --only hosting
 
 ---
 
-_Last audited: 2026-03-14 — Added Visas tab with sub-categories (Visas, Stamping, Attestations, Passport Services); Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal), removed fare edit controls from Reports and bulk fare delete controls from Agents, set Database tab rate logic to `Final Rate = SP Rate + Commission`, and refreshed the Rate Upload tab UI (premium layout + staggered reveal)._ 
+---
+
+## Known Bugs Fixed
+
+| Bug | Root Cause | Fix |
+|---|---|---|
+| **Multiple confirm() prompts on delete** | All `wireXxxActions()` functions deleted and re-set the `actionsWired` data attribute on every render, causing a new `addEventListener` to stack on the persistent `<tbody>` element each time. After N tab refreshes, one click triggered N listeners. | Changed all 7 wire functions (`wireVisaActions`, `wireVisaStampingActions`, `wireAttestationActions`, `wirePassportServiceActions`, `wireSectorActions`, `wireAirlineActions`, `wireTourActions`, `wireHajjUmrahActions`) to bail early if `tbody.dataset.actionsWired` is already set — matching the correct pattern already used by `wireAgentActions`. |
+
+---
+
+_Last audited: 2026-03-14 — Added Hajj & Umrah tab (tab 11) with full CRUD; added `hajj_umrah_packages` schema; added `hajj_umrah_images/` Storage path; expanded `db.js`. Also recently added Tours tab, Visas tab sub-categories, Spreadsheet view for fares, and rate upload AI hook updates._

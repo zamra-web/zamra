@@ -16,6 +16,7 @@ import {
   getVisaStampings, addVisaStamping, updateVisaStamping, deleteVisaStamping,
   getAttestations, addAttestation, updateAttestation, deleteAttestation,
   getPassportServices, addPassportService, updatePassportService, deletePassportService,
+  getTours, addTour, updateTour, deleteTour,
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
 } from './db.js';
@@ -30,6 +31,8 @@ let _visas = [];
 let _visaStampings = [];
 let _attestations = [];
 let _passportServices = [];
+let _tours = [];
+let _hajjUmrahPackages = [];
 let _dashboardFares = []; // Kept for any stale references
 let _reportFares = [];
 let _databaseFares = [];
@@ -140,14 +143,17 @@ let tableSort = {
   sectors: { key: 'id', asc: true },
   airlines: { key: 'name', asc: true },
   visas: { key: 'countryName', asc: true },
-  visaStampings: { key: 'countryName', asc: true },
-  attestations: { key: 'countryName', asc: true },
-  passportServices: { key: 'serviceName', asc: true },
+  visaStampings: { key: 'country', asc: true },
+  attestations: { key: 'country', asc: true },
+  passportServices: { key: 'type', asc: true },
+  tours: { key: 'title', asc: true },
+  hajjUmrah: { key: 'title', asc: true },
   reportFares: { key: 'flightDate', asc: true },
   databaseFares: { key: 'flightDate', asc: true },
 };
-let tableSearch = { agents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '' };
-let tablePage = { agents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, reportFares: 1, databaseFares: 1 };
+let tableSearch = { agents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '', tours: '', hajjUmrah: '' };
+let tablePage = { agents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, tours: 1, hajjUmrah: 1, reportFares: 1, databaseFares: 1 };
+let tableLimit = { agents: 10, sectors: 25, airlines: 10, visas: 10, visaStampings: 10, attestations: 10, passportServices: 10, tours: 10, hajjUmrah: 10, reportFares: 10, databaseFares: 25 };
 
 const databaseFilters = {
   search: '',
@@ -192,18 +198,31 @@ function applySortAndFilter(data, tab) {
     );
   } else if (q && tab === 'visaStampings') {
     filtered = filtered.filter(v => 
-      (v.countryName || '').toLowerCase().includes(q) || 
+      (v.country || '').toLowerCase().includes(q) || 
       (v.description || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'attestations') {
     filtered = filtered.filter(v => 
-      (v.countryName || '').toLowerCase().includes(q) || 
-      (v.certificateType || '').toLowerCase().includes(q)
+      (v.country || '').toLowerCase().includes(q) || 
+      (v.certificate || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'passportServices') {
     filtered = filtered.filter(v => 
-      (v.serviceType || '').toLowerCase().includes(q) || 
+      (v.type || '').toLowerCase().includes(q) || 
       (v.description || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'tours') {
+    filtered = filtered.filter(t =>
+      (t.title || '').toLowerCase().includes(q) ||
+      (t.category || '').toLowerCase().includes(q) ||
+      (t.duration || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'hajjUmrah') {
+    filtered = filtered.filter(p =>
+      (p.title || '').toLowerCase().includes(q) ||
+      (p.type || '').toLowerCase().includes(q) ||
+      (p.departureCity || '').toLowerCase().includes(q) ||
+      (p.airline || '').toLowerCase().includes(q)
     );
   }
 
@@ -261,6 +280,8 @@ document.addEventListener('click', (e) => {
   else if (tab === 'sectors') renderSectorsTab(false);
   else if (tab === 'airlines') renderFlightsTab(false);
   else if (tab === 'visas') renderVisasTab(false);
+  else if (tab === 'tours') renderToursTab(false);
+  else if (tab === 'hajjUmrah') renderHajjUmrahTab(false);
   else if (tab === 'reportFares' && _reportFares.length) renderReportFaresTable(_reportFares);
   else if (tab === 'databaseFares') renderDatabaseTable();
 });
@@ -355,6 +376,8 @@ async function renderActiveTab() {
   else if (id === 'reports-tab') await renderReportsTab();
   else if (id === 'database-tab') await renderDatabaseTab();
   else if (id === 'visas-tab') await renderVisasTab();
+  else if (id === 'tours-tab') await renderToursTab();
+  else if (id === 'hajjumrah-tab') await renderHajjUmrahTab();
   else if (id === 'agent-sheets-tab') {
     buildChips();
     syncPill();
@@ -1059,9 +1082,7 @@ function sectorRow(s) {
 
 function wireSectorActions() {
   const tbody = document.querySelector('#sectors-tab .admin-table tbody');
-  if (!tbody) return;
-  // Reset wired flag so listener rebinds after tbody innerHTML is replaced
-  delete tbody.dataset.actionsWired;
+  if (!tbody || tbody.dataset.actionsWired) return;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -1196,9 +1217,7 @@ function airlineRow(a) {
 
 function wireAirlineActions() {
   const tbody = document.querySelector('#flights-tab .admin-table tbody');
-  if (!tbody) return;
-  // Reset wired flag so listener rebinds after tbody innerHTML is replaced
-  delete tbody.dataset.actionsWired;
+  if (!tbody || tbody.dataset.actionsWired) return;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -3428,7 +3447,7 @@ function visaRow(v) {
     <td class="font-bold text-navy">${escapeHtml(v.countryName)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.visaType)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.processingTime)}</td>
-    <td class="font-black text-[15px] text-navy">AED ${(v.rate || 0).toLocaleString()}</td>
+    <td class="font-black text-[15px] text-navy">₹${(v.rate || 0).toLocaleString()}</td>
     <td>
       <div class="flex justify-end gap-1.5 items-center">
         <button data-action="edit-visa" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
@@ -3440,8 +3459,7 @@ function visaRow(v) {
 
 function wireVisaActions() {
   const tbody = document.querySelector('#visas-tab .admin-table tbody');
-  if (!tbody) return;
-  delete tbody.dataset.actionsWired;
+  if (!tbody || tbody.dataset.actionsWired) return;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -3523,7 +3541,7 @@ function visaStampingRow(v) {
     <td class="font-bold text-navy">${escapeHtml(v.country)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.description)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.processingTime)}</td>
-    <td class="font-black text-[15px] text-navy">AED ${(v.cost || 0).toLocaleString()}</td>
+    <td class="font-black text-[15px] text-navy">₹${(v.cost || 0).toLocaleString()}</td>
     <td>
       <div class="flex justify-end gap-1.5 items-center">
         <button data-action="edit-visa-stamping" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
@@ -3535,8 +3553,7 @@ function visaStampingRow(v) {
 
 function wireVisaStampingActions() {
   const tbody = document.getElementById('visa-stamping-table-body');
-  if (!tbody) return;
-  delete tbody.dataset.actionsWired;
+  if (!tbody || tbody.dataset.actionsWired) return;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -3613,7 +3630,7 @@ function attestationRow(v) {
   return `<tr data-id="${v.id}">
     <td class="font-bold text-navy">${escapeHtml(v.country)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.certificate)}</td>
-    <td class="font-black text-[15px] text-navy">AED ${(v.cost || 0).toLocaleString()}</td>
+    <td class="font-black text-[15px] text-navy">₹${(v.cost || 0).toLocaleString()}</td>
     <td>
       <div class="flex justify-end gap-1.5 items-center">
         <button data-action="edit-attestation" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
@@ -3625,8 +3642,7 @@ function attestationRow(v) {
 
 function wireAttestationActions() {
   const tbody = document.getElementById('attestations-table-body');
-  if (!tbody) return;
-  delete tbody.dataset.actionsWired;
+  if (!tbody || tbody.dataset.actionsWired) return;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -3700,7 +3716,7 @@ function passportServiceRow(v) {
   return `<tr data-id="${v.id}">
     <td class="font-bold text-navy">${escapeHtml(v.type)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.description)}</td>
-    <td class="font-black text-[15px] text-navy">AED ${(v.cost || 0).toLocaleString()}</td>
+    <td class="font-black text-[15px] text-navy">₹${(v.cost || 0).toLocaleString()}</td>
     <td>
       <div class="flex justify-end gap-1.5 items-center">
         <button data-action="edit-passport-service" data-id="${v.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
@@ -3712,8 +3728,7 @@ function passportServiceRow(v) {
 
 function wirePassportServiceActions() {
   const tbody = document.getElementById('passport-services-table-body');
-  if (!tbody) return;
-  delete tbody.dataset.actionsWired;
+  if (!tbody || tbody.dataset.actionsWired) return;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -3777,6 +3792,375 @@ function openPassportServiceModal(item) {
       toast('error', 'Error', err.message);
       btn.disabled = false;
       btn.textContent = 'Save';
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TOURS TAB
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Render the Tours admin tab. Fetches all tours (including inactive) from Firestore
+ * and displays them in the admin table.
+ * @param {boolean} fetchData — skip the Firestore round-trip when re-rendering after sort
+ */
+async function renderToursTab(fetchData = true) {
+  if (fetchData) {
+    try {
+      _tours = await getTours({ includeInactive: true });
+      tablePage.tours = 1;
+    } catch (e) {
+      toast('error', 'Error loading Tours', e.message);
+    }
+  }
+
+  const tbody = document.getElementById('tours-table-body');
+  if (!tbody) return;
+
+  const sorted = applySortAndFilter(_tours, 'tours');
+  const limit = tableLimit.tours;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+  if (tablePage.tours > totalPages) tablePage.tours = totalPages;
+  const start = (tablePage.tours - 1) * limit;
+  const pageData = sorted.slice(start, start + limit);
+
+  tbody.innerHTML = pageData.length
+    ? pageData.map(t => tourRow(t)).join('')
+    : `<tr><td colspan="7" class="text-center py-8 text-text-muted">No tour packages yet. Click "Add Tour Package".</td></tr>`;
+
+  wireTourActions();
+  wireToursAddButton();
+}
+
+function wireToursAddButton() {
+  const btn = document.getElementById('tours-add-btn');
+  if (btn && !btn.dataset.wired) {
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => openTourModal(null));
+  }
+}
+
+function tourRow(t) {
+  const img = t.coverImageUrl
+    ? `<span class="admin-logo-wrap"><img src="${t.coverImageUrl}" alt="${escapeHtml(t.title)}" style="object-fit:cover;width:44px;height:36px;border-radius:6px;"></span>`
+    : `<span class="admin-logo-wrap"><span class="admin-logo-fallback"><i class="bi bi-image"></i></span></span>`;
+
+  const priceDisplay = (!t.price || t.price === 0)
+    ? `<span class="text-text-muted text-[12px] italic">Call for Price</span>`
+    : `<span class="font-black text-[15px] text-navy">₹${Number(t.price).toLocaleString()}</span>`;
+
+  const statusBadge = t.isActive !== false
+    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[11px] font-semibold"><i class="bi bi-check-circle-fill text-[9px]"></i>Active</span>`
+    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-semibold"><i class="bi bi-dash-circle text-[9px]"></i>Hidden</span>`;
+
+  return `<tr data-tour-id="${t.id}">
+    <td class="w-16">${img}</td>
+    <td class="font-bold text-navy">${escapeHtml(t.title)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(t.category)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(t.duration)}</td>
+    <td>${priceDisplay}</td>
+    <td>${statusBadge}</td>
+    <td>
+      <div class="flex justify-end gap-1.5 items-center">
+        <button data-action="edit-tour" data-id="${t.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-tour" data-id="${t.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireTourActions() {
+  const tbody = document.getElementById('tours-table-body');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const tour = _tours.find(t => t.id === id);
+
+    if (action === 'edit-tour') openTourModal(tour);
+    if (action === 'delete-tour') {
+      if (!confirm(`Delete tour package "${tour?.title}"?`)) return;
+      try {
+        await deleteTour(id);
+        toast('success', 'Deleted', `Tour "${tour?.title}" removed.`);
+        await renderToursTab();
+      } catch (err) {
+        toast('error', 'Error', err.message);
+      }
+    }
+  });
+}
+
+/** Helpers to convert newline-separated text ↔ array */
+function linesToArray(text = '') {
+  return text.split('\n').map(l => l.trim()).filter(Boolean);
+}
+function arrayToLines(arr = []) {
+  return Array.isArray(arr) ? arr.join('\n') : '';
+}
+
+function openTourModal(tour) {
+  const tpl = document.getElementById('modal-tour-form');
+  if (!tpl) return;
+
+  openModal(tour ? 'Edit Tour Package' : 'Add Tour Package', tpl.innerHTML);
+
+  const modalForm    = document.getElementById('tour-form');
+  const idInput      = document.getElementById('tour-id');
+  const titleInput   = document.getElementById('tour-title');
+  const catInput     = document.getElementById('tour-category');
+  const durInput     = document.getElementById('tour-duration');
+  const priceInput   = document.getElementById('tour-price');
+  const activeInput  = document.getElementById('tour-active');
+  const descInput    = document.getElementById('tour-description');
+  const hlInput      = document.getElementById('tour-highlights');
+  const itinInput    = document.getElementById('tour-itinerary');
+  const inclInput    = document.getElementById('tour-inclusions');
+  const exclInput    = document.getElementById('tour-exclusions');
+
+  if (tour) {
+    idInput.value      = tour.id;
+    titleInput.value   = tour.title || '';
+    catInput.value     = tour.category || 'International';
+    durInput.value     = tour.duration || '';
+    priceInput.value   = tour.price || 0;
+    activeInput.checked = tour.isActive !== false;
+    descInput.value    = tour.description || '';
+    hlInput.value      = arrayToLines(tour.highlights);
+    itinInput.value    = tour.itinerary?.length
+      ? JSON.stringify(tour.itinerary, null, 2)
+      : '';
+    inclInput.value    = arrayToLines(tour.inclusions);
+    exclInput.value    = arrayToLines(tour.exclusions);
+  }
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = modalForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+      const tId = idInput.value;
+
+      // Parse itinerary JSON (graceful fallback)
+      let itinerary = [];
+      const rawItin = itinInput.value.trim();
+      if (rawItin) {
+        try { itinerary = JSON.parse(rawItin); }
+        catch { toast('error', 'Invalid JSON', 'Itinerary must be valid JSON. Check the format.'); submitBtn.disabled = false; submitBtn.textContent = 'Save Tour'; return; }
+      }
+
+      const data = {
+        title:       titleInput.value.trim(),
+        category:    catInput.value,
+        duration:    durInput.value.trim(),
+        price:       Number(priceInput.value) || 0,
+        isActive:    activeInput.checked,
+        description: descInput.value.trim(),
+        highlights:  linesToArray(hlInput.value),
+        itinerary,
+        inclusions:  linesToArray(inclInput.value),
+        exclusions:  linesToArray(exclInput.value),
+      };
+
+      const imageFile = document.getElementById('tour-image')?.files[0] || null;
+
+      if (tId) await updateTour(tId, data, imageFile);
+      else await addTour(data, imageFile);
+
+      toast('success', 'Saved!', `Tour "${data.title}" saved.`);
+      document.getElementById('admin-modal').close();
+      await renderToursTab();
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save Tour';
+    }
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Hajj & Umrah Tab
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Render the Hajj/Umrah admin tab. Fetches all packages (including inactive)
+ * and displays them in the admin table.
+ * @param {boolean} fetchData — skip the Firestore round-trip when re-rendering
+ */
+async function renderHajjUmrahTab(fetchData = true) {
+  if (fetchData) {
+    try {
+      _hajjUmrahPackages = await getHajjUmrahPackages({ includeInactive: true });
+      tablePage.hajjUmrah = 1;
+    } catch (e) {
+      toast('error', 'Error loading Hajj & Umrah', e.message);
+    }
+  }
+
+  const tbody = document.getElementById('hajjumrah-table-body');
+  if (!tbody) return;
+
+  const sorted = applySortAndFilter(_hajjUmrahPackages, 'hajjUmrah');
+  const limit = tableLimit.hajjUmrah;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+  if (tablePage.hajjUmrah > totalPages) tablePage.hajjUmrah = totalPages;
+  const start = (tablePage.hajjUmrah - 1) * limit;
+  const pageData = sorted.slice(start, start + limit);
+
+  tbody.innerHTML = pageData.length
+    ? pageData.map(p => hajjUmrahRow(p)).join('')
+    : `<tr><td colspan="10" class="text-center py-8 text-text-muted">No packages yet. Click "Add Package".</td></tr>`;
+
+  wireHajjUmrahActions();
+  wireHajjUmrahAddButton();
+}
+
+function wireHajjUmrahAddButton() {
+  const btn = document.getElementById('hajjumrah-add-btn');
+  if (btn && !btn.dataset.wired) {
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => openHajjUmrahModal(null));
+  }
+}
+
+function hajjUmrahRow(p) {
+  const img = p.coverImageUrl
+    ? `<span class="admin-logo-wrap"><img src="${p.coverImageUrl}" alt="${escapeHtml(p.title)}" style="object-fit:cover;width:44px;height:36px;border-radius:6px;"></span>`
+    : `<span class="admin-logo-wrap"><span class="admin-logo-fallback"><i class="bi bi-image"></i></span></span>`;
+
+  const priceDisplay = (!p.price || p.price === 0)
+    ? `<span class="text-text-muted text-[12px] italic">Call for Price</span>`
+    : `<span class="font-black text-[15px] text-navy">₹${Number(p.price).toLocaleString()}</span>`;
+
+  const statusBadge = p.isActive !== false
+    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[11px] font-semibold"><i class="bi bi-check-circle-fill text-[9px]"></i>Active</span>`
+    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-semibold"><i class="bi bi-dash-circle text-[9px]"></i>Hidden</span>`;
+  
+  const typeBadge = p.type === 'Hajj'
+    ? `<span class="px-2 py-0.5 rounded bg-blue-50 text-primary text-[11px] font-semibold">Hajj</span>`
+    : `<span class="px-2 py-0.5 rounded bg-amber-50 text-amber-600 text-[11px] font-semibold">Umrah</span>`;
+
+  return `<tr data-hajjumrah-id="${p.id}">
+    <td class="w-16">${img}</td>
+    <td class="font-bold text-navy truncate max-w-[150px]" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</td>
+    <td>${typeBadge}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(p.departureCity)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(p.airline)}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(p.departureDate)}</td>
+    <td class="text-navy font-medium text-[13px]">${p.days}D/${p.nights}N</td>
+    <td>${priceDisplay}</td>
+    <td>${statusBadge}</td>
+    <td>
+      <div class="flex justify-end gap-1.5 items-center">
+        <button data-action="edit-hajjumrah" data-id="${p.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-hajjumrah" data-id="${p.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireHajjUmrahActions() {
+  const tbody = document.getElementById('hajjumrah-table-body');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const pkg = _hajjUmrahPackages.find(p => p.id === id);
+
+    if (action === 'edit-hajjumrah') openHajjUmrahModal(pkg);
+    if (action === 'delete-hajjumrah') {
+      if (!confirm(`Delete package "${pkg?.title}"?`)) return;
+      try {
+        await deleteHajjUmrahPackage(id);
+        toast('success', 'Deleted', `Package "${pkg?.title}" removed.`);
+        await renderHajjUmrahTab();
+      } catch (err) {
+        toast('error', 'Error', err.message);
+      }
+    }
+  });
+}
+
+function openHajjUmrahModal(pkg) {
+  const tpl = document.getElementById('modal-hajjumrah-form');
+  if (!tpl) return;
+
+  openModal(pkg ? 'Edit Package' : 'Add Package', tpl.innerHTML);
+
+  const modalForm = document.getElementById('hajjumrah-form');
+  const idInput = document.getElementById('hajjumrah-id');
+  const titleInput = document.getElementById('hajjumrah-title');
+  const typeInput = document.getElementById('hajjumrah-type');
+  const cityInput = document.getElementById('hajjumrah-city');
+  const airlineInput = document.getElementById('hajjumrah-airline');
+  const dateInput = document.getElementById('hajjumrah-date');
+  const daysInput = document.getElementById('hajjumrah-days');
+  const nightsInput = document.getElementById('hajjumrah-nights');
+  const priceInput = document.getElementById('hajjumrah-price');
+  const activeInput = document.getElementById('hajjumrah-active');
+  const descInput = document.getElementById('hajjumrah-description');
+  const hlInput = document.getElementById('hajjumrah-highlights');
+  const inclInput = document.getElementById('hajjumrah-inclusions');
+
+  if (pkg) {
+    idInput.value = pkg.id;
+    titleInput.value = pkg.title || '';
+    typeInput.value = pkg.type || 'Umrah';
+    cityInput.value = pkg.departureCity || '';
+    airlineInput.value = pkg.airline || '';
+    dateInput.value = pkg.departureDate || '';
+    daysInput.value = pkg.days || 15;
+    nightsInput.value = pkg.nights || 14;
+    priceInput.value = pkg.price || 0;
+    activeInput.checked = pkg.isActive !== false;
+    descInput.value = pkg.description || '';
+    hlInput.value = arrayToLines(pkg.highlights);
+    inclInput.value = arrayToLines(pkg.inclusions);
+  }
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = modalForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+      const pId = idInput.value;
+
+      const data = {
+        title: titleInput.value.trim(),
+        type: typeInput.value,
+        departureCity: cityInput.value.trim(),
+        airline: airlineInput.value.trim(),
+        departureDate: dateInput.value.trim(),
+        days: Number(daysInput.value) || 1,
+        nights: Number(nightsInput.value) || 1,
+        price: Number(priceInput.value) || 0,
+        isActive: activeInput.checked,
+        description: descInput.value.trim(),
+        highlights: linesToArray(hlInput.value),
+        inclusions: linesToArray(inclInput.value),
+      };
+
+      const imageFile = document.getElementById('hajjumrah-image')?.files[0] || null;
+
+      if (pId) await updateHajjUmrahPackage(pId, data, imageFile);
+      else await addHajjUmrahPackage(data, imageFile);
+
+      toast('success', 'Saved!', `Package "${data.title}" saved.`);
+      document.getElementById('admin-modal').close();
+      await renderHajjUmrahTab();
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save Package';
     }
   });
 }

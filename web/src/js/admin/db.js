@@ -512,6 +512,123 @@ export async function deletePassportService(id) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TOURS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fetch all active (isActive=true) tours — public listing */
+export async function getTours({ includeInactive = false } = {}) {
+  const snap = await getDocs(query(collection(db, 'tours'), orderBy('title')));
+  const tours = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return includeInactive ? tours : tours.filter(t => t.isActive !== false);
+}
+
+/** Add a new tour package. Optionally upload a cover image. */
+export async function addTour(data, imageFile = null) {
+  let coverImageUrl = data.coverImageUrl || '';
+  if (imageFile) {
+    coverImageUrl = await uploadLogo('tour_images', imageFile);
+  }
+  const docRef = await addDoc(collection(db, 'tours'), {
+    title: data.title || '',
+    duration: data.duration || '',
+    description: data.description || '',
+    category: data.category || 'International',
+    price: Number(data.price) || 0,
+    highlights: Array.isArray(data.highlights) ? data.highlights : [],
+    itinerary: Array.isArray(data.itinerary) ? data.itinerary : [],
+    inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
+    exclusions: Array.isArray(data.exclusions) ? data.exclusions : [],
+    isActive: data.isActive !== false,
+    coverImageUrl,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+/** Update an existing tour. Optionally replace the cover image. */
+export async function updateTour(tourId, data, imageFile = null) {
+  const updates = {
+    ...data,
+    updatedAt: serverTimestamp(),
+  };
+  if (updates.price !== undefined) updates.price = Number(updates.price) || 0;
+  if (imageFile) {
+    updates.coverImageUrl = await uploadLogo('tour_images', imageFile);
+  }
+  await updateDoc(doc(db, 'tours', tourId), updates);
+}
+
+/** Delete a tour document */
+export async function deleteTour(tourId) {
+  await deleteDoc(doc(db, 'tours', tourId));
+}
+
+/** Fetch a single tour by doc ID */
+export async function getTourById(tourId) {
+  const snap = await getDocs(query(collection(db, 'tours')));
+  const docSnap = snap.docs.find(d => d.id === tourId);
+  if (!docSnap) return null;
+  return { id: docSnap.id, ...docSnap.data() };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HAJJ & UMRAH PACKAGES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fetch Hajj/Umrah packages. Pass { includeInactive: true } in admin. */
+export async function getHajjUmrahPackages({ includeInactive = false } = {}) {
+  const snap = await getDocs(query(collection(db, 'hajj_umrah_packages'), orderBy('departureDate')));
+  const pkgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return includeInactive ? pkgs : pkgs.filter(p => p.isActive !== false);
+}
+
+/** Add a new Hajj/Umrah package. Optionally upload a cover image. */
+export async function addHajjUmrahPackage(data, imageFile = null) {
+  let coverImageUrl = data.coverImageUrl || '';
+  if (imageFile) {
+    coverImageUrl = await uploadLogo('hajj_umrah_images', imageFile);
+  }
+  const docRef = await addDoc(collection(db, 'hajj_umrah_packages'), {
+    title: data.title || '',
+    type: data.type || 'Umrah',
+    departureCity: data.departureCity || '',
+    airline: data.airline || '',
+    departureDate: data.departureDate || '',
+    days: Number(data.days) || 15,
+    nights: Number(data.nights) || 14,
+    price: Number(data.price) || 0,
+    description: data.description || '',
+    highlights: Array.isArray(data.highlights) ? data.highlights : [],
+    inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
+    isActive: data.isActive !== false,
+    coverImageUrl,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+/** Update an existing Hajj/Umrah package. Optionally replace the cover image. */
+export async function updateHajjUmrahPackage(pkgId, data, imageFile = null) {
+  const updates = { ...data, updatedAt: serverTimestamp() };
+  if (updates.price !== undefined) updates.price = Number(updates.price) || 0;
+  if (updates.days !== undefined) updates.days = Number(updates.days) || 15;
+  if (updates.nights !== undefined) updates.nights = Number(updates.nights) || 14;
+  if (imageFile) {
+    updates.coverImageUrl = await uploadLogo('hajj_umrah_images', imageFile);
+  }
+  await updateDoc(doc(db, 'hajj_umrah_packages', pkgId), updates);
+}
+
+/** Delete a Hajj/Umrah package document */
+export async function deleteHajjUmrahPackage(pkgId) {
+  await deleteDoc(doc(db, 'hajj_umrah_packages', pkgId));
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // STORAGE HELPERS — Firebase Storage
 // ─────────────────────────────────────────────────────────────────────────────
 
