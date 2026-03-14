@@ -403,10 +403,14 @@ function initModal() {
  * @param {string} bodyHtml
  * @param {function} onSubmit — called with formData when the form inside is submitted
  */
-function openModal(title, bodyHtml) {
+function openModal(title, bodyHtml, wide = false) {
   const modal = document.getElementById('admin-modal');
   document.getElementById('modal-title').textContent = title;
-  document.getElementById('modal-body').innerHTML = bodyHtml;
+  // Adjust modal width for wide forms (e.g. tour, hajj with many fields)
+  modal.classList.toggle('max-w-lg', !wide);
+  modal.classList.toggle('max-w-2xl', wide);
+  const body = document.getElementById('modal-body');
+  body.innerHTML = bodyHtml;
   modal.showModal();
 }
 
@@ -3974,39 +3978,120 @@ function arrayToLines(arr = []) {
   return Array.isArray(arr) ? arr.join('\n') : '';
 }
 
+function _tourItineraryDayHtml(index, dayLabel = '', activities = []) {
+  const activityLines = activities.length ? activities.join('\n') : '';
+  return `
+    <div class="tour-day-row relative rounded-xl border border-slate-200 bg-slate-50/70 p-4" data-day-index="${index}">
+      <div class="flex items-center justify-between mb-3 pr-8">
+        <span class="tour-day-number text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">Day ${index + 1}</span>
+      </div>
+      <button type="button" class="tour-remove-day absolute top-3 right-3 w-7 h-7 rounded-full border border-red-200 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center" title="Remove day">
+        <i class="bi bi-x-lg text-[11px]"></i>
+      </button>
+      <div class="space-y-2.5">
+        <div>
+          <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Day Label / Title *</label>
+          <input type="text" class="tour-day-label admin-control h-9 text-sm" placeholder="e.g. Day 1 – Arrival" value="${escapeHtml(dayLabel)}" required>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Activities <span class="font-normal normal-case">(one per line)</span></label>
+          <textarea class="tour-day-activities admin-control text-sm" rows="3" placeholder="Airport pickup&#10;Hotel check-in&#10;Welcome dinner">${escapeHtml(activityLines)}</textarea>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _syncTourDayNumbers(container) {
+  const rows = container.querySelectorAll('.tour-day-row');
+  rows.forEach((row, i) => {
+    const numEl = row.querySelector('.tour-day-number');
+    if (numEl) numEl.textContent = `Day ${i + 1}`;
+    row.dataset.dayIndex = i;
+    const removeBtn = row.querySelector('.tour-remove-day');
+    if (removeBtn) {
+      if (rows.length <= 1) {
+        removeBtn.classList.add('opacity-40', 'pointer-events-none');
+      } else {
+        removeBtn.classList.remove('opacity-40', 'pointer-events-none');
+      }
+    }
+  });
+}
+
+function _readTourItinerary(container) {
+  const rows = container.querySelectorAll('.tour-day-row');
+  return Array.from(rows).map(row => ({
+    day: row.querySelector('.tour-day-label')?.value.trim() || '',
+    activities: (row.querySelector('.tour-day-activities')?.value || '')
+      .split('\n').map(l => l.trim()).filter(Boolean),
+  })).filter(d => d.day);
+}
+
 function openTourModal(tour) {
   const tpl = document.getElementById('modal-tour-form');
   if (!tpl) return;
 
-  openModal(tour ? 'Edit Tour Package' : 'Add Tour Package', tpl.innerHTML);
+  openModal(tour ? 'Edit Tour Package' : 'Add Tour Package', tpl.innerHTML, true);
 
-  const modalForm    = document.getElementById('tour-form');
-  const idInput      = document.getElementById('tour-id');
-  const titleInput   = document.getElementById('tour-title');
-  const catInput     = document.getElementById('tour-category');
-  const durInput     = document.getElementById('tour-duration');
-  const priceInput   = document.getElementById('tour-price');
-  const activeInput  = document.getElementById('tour-active');
-  const descInput    = document.getElementById('tour-description');
-  const hlInput      = document.getElementById('tour-highlights');
-  const itinInput    = document.getElementById('tour-itinerary');
-  const inclInput    = document.getElementById('tour-inclusions');
-  const exclInput    = document.getElementById('tour-exclusions');
+  const modalForm   = document.getElementById('tour-form');
+  const idInput     = document.getElementById('tour-id');
+  const titleInput  = document.getElementById('tour-title');
+  const catInput    = document.getElementById('tour-category');
+  const durInput    = document.getElementById('tour-duration');
+  const priceInput  = document.getElementById('tour-price');
+  const activeInput = document.getElementById('tour-active');
+  const descInput   = document.getElementById('tour-description');
+  const hlInput     = document.getElementById('tour-highlights');
+  const inclInput   = document.getElementById('tour-inclusions');
+  const exclInput   = document.getElementById('tour-exclusions');
 
+  // Itinerary container + add-day button
+  const itinContainer = document.getElementById('tour-itinerary-container');
+  const addDayBtn     = document.getElementById('tour-add-day-btn');
+
+  // Helper: add a day card
+  const addDayCard = (dayLabel = '', activities = []) => {
+    const idx = itinContainer.querySelectorAll('.tour-day-row').length;
+    itinContainer.insertAdjacentHTML('beforeend', _tourItineraryDayHtml(idx, dayLabel, activities));
+    _syncTourDayNumbers(itinContainer);
+  };
+
+  // Wire "Add Day" button
+  addDayBtn?.addEventListener('click', () => {
+    addDayCard();
+    // Scroll new card into view smoothly
+    itinContainer.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  // Wire remove buttons via event delegation on the container
+  itinContainer.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.tour-remove-day');
+    if (!removeBtn) return;
+    removeBtn.closest('.tour-day-row')?.remove();
+    _syncTourDayNumbers(itinContainer);
+  });
+
+  // Populate fields when editing
   if (tour) {
-    idInput.value      = tour.id;
-    titleInput.value   = tour.title || '';
-    catInput.value     = tour.category || 'International';
-    durInput.value     = tour.duration || '';
-    priceInput.value   = tour.price || 0;
+    idInput.value       = tour.id;
+    titleInput.value    = tour.title || '';
+    catInput.value      = tour.category || 'International';
+    durInput.value      = tour.duration || '';
+    priceInput.value    = tour.price || 0;
     activeInput.checked = tour.isActive !== false;
-    descInput.value    = tour.description || '';
-    hlInput.value      = arrayToLines(tour.highlights);
-    itinInput.value    = tour.itinerary?.length
-      ? JSON.stringify(tour.itinerary, null, 2)
-      : '';
-    inclInput.value    = arrayToLines(tour.inclusions);
-    exclInput.value    = arrayToLines(tour.exclusions);
+    descInput.value     = tour.description || '';
+    hlInput.value       = arrayToLines(tour.highlights);
+    inclInput.value     = arrayToLines(tour.inclusions);
+    exclInput.value     = arrayToLines(tour.exclusions);
+
+    // Render existing itinerary days
+    const itin = Array.isArray(tour.itinerary) ? tour.itinerary : [];
+    itin.forEach(day => addDayCard(day.day || '', day.activities || []));
+  }
+
+  // If no days were added yet (new tour), add one blank day to get the admin started
+  if (itinContainer.querySelectorAll('.tour-day-row').length === 0) {
+    addDayCard();
   }
 
   modalForm.addEventListener('submit', async (e) => {
@@ -4018,13 +4103,8 @@ function openTourModal(tour) {
     try {
       const tId = idInput.value;
 
-      // Parse itinerary JSON (graceful fallback)
-      let itinerary = [];
-      const rawItin = itinInput.value.trim();
-      if (rawItin) {
-        try { itinerary = JSON.parse(rawItin); }
-        catch { toast('error', 'Invalid JSON', 'Itinerary must be valid JSON. Check the format.'); submitBtn.disabled = false; submitBtn.textContent = 'Save Tour'; return; }
-      }
+      // Read itinerary from the dynamic UI
+      const itinerary = _readTourItinerary(itinContainer);
 
       const data = {
         title:       titleInput.value.trim(),

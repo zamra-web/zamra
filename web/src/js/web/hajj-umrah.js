@@ -5,7 +5,7 @@
  */
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDXVaGrWYqKwJBh7ow1GVCzTqnJJJDLlcM",
@@ -28,10 +28,11 @@ async function loadPackages() {
   try {
     const snap = await getDocs(query(
       collection(db, 'hajj_umrah_packages'),
-      where('isActive', '==', true),
-      orderBy('createdAt', 'desc')
+      where('isActive', '==', true)
     ));
     _allPackages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Sort client-side by departureDate so no composite index is needed
+    _allPackages.sort((a, b) => (a.departureDate || '').localeCompare(b.departureDate || ''));
   } catch (e) {
     console.error('Error loading packages:', e);
     _allPackages = [];

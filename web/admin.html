@@ -1363,15 +1363,15 @@ Example:
          JS populates #modal-title, #modal-body, then calls modal.showModal()
          ══════════════════════════════════════════════════════════════════════ -->
     <dialog id="admin-modal"
-        class="backdrop:bg-black/40 backdrop:backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-100 p-0 w-full max-w-lg mx-auto mt-20 open:animate-[fadeInScale_0.2s_ease]">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+        class="backdrop:bg-black/40 backdrop:backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-100 p-0 w-full max-w-lg mx-auto mt-12 max-h-[90vh] flex flex-col open:animate-[fadeInScale_0.2s_ease]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl shrink-0">
             <h3 id="modal-title" class="font-bold text-navy text-lg"></h3>
             <button id="modal-close-btn"
                 class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-500">
                 <i class="bi bi-x-lg text-sm"></i>
             </button>
         </div>
-        <div id="modal-body" class="p-6"></div>
+        <div id="modal-body" class="p-6 overflow-y-auto"></div>
     </dialog>
 
     <!-- ══════════════════════════════════════════════════════════════════════
@@ -1533,9 +1533,20 @@ Example:
                     <label class="admin-label">Highlights <span class="text-text-muted text-[11px]">(one per line)</span></label>
                     <textarea id="tour-highlights" class="admin-control" rows="3" placeholder="Petronas Twin Towers&#10;Batu Caves&#10;Langkawi Beach"></textarea>
                 </div>
-                <div class="sm:col-span-2">
-                    <label class="admin-label">Itinerary <span class="text-text-muted text-[11px]">(JSON array of day objects with "day" and "activities" keys)</span></label>
-                    <textarea id="tour-itinerary" class="admin-control font-mono text-[12px]" rows="5" placeholder='[{"day":"Day 1 – Arrival","activities":["Airport pickup","Hotel check-in"]}]'></textarea>
+                <div class="sm:col-span-2 border-t border-slate-100 pt-5 mt-2">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                        <div>
+                            <label class="admin-label mb-0">Itinerary Overview</label>
+                            <p class="text-[11px] text-text-muted mt-0.5">Add days and activities for the tour package.</p>
+                        </div>
+                        <button type="button" id="tour-add-day-btn"
+                            class="admin-btn admin-btn-soft h-9 px-4 text-xs">
+                            <i class="bi bi-plus-lg"></i> Add Day
+                        </button>
+                    </div>
+                    <div id="tour-itinerary-container" class="space-y-3">
+                        <!-- Populated by JS -->
+                    </div>
                 </div>
                 <div class="sm:col-span-2">
                     <label class="admin-label">Inclusions <span class="text-text-muted text-[11px]">(one per line)</span></label>
