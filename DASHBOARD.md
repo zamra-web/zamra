@@ -8,7 +8,7 @@
 
 The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gated management panel for Zamra Travels staff. It allows admins to manage agents, flight sectors, airlines, pricing data, and view aggregated reports — all backed by live Firestore data and Cloud Functions.
 
-**Live URL:** https://zamra-web.web.app/admin.html  
+**Live URL:** https://zamra.vercel.app/admin.html  
 **Access:** Requires a Firebase account with `admin: true` custom claim.  
 **Current Admin:** `sahal@admin.com`
 
@@ -19,7 +19,7 @@ The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gate
 | Property | Value |
 |---|---|
 | Project ID | `zamra-web` |
-| Hosting URL | https://zamra-web.web.app |
+| Hosting URL | https://zamra.vercel.app |
 | Console | https://console.firebase.google.com/project/zamra-web |
 | Plan | **Blaze (pay-as-you-go)** |
 | Auth | Email/Password |
@@ -34,7 +34,6 @@ The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gate
 | **Firebase Storage** | Logo uploads (agents, airlines) | ✅ Live (us-east) |
 | **Cloud Functions** | Bulk operations + report generation | ✅ Live (asia-south1, Node 22) |
 | **Firebase Auth** | Admin login (email/password) | ✅ Live |
-| **Firebase Hosting** | Serves the built `web/dist/` | ✅ Live |
 
 ---
 
@@ -400,8 +399,6 @@ Hajj/Umrah: getHajjUmrahPackages({ includeInactive? }), addHajjUmrahPackage(data
             updateHajjUmrahPackage(id, data, imageFile?), deleteHajjUmrahPackage(id)
 Storage:  uploadLogo(folder, file), deleteLogo(url)
 Functions:
-  callBulkDeleteFares(agentId?, startDate?, endDate?, sectorId?)
-    — all params optional; at least one required
   callToggleAgentVisibility(agentId, isActive)
   callToggleSectorVisibility(sectorId, isHidden)
   callGenerateAgentReport(startDate?, endDate?, sectorId?, agentId?)
@@ -443,14 +440,12 @@ admin.auth().getUserByEmail('EMAIL@HERE.COM').then(u => {
 ## Deploy Commands
 
 ```bash
-# Build + deploy everything (from zamra/ root)
-cd web && npm run build && cd .. && npx firebase-tools@latest deploy
+# Frontend deployment is automated via Vercel (push to Git)
 
-# Deploy specific services only
+# Deploy Firebase backend services (from zamra/ root)
 npx firebase-tools@latest deploy --only firestore
 npx firebase-tools@latest deploy --only storage
 npx firebase-tools@latest deploy --only functions
-npx firebase-tools@latest deploy --only hosting
 ```
 
 ---
@@ -462,7 +457,9 @@ npx firebase-tools@latest deploy --only hosting
 | Bug | Root Cause | Fix |
 |---|---|---|
 | **Multiple confirm() prompts on delete** | All `wireXxxActions()` functions deleted and re-set the `actionsWired` data attribute on every render, causing a new `addEventListener` to stack on the persistent `<tbody>` element each time. After N tab refreshes, one click triggered N listeners. | Changed all 7 wire functions (`wireVisaActions`, `wireVisaStampingActions`, `wireAttestationActions`, `wirePassportServiceActions`, `wireSectorActions`, `wireAirlineActions`, `wireTourActions`, `wireHajjUmrahActions`) to bail early if `tbody.dataset.actionsWired` is already set — matching the correct pattern already used by `wireAgentActions`. |
+| **Multi-page routing broken on refresh** | `firebase.json` had a catch-all rewrite rule (`**` to `/index.html`) spanning the entire site, which directed requests for `/admin.html` to the index page instead. | Removed the catch-all and added specific targeted rewrites for `/admin` and `/login` (while Vercel handles the heavy lifting for multi-page frontend routing normally). |
+| **Inefficient `getTourById`** | Used `getDocs` with a `where()` filter instead of direct `getDoc`. | Refactored `getTourById(id)` to use `doc(db, 'tours', id)` and `getDoc()`, optimizing read operations and latency. |
 
 ---
 
-_Last audited: 2026-03-14 — Added Hajj & Umrah tab (tab 11) with full CRUD; added `hajj_umrah_packages` schema; added `hajj_umrah_images/` Storage path; expanded `db.js`. Also recently added Tours tab, Visas tab sub-categories, Spreadsheet view for fares, and rate upload AI hook updates._
+_Last audited: 2026-03-14 — Codebase audit complete. Removed legacy files (`test_fetch.js`, `test_proxy.js`, `functions/seed.js`), dead code (`_dashboardFares`, `callBulkDeleteFares`, `getServices`), implemented dynamic baggage data, fixed hosting rewrites, optimized `getTourById`, added `hajj_umrah_images/` storage rules. Frontend hosting fully transitioned to Vercel documentation._

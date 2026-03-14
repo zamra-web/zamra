@@ -8,7 +8,7 @@
 
 The main website (`web/index.html`) is a premium, public-facing flight booking and travel services portal for Zamra Travels. It is fully responsive, mobile-optimised, and driven by live data from Firebase Firestore.
 
-**Live URL:** https://zamra-web.web.app  
+**Live URL:** https://zamra.vercel.app  
 **Local dev:** `cd web && npm run dev` → http://localhost:5173
 
 ---
@@ -21,7 +21,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | Styling | Tailwind CSS v4 (`@tailwindcss/vite` plugin) |
 | JavaScript | Vanilla ES Modules (no framework) |
 | Database | Firebase Firestore (read-only from public pages) |
-| Hosting | Firebase Hosting (`web/dist/` → `zamra-web.web.app`) |
+| Hosting | Vercel (`zamra.vercel.app`) |
 
 ---
 
@@ -225,12 +225,12 @@ The public website reads from Firestore with these security rules:
 # Local development
 cd web && npm run dev
 
-# Production build
+# Production build test
 cd web && npm run build        # outputs to web/dist/
 
-# Deploy hosting only
-cd zamra/
-npx firebase-tools@latest deploy --only hosting
+# Deployment
+# The frontend is hosted on Vercel. Simply push your code to git,
+# and Vercel will automatically build and deploy the changes to zamra.vercel.app.
 ```
 
 ---
@@ -241,7 +241,7 @@ npx firebase-tools@latest deploy --only hosting
 |---|---|
 | `sectors` | `sectorFrom`, `sectorTo`, `sectorCode` |
 | `airlines` | `name`, `code`, `logoUrl` |
-| `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `flightTime`, `isHidden` |
+| `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `extraBaggage`, `flightTime`, `isHidden` |
 | `services` | `serviceType`, `title`, `basePrice`, `isActive` |
 | `visas` | `countryName`, `visaType`, `processingTime`, `rate`, `flagUrl` |
 | `visa_stamping` | `country`, `description`, `processingTime`, `cost` |
@@ -252,4 +252,4 @@ npx firebase-tools@latest deploy --only hosting
 
 ---
 
-_Last audited: 2026-03-14 — Added Hajj & Umrah packages page (`hajj-umrah.html` + `hajj-umrah.js`) with dynamic Firestore content, filter chips, and unified grid display. Also added Tours listing and detail pages recently._
+_Last audited: 2026-03-14 — Codebase audit and consistency cleanup. Replaced hardcoded baggage strings with dynamic `fare.baggage` and `fare.extraBaggage` from Firestore. Fixed external logo URLs to avoid mixed content. Verified frontend multi-page routing and premium design consistencies across the site._

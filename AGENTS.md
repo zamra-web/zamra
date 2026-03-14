@@ -17,7 +17,7 @@ Zamra Travels is a premium flight booking and travel services web portal with a 
 1. **Public Website** (`web/index.html`) — Live flight search, sectors, services. Read-only Firestore. See [WEBSITE.md](./WEBSITE.md).
 2. **Admin Dashboard** (`web/admin.html`) — E-Ticket Generator, Poster Generator, CRUD for agents/sectors/airlines/fares, reports. Firebase-integrated with Cloud Functions. See [DASHBOARD.md](./DASHBOARD.md).
 
-**Live URL:** https://zamra-web.web.app  
+**Live URL:** https://zamra.vercel.app  
 **Firebase Project:** `zamra-web` (Blaze plan)
 
 ---
@@ -42,9 +42,11 @@ cd web && npm run dev      # local dev server → http://localhost:5173
 cd web && npm run build    # production build → web/dist/
 ```
 
-**Deploy command (from `zamra/` root):**
+**Deploy commands:**
 ```bash
-cd web && npm run build && cd .. && npx firebase-tools@latest deploy
+# Frontend is on Vercel: push to Git to trigger an automatic frontend deployment.
+# Backend (Firebase) from zamra/ root:
+npx firebase-tools@latest deploy --only functions,firestore,storage
 ```
 
 ---
@@ -157,7 +159,8 @@ zamra/                              # Firebase project root — run firebase CLI
 
 ## Key Gotchas for AI Agents
 
-- **`firebase.json` is at the `zamra/` root**, not inside `web/`. Always deploy from `zamra/`.
+- **`firebase.json` is at the `zamra/` root**, not inside `web/`. Always run firebase CLI from `zamra/`.
+- **Frontend Hosting** is on Vercel (`zamra.vercel.app`). Pushing to Git will auto-deploy the site. Do not use `firebase deploy --only hosting` for the primary frontend.
 - **Vite config is inside `web/`** — build and dev commands run from `web/`.
 - **Admin security** depends on the `admin: true` Firebase custom claim — without it, all Firestore writes are blocked even when authenticated.
 - **Firestore indexes** — complex queries on `agent_fares` require the indexes in `firestore.indexes.json`. Deploy them before testing queries.
