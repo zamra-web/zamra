@@ -393,7 +393,6 @@ export async function addVisa(data, flagFile = null) {
   const docRef = await addDoc(collection(db, 'visas'), {
     countryName: data.countryName || '',
     visaType: data.visaType || '',
-    processingTime: data.processingTime || '',
     rate: Number(data.rate) || 0,
     flagUrl,
     createdAt: serverTimestamp(),
@@ -408,6 +407,7 @@ export async function updateVisa(visaId, data, flagFile = null) {
     updatedAt: serverTimestamp()
   };
   if (updates.rate !== undefined) updates.rate = Number(updates.rate);
+  delete updates.processingTime; // field removed — strip it from any update payload
   if (flagFile) {
     updates.flagUrl = await uploadLogo('country_flags', flagFile);
   }
@@ -430,7 +430,6 @@ export async function addVisaStamping(data) {
   const docRef = await addDoc(collection(db, 'visa_stamping'), {
     country: data.country || '',
     description: data.description || '',
-    processingTime: data.processingTime || '',
     cost: Number(data.cost) || 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -441,6 +440,7 @@ export async function addVisaStamping(data) {
 export async function updateVisaStamping(id, data) {
   let updates = { ...data, updatedAt: serverTimestamp() };
   if (updates.cost !== undefined) updates.cost = Number(updates.cost);
+  delete updates.processingTime; // field removed — strip it from any update payload
   await updateDoc(doc(db, 'visa_stamping', id), updates);
 }
 

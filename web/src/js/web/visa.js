@@ -53,9 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalCountry = document.getElementById('modal-country');
   const modalTypeLabel = document.getElementById('modal-type-label');
   const modalType = document.getElementById('modal-type');
-  const modalTimeLabel = document.getElementById('modal-time-label');
-  const modalTimeIcon = document.getElementById('modal-time-icon');
-  const modalTime = document.getElementById('modal-time');
   const modalRate = document.getElementById('modal-rate');
   const modalEnquireBtn = document.getElementById('modal-enquire-btn');
 
@@ -69,40 +66,35 @@ document.addEventListener('DOMContentLoaded', () => {
     let title = '';
     let typeLabel = 'Type';
     let typeValue = '';
-    let timeLabel = 'Processing Time';
-    let timeValue = '';
     let rateValue = formatRate(data.rate);
     let waText = '';
 
     if (serviceType === 'visa') {
       title = data.countryName || data.country || 'Unknown';
       typeValue = data.visaType || 'Tourist';
-      timeValue = data.processingTime || 'N/A';
       modalBanner.innerHTML = `
         <div class="absolute inset-0 bg-cover bg-center scale-105" style="background-image: url('${data.flagUrl || ''}'); filter: brightness(0.65) blur(2px);"></div>
         <div class="w-[76px] h-[76px] rounded-2xl border-4 border-white/30 shadow-2xl overflow-hidden relative z-10 bg-white">
           <img src="${data.flagUrl || ''}" alt="${title}" class="w-full h-full object-cover">
         </div>
       `;
-      waText = `Hello Zamra Travels, I am interested in a visa for:\n\n🌍 Country: *${title}*\n📄 Visa Type: *${typeValue}*\n⏱️ Processing: *${timeValue}*\n💵 Rate: *${rateValue}*\n\nPlease provide more information.`;
+      waText = `Hello Zamra Travels, I am interested in a visa for:\n\n🌍 Country: *${title}*\n📄 Visa Type: *${typeValue}*\n💵 Rate: *${rateValue}*\n\nPlease provide more information.`;
 
     } else if (serviceType === 'stamping') {
       title = data.country || 'Unknown';
       typeValue = data.description || 'Visa Stamping';
-      timeValue = data.processingTime || 'N/A';
       modalBanner.innerHTML = `
         <div class="absolute inset-0 bg-gradient-to-br from-primary to-blue-500 opacity-90"></div>
         <div class="w-[76px] h-[76px] rounded-2xl border-4 border-white/25 shadow-2xl relative z-10 bg-white/10 backdrop-blur-sm flex items-center justify-center text-white text-[34px]">
           <i class="bi bi-stamp"></i>
         </div>
       `;
-      waText = `Hello Zamra Travels, I need visa stamping for:\n\n🌍 Country: *${title}*\n📋 Service: *${typeValue}*\n⏱️ Processing: *${timeValue}*\n💵 Rate: *${rateValue}*\n\nPlease provide more details.`;
+      waText = `Hello Zamra Travels, I need visa stamping for:\n\n🌍 Country: *${title}*\n📋 Service: *${typeValue}*\n💵 Rate: *${rateValue}*\n\nPlease provide more details.`;
 
     } else if (serviceType === 'attestation') {
       title = data.country || 'Unknown';
+      typeLabel = 'Certificate';
       typeValue = data.certificate || 'Attestation';
-      timeLabel = 'Certificate';
-      timeValue = data.certificate || 'N/A';
       modalBanner.innerHTML = `
         <div class="absolute inset-0 bg-gradient-to-br from-[#073160] to-primary opacity-90"></div>
         <div class="w-[76px] h-[76px] rounded-2xl border-4 border-white/25 shadow-2xl relative z-10 bg-white/10 backdrop-blur-sm flex items-center justify-center text-white text-[34px]">
@@ -113,33 +105,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } else if (serviceType === 'passport') {
       title = data.type || 'Passport Service';
-      typeLabel = 'Service Type';
-      typeValue = 'Passport Service';
-      timeLabel = 'Details';
-      timeValue = data.description || 'N/A';
+      typeLabel = 'Service';
+      typeValue = data.description || 'Passport Service';
       modalBanner.innerHTML = `
         <div class="absolute inset-0 bg-gradient-to-br from-[#1e3a5f] to-[#1e67c2] opacity-90"></div>
         <div class="w-[76px] h-[76px] rounded-2xl border-4 border-white/25 shadow-2xl relative z-10 bg-white/10 backdrop-blur-sm flex items-center justify-center text-white text-[34px]">
           <i class="bi bi-journal-bookmark"></i>
         </div>
       `;
-      waText = `Hello Zamra Travels, I need:\n\n📄 Service: *${title}*\n📝 Details: *${timeValue}*\n💵 Rate: *${rateValue}*\n\nPlease get in touch.`;
+      waText = `Hello Zamra Travels, I need:\n\n📄 Service: *${title}*\n💵 Rate: *${rateValue}*\n\nPlease get in touch.`;
     }
 
     modalCountry.textContent = title;
     modalTypeLabel.textContent = typeLabel;
     modalType.textContent = typeValue;
-    modalTimeLabel.textContent = timeLabel;
-
-    if (serviceType === 'attestation') {
-      modalTimeIcon.className = 'bi bi-file-earmark-text';
-      document.querySelector('.modal-info-row:nth-child(2)').style.display = 'none';
-    } else {
-      modalTimeIcon.className = 'bi bi-hourglass-split';
-      document.querySelector('.modal-info-row:nth-child(2)').style.display = '';
-      modalTime.textContent = timeValue;
-    }
-
     modalRate.textContent = rateValue;
     modalEnquireBtn.href = `https://wa.me/919846606739?text=${encodeURIComponent(waText)}`;
 
@@ -194,10 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="visa-card-body">
             <div class="flex items-center justify-between mb-3">
               <span class="visa-type-chip">${visa.visaType || 'Tourist'}</span>
-            </div>
-            <div class="visa-meta-row mb-2">
-              <i class="bi bi-clock"></i>
-              <span>${visa.processingTime || 'N/A'}</span>
             </div>
             <div class="visa-rate-row">
               <div>
@@ -257,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (serviceType === 'attestation') {
           subLine = `<p class="text-text-muted text-[13px] leading-snug mt-1 line-clamp-2">${item.certificate || ''}</p>`;
         } else {
-          subLine = `<div class="visa-meta-row mt-1.5"><i class="bi bi-clock"></i><span>${item.processingTime || item.description || 'N/A'}</span></div>`;
+          subLine = `<p class="text-text-muted text-[13px] leading-snug mt-1 line-clamp-2">${item.description || ''}</p>`;
         }
 
         card.innerHTML = `

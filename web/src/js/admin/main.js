@@ -38,6 +38,7 @@ let _reportFares = [];
 let _databaseFares = [];
 let _databaseDrafts = {};
 let _databaseSelected = new Set();
+let _databaseEditing = new Set();
 
 function normalizeDamammText(value) {
   if (value === null || value === undefined) return value;
@@ -1984,10 +1985,23 @@ function wireDatabaseTableEvents() {
     const fareId = btn.dataset.id;
     if (!fareId) return;
 
+    if (action === 'edit') {
+      _databaseEditing.add(fareId);
+      renderDatabaseTable();
+      return;
+    }
+
+    if (action === 'cancel_edit') {
+      _databaseEditing.delete(fareId);
+      renderDatabaseTable();
+      return;
+    }
+
     if (action === 'save') {
       btn.disabled = true;
       const ok = await persistDatabaseRow(fareId);
       if (!ok) btn.disabled = false;
+      else _databaseEditing.delete(fareId);
       renderDatabaseTable();
       return;
     }
@@ -2029,6 +2043,7 @@ function wireDatabaseTableEvents() {
 
     if (action === 'reset') {
       delete _databaseDrafts[fareId];
+      _databaseEditing.delete(fareId);
       renderDatabaseTable();
       return;
     }
@@ -2041,6 +2056,7 @@ function wireDatabaseTableEvents() {
         _databaseFares = _databaseFares.filter(f => f.id !== fareId);
         delete _databaseDrafts[fareId];
         _databaseSelected.delete(fareId);
+        _databaseEditing.delete(fareId);
         toast('success', 'Deleted', 'Fare row removed.');
         renderDatabaseTable();
       } catch (err) {
@@ -2195,6 +2211,7 @@ async function renderDatabaseTab(fetchData = true) {
       _databaseFares = await getFares({ includeHidden: true });
       _databaseDrafts = {};
       _databaseSelected = new Set();
+      _databaseEditing = new Set();
       tablePage.databaseFares = 1;
       tab.dataset.loaded = '1';
     } catch (err) {
@@ -2273,6 +2290,7 @@ function renderDatabaseTable() {
   if (!wrap) return;
 
   const rows = getFilteredDatabaseRows();
+  const { agentNameById, sectorCodeById, airlineLabelById } = getDatabaseLookupMaps();
   const totalEl = document.getElementById('database-total-count');
   if (totalEl) totalEl.textContent = rows.length.toLocaleString();
 
@@ -2339,67 +2357,109 @@ function renderDatabaseTable() {
         ${pageData.map((fare, idx) => {
           const dirty = !!_databaseDrafts[fare.id];
           const selected = _databaseSelected.has(fare.id);
+          const isEditing = _databaseEditing.has(fare.id) || dirty;
+          
+          const agentName = agentNameById[fare.agentId] || fare.agentId;
+          const sectorName = sectorCodeById[fare.sectorId] || fare.sectorId;
+          const airlineName = airlineLabelById[fare.airlineId] || fare.airlineId;
+          
+          const dateStr = fare.flightDate instanceof Date
+            ? fare.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+            : (fare.flightDate ? toDateInputValue(fare.flightDate) : '—');
+            
+          const fareRowBg = idx % 2 === 1 ? 'bg-slate-50/60' : '';
+
           return `
-            <tr data-fare-id="${fare.id}" class="${dirty ? 'admin-database-row-dirty' : ''}">
+            <tr data-fare-id="${fare.id}" class="${dirty ? 'admin-database-row-dirty' : fareRowBg} hover:bg-slate-100/80 transition-colors">
               <td class="text-center">
                 <input type="checkbox" data-db-select="${fare.id}" ${selected ? 'checked' : ''}>
               </td>
               <td class="font-mono text-[11px] text-text-soft">${start + idx + 1}</td>
-              <td>
-                <select data-db-field="agentId" class="db-cell-select min-w-[180px]">
+              <td class="whitespace-nowrap ${isEditing ? '' : 'text-[12px]'}">
+                ${isEditing ? `
+                <select data-db-field="agentId" class="db-cell-select min-w-[150px]">
                   <option value="">Select Agent</option>
                   ${buildAgentOptions(fare.agentId)}
                 </select>
+                ` : `<span class="text-text-muted">${escapeHtml(agentName)}</span>`}
               </td>
-              <td>
-                <select data-db-field="sectorId" class="db-cell-select min-w-[140px]">
+              <td class="whitespace-nowrap ${isEditing ? '' : 'text-[12px]'}">
+                ${isEditing ? `
+                <select data-db-field="sectorId" class="db-cell-select min-w-[120px]">
                   <option value="">Select Sector</option>
                   ${buildSectorOptions(fare.sectorId)}
                 </select>
+                ` : `<span class="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md text-[12px]">${escapeHtml(sectorName)}</span>`}
               </td>
-              <td>
+              <td class="whitespace-nowrap font-semibold text-navy text-[13px]">
+                ${isEditing ? `
                 <input type="date" data-db-field="flightDate" class="db-cell-input" value="${toDateInputValue(fare.flightDate)}">
+                ` : escapeHtml(dateStr)}
               </td>
-              <td>
-                <input type="text" data-db-field="flightTime" class="db-cell-input min-w-[128px]" value="${escapeHtml(fare.flightTime || '')}" placeholder="04:05 - 11:10">
+              <td class="whitespace-nowrap text-text-muted text-[12px]">
+                ${isEditing ? `
+                <input type="text" data-db-field="flightTime" class="db-cell-input min-w-[110px]" value="${escapeHtml(fare.flightTime || '')}" placeholder="04:05 - 11:10">
+                ` : escapeHtml(fare.flightTime || '—')}
               </td>
-              <td>
-                <select data-db-field="airlineId" class="db-cell-select min-w-[170px]">
+              <td class="whitespace-nowrap ${isEditing ? '' : 'font-semibold text-[13px]'}">
+                ${isEditing ? `
+                <select data-db-field="airlineId" class="db-cell-select min-w-[150px]">
                   <option value="">No Airline</option>
                   ${buildAirlineOptions(fare.airlineId)}
                 </select>
+                ` : escapeHtml(airlineName)}
               </td>
-              <td>
-                <select data-db-field="baggage" class="db-cell-select min-w-[110px]">
+              <td class="whitespace-nowrap text-[12px]">
+                ${isEditing ? `
+                <select data-db-field="baggage" class="db-cell-select min-w-[90px]">
                   ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, parseBaggageNumber(fare.baggage))}
                 </select>
+                ` : (fare.baggage ? fare.baggage + ' kg' : '—')}
               </td>
-              <td>
-                <select data-db-field="extraBaggage" class="db-cell-select min-w-[110px]">
+              <td class="whitespace-nowrap text-[12px]">
+                ${isEditing ? `
+                <select data-db-field="extraBaggage" class="db-cell-select min-w-[90px]">
                   ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, toSafeNumber(fare.extraBaggage, 0))}
                 </select>
+                ` : (fare.extraBaggage ? fare.extraBaggage + ' kg' : '—')}
               </td>
-              <td>
+              <td class="whitespace-nowrap">
+                ${isEditing ? `
                 <input type="number" data-db-field="specialRate" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.specialRate, 0)}" min="0" step="1">
+                ` : `<span class="text-[13px] text-text-muted">₹${(fare.specialRate || 0).toLocaleString()}</span>`}
               </td>
-              <td>
+              <td class="whitespace-nowrap">
+                ${isEditing ? `
                 <input type="number" data-db-field="commission" class="db-cell-input db-cell-num bg-slate-50 text-slate-500" value="${toSafeNumber(fare.commission, 0)}" min="0" step="1" readonly tabindex="-1">
+                ` : `<span class="text-[12px] text-text-muted" id="comm-${fare.id}">₹${(fare.commission || 0).toLocaleString()}</span>`}
               </td>
-              <td>
+              <td class="whitespace-nowrap">
+                ${isEditing ? `
                 <input type="number" data-db-field="finalRate" class="db-cell-input db-cell-num bg-slate-50 text-slate-500" value="${toSafeNumber(fare.finalRate, 0)}" min="0" step="1" readonly tabindex="-1">
+                ` : `<span class="font-black text-navy text-[14px]">₹${(fare.finalRate || 0).toLocaleString()}</span>`}
               </td>
-              <td>
+              <td class="whitespace-nowrap">
+                ${isEditing ? `
                 <select data-db-field="isHidden" class="db-cell-select min-w-[94px]">
                   <option value="live" ${fare.isHidden ? '' : 'selected'}>Live</option>
                   <option value="hidden" ${fare.isHidden ? 'selected' : ''}>Hidden</option>
                 </select>
+                ` : `
+                <span class="admin-status-pill ${fare.isHidden ? 'admin-status-hidden' : 'admin-status-live'}">
+                  ${fare.isHidden ? '● Hidden' : '● Live'}
+                </span>
+                `}
               </td>
-              <td>
+              <td class="whitespace-nowrap">
                 <div class="flex gap-1">
+                  ${isEditing ? `
                   <button data-db-action="save" data-id="${fare.id}" class="admin-action-btn admin-action-edit" ${dirty ? '' : 'disabled'}><i class="bi bi-check2-circle"></i>Save</button>
+                  <button data-db-action="${dirty ? 'reset' : 'cancel_edit'}" data-id="${fare.id}" class="admin-action-btn admin-action-toggle"><i class="bi ${dirty ? 'bi-arrow-counterclockwise' : 'bi-x'}"></i>${dirty ? 'Reset' : 'Cancel'}</button>
+                  ` : `
+                  <button data-db-action="edit" data-id="${fare.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil"></i>Edit</button>
+                  `}
                   <button data-db-action="share" data-id="${fare.id}" class="admin-action-btn admin-action-show"><i class="bi bi-box-arrow-up"></i>Share</button>
-                  <button data-db-action="reset" data-id="${fare.id}" class="admin-action-btn admin-action-toggle" ${dirty ? '' : 'disabled'}><i class="bi bi-arrow-counterclockwise"></i>Reset</button>
-                  <button data-db-action="delete" data-id="${fare.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+                  <button data-db-action="delete" data-id="${fare.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Del</button>
                 </div>
               </td>
             </tr>
@@ -2458,6 +2518,7 @@ async function persistDatabaseRow(fareId, { silent = false } = {}) {
     await updateFare(fareId, payload);
     _databaseFares = _databaseFares.map(f => f.id === fareId ? { ...f, ...payload } : f);
     delete _databaseDrafts[fareId];
+    _databaseEditing.delete(fareId);
     if (!silent) toast('success', 'Saved', 'Fare row updated.');
     return true;
   } catch (err) {
@@ -2525,6 +2586,7 @@ async function deleteSelectedDatabaseRows() {
     successIds.forEach(id => {
       delete _databaseDrafts[id];
       _databaseSelected.delete(id);
+      _databaseEditing.delete(id);
     });
   }
 
@@ -3427,7 +3489,7 @@ async function renderVisasTab(fetchData = true) {
 
     tbodyVisas.innerHTML = pageData.length
       ? pageData.map(v => visaRow(v)).join('')
-      : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No tourist visas yet. Click "Add Tourist Visa".</td></tr>`;
+      : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No tourist visas yet. Click "Add Tourist Visa".</td></tr>`;
     wireVisaActions();
   }
 
@@ -3443,7 +3505,7 @@ async function renderVisasTab(fetchData = true) {
 
     tbodyStamping.innerHTML = pageData.length
       ? pageData.map(v => visaStampingRow(v)).join('')
-      : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No visa stampings yet. Click "Add Visa Stamping".</td></tr>`;
+      : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No visa stampings yet. Click "Add Visa Stamping".</td></tr>`;
     wireVisaStampingActions();
   }
 
@@ -3517,7 +3579,6 @@ function visaRow(v) {
     <td class="w-16">${flag}</td>
     <td class="font-bold text-navy">${escapeHtml(v.countryName)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.visaType)}</td>
-    <td class="text-text-muted text-[13px]">${escapeHtml(v.processingTime)}</td>
     <td class="font-black text-[15px] text-navy">₹${(v.rate || 0).toLocaleString()}</td>
     <td>
       <div class="flex justify-end gap-1.5 items-center">
@@ -3563,14 +3624,12 @@ function openVisaModal(visa) {
   const countryInput = document.getElementById('visa-country');
   const typeInput = document.getElementById('visa-type');
   const rateInput = document.getElementById('visa-rate');
-  const processInput = document.getElementById('visa-processing');
 
   if (visa) {
     idInput.value = visa.id;
     countryInput.value = visa.countryName || '';
     typeInput.value = visa.visaType || '';
     rateInput.value = visa.rate || 0;
-    processInput.value = visa.processingTime || '';
   }
 
   modalForm.addEventListener('submit', async (e) => {
@@ -3585,7 +3644,6 @@ function openVisaModal(visa) {
         countryName: countryInput.value.trim(),
         visaType: typeInput.value.trim(),
         rate: Number(rateInput.value),
-        processingTime: processInput.value.trim(),
       };
       
       const fileInput = document.getElementById('visa-flag');
@@ -3611,7 +3669,6 @@ function visaStampingRow(v) {
   return `<tr data-id="${v.id}">
     <td class="font-bold text-navy">${escapeHtml(v.country)}</td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.description)}</td>
-    <td class="text-text-muted text-[13px]">${escapeHtml(v.processingTime)}</td>
     <td class="font-black text-[15px] text-navy">₹${(v.cost || 0).toLocaleString()}</td>
     <td>
       <div class="flex justify-end gap-1.5 items-center">
@@ -3655,14 +3712,12 @@ function openVisaStampingModal(item) {
   const idInput = document.getElementById('visa-stamping-id');
   const countryInput = document.getElementById('visa-stamping-country');
   const descInput = document.getElementById('visa-stamping-desc');
-  const timeInput = document.getElementById('visa-stamping-time');
   const costInput = document.getElementById('visa-stamping-cost');
 
   if (item) {
     idInput.value = item.id;
     countryInput.value = item.country || '';
     descInput.value = item.description || '';
-    timeInput.value = item.processingTime || '';
     costInput.value = item.cost || 0;
   }
 
@@ -3677,7 +3732,6 @@ function openVisaStampingModal(item) {
       const data = {
         country: countryInput.value.trim(),
         description: descInput.value.trim(),
-        processingTime: timeInput.value.trim(),
         cost: Number(costInput.value),
       };
       

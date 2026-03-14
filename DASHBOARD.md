@@ -137,10 +137,10 @@ web/
 
 ### 6. 🗃️ Database Tab
 - **Spreadsheet View for `agent_fares`** — dedicated sheet-style table for admins to manage all fare rows in one place.
-- **Inline Editing** — editable cells for date, time, agent, sector, airline, **SP Rate + Commission**, baggage, extra baggage, and status.
-- **Rate Formula** — `Final Rate` is auto-calculated in-sheet as `SP Rate + Commission` (read-only field).
-- **Baggage Inputs** — `Baggage` and `Extra Baggage` use dropdowns powered by the same baggage option set used in the E-Ticket flow.
-- **Row Actions** — per-row Save, **Share** (copies WhatsApp-formatted enquiry text to clipboard), Reset, and Delete controls.
+- **Read-Only Default View** — Rows default to a concise, plain-text view (similar to the Reports tab) to avoid horizontal scrolling and improve readability.
+- **Togglable Inline Editing** — Admins can click the **Edit** button on any row to seamlessly swap the row into edit mode, revealing dropdowns and input fields for date, time, agent, sector, airline, **SP Rate + Commission**, baggage, extra baggage, and status.
+- **Rate Formula** — `Final Rate` is auto-calculated as `SP Rate + Commission` (read-only field).
+- **Row Actions** — per-row **Edit** / **Save** / **Cancel** / **Reset**, **Share** (copies WhatsApp-formatted enquiry text to clipboard), and Delete controls.
 - **Bulk Operations** — multi-select checkboxes + **Delete Selected** action.
 - **Save All Workflow** — tracks unsaved rows and allows saving all pending edits in one action.
 - **Filters + Search** — filter by agent, sector, airline, status, and date range; plus free-text search.
@@ -479,4 +479,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-03-14 — Added missing Firestore composite indexes (`isHidden + flightDate`, `agentId + sectorId + isHidden + flightDate`) to fix poster "All Sectors" query. Removed filter guards from both the Reports tab frontend and the `generateAgentReport` Cloud Function so full-dataset reports (all sectors, all agents, entire timeline) can now be generated. Tours tab itinerary upgraded from raw JSON textarea to dynamic day-builder UI. Admin modal made scrollable and supports wide mode._
+_Last audited: 2026-03-14 — Database tab updated to use a concise read-only default view with togglable inline editing per row to eliminate horizontal scroll issues. Added missing Firestore composite indexes (`isHidden + flightDate`, `agentId + sectorId + isHidden + flightDate`) to fix poster "All Sectors" query. Removed filter guards from both the Reports tab frontend and the `generateAgentReport` Cloud Function so full-dataset reports (all sectors, all agents, entire timeline) can now be generated. Tours tab itinerary upgraded from raw JSON textarea to dynamic day-builder UI. Admin modal made scrollable and supports wide mode._
