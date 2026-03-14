@@ -683,24 +683,8 @@ function renderReportFaresTable(fares) {
               </td>
               <td class="whitespace-nowrap font-semibold text-[13px]">${airlineMap[f.airlineId] || f.airlineId}</td>
               <td class="whitespace-nowrap text-text-muted text-[12px]">${agentMap[f.agentId] || f.agentId}</td>
-              <td class="whitespace-nowrap">
-                <div class="flex items-center">
-                  <span class="text-text-muted text-[13px] mr-0.5">₹</span>
-                  <input type="number" 
-                    value="${f.specialRate || 0}"
-                    onblur="window.__updateFareRate('${f.id}', 'specialRate', this.value)"
-                    class="bg-transparent border border-transparent hover:border-slate-200 focus:border-primary/50 focus:bg-white rounded px-1 text-[13px] text-text-muted outline-none w-20 transition-colors shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                </div>
-              </td>
-              <td class="whitespace-nowrap">
-                <div class="flex items-center">
-                  <span class="text-navy font-black text-[14px] mr-0.5">₹</span>
-                  <input type="number" 
-                    value="${f.finalRate || 0}"
-                    onblur="window.__updateFareRate('${f.id}', 'finalRate', this.value)"
-                    class="bg-transparent border border-transparent hover:border-slate-200 focus:border-primary/50 focus:bg-white rounded px-1 font-black text-navy text-[14px] outline-none w-20 transition-colors shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                </div>
-              </td>
+              <td class="whitespace-nowrap text-[13px] text-text-muted">₹${(f.specialRate || 0).toLocaleString()}</td>
+              <td class="whitespace-nowrap font-black text-navy text-[14px]">₹${(f.finalRate || 0).toLocaleString()}</td>
               <td class="whitespace-nowrap text-[12px] text-text-muted" id="comm-${f.id}">₹${(f.commission || 0).toLocaleString()}</td>
               <td class="whitespace-nowrap text-[12px]">${f.baggage ? f.baggage + ' kg' : '—'}</td>
               <td class="whitespace-nowrap text-[12px]">${f.extraBaggage ? f.extraBaggage + ' kg' : '—'}</td>
@@ -711,8 +695,6 @@ function renderReportFaresTable(fares) {
               </td>
               <td class="whitespace-nowrap">
                 <div class="flex gap-1">
-                  <button onclick="window.__openEditFareModal('${f.id}')"
-                    class="admin-action-btn admin-action-edit">Edit</button>
                   <button onclick="window.__toggleFare('${f.id}', ${!f.isHidden})"
                     class="admin-action-btn ${f.isHidden ? 'admin-action-show' : 'admin-action-toggle'}">
                     ${f.isHidden ? 'Show' : 'Hide'}
@@ -749,165 +731,7 @@ function renderReportFaresTable(fares) {
     } catch (e) { toast('error', 'Error', e.message); }
   };
 
-  window.__updateFareRate = async (fareId, field, valueStr) => {
-    const newVal = parseFloat(valueStr) || 0;
-    const fare = _reportFares.find(f => f.id === fareId);
-    if (!fare || fare[field] === newVal) return;
-
-    try {
-      const updateData = { [field]: newVal };
-      if (field === 'specialRate') {
-        updateData.commission = Math.max(0, fare.finalRate - newVal);
-        fare.commission = updateData.commission;
-      } else if (field === 'finalRate') {
-        updateData.commission = Math.max(0, newVal - fare.specialRate);
-        fare.commission = updateData.commission;
-      }
-
-      await updateFare(fareId, updateData);
-      fare[field] = newVal;
-      
-      toast('success', 'Rate Updated', 'Fare successfully updated.');
-      
-      // Update DOM for commission text safely and re-render only if sorting changes, 
-      // but to keep it simple and ensure pagination/sorting works, we re-render everything
-      renderReportFaresTable(_reportFares);
-    } catch (e) {
-      toast('error', 'Update Failed', e.message);
-      renderReportFaresTable(_reportFares); // reset input
-    }
-  };
-
   updateSortIcons('reportFares');
-
-  window.__openEditFareModal = (fareId) => {
-    const fare = _reportFares.find(f => f.id === fareId);
-    if (!fare) return;
-
-    let dateVal = '';
-    if (fare.flightDate instanceof Date) {
-      // Need local date string as YYYY-MM-DD
-      const offset = fare.flightDate.getTimezoneOffset();
-      dateVal = new Date(fare.flightDate.getTime() - (offset*60*1000)).toISOString().split('T')[0];
-    } else if (typeof fare.flightDate === 'string') {
-      dateVal = fare.flightDate.split('T')[0];
-    }
-
-    const html = `
-      <form id="edit-fare-form" class="space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="admin-label text-[10px] mb-1">Date</label>
-            <input type="date" id="ef-date" class="admin-control h-10" value="${dateVal}" required>
-          </div>
-          <div>
-            <label class="admin-label text-[10px] mb-1">Time</label>
-            <input type="text" id="ef-time" class="admin-control h-10" placeholder="e.g. 04:05 - 11:10" value="${fare.flightTime || ''}">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4">
-          <div>
-            <label class="admin-label text-[10px] mb-1">Sector</label>
-            <select id="ef-sector" class="admin-control h-10" required>
-              ${_sectors.map(s => `<option value="${s.id}" ${s.id === fare.sectorId ? 'selected' : ''}>${s.sectorCode}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label class="admin-label text-[10px] mb-1">Airline</label>
-            <select id="ef-airline" class="admin-control h-10" required>
-              <option value="">-- None --</option>
-              ${_airlines.map(a => `<option value="${a.id}" ${a.id === fare.airlineId ? 'selected' : ''}>${a.code}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label class="admin-label text-[10px] mb-1">Agent</label>
-            <select id="ef-agent" class="admin-control h-10" required>
-              <option value="">-- None --</option>
-              ${_agents.map(a => `<option value="${a.id}" ${a.id === fare.agentId ? 'selected' : ''}>${a.name}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="admin-label text-[10px] mb-1">SP Rate (₹)</label>
-            <input type="number" id="ef-sprate" class="admin-control h-10" value="${fare.specialRate || 0}" required>
-          </div>
-          <div>
-            <label class="admin-label text-[10px] mb-1">Final Rate (₹)</label>
-            <input type="number" id="ef-finalrate" class="admin-control h-10" value="${fare.finalRate || 0}" required>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4">
-          <div>
-            <label class="admin-label text-[10px] mb-1">Baggage (kg)</label>
-            <input type="number" id="ef-bag" class="admin-control h-10" value="${fare.baggage || 0}">
-          </div>
-          <div>
-            <label class="admin-label text-[10px] mb-1">Ex. Baggage (kg)</label>
-            <input type="number" id="ef-exbag" class="admin-control h-10" value="${fare.extraBaggage || 0}">
-          </div>
-          <div>
-            <label class="admin-label text-[10px] mb-1">Status</label>
-            <select id="ef-status" class="admin-control h-10">
-              <option value="live" ${!fare.isHidden ? 'selected' : ''}>Live</option>
-              <option value="hidden" ${fare.isHidden ? 'selected' : ''}>Hidden</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button type="button" onclick="document.getElementById('admin-modal').close()" class="admin-btn admin-btn-ghost px-5">Cancel</button>
-          <button type="submit" class="admin-btn admin-btn-primary px-5">Save Changes</button>
-        </div>
-      </form>
-    `;
-
-    openModal('Edit Fare', html);
-
-    document.getElementById('edit-fare-form').onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button[type="submit"]');
-      const ogText = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
-
-      try {
-        let fdDateStr = document.getElementById('ef-date').value;
-        const updates = {
-          flightDate: fdDateStr ? new Date(fdDateStr + 'T00:00:00') : null,
-          flightTime: document.getElementById('ef-time').value.trim(),
-          sectorId: document.getElementById('ef-sector').value,
-          airlineId: document.getElementById('ef-airline').value,
-          agentId: document.getElementById('ef-agent').value,
-          specialRate: parseFloat(document.getElementById('ef-sprate').value) || 0,
-          finalRate: parseFloat(document.getElementById('ef-finalrate').value) || 0,
-          baggage: parseFloat(document.getElementById('ef-bag').value) || 0,
-          extraBaggage: parseFloat(document.getElementById('ef-exbag').value) || 0,
-          isHidden: document.getElementById('ef-status').value === 'hidden'
-        };
-        updates.commission = Math.max(0, updates.finalRate - updates.specialRate);
-
-        await updateFare(fareId, updates);
-        
-        // Update local cache
-        const idx = _reportFares.findIndex(f => f.id === fareId);
-        if (idx !== -1) {
-          _reportFares[idx] = { ..._reportFares[idx], ...updates };
-        }
-
-        document.getElementById('admin-modal').close();
-        toast('success', 'Updated', 'Fare updated successfully.');
-        renderReportFaresTable(_reportFares);
-      } catch (err) {
-        toast('error', 'Error', err.message);
-        btn.disabled = false;
-        btn.textContent = ogText;
-      }
-    };
-  };
 }
 
 
@@ -1873,7 +1697,7 @@ function getDatabaseLookupMaps() {
 }
 
 function normalizeFieldForDraft(field, value) {
-  if (field === 'specialRate' || field === 'finalRate' || field === 'extraBaggage') {
+  if (field === 'specialRate' || field === 'finalRate' || field === 'commission' || field === 'extraBaggage') {
     return value === '' ? '' : toSafeNumber(value, 0);
   }
   if (field === 'baggage') {
@@ -1895,6 +1719,11 @@ function normalizeFieldForBase(field, value) {
   if (field === 'specialRate' || field === 'finalRate' || field === 'extraBaggage') {
     return toSafeNumber(value, 0);
   }
+  if (field === 'commission') {
+    return value === undefined || value === null || value === ''
+      ? ''
+      : Math.max(0, toSafeNumber(value, 0));
+  }
   if (field === 'baggage') {
     return parseBaggageNumber(value);
   }
@@ -1910,13 +1739,28 @@ function normalizeFieldForBase(field, value) {
   return String(value || '');
 }
 
+function getCommissionValue(fare) {
+  if (!fare) return 0;
+  if (fare.commission !== undefined && fare.commission !== null && fare.commission !== '') {
+    return Math.max(0, toSafeNumber(fare.commission, 0));
+  }
+  return Math.max(0, toSafeNumber(fare.finalRate, 0) - toSafeNumber(fare.specialRate, 0));
+}
+
+function getCalculatedFinalRate(specialRate, commission) {
+  return Math.max(0, toSafeNumber(specialRate, 0) + Math.max(0, toSafeNumber(commission, 0)));
+}
+
 function getMergedDatabaseFare(fare) {
   const draft = _databaseDrafts[fare.id] || {};
   const merged = { ...fare, ...draft };
+  const baseCommission = getCommissionValue(fare);
   merged.flightDate = draft.flightDate !== undefined ? parseDateInputValue(draft.flightDate) : asDate(fare.flightDate);
   merged.specialRate = toSafeNumber(merged.specialRate, 0);
-  merged.finalRate = toSafeNumber(merged.finalRate, 0);
-  merged.commission = Math.max(0, merged.finalRate - merged.specialRate);
+  merged.commission = draft.commission !== undefined
+    ? Math.max(0, toSafeNumber(draft.commission, 0))
+    : baseCommission;
+  merged.finalRate = getCalculatedFinalRate(merged.specialRate, merged.commission);
   merged.baggage = parseBaggageNumber(merged.baggage);
   merged.extraBaggage = toSafeNumber(merged.extraBaggage, 0);
   merged.isHidden = merged.isHidden === true || merged.isHidden === 'hidden' || merged.isHidden === 'true';
@@ -1987,16 +1831,15 @@ function wireDatabaseTableEvents() {
     if (resetBtn) resetBtn.disabled = !dirty;
   };
 
-  const updateCommissionInRow = (row) => {
+  const updateDerivedRateInRow = (row) => {
     if (!row) return;
     const spInput = row.querySelector('[data-db-field="specialRate"]');
+    const commInput = row.querySelector('[data-db-field="commission"]');
     const rateInput = row.querySelector('[data-db-field="finalRate"]');
-    const commEl = row.querySelector('[data-db-commission]');
-    if (!spInput || !rateInput || !commEl) return;
+    if (!spInput || !commInput || !rateInput) return;
     const specialRate = toSafeNumber(spInput.value, 0);
-    const finalRate = toSafeNumber(rateInput.value, 0);
-    const commission = Math.max(0, finalRate - specialRate);
-    commEl.textContent = `₹${commission.toLocaleString()}`;
+    const commission = Math.max(0, toSafeNumber(commInput.value, 0));
+    rateInput.value = String(getCalculatedFinalRate(specialRate, commission));
   };
 
   const onFieldChange = (e) => {
@@ -2011,7 +1854,9 @@ function wireDatabaseTableEvents() {
 
     const rawValue = field === 'isHidden' ? el.value : el.value;
     const draftValue = normalizeFieldForDraft(field, rawValue);
-    const baseValue = normalizeFieldForBase(field, baseFare[field]);
+    const baseValue = field === 'commission'
+      ? getCommissionValue(baseFare)
+      : normalizeFieldForBase(field, baseFare[field]);
     const changed = draftValue !== baseValue;
 
     const nextDraft = { ...(_databaseDrafts[fareId] || {}) };
@@ -2021,8 +1866,8 @@ function wireDatabaseTableEvents() {
     if (Object.keys(nextDraft).length) _databaseDrafts[fareId] = nextDraft;
     else delete _databaseDrafts[fareId];
 
-    if (field === 'specialRate' || field === 'finalRate') {
-      updateCommissionInRow(row);
+    if (field === 'specialRate' || field === 'commission') {
+      updateDerivedRateInRow(row);
     }
 
     syncRowDirtyState(fareId);
@@ -2417,10 +2262,10 @@ function renderDatabaseTable() {
                 <input type="number" data-db-field="specialRate" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.specialRate, 0)}" min="0" step="1">
               </td>
               <td>
-                <input type="number" data-db-field="finalRate" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.finalRate, 0)}" min="0" step="1">
+                <input type="number" data-db-field="finalRate" class="db-cell-input db-cell-num bg-slate-50 text-slate-500" value="${toSafeNumber(fare.finalRate, 0)}" min="0" step="1" readonly tabindex="-1">
               </td>
               <td>
-                <span data-db-commission class="db-cell-commission">₹${Math.max(0, toSafeNumber(fare.finalRate, 0) - toSafeNumber(fare.specialRate, 0)).toLocaleString()}</span>
+                <input type="number" data-db-field="commission" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.commission, 0)}" min="0" step="1">
               </td>
               <td>
                 <input type="number" data-db-field="baggage" class="db-cell-input db-cell-num" value="${parseBaggageNumber(fare.baggage)}" min="0" step="1">
@@ -2475,15 +2320,19 @@ async function persistDatabaseRow(fareId, { silent = false } = {}) {
     return false;
   }
 
+  const specialRate = toSafeNumber(merged.specialRate, 0);
+  const commission = Math.max(0, toSafeNumber(merged.commission, 0));
+  const finalRate = getCalculatedFinalRate(specialRate, commission);
+
   const payload = {
     agentId: merged.agentId,
     sectorId: merged.sectorId,
     airlineId: merged.airlineId || '',
     flightDate,
     flightTime: merged.flightTime || '',
-    specialRate: toSafeNumber(merged.specialRate, 0),
-    finalRate: toSafeNumber(merged.finalRate, 0),
-    commission: Math.max(0, toSafeNumber(merged.finalRate, 0) - toSafeNumber(merged.specialRate, 0)),
+    specialRate,
+    finalRate,
+    commission,
     baggage: parseBaggageNumber(merged.baggage),
     extraBaggage: toSafeNumber(merged.extraBaggage, 0),
     isHidden: merged.isHidden === true,
@@ -2613,16 +2462,21 @@ function openDatabaseAddFareModal() {
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-3 gap-4">
         <div>
           <label class="admin-label text-[10px] mb-1">SP Rate (₹)</label>
           <input id="db-add-sp" type="number" class="admin-control h-10" min="0" step="1" value="0">
         </div>
         <div>
+          <label class="admin-label text-[10px] mb-1">Commission (₹)</label>
+          <input id="db-add-comm" type="number" class="admin-control h-10" min="0" step="1" value="0">
+        </div>
+        <div>
           <label class="admin-label text-[10px] mb-1">Final Rate (₹)</label>
-          <input id="db-add-rate" type="number" class="admin-control h-10" min="0" step="1" value="0">
+          <input id="db-add-rate" type="number" class="admin-control h-10 bg-slate-50 text-slate-500" min="0" step="1" value="0" readonly tabindex="-1">
         </div>
       </div>
+      <p class="text-[11px] text-text-soft -mt-2">Rate is auto-calculated as <strong>SP Rate + Commission</strong>.</p>
 
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -2653,6 +2507,19 @@ function openDatabaseAddFareModal() {
   const form = document.getElementById('database-add-form');
   if (!form) return;
 
+  const spInput = document.getElementById('db-add-sp');
+  const commInput = document.getElementById('db-add-comm');
+  const rateInput = document.getElementById('db-add-rate');
+  const syncAddRate = () => {
+    if (!rateInput) return;
+    const specialRate = toSafeNumber(spInput?.value, 0);
+    const commission = Math.max(0, toSafeNumber(commInput?.value, 0));
+    rateInput.value = String(getCalculatedFinalRate(specialRate, commission));
+  };
+  spInput?.addEventListener('input', syncAddRate);
+  commInput?.addEventListener('input', syncAddRate);
+  syncAddRate();
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const submitBtn = form.querySelector('button[type="submit"]');
@@ -2668,7 +2535,8 @@ function openDatabaseAddFareModal() {
       if (!flightDate) throw new Error('Please provide a valid flight date.');
 
       const specialRate = toSafeNumber(document.getElementById('db-add-sp')?.value, 0);
-      const finalRate = toSafeNumber(document.getElementById('db-add-rate')?.value, 0);
+      const commission = Math.max(0, toSafeNumber(document.getElementById('db-add-comm')?.value, 0));
+      const finalRate = getCalculatedFinalRate(specialRate, commission);
 
       await addFare({
         agentId: document.getElementById('db-add-agent')?.value || '',
@@ -2678,7 +2546,7 @@ function openDatabaseAddFareModal() {
         flightTime: document.getElementById('db-add-time')?.value?.trim() || '',
         specialRate,
         finalRate,
-        commission: Math.max(0, finalRate - specialRate),
+        commission,
         baggage: parseBaggageNumber(document.getElementById('db-add-bag')?.value),
         extraBaggage: toSafeNumber(document.getElementById('db-add-exbag')?.value, 0),
         isHidden: (document.getElementById('db-add-status')?.value || 'live') === 'hidden',

@@ -554,21 +554,6 @@
     min-width: 82px;
 }
 
-.db-cell-commission {
-    display: inline-flex;
-    min-width: 76px;
-    justify-content: center;
-    align-items: center;
-    padding: 0.32rem 0.55rem;
-    border-radius: 0.5rem;
-    border: 1px solid #d6e2f1;
-    background: #eef4ff;
-    color: #0f4f9e;
-    font-size: 0.73rem;
-    font-weight: 800;
-    line-height: 1;
-}
-
 #toastsEl > div {
     border-radius: 0.9rem;
     box-shadow: 0 18px 30px -22px rgba(15, 23, 42, 0.55);

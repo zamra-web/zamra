@@ -129,16 +129,17 @@ web/
   - `● Live` / `● Hidden` status badges with contextual colours
   - **Hide/Show** button is green when fare is hidden; slate when live
   - **Del** button beside each row
-  - Fully sortable (click column headers), paginated, and filterable. Includes a general 'Edit' inline button to open a modal where you can deeply live-edit the loaded Fare entry.
+  - Fully sortable (click column headers), paginated, and filterable. Rate and fare fields are read-only in Reports.
   - Columns: **Date · Time · Sector · Airline · Agent · SP Rate · Rate · Comm · Bag · Ex.Bag · Status · Actions**
-  - Inline per-row **Edit**, **Delete** and **Hide/Show** — update `_reportFares` in place without re-fetching
+  - Inline per-row **Delete** and **Hide/Show** — update `_reportFares` in place without re-fetching
 - **Export CSV** — greyed out until data is loaded; unlocked automatically after a successful report fetch. Downloads full filtered set (not just current page). All IDs resolved to human-readable names. UTF-8 BOM prefix for correct Excel rendering.
 
 > **Implementation note:** `renderReportCharts()` populates the stat cards and both charts, then wires the CSV button via `cloneNode` to avoid duplicate listeners. `renderReportFaresTable()` injects only the `<table>` + pagination footer into `#report-fares-results` — it does **not** wrap in its own card (the outer HTML card in `admin.html` already wraps it).
 
 ### 6. 🗃️ Database Tab
 - **Spreadsheet View for `agent_fares`** — dedicated sheet-style table for admins to manage all fare rows in one place.
-- **Inline Editing** — editable cells for date, time, agent, sector, airline, rates, baggage, extra baggage, and status.
+- **Inline Editing** — editable cells for date, time, agent, sector, airline, **SP Rate + Commission**, baggage, extra baggage, and status.
+- **Rate Formula** — `Final Rate` is auto-calculated in-sheet as `SP Rate + Commission` (read-only field).
 - **Row Actions** — per-row Save, Reset, and Delete controls.
 - **Bulk Operations** — multi-select checkboxes + **Delete Selected** action.
 - **Save All Workflow** — tracks unsaved rows and allows saving all pending edits in one action.
@@ -340,4 +341,4 @@ npx firebase-tools@latest deploy --only hosting
 
 ---
 
-_Last audited: 2026-03-14 — Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal)._
+_Last audited: 2026-03-14 — Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal), removed fare edit controls from Reports, and set Database tab rate logic to `Final Rate = SP Rate + Commission`._
