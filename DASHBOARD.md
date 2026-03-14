@@ -74,9 +74,10 @@ web/
 ## Dashboard Tabs
 
 ### 1. 📊 Dashboard Tab
-- **Poster Generator** — select a sector and optional date range, click **Generate Poster** to preview a shareable fare poster
-  - Displays fares sorted by date (up to 10), with airline logo, date, and price in a premium layout
-  - **Airline logos** are pre-fetched as blob URLs before rendering — sidesteps CORS for `html2canvas`
+- **Poster Generator** — select a sector (or 'All Sectors') and optional date range, click **Generate Poster** to preview a shareable fare poster
+  - Displays fares sorted by date (up to 10 for single sector, or unlimited for 'All Sectors' with a unified sector column)
+  - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
+  - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Download JPEG** — renders poster to canvas at 2× resolution and triggers a `.jpg` download
   - **Download PDF** — converts canvas to mm-based jsPDF page exactly sized to the poster dimensions
   - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively.
@@ -138,7 +139,7 @@ web/
 - **Inline Editing** — editable cells for date, time, agent, sector, airline, **SP Rate + Commission**, baggage, extra baggage, and status.
 - **Rate Formula** — `Final Rate` is auto-calculated in-sheet as `SP Rate + Commission` (read-only field).
 - **Baggage Inputs** — `Baggage` and `Extra Baggage` use dropdowns powered by the same baggage option set used in the E-Ticket flow.
-- **Row Actions** — per-row Save, Reset, and Delete controls.
+- **Row Actions** — per-row Save, **Share** (copies WhatsApp-formatted enquiry text to clipboard), Reset, and Delete controls.
 - **Bulk Operations** — multi-select checkboxes + **Delete Selected** action.
 - **Save All Workflow** — tracks unsaved rows and allows saving all pending edits in one action.
 - **Filters + Search** — filter by agent, sector, airline, status, and date range; plus free-text search.
@@ -160,8 +161,8 @@ web/
 - **Dynamic Selectors** — pulls active airlines, origins, and destinations from Firestore to pre-populate dropdowns.
 - **Airline Logos** — dynamically fetches and embeds airline logos from Firebase Storage into the ticket header.
 - **Dynamic Passenger Rows** — allows adding multiple passengers and specifying check-in/carry-on baggage per passenger.
-- **Automated Formatting** — precisely structured classic ticket layout with travel details, pax details, passenger flight segments, dynamic baggage mapping, and appended travel rules.
-- **Print / PDF Export** — specifically designed with CSS `@media print` rules for clean, A4-native PDF generation via the browser's native print dialog.
+- **Automated Formatting** — precisely structured classic ticket layout with travel details, pax details, passenger flight segments, dynamic baggage mapping, explicit top-level passenger counts, tightened airline PNR spacing, and appended travel rules.
+- **Print / PDF Export** — specifically engineered with strict CSS `@media print` overrides (removing borders, shadows, and rounded corners) to guarantee a clean, borderless A4-native document generation via the browser's native print dialog.
 
 ### 9. 🛂 Visas Tab
 - **Comprehensive Visa Services Management** — Full CRUD management for four distinct service types via isolated inner tabs:
@@ -459,7 +460,8 @@ npx firebase-tools@latest deploy --only functions
 | **Multiple confirm() prompts on delete** | All `wireXxxActions()` functions deleted and re-set the `actionsWired` data attribute on every render, causing a new `addEventListener` to stack on the persistent `<tbody>` element each time. After N tab refreshes, one click triggered N listeners. | Changed all 7 wire functions (`wireVisaActions`, `wireVisaStampingActions`, `wireAttestationActions`, `wirePassportServiceActions`, `wireSectorActions`, `wireAirlineActions`, `wireTourActions`, `wireHajjUmrahActions`) to bail early if `tbody.dataset.actionsWired` is already set — matching the correct pattern already used by `wireAgentActions`. |
 | **Multi-page routing broken on refresh** | `firebase.json` had a catch-all rewrite rule (`**` to `/index.html`) spanning the entire site, which directed requests for `/admin.html` to the index page instead. | Removed the catch-all and added specific targeted rewrites for `/admin` and `/login` (while Vercel handles the heavy lifting for multi-page frontend routing normally). |
 | **Inefficient `getTourById`** | Used `getDocs` with a `where()` filter instead of direct `getDoc`. | Refactored `getTourById(id)` to use `doc(db, 'tours', id)` and `getDoc()`, optimizing read operations and latency. |
+| **PDF E-Ticket Print Margins/UI elements** | The PDF export included UI webpage borders, rounded corners, and box-shadows on the wrapper. | Overrode CSS under `@media print` to force `border: none`, `box-shadow: none`, and `border-radius: 0` inside the printable area container. |
 
 ---
 
-_Last audited: 2026-03-14 — Codebase audit complete. Removed legacy files (`test_fetch.js`, `test_proxy.js`, `functions/seed.js`), dead code (`_dashboardFares`, `callBulkDeleteFares`, `getServices`), implemented dynamic baggage data, fixed hosting rewrites, optimized `getTourById`, added `hajj_umrah_images/` storage rules. Frontend hosting fully transitioned to Vercel documentation._
+_Last audited: 2026-03-14 — Added Database row "Share" WhatsApp integration. Poster Generator supports 'All Sectors' and responsive row sizing. E-Ticket generator passenger counters and PDF print improvements._

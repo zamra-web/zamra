@@ -252,4 +252,4 @@ cd web && npm run build        # outputs to web/dist/
 
 ---
 
-_Last audited: 2026-03-14 — Codebase audit and consistency cleanup. Replaced hardcoded baggage strings with dynamic `fare.baggage` and `fare.extraBaggage` from Firestore. Fixed external logo URLs to avoid mixed content. Verified frontend multi-page routing and premium design consistencies across the site._
+_Last audited: 2026-03-14 — Verified frontend multi-page routing and premium design consistencies across the site. See DASHBOARD.md for Admin Dashboard E-Ticket, Share functionality, and Poster features._
