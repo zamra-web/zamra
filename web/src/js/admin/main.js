@@ -1352,11 +1352,6 @@ async function renderReportsTab() {
       const startDate = startInput?.value || null;
       const endDate = endInput?.value || null;
 
-      // Sector is the primary filter; dates and agent are optional
-      if (sectorId === 'all' && !startDate && !endDate && agentId === 'all') {
-        toast('warning', 'No Filter Selected', 'Select at least a sector, an agent, or a date range.');
-        return;
-      }
 
       fetchBtn.disabled = true; fetchBtn.textContent = 'Generating…';
       try {

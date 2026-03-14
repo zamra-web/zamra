@@ -193,11 +193,7 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
 
   const { startDate, endDate, sectorId, agentId } = request.data;
 
-  // Dates are optional — when omitted, all fares are aggregated.
-  // At least one filter (sector, agent, or date range) must be provided.
-  if (!startDate && !endDate && (!sectorId || sectorId === "all") && (!agentId || agentId === "all")) {
-    throw new HttpsError("invalid-argument", "Provide at least a sector, an agent, or a date range.");
-  }
+  // All filters are optional — when none are supplied, the full dataset is aggregated.
 
   // Build query dynamically — only add constraints that were supplied
   let query = db.collection("agent_fares");
