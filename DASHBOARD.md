@@ -77,10 +77,11 @@ web/
 - **Poster Generator** — select a sector (or 'All Sectors') and optional date range, click **Generate Poster** to preview a shareable fare poster
   - Displays fares sorted by date (up to 10 for single sector, or unlimited for 'All Sectors' with a unified sector column)
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
+  - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Download JPEG** — renders poster to canvas at 2× resolution and triggers a `.jpg` download
   - **Download PDF** — converts canvas to mm-based jsPDF page exactly sized to the poster dimensions
-  - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively.
+  - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Also deduplicates identical flights).
   - Export buttons disable during generation and re-enable once done
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
 - All data from Firestore `agent_fares` + `airlines`
@@ -464,4 +465,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-03-14 — Added Database row "Share" WhatsApp integration. Poster Generator supports 'All Sectors' and responsive row sizing. E-Ticket generator passenger counters and PDF print improvements._
+_Last audited: 2026-03-14 — Added fare deduplication logic for identical flights in Poster and Video generation, ensuring only cheapest rates display. Added Database row "Share" WhatsApp integration. Poster Generator supports 'All Sectors' and responsive row sizing. E-Ticket generator passenger counters and PDF print improvements._

@@ -86,6 +86,7 @@ web/
 - Full "From" and "To" origin/destination selection with location swap functionality
 - Reads from Firestore `agent_fares` collection in real-time
 - Filters by sector, date, and only shows fares where `isHidden == false` and agent `isActive == true`
+- Deduplicates identical flights (same sector, airline, date, and time), automatically showing only the cheapest rate
 - Displays cheapest fare per sector, sorted by price
 - Implemented in `web/src/js/web/main.js`
 
@@ -252,4 +253,4 @@ cd web && npm run build        # outputs to web/dist/
 
 ---
 
-_Last audited: 2026-03-14 — Verified frontend multi-page routing and premium design consistencies across the site. See DASHBOARD.md for Admin Dashboard E-Ticket, Share functionality, and Poster features._
+_Last audited: 2026-03-14 — Added frontend fare deduplication ensuring only the lowest rate is shown for identical flights. Verified frontend multi-page routing and premium design consistencies across the site. See DASHBOARD.md for Admin Dashboard E-Ticket, Share functionality, and Poster features._
