@@ -66,6 +66,23 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 sectorMap[s.id] = s.sectorCode || s.id;
             });
 
+            const fileSafe = (s) =>
+                String(s || '')
+                    .trim()
+                    .replace(/[^a-z0-9]+/gi, '-')
+                    .replace(/^-+|-+$/g, '')
+                    .toLowerCase();
+
+            let sectorSlug = 'all-sectors';
+            if (sectorId !== 'all') {
+                const sector = sectors.find(s => s.id === sectorId);
+                const raw = sector?.sectorCode
+                    || (sector ? `${sector.sectorFrom || ''}-${sector.sectorTo || ''}` : '')
+                    || sectorMap[sectorId]
+                    || sectorId;
+                sectorSlug = fileSafe(raw) || fileSafe(sectorId) || 'sector';
+            }
+
             async function fetchLogoImage(url) {
                 if (!url) return null;
                 try {
@@ -383,7 +400,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 const a = document.createElement('a');
                 a.href = url;
                 // Force .mp4 extension for maximum compatibility across devices
-                a.download = `zamra-video-${ratio}-${Date.now()}.mp4`;
+                a.download = `zamra-video-${ratio}-${sectorSlug}-${Date.now()}.mp4`;
                 a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();

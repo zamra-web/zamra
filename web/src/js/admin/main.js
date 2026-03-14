@@ -496,29 +496,59 @@ async function handleVideoPoster(ratio) {
       toast('warning', 'No Fares', 'No live fares found for the selected sector and dates.');
       return;
     }
+    if (sectorId === 'all') {
+      // Generate one video per sector (same as multi-poster behavior)
+      const faresBySector = new Map();
+      fares.forEach(f => {
+        const sid = f.sectorId || 'unknown';
+        if (!faresBySector.has(sid)) faresBySector.set(sid, []);
+        faresBySector.get(sid).push(f);
+      });
+
+      const order = new Map(_sectors.map((s, idx) => [s.id, idx]));
+      const sectorIds = Array.from(faresBySector.keys()).sort((a, b) => {
+        const oa = order.get(a) ?? 1e9;
+        const ob = order.get(b) ?? 1e9;
+        if (oa !== ob) return oa - ob;
+        return String(a).localeCompare(String(b));
+      });
+
+      toast('info', 'Video Generation', `Generating ${sectorIds.length} videos. This may take a while…`);
+      let ok = 0;
+      let fail = 0;
+      for (const sid of sectorIds) {
+        const sectorFares = faresBySector.get(sid) || [];
+        if (!sectorFares.length) continue;
+        try {
+          await downloadVideoPoster(ratio, sectorFares, sid, _sectors, _airlines);
+          ok += 1;
+        } catch (e) {
+          fail += 1;
+          console.error('Video generation failed for sector', sid, e);
+        }
+      }
+      if (ok) toast('success', 'Video Generation', `Downloaded ${ok} videos successfully.`);
+      if (fail) toast('error', 'Video Generation', `${fail} videos failed to generate. Check console for details.`);
+      return;
+    }
+
     await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines);
   } catch (e) {
     console.error('Video generation failed', e);
+    toast('error', 'Generation Failed', e.message || 'Video generation failed.');
   }
 }
 
 
 async function renderPoster(fares, sectorId) {
   const container = document.getElementById('poster-preview-container');
-  const tbody = document.getElementById('poster-fares-tbody');
-  const titleEl = document.getElementById('poster-sector-title');
+  const stack = document.getElementById('poster-render-stack');
+  const templateFrame = document.querySelector('[data-poster-template="1"]') || document.getElementById('poster-render-frame');
 
-  if (!container || !tbody || !titleEl) return;
+  if (!container || !stack || !templateFrame) return;
 
-  // Set header title
-  if (sectorId === 'all') {
-    titleEl.innerHTML = `MULTIPLE <span style="color:#60a5fa;font-weight:900;">&#8594;</span> SECTORS`;
-  } else {
-    const sector = _sectors.find(s => s.id === sectorId);
-    const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
-    const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
-    titleEl.innerHTML = `${originName} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${destName}`;
-  }
+  // Remove any previously-cloned frames (keep the template in place)
+  stack.querySelectorAll('[data-poster-clone="1"]').forEach(el => el.remove());
 
   // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
   const groupedFaresMap = new Map();
@@ -580,49 +610,133 @@ async function renderPoster(fares, sectorId) {
   const sectorMap = {};
   _sectors.forEach(s => sectorMap[s.id] = s.sectorCode);
 
-  // Render table rows — use only explicit hex/rgb inline styles; no Tailwind classes
-  // that would resolve to oklch() (which html2canvas 1.4.x cannot parse).
-  tbody.innerHTML = sortedFares.map((f, i) => {
-    const dt = f.flightDate instanceof Date
-      ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
-      : f.flightDate;
-    
-    const airline = getAirline(f.airlineId);
-    const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
-    const logoSrc = airline ? blobUrlMap[airline.id] : null;
+  const fileSafe = (s) =>
+    String(s || '')
+      .trim()
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
 
-    // Airline cell: logo if available; airline name as fallback
-    const airlineCell = logoSrc
-      ? `<img src="${logoSrc}" style="height:24px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
-      : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:13px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
+  const renderIntoFrame = (frameEl, frameFares, frameSectorId) => {
+    const titleEl = frameEl.querySelector('[data-poster-title]') || frameEl.querySelector('#poster-sector-title');
+    const tbody = frameEl.querySelector('[data-poster-tbody]') || frameEl.querySelector('#poster-fares-tbody');
+    if (!titleEl || !tbody) return;
 
-    // Sector cell
-    const sectorCell = `<span style="font-weight:700;color:#2563eb;background-color:rgba(37,99,235,0.1);padding:4px 8px;border-radius:6px;font-size:12px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
-
-    // Time cell: parse "HH:MM - HH:MM" or "HH:MM" from flightTime
-    let timeCell = '<span style="color:#94a3b8;font-size:13px;">—</span>';
-    if (f.flightTime) {
-      const parts = f.flightTime.split('-').map(s => s.trim());
-      if (parts.length >= 2) {
-        timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
+    const sector = _sectors.find(s => s.id === frameSectorId);
+    let originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
+    let destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
+    if (!sector) {
+      const raw = sectorMap[frameSectorId] || frameSectorId;
+      const m = String(raw).match(/^\s*([A-Za-z0-9]+)\s*[-→>]\s*([A-Za-z0-9]+)\s*$/);
+      if (m) {
+        originName = m[1].toUpperCase();
+        destName = m[2].toUpperCase();
       } else {
-        timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
+        originName = String(raw).toUpperCase();
+        destName = '';
       }
     }
+    titleEl.innerHTML = destName
+      ? `${originName} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${destName}`
+      : `${originName}`;
 
-    return `
-      <tr style="background-color:${rowBg};border-bottom:1px solid #f1f5f9;">
-        <td style="padding:10px 8px;font-weight:700;color:#0f172a;font-size:13px;white-space:nowrap;">${dt}</td>
-        <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
-        <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
-        <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
-        <td style="padding:10px 8px;text-align:right;vertical-align:middle;">
-          <div style="display:inline-block;color:#0f172a;font-weight:900;font-size:15px;">
-            &#8377;${(f.finalRate || 0).toLocaleString()}
-          </div>
-        </td>
-      </tr>`;
-  }).join('');
+    // Render table rows — use only explicit hex/rgb inline styles; no Tailwind classes
+    // that would resolve to oklch() (which html2canvas 1.4.x cannot parse).
+    tbody.innerHTML = frameFares.map((f, i) => {
+      const dt = f.flightDate instanceof Date
+        ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
+        : f.flightDate;
+      
+      const airline = getAirline(f.airlineId);
+      const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const logoSrc = airline ? blobUrlMap[airline.id] : null;
+
+      // Airline cell: logo if available; airline name as fallback
+      const airlineCell = logoSrc
+        ? `<img src="${logoSrc}" style="height:24px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
+        : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:13px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
+
+      // Sector cell
+      const sectorCell = `<span style="font-weight:700;color:#2563eb;background-color:rgba(37,99,235,0.1);padding:4px 8px;border-radius:6px;font-size:12px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
+
+      // Time cell: parse "HH:MM - HH:MM" or "HH:MM" from flightTime
+      let timeCell = '<span style="color:#94a3b8;font-size:13px;">—</span>';
+      if (f.flightTime) {
+        const parts = f.flightTime.split('-').map(s => s.trim());
+        if (parts.length >= 2) {
+          timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
+        } else {
+          timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
+        }
+      }
+
+      return `
+        <tr style="background-color:${rowBg};border-bottom:1px solid #f1f5f9;">
+          <td style="padding:10px 8px;font-weight:700;color:#0f172a;font-size:13px;white-space:nowrap;">${dt}</td>
+          <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
+          <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
+          <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
+          <td style="padding:10px 8px;text-align:right;vertical-align:middle;">
+            <div style="display:inline-block;color:#0f172a;font-weight:900;font-size:15px;">
+              &#8377;${(f.finalRate || 0).toLocaleString()}
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+  };
+
+  // Split fares by sector for rendering
+  const faresBySector = new Map();
+  sortedFares.forEach(f => {
+    const sid = f.sectorId || 'unknown';
+    if (!faresBySector.has(sid)) faresBySector.set(sid, []);
+    faresBySector.get(sid).push(f);
+  });
+
+  let sectorIdsToRender = [];
+  if (sectorId === 'all') {
+    sectorIdsToRender = Array.from(faresBySector.keys());
+    const order = new Map(_sectors.map((s, idx) => [s.id, idx]));
+    sectorIdsToRender.sort((a, b) => {
+      const oa = order.get(a) ?? 1e9;
+      const ob = order.get(b) ?? 1e9;
+      if (oa !== ob) return oa - ob;
+      return String(a).localeCompare(String(b));
+    });
+  } else {
+    sectorIdsToRender = [sectorId];
+  }
+
+  // Render one poster per sector
+  sectorIdsToRender.forEach((sid, idx) => {
+    const frameFares = faresBySector.get(sid) || [];
+    if (!frameFares.length) return;
+
+    let frameEl = templateFrame;
+    if (idx > 0) {
+      frameEl = templateFrame.cloneNode(true);
+      frameEl.dataset.posterClone = '1';
+      frameEl.removeAttribute('data-poster-template');
+
+      // Ensure no duplicate IDs inside cloned frames
+      frameEl.querySelectorAll('#poster-sector-title, #poster-fares-tbody').forEach(el => el.removeAttribute('id'));
+
+      // Give the frame a unique ID so html2canvas onclone can target it reliably
+      const sectorCode = sectorMap[sid] || sid;
+      const slug = fileSafe(sectorCode) || `sector-${idx + 1}`;
+      frameEl.id = `poster-render-frame-${slug}-${idx + 1}`;
+
+      stack.appendChild(frameEl);
+    } else {
+      frameEl.id = 'poster-render-frame';
+    }
+
+    frameEl.dataset.posterFrame = '1';
+    frameEl.dataset.sectorId = sid;
+    frameEl.dataset.sectorCode = sectorMap[sid] || sid;
+
+    renderIntoFrame(frameEl, frameFares, sid);
+  });
 
   container.classList.remove('hidden');
   container.classList.add('flex');
@@ -652,84 +766,116 @@ function inlineColorsForCanvas(el) {
 }
 
 async function downloadPoster(format) {
-    const posterEl = document.getElementById('poster-render-frame');
-    if (!posterEl) return;
+  const stack = document.getElementById('poster-render-stack');
+  const frames = stack ? Array.from(stack.querySelectorAll('[data-poster-frame="1"]')) : [];
+  if (!frames.length) return;
 
-    // Disable both buttons while exporting
-    const jpgBtn = document.getElementById('poster-download-jpg');
-    const pdfBtn = document.getElementById('poster-download-pdf');
-    if (jpgBtn) jpgBtn.disabled = true;
-    if (pdfBtn) pdfBtn.disabled = true;
+  // Disable both buttons while exporting
+  const jpgBtn = document.getElementById('poster-download-jpg');
+  const pdfBtn = document.getElementById('poster-download-pdf');
+  if (jpgBtn) jpgBtn.disabled = true;
+  if (pdfBtn) pdfBtn.disabled = true;
 
+  const fileSafe = (s) =>
+    String(s || '')
+      .trim()
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
+
+  const ts = Date.now();
+  const multi = frames.length > 1;
+  toast(
+    'info',
+    'Generating Export',
+    multi ? `Rendering ${frames.length} posters. Your browser may ask to allow multiple downloads…` : 'Please wait while we render your poster…'
+  );
+
+  let ok = 0;
+  let firstErr = null;
+
+  for (let i = 0; i < frames.length; i++) {
+    const posterEl = frames[i];
     const origTransform = posterEl.style.transform;
     posterEl.style.transform = 'none';
-    toast('info', 'Generating Export', 'Please wait while we render your poster…');
 
     try {
-        // Wait for any images that aren't yet fully decoded
-        await Promise.all(
-            Array.from(posterEl.querySelectorAll('img')).map(img =>
-                img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
-            )
-        );
+      // Wait for any images that aren't yet fully decoded
+      await Promise.all(
+        Array.from(posterEl.querySelectorAll('img')).map(img =>
+          img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
+        )
+      );
 
-        // Render to canvas at 2× resolution for crisp output.
-        // The poster element uses only explicit hex/rgb inline styles (no oklch).
-        // inlineColorsForCanvas is kept in onclone as a last-resort safety net.
-        const canvas = await html2canvas(posterEl, {
-            scale: 2,
-            useCORS: false,
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-            onclone: (doc) => {
-              const clonedEl = doc.getElementById('poster-render-frame');
-              if (clonedEl) inlineColorsForCanvas(clonedEl);
-            }
+      // Render to canvas at 2× resolution for crisp output.
+      // The poster element uses only explicit hex/rgb inline styles (no oklch).
+      // inlineColorsForCanvas is kept in onclone as a last-resort safety net.
+      const canvas = await html2canvas(posterEl, {
+        scale: 2,
+        useCORS: false,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (doc) => {
+          const target = posterEl.id ? doc.getElementById(posterEl.id) : null;
+          if (target) inlineColorsForCanvas(target);
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+      const sectorPart = posterEl.dataset.sectorCode || posterEl.dataset.sectorId || `poster-${i + 1}`;
+      const slug = fileSafe(sectorPart) || `poster-${i + 1}`;
+      const baseName = `zamra-poster-${slug}-${ts}`;
+
+      if (format === 'jpeg') {
+        const link = document.createElement('a');
+        link.download = `${baseName}.jpg`;
+        link.href = imgData;
+        link.click();
+      } else if (format === 'pdf') {
+        // Resolve jsPDF regardless of UMD binding name
+        const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF)
+          || window.jsPDF
+          || (window.jspdf);
+        if (!jsPDFCtor) throw new Error('jsPDF library not loaded.');
+
+        // Convert canvas px → mm (96 dpi screen, scale:2 → 192 dpi effective)
+        const PX_PER_MM = 96 / 25.4;           // ~3.779 px/mm at 1×
+        const widthMm  = (canvas.width  / 2) / PX_PER_MM;
+        const heightMm = (canvas.height / 2) / PX_PER_MM;
+
+        const pdf = new jsPDFCtor({
+          orientation: widthMm > heightMm ? 'landscape' : 'portrait',
+          unit: 'mm',
+          format: [widthMm, heightMm]
         });
 
-        posterEl.style.transform = origTransform;
+        pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
+        pdf.save(`${baseName}.pdf`);
+      }
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-        if (format === 'jpeg') {
-            const link = document.createElement('a');
-            link.download = `zamra-poster-${Date.now()}.jpg`;
-            link.href = imgData;
-            link.click();
-            toast('success', 'Downloaded!', 'JPEG poster saved successfully.');
-
-        } else if (format === 'pdf') {
-            // Resolve jsPDF regardless of UMD binding name
-            const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF)
-                || window.jsPDF
-                || (window.jspdf);
-            if (!jsPDFCtor) throw new Error('jsPDF library not loaded.');
-
-            // Convert canvas px → mm (96 dpi screen, scale:2 → 192 dpi effective)
-            const PX_PER_MM = 96 / 25.4;           // ~3.779 px/mm at 1×
-            const widthMm  = (canvas.width  / 2) / PX_PER_MM;
-            const heightMm = (canvas.height / 2) / PX_PER_MM;
-
-            const pdf = new jsPDFCtor({
-                orientation: widthMm > heightMm ? 'landscape' : 'portrait',
-                unit: 'mm',
-                format: [widthMm, heightMm]
-            });
-
-            pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
-            pdf.save(`zamra-poster-${Date.now()}.pdf`);
-            toast('success', 'Downloaded!', 'PDF poster saved successfully.');
-        }
-
+      ok += 1;
     } catch (e) {
-        console.error('Poster export error:', e);
-        posterEl.style.transform = origTransform;
-        toast('error', 'Export Failed', e.message || 'There was an error generating the export.');
+      console.error('Poster export error:', e);
+      if (!firstErr) firstErr = e;
     } finally {
-        if (jpgBtn) jpgBtn.disabled = false;
-        if (pdfBtn) pdfBtn.disabled = false;
+      posterEl.style.transform = origTransform;
     }
+  }
+
+  if (ok) {
+    const msg = multi
+      ? `Downloaded ${ok} ${format === 'pdf' ? 'PDFs' : 'JPEGs'} successfully.`
+      : `${format === 'pdf' ? 'PDF' : 'JPEG'} poster saved successfully.`;
+    toast('success', 'Downloaded!', msg);
+  }
+  if (firstErr) {
+    toast('error', 'Export Failed', firstErr.message || 'There was an error generating the export.');
+  }
+
+  if (jpgBtn) jpgBtn.disabled = false;
+  if (pdfBtn) pdfBtn.disabled = false;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -974,10 +1120,17 @@ function renderPaginationFooter(tabName, total, totalPages, start, limit) {
       <span>Showing ${total ? start + 1 : 0} to ${end} of ${total} entries</span>
       <div class="admin-pagination-wrap">
         <button data-pg-action="prev" class="admin-pagination-btn" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>
-        ${Array.from({ length: totalPages }, (_, i) => i + 1).map(p =>
-          `<button data-pg-action="goto" data-pg="${p}" class="admin-pagination-btn ${
-            p === currentPage ? 'admin-pagination-btn-active' : ''
-          }">${p}</button>`
+        ${(function() {
+          if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+          if (currentPage <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
+          if (currentPage >= totalPages - 3) return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+          return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+        })().map(p =>
+          p === '...' 
+            ? `<span class="admin-pagination-btn" style="cursor:default;opacity:0.5;background:transparent;">...</span>`
+            : `<button data-pg-action="goto" data-pg="${p}" class="admin-pagination-btn ${
+                p === currentPage ? 'admin-pagination-btn-active' : ''
+              }">${p}</button>`
         ).join('')}
         <button data-pg-action="next" class="admin-pagination-btn" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
       </div>

@@ -154,57 +154,60 @@
                     </div>
                 </div>
 
-                <!-- Actual Poster Element (to be captured) -->
-                <div id="poster-render-frame" style="background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative; width: 800px; min-height: 1000px;">
-                    <!-- Top Decor -->
-                    <div style="height: 16px; width: 100%; background: linear-gradient(to right, #2563eb, #60a5fa, #1558c0);"></div>
-                    
-                    <!-- Header -->
-                    <div style="position: relative; width: 100%; height: 280px; background-color: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                        <img src="/assets/img/hero-bg.webp" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.2; mix-blend-mode: overlay;">
-                        <div style="position: absolute; inset: 0; background: linear-gradient(to top, #1e293b, transparent); opacity: 0.8;"></div>
-                        <div style="position: relative; z-index: 10; text-align: center; padding-left: 40px; padding-right: 40px;">
-                            <div style="display: inline-block; background-color: rgba(37, 99, 235, 0.2); backdrop-filter: blur(8px); border: 1px solid rgba(37, 99, 235, 0.3); padding: 8px 24px; border-radius: 9999px; color: #bfdbfe; font-weight: 700; letter-spacing: 0.05em; font-size: 14px; margin-bottom: 16px; text-transform: uppercase; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">Exclusive Deals</div>
-                            <h1 id="poster-sector-title" style="color: #ffffff; font-size: 48px; line-height: 1.1; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.025em; filter: drop-shadow(0 10px 8px rgba(0,0,0,0.04)) drop-shadow(0 4px 3px rgba(0,0,0,0.1)); font-family: 'Outfit', sans-serif;">CCJ <i class="bi bi-arrow-right-short" style="color: #2563eb;"></i> JED</h1>
-                            <p style="color: #dbeafe; font-size: 20px; font-weight: 500; letter-spacing: 0.025em;">SPECIAL FARES AVAILABLE NOW</p>
-                        </div>
-                    </div>
-
-                    <!-- Fares Content -->
-                    <div style="padding: 48px; background-color: #f8fafc;">
-                        <div style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; padding: 32px;">
-                            <table style="width: 100%; text-align: left; border-collapse: collapse;">
-                                <thead>
-                                    <tr style="border-bottom: 2px solid #f1f5f9;">
-                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
-                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Sector</th>
-                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Airline</th>
-                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Time</th>
-                                        <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Fare</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="poster-fares-tbody" style="font-size: 15px;">
-                                    <!-- Injected by JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div style="background-color: #ffffff; margin-top: auto; padding: 32px 48px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between;">
-                        <div style="display: flex; align-items: center; gap: 16px;">
-                            <img src="/assets/img/logo.webp" style="height: 48px;" alt="Zamra">
-                            <div style="height: 40px; width: 2px; background-color: #e2e8f0;"></div>
-                            <span style="color: #1e293b; font-weight: 900; font-size: 20px; letter-spacing: -0.025em;">Zamra Travels</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 24px; color: #1e293b; font-weight: 700; font-size: 18px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="color: #2563eb; font-size: 16px;">&#9990;</span>
-                                <span>+91 98765 43210</span>
+                <!-- Poster Render Stack (one or many frames) -->
+                <div id="poster-render-stack" class="flex flex-col gap-10 items-center mt-2">
+                    <!-- Actual Poster Element (to be captured) -->
+                    <div id="poster-render-frame" data-poster-template="1" data-poster-frame="1" style="background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative; width: 800px; min-height: 1000px;">
+                        <!-- Top Decor -->
+                        <div style="height: 16px; width: 100%; background: linear-gradient(to right, #2563eb, #60a5fa, #1558c0);"></div>
+                        
+                        <!-- Header -->
+                        <div style="position: relative; width: 100%; height: 280px; background-color: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                            <img src="/assets/img/hero-bg.webp" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.2; mix-blend-mode: overlay;">
+                            <div style="position: absolute; inset: 0; background: linear-gradient(to top, #1e293b, transparent); opacity: 0.8;"></div>
+                            <div style="position: relative; z-index: 10; text-align: center; padding-left: 40px; padding-right: 40px;">
+                                <div style="display: inline-block; background-color: rgba(37, 99, 235, 0.2); backdrop-filter: blur(8px); border: 1px solid rgba(37, 99, 235, 0.3); padding: 8px 24px; border-radius: 9999px; color: #bfdbfe; font-weight: 700; letter-spacing: 0.05em; font-size: 14px; margin-bottom: 16px; text-transform: uppercase; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">Exclusive Deals</div>
+                                <h1 id="poster-sector-title" data-poster-title style="color: #ffffff; font-size: 48px; line-height: 1.1; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.025em; filter: drop-shadow(0 10px 8px rgba(0,0,0,0.04)) drop-shadow(0 4px 3px rgba(0,0,0,0.1)); font-family: 'Outfit', sans-serif;">CCJ <i class="bi bi-arrow-right-short" style="color: #2563eb;"></i> JED</h1>
+                                <p style="color: #dbeafe; font-size: 20px; font-weight: 500; letter-spacing: 0.025em;">SPECIAL FARES AVAILABLE NOW</p>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="color: #2563eb; font-size: 16px;">&#9632;</span>
-                                <span>zamratravels.com</span>
+                        </div>
+
+                        <!-- Fares Content -->
+                        <div style="padding: 48px; background-color: #f8fafc;">
+                            <div style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; padding: 32px;">
+                                <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="border-bottom: 2px solid #f1f5f9;">
+                                            <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
+                                            <th data-poster-col="sector" style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Sector</th>
+                                            <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Airline</th>
+                                            <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Time</th>
+                                            <th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Fare</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="poster-fares-tbody" data-poster-tbody style="font-size: 15px;">
+                                        <!-- Injected by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Footer -->
+                        <div style="background-color: #ffffff; margin-top: auto; padding: 32px 48px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <img src="/assets/img/logo.webp" style="height: 48px;" alt="Zamra">
+                                <div style="height: 40px; width: 2px; background-color: #e2e8f0;"></div>
+                                <span style="color: #1e293b; font-weight: 900; font-size: 20px; letter-spacing: -0.025em;">Zamra Travels</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 24px; color: #1e293b; font-weight: 700; font-size: 18px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #2563eb; font-size: 16px;">&#9990;</span>
+                                    <span>+91 98765 43210</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #2563eb; font-size: 16px;">&#9632;</span>
+                                    <span>zamratravels.com</span>
+                                </div>
                             </div>
                         </div>
                     </div>
