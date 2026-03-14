@@ -26,11 +26,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-  <script type="module" crossorigin src="/assets/admin-BnFkJsfr.js"></script>
+  <script type="module" crossorigin src="/assets/admin-DDhAv46v.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/firebase-config-zYKzaodH.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-C5kFZwmO.js">
-  <link rel="modulepreload" crossorigin href="/assets/db-DN85Zd7Y.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-iKSVC3Os.css">
+  <link rel="modulepreload" crossorigin href="/assets/auth-Lqacc0Nd.js">
+  <link rel="modulepreload" crossorigin href="/assets/db-DzAbaNrJ.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-DxR3KP1c.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -61,6 +61,8 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Flights</a>
                         <a href="#" data-tab="reports-tab" data-title="Reports"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Reports</a>
+                        <a href="#" data-tab="database-tab" data-title="Database"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Database</a>
                         <a href="#" data-tab="agent-sheets-tab" data-title="Rate Upload"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Rate Upload</a>
                         <a href="#" data-tab="eticket-tab" data-title="E-ticket"
@@ -855,6 +857,114 @@ Example:
                 </div>
             </div>
 
+        </div>
+
+        <!-- DATABASE TAB -->
+        <div id="database-tab" class="tab-content">
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+                    <div>
+                        <h2 class="font-bold text-[18px] text-navy leading-tight">Database Spreadsheet</h2>
+                        <p class="text-[12px] text-text-muted mt-1">View, edit, and manage all fare rows in one sheet-style table.</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span id="database-unsaved-pill"
+                            class="inline-flex items-center gap-1 px-3 h-[34px] rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold uppercase tracking-[0.06em]">
+                            Unsaved: 0
+                        </span>
+                        <button id="database-save-all-btn" class="admin-btn admin-btn-primary h-[38px] px-4" disabled>
+                            <i class="bi bi-floppy-fill text-[12px]"></i> Save All
+                        </button>
+                        <button id="database-refresh-btn" class="admin-btn admin-btn-secondary h-[38px] px-4">
+                            <i class="bi bi-arrow-clockwise text-[12px]"></i> Refresh
+                        </button>
+                        <button id="database-add-row-btn" class="admin-btn admin-btn-soft h-[38px] px-4">
+                            <i class="bi bi-plus-lg text-[12px]"></i> Add Fare
+                        </button>
+                        <button id="database-delete-selected-btn" class="admin-btn admin-btn-danger h-[38px] px-4" disabled>
+                            <i class="bi bi-trash3 text-[12px]"></i> Delete Selected
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-8 gap-3 items-end">
+                    <div class="xl:col-span-2">
+                        <label class="admin-label text-[11px]">Search</label>
+                        <input id="database-search" type="text" class="admin-control" placeholder="Search by route, date, agent, airline, rate...">
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">Agent</label>
+                        <select id="database-agent-filter" class="admin-control">
+                            <option value="all">All Agents</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">Sector</label>
+                        <select id="database-sector-filter" class="admin-control">
+                            <option value="all">All Sectors</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">Airline</label>
+                        <select id="database-airline-filter" class="admin-control">
+                            <option value="all">All Airlines</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">Status</label>
+                        <select id="database-status-filter" class="admin-control">
+                            <option value="all">All</option>
+                            <option value="live">Live</option>
+                            <option value="hidden">Hidden</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">From Date</label>
+                        <input id="database-start-date" type="date" class="admin-control">
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">To Date</label>
+                        <input id="database-end-date" type="date" class="admin-control">
+                    </div>
+                    <div class="xl:col-span-2">
+                        <label class="admin-label text-[11px]">Table Controls</label>
+                        <div class="flex gap-2">
+                            <select id="database-limit" class="admin-control admin-control-sm">
+                                <option value="20">20 rows</option>
+                                <option value="50">50 rows</option>
+                                <option value="100">100 rows</option>
+                                <option value="250">250 rows</option>
+                            </select>
+                            <button id="database-clear-filters" class="admin-btn admin-btn-ghost h-[32px] px-3 whitespace-nowrap">
+                                Clear Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-50 to-white">
+                    <div>
+                        <h3 class="font-bold text-[15px] text-navy">All Fare Rows</h3>
+                        <p class="text-[12px] text-text-muted mt-0.5"><span id="database-total-count">0</span> fares loaded</p>
+                    </div>
+                    <div class="text-[12px] text-text-muted font-semibold">
+                        Selected: <span id="database-selected-count" class="text-navy">0</span>
+                    </div>
+                </div>
+                <div id="database-table-wrap" class="admin-database-wrap">
+                    <div class="text-center text-text-muted py-16 px-4">
+                        <div class="inline-flex flex-col items-center gap-3 opacity-50">
+                            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                                <i class="bi bi-table text-3xl text-slate-400"></i>
+                            </div>
+                            <p class="font-semibold text-[14px]">Loading database rows...</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="databaseFares-pagination-footer" class="border-t border-slate-100 bg-slate-50 rounded-b-[20px]"></div>
+            </div>
         </div>
 
         <!-- E-TICKET TAB -->

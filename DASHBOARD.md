@@ -67,7 +67,7 @@ web/
         ├── auth.js                     # onAuthChange(), logoutUser()
         ├── login.js                    # Login page logic
         ├── db.js                       # ★ Firestore + Storage service layer (all CRUD)
-        └── main.js                     # ★ All 6 tab controllers + modal + toast system
+        └── main.js                     # ★ All tab controllers + modal + toast system
 ```
 
 ---
@@ -136,14 +136,23 @@ web/
 
 > **Implementation note:** `renderReportCharts()` populates the stat cards and both charts, then wires the CSV button via `cloneNode` to avoid duplicate listeners. `renderReportFaresTable()` injects only the `<table>` + pagination footer into `#report-fares-results` — it does **not** wrap in its own card (the outer HTML card in `admin.html` already wraps it).
 
-### 6. 📋 Rate Upload Tab
+### 6. 🗃️ Database Tab
+- **Spreadsheet View for `agent_fares`** — dedicated sheet-style table for admins to manage all fare rows in one place.
+- **Inline Editing** — editable cells for date, time, agent, sector, airline, rates, baggage, extra baggage, and status.
+- **Row Actions** — per-row Save, Reset, and Delete controls.
+- **Bulk Operations** — multi-select checkboxes + **Delete Selected** action.
+- **Save All Workflow** — tracks unsaved rows and allows saving all pending edits in one action.
+- **Filters + Search** — filter by agent, sector, airline, status, and date range; plus free-text search.
+- **Add Fare** — opens a modal form to insert a brand-new fare row into Firestore.
+
+### 7. 📋 Rate Upload Tab
 - **Agent selector** — chips populated from live Firestore `agents` list
 - **Paste raw rate text** — agent-formatted WhatsApp/text fare data
 - **Submit** — Sends raw text payload securely to the **n8n AI webhook** at `https://n8n.srv1046139.hstgr.cloud/webhook/zamra`. The frontend no longer parses and saves this locally.
 - **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
 - Submission history stored in `localStorage` (last 15 sessions)
 
-### 7. 🎟️ E-Ticket Tab
+### 8. 🎟️ E-Ticket Tab
 - **Manual E-Ticket Generator** — issue professional, branded e-tickets directly from the dashboard.
 - **Premium Layout System** — ticket output now uses a structured document layout (header meta, route summary cards, flight table, passenger manifest, advisory block) optimized for both on-screen preview and A4 print/PDF.
 - **Dynamic Selectors** — pulls active airlines, origins, and destinations from Firestore to pre-populate dropdowns.
@@ -272,7 +281,7 @@ All require `admin: true` custom claim — enforced server-side via `requireAdmi
 Agents:   getAgents(), addAgent(), updateAgent(), deleteAgent()
 Sectors:  getSectors(), addSector(), updateSector(), deleteSector()
 Airlines: getAirlines(), addAirline(), updateAirline(), deleteAirline()
-Fares:    getFares(filters), deleteFare(), updateFare()
+Fares:    getFares(filters), addFare(data), deleteFare(), updateFare()
           getFares({ agentId?, sectorId?, startDate?, endDate?, includeHidden? })
 Storage:  uploadLogo(folder, file), deleteLogo(url)
 Functions:
@@ -331,4 +340,4 @@ npx firebase-tools@latest deploy --only hosting
 
 ---
 
-_Last audited: 2026-03-12 — Reports tab fully redesigned (stat cards, gradient bar chart, donut chart, premium fares table). All JS pagination, sorting, delete/toggle actions verified working._
+_Last audited: 2026-03-14 — Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal)._

@@ -465,6 +465,110 @@
     background-color: #f3f8ff;
 }
 
+.admin-database-wrap {
+    overflow: auto;
+    max-height: 72vh;
+    border-top: 1px solid #e7eef8;
+    background: #ffffff;
+}
+
+.admin-database-table {
+    width: 100%;
+    min-width: 1700px;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.admin-database-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: linear-gradient(180deg, #f9fbff 0%, #eef5ff 100%);
+    color: #5c6f88;
+    font-weight: 700;
+    font-size: 0.69rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.7rem 0.65rem;
+    border-bottom: 1px solid #d9e4f3;
+    white-space: nowrap;
+}
+
+.admin-database-table td {
+    padding: 0.55rem 0.5rem;
+    border-bottom: 1px solid #ebf0f8;
+    background: #ffffff;
+    vertical-align: middle;
+}
+
+.admin-database-table tr:nth-child(odd) td {
+    background: #fcfdff;
+}
+
+.admin-database-table tr:hover td {
+    background: #f2f7ff;
+}
+
+.admin-database-row-dirty td {
+    background: #fff9e8 !important;
+}
+
+.admin-database-table input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #0c4a8a;
+}
+
+.db-cell-input,
+.db-cell-select {
+    width: 100%;
+    min-height: 2rem;
+    border-radius: 0.55rem;
+    border: 1px solid #cfdaea;
+    background: #f8fbff;
+    color: #1f3044;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35rem 0.52rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.db-cell-select {
+    padding-right: 1.55rem;
+}
+
+.db-cell-input:hover,
+.db-cell-select:hover {
+    border-color: #a9c0dd;
+}
+
+.db-cell-input:focus,
+.db-cell-select:focus {
+    border-color: #0c4a8a;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(12, 74, 138, 0.12);
+    outline: none;
+}
+
+.db-cell-num {
+    min-width: 82px;
+}
+
+.db-cell-commission {
+    display: inline-flex;
+    min-width: 76px;
+    justify-content: center;
+    align-items: center;
+    padding: 0.32rem 0.55rem;
+    border-radius: 0.5rem;
+    border: 1px solid #d6e2f1;
+    background: #eef4ff;
+    color: #0f4f9e;
+    font-size: 0.73rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
 #toastsEl > div {
     border-radius: 0.9rem;
     box-shadow: 0 18px 30px -22px rgba(15, 23, 42, 0.55);

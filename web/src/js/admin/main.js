@@ -11,7 +11,7 @@ import {
   getAgents, addAgent, updateAgent, deleteAgent,
   getSectors, addSector, updateSector, deleteSector,
   getAirlines, addAirline, updateAirline, deleteAirline,
-  getFares, saveFares, deleteFare, updateFare,
+  getFares, addFare, saveFares, deleteFare, updateFare,
   callBulkDeleteFares, callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
 } from './db.js';
@@ -24,6 +24,9 @@ let _sectors = [];
 let _airlines = [];
 let _dashboardFares = []; // Kept for any stale references
 let _reportFares = [];
+let _databaseFares = [];
+let _databaseDrafts = {};
+let _databaseSelected = new Set();
 
 function normalizeDamammText(value) {
   if (value === null || value === undefined) return value;
@@ -47,16 +50,79 @@ function normalizeSectors(list = []) {
   return list.map((sector) => normalizeSectorRecord(sector));
 }
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function toSafeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseBaggageNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = parseFloat(String(value).replace(/[^\d.]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function asDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toDateInputValue(value) {
+  const d = asDate(value);
+  if (!d) return '';
+  const offset = d.getTimezoneOffset();
+  return new Date(d.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+}
+
+function parseDateInputValue(value) {
+  if (!value) return null;
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function startOfDayMs(value) {
+  if (!value) return null;
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+}
+
+function endOfDayMs(value) {
+  if (!value) return null;
+  const d = new Date(`${value}T23:59:59.999`);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+}
+
 // ── Sorting & Search State ────────────────────────────────────────────────────
 let tableSort = {
   agents: { key: 'id', asc: true },
   sectors: { key: 'id', asc: true },
   airlines: { key: 'name', asc: true },
-  reportFares: { key: 'flightDate', asc: true }
+  reportFares: { key: 'flightDate', asc: true },
+  databaseFares: { key: 'flightDate', asc: true },
 };
-let tableSearch = { sectors: '', airlines: '' };
-let tableLimit = { agents: 10, sectors: 10, airlines: 10, reportFares: 20 };
-let tablePage = { agents: 1, sectors: 1, airlines: 1, reportFares: 1 };
+let tableSearch = { agents: '', sectors: '', airlines: '' };
+let tableLimit = { agents: 10, sectors: 10, airlines: 10, reportFares: 20, databaseFares: 20 };
+let tablePage = { agents: 1, sectors: 1, airlines: 1, reportFares: 1, databaseFares: 1 };
+
+const databaseFilters = {
+  search: '',
+  agentId: 'all',
+  sectorId: 'all',
+  airlineId: 'all',
+  status: 'all',
+  startDate: '',
+  endDate: '',
+};
 
 /**
  * Sort + filter data for a given tab. Does NOT slice/paginate — returns the
@@ -140,6 +206,7 @@ document.addEventListener('click', (e) => {
   else if (tab === 'sectors') renderSectorsTab(false);
   else if (tab === 'airlines') renderFlightsTab(false);
   else if (tab === 'reportFares' && _reportFares.length) renderReportFaresTable(_reportFares);
+  else if (tab === 'databaseFares') renderDatabaseTable();
 });
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
@@ -228,6 +295,7 @@ async function renderActiveTab() {
   else if (id === 'flights-tab') await renderFlightsTab();
   else if (id === 'dashboard-tab') await renderDashboardTab();
   else if (id === 'reports-tab') await renderReportsTab();
+  else if (id === 'database-tab') await renderDatabaseTab();
   else if (id === 'eticket-tab') await renderETicketTab();
 }
 
@@ -977,6 +1045,7 @@ function renderPaginationFooter(tabName, total, totalPages, start, limit) {
       else if (tabName === 'sectors') renderSectorsTab(false);
       else if (tabName === 'airlines') renderFlightsTab(false);
       else if (tabName === 'reportFares') renderReportFaresTable(_reportFares);
+      else if (tabName === 'databaseFares') renderDatabaseTable();
     });
   }
 }
@@ -1785,6 +1854,847 @@ function downloadReportCSV(fares) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     toast('success', 'CSV Downloaded', `${fares.length} fares exported.`);
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DATABASE TAB — Sheet-style fare editor
+// ══════════════════════════════════════════════════════════════════════════════
+function getDatabaseDraftCount() {
+  return Object.keys(_databaseDrafts).length;
+}
+
+function getDatabaseLookupMaps() {
+  return {
+    agentNameById: Object.fromEntries(_agents.map(a => [a.id, a.name || a.id])),
+    sectorCodeById: Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode || `${s.sectorFrom || ''} ${s.sectorTo || ''}`.trim() || s.id])),
+    airlineLabelById: Object.fromEntries(_airlines.map(a => [a.id, a.code ? `${a.code} - ${a.name || ''}`.trim() : (a.name || a.id)])),
+  };
+}
+
+function normalizeFieldForDraft(field, value) {
+  if (field === 'specialRate' || field === 'finalRate' || field === 'extraBaggage') {
+    return value === '' ? '' : toSafeNumber(value, 0);
+  }
+  if (field === 'baggage') {
+    return value === '' ? '' : parseBaggageNumber(value);
+  }
+  if (field === 'isHidden') {
+    return value === true || value === 'hidden' || value === 'true';
+  }
+  if (field === 'flightTime') {
+    return String(value || '').trim();
+  }
+  if (field === 'flightDate') {
+    return value || '';
+  }
+  return String(value || '');
+}
+
+function normalizeFieldForBase(field, value) {
+  if (field === 'specialRate' || field === 'finalRate' || field === 'extraBaggage') {
+    return toSafeNumber(value, 0);
+  }
+  if (field === 'baggage') {
+    return parseBaggageNumber(value);
+  }
+  if (field === 'isHidden') {
+    return value === true;
+  }
+  if (field === 'flightTime') {
+    return String(value || '').trim();
+  }
+  if (field === 'flightDate') {
+    return toDateInputValue(value);
+  }
+  return String(value || '');
+}
+
+function getMergedDatabaseFare(fare) {
+  const draft = _databaseDrafts[fare.id] || {};
+  const merged = { ...fare, ...draft };
+  merged.flightDate = draft.flightDate !== undefined ? parseDateInputValue(draft.flightDate) : asDate(fare.flightDate);
+  merged.specialRate = toSafeNumber(merged.specialRate, 0);
+  merged.finalRate = toSafeNumber(merged.finalRate, 0);
+  merged.commission = Math.max(0, merged.finalRate - merged.specialRate);
+  merged.baggage = parseBaggageNumber(merged.baggage);
+  merged.extraBaggage = toSafeNumber(merged.extraBaggage, 0);
+  merged.isHidden = merged.isHidden === true || merged.isHidden === 'hidden' || merged.isHidden === 'true';
+  merged.flightTime = String(merged.flightTime || '').trim();
+  merged.agentId = merged.agentId || '';
+  merged.sectorId = merged.sectorId || '';
+  merged.airlineId = merged.airlineId || '';
+  return merged;
+}
+
+function updateDatabaseToolbarState() {
+  const unsaved = getDatabaseDraftCount();
+  const selected = _databaseSelected.size;
+
+  const unsavedEl = document.getElementById('database-unsaved-pill');
+  if (unsavedEl) unsavedEl.textContent = `Unsaved: ${unsaved}`;
+
+  const saveAllBtn = document.getElementById('database-save-all-btn');
+  if (saveAllBtn) saveAllBtn.disabled = unsaved === 0;
+
+  const deleteSelectedBtn = document.getElementById('database-delete-selected-btn');
+  if (deleteSelectedBtn) deleteSelectedBtn.disabled = selected === 0;
+
+  const selectedCount = document.getElementById('database-selected-count');
+  if (selectedCount) selectedCount.textContent = String(selected);
+}
+
+function populateDatabaseFilterSelects() {
+  const agentSel = document.getElementById('database-agent-filter');
+  const sectorSel = document.getElementById('database-sector-filter');
+  const airlineSel = document.getElementById('database-airline-filter');
+
+  if (agentSel) {
+    const current = databaseFilters.agentId;
+    agentSel.innerHTML = '<option value="all">All Agents</option>' +
+      _agents.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.id)} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('');
+    agentSel.value = current;
+  }
+
+  if (sectorSel) {
+    const current = databaseFilters.sectorId;
+    sectorSel.innerHTML = '<option value="all">All Sectors</option>' +
+      _sectors.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.sectorCode || s.id)}</option>`).join('');
+    sectorSel.value = current;
+  }
+
+  if (airlineSel) {
+    const current = databaseFilters.airlineId;
+    airlineSel.innerHTML = '<option value="all">All Airlines</option>' +
+      _airlines.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.code || '—')} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('');
+    airlineSel.value = current;
+  }
+}
+
+function wireDatabaseTableEvents() {
+  const wrap = document.getElementById('database-table-wrap');
+  if (!wrap || wrap.dataset.wired) return;
+  wrap.dataset.wired = '1';
+
+  const syncRowDirtyState = (fareId) => {
+    const row = wrap.querySelector(`tr[data-fare-id="${fareId}"]`);
+    if (!row) return;
+    const dirty = !!_databaseDrafts[fareId];
+    row.classList.toggle('admin-database-row-dirty', dirty);
+    const saveBtn = row.querySelector('[data-db-action="save"]');
+    const resetBtn = row.querySelector('[data-db-action="reset"]');
+    if (saveBtn) saveBtn.disabled = !dirty;
+    if (resetBtn) resetBtn.disabled = !dirty;
+  };
+
+  const updateCommissionInRow = (row) => {
+    if (!row) return;
+    const spInput = row.querySelector('[data-db-field="specialRate"]');
+    const rateInput = row.querySelector('[data-db-field="finalRate"]');
+    const commEl = row.querySelector('[data-db-commission]');
+    if (!spInput || !rateInput || !commEl) return;
+    const specialRate = toSafeNumber(spInput.value, 0);
+    const finalRate = toSafeNumber(rateInput.value, 0);
+    const commission = Math.max(0, finalRate - specialRate);
+    commEl.textContent = `₹${commission.toLocaleString()}`;
+  };
+
+  const onFieldChange = (e) => {
+    const el = e.target.closest('[data-db-field]');
+    if (!el) return;
+    const row = el.closest('tr[data-fare-id]');
+    if (!row) return;
+    const fareId = row.dataset.fareId;
+    const field = el.dataset.dbField;
+    const baseFare = _databaseFares.find(f => f.id === fareId);
+    if (!baseFare || !field) return;
+
+    const rawValue = field === 'isHidden' ? el.value : el.value;
+    const draftValue = normalizeFieldForDraft(field, rawValue);
+    const baseValue = normalizeFieldForBase(field, baseFare[field]);
+    const changed = draftValue !== baseValue;
+
+    const nextDraft = { ...(_databaseDrafts[fareId] || {}) };
+    if (changed) nextDraft[field] = draftValue;
+    else delete nextDraft[field];
+
+    if (Object.keys(nextDraft).length) _databaseDrafts[fareId] = nextDraft;
+    else delete _databaseDrafts[fareId];
+
+    if (field === 'specialRate' || field === 'finalRate') {
+      updateCommissionInRow(row);
+    }
+
+    syncRowDirtyState(fareId);
+    updateDatabaseToolbarState();
+  };
+
+  wrap.addEventListener('input', onFieldChange);
+  wrap.addEventListener('change', (e) => {
+    onFieldChange(e);
+
+    const selectAll = e.target.closest('#database-select-all');
+    if (selectAll) {
+      wrap.querySelectorAll('input[data-db-select]').forEach((cb) => {
+        cb.checked = selectAll.checked;
+        const id = cb.dataset.dbSelect;
+        if (!id) return;
+        if (selectAll.checked) _databaseSelected.add(id);
+        else _databaseSelected.delete(id);
+      });
+      updateDatabaseToolbarState();
+      return;
+    }
+
+    const rowCb = e.target.closest('input[data-db-select]');
+    if (rowCb) {
+      const id = rowCb.dataset.dbSelect;
+      if (!id) return;
+      if (rowCb.checked) _databaseSelected.add(id);
+      else _databaseSelected.delete(id);
+      updateDatabaseToolbarState();
+    }
+  });
+
+  wrap.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-db-action]');
+    if (!btn) return;
+    const action = btn.dataset.dbAction;
+    const fareId = btn.dataset.id;
+    if (!fareId) return;
+
+    if (action === 'save') {
+      btn.disabled = true;
+      const ok = await persistDatabaseRow(fareId);
+      if (!ok) btn.disabled = false;
+      renderDatabaseTable();
+      return;
+    }
+
+    if (action === 'reset') {
+      delete _databaseDrafts[fareId];
+      renderDatabaseTable();
+      return;
+    }
+
+    if (action === 'delete') {
+      if (!confirm('Delete this fare row? This cannot be undone.')) return;
+      btn.disabled = true;
+      try {
+        await deleteFare(fareId);
+        _databaseFares = _databaseFares.filter(f => f.id !== fareId);
+        delete _databaseDrafts[fareId];
+        _databaseSelected.delete(fareId);
+        toast('success', 'Deleted', 'Fare row removed.');
+        renderDatabaseTable();
+      } catch (err) {
+        toast('error', 'Delete Failed', err.message);
+        btn.disabled = false;
+      }
+    }
+  });
+}
+
+function wireDatabaseControls(tab) {
+  if (!tab || tab.dataset.controlsWired) return;
+  tab.dataset.controlsWired = '1';
+
+  const searchInput = document.getElementById('database-search');
+  const agentSel = document.getElementById('database-agent-filter');
+  const sectorSel = document.getElementById('database-sector-filter');
+  const airlineSel = document.getElementById('database-airline-filter');
+  const statusSel = document.getElementById('database-status-filter');
+  const startDateInput = document.getElementById('database-start-date');
+  const endDateInput = document.getElementById('database-end-date');
+  const limitSel = document.getElementById('database-limit');
+  const clearBtn = document.getElementById('database-clear-filters');
+  const refreshBtn = document.getElementById('database-refresh-btn');
+  const saveAllBtn = document.getElementById('database-save-all-btn');
+  const deleteSelectedBtn = document.getElementById('database-delete-selected-btn');
+  const addRowBtn = document.getElementById('database-add-row-btn');
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      databaseFilters.search = e.target.value || '';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (agentSel) {
+    agentSel.addEventListener('change', (e) => {
+      databaseFilters.agentId = e.target.value || 'all';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (sectorSel) {
+    sectorSel.addEventListener('change', (e) => {
+      databaseFilters.sectorId = e.target.value || 'all';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (airlineSel) {
+    airlineSel.addEventListener('change', (e) => {
+      databaseFilters.airlineId = e.target.value || 'all';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (statusSel) {
+    statusSel.addEventListener('change', (e) => {
+      databaseFilters.status = e.target.value || 'all';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (startDateInput) {
+    startDateInput.addEventListener('change', (e) => {
+      databaseFilters.startDate = e.target.value || '';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (endDateInput) {
+    endDateInput.addEventListener('change', (e) => {
+      databaseFilters.endDate = e.target.value || '';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (limitSel) {
+    limitSel.value = String(tableLimit.databaseFares);
+    limitSel.addEventListener('change', (e) => {
+      tableLimit.databaseFares = parseInt(e.target.value, 10) || 20;
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      databaseFilters.search = '';
+      databaseFilters.agentId = 'all';
+      databaseFilters.sectorId = 'all';
+      databaseFilters.airlineId = 'all';
+      databaseFilters.status = 'all';
+      databaseFilters.startDate = '';
+      databaseFilters.endDate = '';
+
+      if (searchInput) searchInput.value = '';
+      if (agentSel) agentSel.value = 'all';
+      if (sectorSel) sectorSel.value = 'all';
+      if (airlineSel) airlineSel.value = 'all';
+      if (statusSel) statusSel.value = 'all';
+      if (startDateInput) startDateInput.value = '';
+      if (endDateInput) endDateInput.value = '';
+
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      const current = refreshBtn.innerHTML;
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin"></i> Refreshing...';
+      await renderDatabaseTab(true);
+      refreshBtn.disabled = false;
+      refreshBtn.innerHTML = current;
+    });
+  }
+
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener('click', saveAllDatabaseRows);
+  }
+
+  if (deleteSelectedBtn) {
+    deleteSelectedBtn.addEventListener('click', deleteSelectedDatabaseRows);
+  }
+
+  if (addRowBtn) {
+    addRowBtn.addEventListener('click', openDatabaseAddFareModal);
+  }
+}
+
+async function renderDatabaseTab(fetchData = true) {
+  const tab = document.getElementById('database-tab');
+  if (!tab) return;
+
+  wireDatabaseControls(tab);
+  wireDatabaseTableEvents();
+  populateDatabaseFilterSelects();
+
+  const shouldFetch = fetchData || !tab.dataset.loaded;
+  if (shouldFetch) {
+    try {
+      _databaseFares = await getFares({ includeHidden: true });
+      _databaseDrafts = {};
+      _databaseSelected = new Set();
+      tablePage.databaseFares = 1;
+      tab.dataset.loaded = '1';
+    } catch (err) {
+      toast('error', 'Load Failed', err.message);
+      _databaseFares = [];
+    }
+  }
+
+  renderDatabaseTable();
+}
+
+function getFilteredDatabaseRows() {
+  const { agentNameById, sectorCodeById, airlineLabelById } = getDatabaseLookupMaps();
+  const q = databaseFilters.search.trim().toLowerCase();
+  const fromMs = startOfDayMs(databaseFilters.startDate);
+  const toMs = endOfDayMs(databaseFilters.endDate);
+
+  const filtered = _databaseFares
+    .map(f => getMergedDatabaseFare(f))
+    .filter((f) => {
+      if (databaseFilters.agentId !== 'all' && f.agentId !== databaseFilters.agentId) return false;
+      if (databaseFilters.sectorId !== 'all' && f.sectorId !== databaseFilters.sectorId) return false;
+      if (databaseFilters.airlineId !== 'all' && f.airlineId !== databaseFilters.airlineId) return false;
+      if (databaseFilters.status === 'live' && f.isHidden) return false;
+      if (databaseFilters.status === 'hidden' && !f.isHidden) return false;
+
+      const dtMs = asDate(f.flightDate)?.getTime?.() || null;
+      if (fromMs !== null && (dtMs === null || dtMs < fromMs)) return false;
+      if (toMs !== null && (dtMs === null || dtMs > toMs)) return false;
+
+      if (!q) return true;
+      const haystack = [
+        f.id,
+        toDateInputValue(f.flightDate),
+        f.flightTime,
+        f.specialRate,
+        f.finalRate,
+        f.commission,
+        f.baggage,
+        f.extraBaggage,
+        f.isHidden ? 'hidden' : 'live',
+        f.agentId,
+        f.sectorId,
+        f.airlineId,
+        agentNameById[f.agentId] || '',
+        sectorCodeById[f.sectorId] || '',
+        airlineLabelById[f.airlineId] || '',
+      ].join(' ').toLowerCase();
+
+      return haystack.includes(q);
+    });
+
+  const { key, asc } = tableSort.databaseFares;
+  return filtered.sort((a, b) => {
+    const toSortValue = (row) => {
+      if (key === 'agentId') return (agentNameById[row.agentId] || row.agentId || '').toLowerCase();
+      if (key === 'sectorId') return (sectorCodeById[row.sectorId] || row.sectorId || '').toLowerCase();
+      if (key === 'airlineId') return (airlineLabelById[row.airlineId] || row.airlineId || '').toLowerCase();
+      if (key === 'flightDate') return asDate(row.flightDate)?.getTime?.() || 0;
+      if (key === 'isHidden') return row.isHidden ? 1 : 0;
+      return row[key];
+    };
+
+    let valA = toSortValue(a);
+    let valB = toSortValue(b);
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+    if (valA < valB) return asc ? -1 : 1;
+    if (valA > valB) return asc ? 1 : -1;
+    return 0;
+  });
+}
+
+function renderDatabaseTable() {
+  const wrap = document.getElementById('database-table-wrap');
+  if (!wrap) return;
+
+  const rows = getFilteredDatabaseRows();
+  const totalEl = document.getElementById('database-total-count');
+  if (totalEl) totalEl.textContent = rows.length.toLocaleString();
+
+  const limit = tableLimit.databaseFares;
+  const totalPages = Math.max(1, Math.ceil(rows.length / limit));
+  if (tablePage.databaseFares > totalPages) tablePage.databaseFares = totalPages;
+  const start = (tablePage.databaseFares - 1) * limit;
+  const pageData = rows.slice(start, start + limit);
+
+  if (!pageData.length) {
+    wrap.innerHTML = `<div class="text-center text-text-muted py-16 px-4">
+      <div class="inline-flex flex-col items-center gap-3 opacity-60">
+        <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <i class="bi bi-database text-3xl text-slate-400"></i>
+        </div>
+        <p class="font-semibold text-[14px]">No fares matched your filter</p>
+      </div>
+    </div>`;
+    renderPaginationFooter('databaseFares', rows.length, totalPages, start, limit);
+    updateDatabaseToolbarState();
+    return;
+  }
+
+  const TH = (key, label) =>
+    `<th class="cursor-pointer group whitespace-nowrap" data-sort-tab="databaseFares" data-sort-key="${key}">
+      ${label} <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i>
+    </th>`;
+
+  const buildAgentOptions = (selectedId) => _agents.map(a =>
+    `<option value="${escapeHtml(a.id)}" ${a.id === selectedId ? 'selected' : ''}>${escapeHtml(a.id)} · ${escapeHtml(a.name || 'Unnamed')}</option>`
+  ).join('');
+
+  const buildSectorOptions = (selectedId) => _sectors.map(s =>
+    `<option value="${escapeHtml(s.id)}" ${s.id === selectedId ? 'selected' : ''}>${escapeHtml(s.sectorCode || s.id)}</option>`
+  ).join('');
+
+  const buildAirlineOptions = (selectedId) => _airlines.map(a =>
+    `<option value="${escapeHtml(a.id)}" ${a.id === selectedId ? 'selected' : ''}>${escapeHtml(a.code || '—')} · ${escapeHtml(a.name || 'Unnamed')}</option>`
+  ).join('');
+
+  const allSelectedOnPage = pageData.length > 0 && pageData.every(r => _databaseSelected.has(r.id));
+
+  wrap.innerHTML = `
+    <table class="admin-database-table">
+      <thead>
+        <tr>
+          <th class="w-[36px] text-center"><input id="database-select-all" type="checkbox" ${allSelectedOnPage ? 'checked' : ''}></th>
+          <th class="w-[56px]">#</th>
+          ${TH('flightDate', 'Date')}
+          ${TH('flightTime', 'Time')}
+          ${TH('agentId', 'Agent')}
+          ${TH('sectorId', 'Sector')}
+          ${TH('airlineId', 'Airline')}
+          ${TH('specialRate', 'SP Rate')}
+          ${TH('finalRate', 'Rate')}
+          ${TH('commission', 'Comm')}
+          ${TH('baggage', 'Bag')}
+          ${TH('extraBaggage', 'Ex.Bag')}
+          ${TH('isHidden', 'Status')}
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageData.map((fare, idx) => {
+          const dirty = !!_databaseDrafts[fare.id];
+          const selected = _databaseSelected.has(fare.id);
+          return `
+            <tr data-fare-id="${fare.id}" class="${dirty ? 'admin-database-row-dirty' : ''}">
+              <td class="text-center">
+                <input type="checkbox" data-db-select="${fare.id}" ${selected ? 'checked' : ''}>
+              </td>
+              <td class="font-mono text-[11px] text-text-soft">${start + idx + 1}</td>
+              <td>
+                <input type="date" data-db-field="flightDate" class="db-cell-input" value="${toDateInputValue(fare.flightDate)}">
+              </td>
+              <td>
+                <input type="text" data-db-field="flightTime" class="db-cell-input min-w-[128px]" value="${escapeHtml(fare.flightTime || '')}" placeholder="04:05 - 11:10">
+              </td>
+              <td>
+                <select data-db-field="agentId" class="db-cell-select min-w-[180px]">
+                  <option value="">Select Agent</option>
+                  ${buildAgentOptions(fare.agentId)}
+                </select>
+              </td>
+              <td>
+                <select data-db-field="sectorId" class="db-cell-select min-w-[140px]">
+                  <option value="">Select Sector</option>
+                  ${buildSectorOptions(fare.sectorId)}
+                </select>
+              </td>
+              <td>
+                <select data-db-field="airlineId" class="db-cell-select min-w-[170px]">
+                  <option value="">No Airline</option>
+                  ${buildAirlineOptions(fare.airlineId)}
+                </select>
+              </td>
+              <td>
+                <input type="number" data-db-field="specialRate" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.specialRate, 0)}" min="0" step="1">
+              </td>
+              <td>
+                <input type="number" data-db-field="finalRate" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.finalRate, 0)}" min="0" step="1">
+              </td>
+              <td>
+                <span data-db-commission class="db-cell-commission">₹${Math.max(0, toSafeNumber(fare.finalRate, 0) - toSafeNumber(fare.specialRate, 0)).toLocaleString()}</span>
+              </td>
+              <td>
+                <input type="number" data-db-field="baggage" class="db-cell-input db-cell-num" value="${parseBaggageNumber(fare.baggage)}" min="0" step="1">
+              </td>
+              <td>
+                <input type="number" data-db-field="extraBaggage" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.extraBaggage, 0)}" min="0" step="1">
+              </td>
+              <td>
+                <select data-db-field="isHidden" class="db-cell-select min-w-[94px]">
+                  <option value="live" ${fare.isHidden ? '' : 'selected'}>Live</option>
+                  <option value="hidden" ${fare.isHidden ? 'selected' : ''}>Hidden</option>
+                </select>
+              </td>
+              <td>
+                <div class="flex gap-1">
+                  <button data-db-action="save" data-id="${fare.id}" class="admin-action-btn admin-action-edit" ${dirty ? '' : 'disabled'}>Save</button>
+                  <button data-db-action="reset" data-id="${fare.id}" class="admin-action-btn admin-action-toggle" ${dirty ? '' : 'disabled'}>Reset</button>
+                  <button data-db-action="delete" data-id="${fare.id}" class="admin-action-btn admin-action-delete">Delete</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+
+  renderPaginationFooter('databaseFares', rows.length, totalPages, start, limit);
+  updateSortIcons('databaseFares');
+  updateDatabaseToolbarState();
+}
+
+async function persistDatabaseRow(fareId, { silent = false } = {}) {
+  const baseFare = _databaseFares.find(f => f.id === fareId);
+  if (!baseFare) return false;
+  const draft = _databaseDrafts[fareId];
+  if (!draft) return true;
+
+  const merged = getMergedDatabaseFare(baseFare);
+  const flightDate = asDate(merged.flightDate);
+
+  if (!merged.agentId) {
+    if (!silent) toast('warning', 'Missing Agent', 'Please select an agent before saving.');
+    return false;
+  }
+  if (!merged.sectorId) {
+    if (!silent) toast('warning', 'Missing Sector', 'Please select a sector before saving.');
+    return false;
+  }
+  if (!flightDate) {
+    if (!silent) toast('warning', 'Missing Date', 'Please set a valid flight date before saving.');
+    return false;
+  }
+
+  const payload = {
+    agentId: merged.agentId,
+    sectorId: merged.sectorId,
+    airlineId: merged.airlineId || '',
+    flightDate,
+    flightTime: merged.flightTime || '',
+    specialRate: toSafeNumber(merged.specialRate, 0),
+    finalRate: toSafeNumber(merged.finalRate, 0),
+    commission: Math.max(0, toSafeNumber(merged.finalRate, 0) - toSafeNumber(merged.specialRate, 0)),
+    baggage: parseBaggageNumber(merged.baggage),
+    extraBaggage: toSafeNumber(merged.extraBaggage, 0),
+    isHidden: merged.isHidden === true,
+  };
+
+  try {
+    await updateFare(fareId, payload);
+    _databaseFares = _databaseFares.map(f => f.id === fareId ? { ...f, ...payload } : f);
+    delete _databaseDrafts[fareId];
+    if (!silent) toast('success', 'Saved', 'Fare row updated.');
+    return true;
+  } catch (err) {
+    if (!silent) toast('error', 'Save Failed', err.message);
+    return false;
+  }
+}
+
+async function saveAllDatabaseRows() {
+  const ids = Object.keys(_databaseDrafts);
+  if (!ids.length) return;
+
+  const btn = document.getElementById('database-save-all-btn');
+  const original = btn?.innerHTML;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin"></i> Saving...';
+  }
+
+  let success = 0;
+  let failed = 0;
+  for (const id of ids) {
+    const ok = await persistDatabaseRow(id, { silent: true });
+    if (ok) success += 1;
+    else failed += 1;
+  }
+
+  renderDatabaseTable();
+
+  if (btn) {
+    btn.disabled = getDatabaseDraftCount() === 0;
+    btn.innerHTML = original || 'Save All';
+  }
+
+  if (failed === 0) {
+    toast('success', 'Saved', `${success} row${success !== 1 ? 's' : ''} updated.`);
+  } else {
+    toast('warning', 'Partial Save', `${success} saved, ${failed} failed. Fix invalid rows and retry.`);
+  }
+}
+
+async function deleteSelectedDatabaseRows() {
+  const ids = Array.from(_databaseSelected);
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} selected fare row${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+
+  const btn = document.getElementById('database-delete-selected-btn');
+  const original = btn?.innerHTML;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin"></i> Deleting...';
+  }
+
+  const results = await Promise.allSettled(ids.map(id => deleteFare(id)));
+  const successIds = [];
+  let failed = 0;
+  results.forEach((r, idx) => {
+    if (r.status === 'fulfilled') successIds.push(ids[idx]);
+    else failed += 1;
+  });
+
+  if (successIds.length) {
+    const successSet = new Set(successIds);
+    _databaseFares = _databaseFares.filter(f => !successSet.has(f.id));
+    successIds.forEach(id => {
+      delete _databaseDrafts[id];
+      _databaseSelected.delete(id);
+    });
+  }
+
+  renderDatabaseTable();
+
+  if (btn) btn.innerHTML = original || 'Delete Selected';
+
+  if (failed === 0) {
+    toast('success', 'Deleted', `${successIds.length} row${successIds.length !== 1 ? 's' : ''} deleted.`);
+  } else {
+    toast('warning', 'Partial Delete', `${successIds.length} deleted, ${failed} failed.`);
+  }
+}
+
+function openDatabaseAddFareModal() {
+  const dateDefault = toDateInputValue(new Date());
+  openModal('Add Fare Row', `
+    <form id="database-add-form" class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="admin-label text-[10px] mb-1">Date *</label>
+          <input id="db-add-date" type="date" class="admin-control h-10" value="${dateDefault}" required>
+        </div>
+        <div>
+          <label class="admin-label text-[10px] mb-1">Time</label>
+          <input id="db-add-time" type="text" class="admin-control h-10" placeholder="e.g. 04:05 - 11:10">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <div>
+          <label class="admin-label text-[10px] mb-1">Agent *</label>
+          <select id="db-add-agent" class="admin-control h-10" required>
+            <option value="">Select Agent</option>
+            ${_agents.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.id)} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="admin-label text-[10px] mb-1">Sector *</label>
+          <select id="db-add-sector" class="admin-control h-10" required>
+            <option value="">Select Sector</option>
+            ${_sectors.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.sectorCode || s.id)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="admin-label text-[10px] mb-1">Airline</label>
+          <select id="db-add-airline" class="admin-control h-10">
+            <option value="">No Airline</option>
+            ${_airlines.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.code || '—')} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="admin-label text-[10px] mb-1">SP Rate (₹)</label>
+          <input id="db-add-sp" type="number" class="admin-control h-10" min="0" step="1" value="0">
+        </div>
+        <div>
+          <label class="admin-label text-[10px] mb-1">Final Rate (₹)</label>
+          <input id="db-add-rate" type="number" class="admin-control h-10" min="0" step="1" value="0">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="admin-label text-[10px] mb-1">Baggage (kg)</label>
+          <input id="db-add-bag" type="number" class="admin-control h-10" min="0" step="1" value="0">
+        </div>
+        <div>
+          <label class="admin-label text-[10px] mb-1">Extra Baggage (kg)</label>
+          <input id="db-add-exbag" type="number" class="admin-control h-10" min="0" step="1" value="0">
+        </div>
+      </div>
+
+      <div>
+        <label class="admin-label text-[10px] mb-1">Status</label>
+        <select id="db-add-status" class="admin-control h-10">
+          <option value="live">Live</option>
+          <option value="hidden">Hidden</option>
+        </select>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+        <button type="button" onclick="document.getElementById('admin-modal').close()" class="admin-btn admin-btn-ghost px-5">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary px-5">Add Fare</button>
+      </div>
+    </form>
+  `);
+
+  const form = document.getElementById('database-add-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const original = submitBtn?.textContent || 'Add Fare';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Adding...';
+    }
+
+    try {
+      const dateValue = document.getElementById('db-add-date')?.value || '';
+      const flightDate = parseDateInputValue(dateValue);
+      if (!flightDate) throw new Error('Please provide a valid flight date.');
+
+      const specialRate = toSafeNumber(document.getElementById('db-add-sp')?.value, 0);
+      const finalRate = toSafeNumber(document.getElementById('db-add-rate')?.value, 0);
+
+      await addFare({
+        agentId: document.getElementById('db-add-agent')?.value || '',
+        sectorId: document.getElementById('db-add-sector')?.value || '',
+        airlineId: document.getElementById('db-add-airline')?.value || '',
+        flightDate,
+        flightTime: document.getElementById('db-add-time')?.value?.trim() || '',
+        specialRate,
+        finalRate,
+        commission: Math.max(0, finalRate - specialRate),
+        baggage: parseBaggageNumber(document.getElementById('db-add-bag')?.value),
+        extraBaggage: toSafeNumber(document.getElementById('db-add-exbag')?.value, 0),
+        isHidden: (document.getElementById('db-add-status')?.value || 'live') === 'hidden',
+      });
+
+      document.getElementById('admin-modal')?.close();
+      await renderDatabaseTab(true);
+      toast('success', 'Added', 'New fare row added.');
+    } catch (err) {
+      toast('error', 'Add Failed', err.message);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = original;
+      }
+    }
+  });
 }
 
 

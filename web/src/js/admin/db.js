@@ -154,6 +154,56 @@ export async function deleteAirline(airlineId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Add a single fare row.
+ * @param {{
+ *   agentId: string,
+ *   sectorId: string,
+ *   airlineId?: string,
+ *   flightDate: Date|string,
+ *   specialRate?: number,
+ *   finalRate?: number,
+ *   baggage?: number|string,
+ *   extraBaggage?: number,
+ *   commission?: number,
+ *   supplierRate?: number,
+ *   flightTime?: string,
+ *   isHidden?: boolean
+ * }} data
+ */
+export async function addFare(data) {
+  if (!data?.agentId) throw new Error('Agent is required.');
+  if (!data?.sectorId) throw new Error('Sector is required.');
+  if (!data?.flightDate) throw new Error('Flight date is required.');
+
+  const rawDate = data.flightDate instanceof Date ? data.flightDate : new Date(data.flightDate);
+  if (Number.isNaN(rawDate.getTime())) throw new Error('Invalid flight date.');
+
+  const specialRate = Number(data.specialRate) || 0;
+  const finalRate = Number(data.finalRate) || 0;
+
+  const docRef = await addDoc(collection(db, 'agent_fares'), {
+    agentId: data.agentId,
+    sectorId: data.sectorId,
+    airlineId: data.airlineId || '',
+    flightDate: Timestamp.fromDate(rawDate),
+    specialRate,
+    finalRate,
+    baggage: data.baggage !== undefined && data.baggage !== null ? Number(data.baggage) || 0 : 0,
+    extraBaggage: Number(data.extraBaggage) || 0,
+    commission: data.commission !== undefined
+      ? Number(data.commission) || 0
+      : Math.max(0, finalRate - specialRate),
+    supplierRate: Number(data.supplierRate) || 0,
+    flightTime: data.flightTime || '',
+    isHidden: data.isHidden === true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return docRef.id;
+}
+
+/**
  * Fetch fares with optional filters.
  * @param {{ agentId?, sectorId?, startDate?, endDate?, includeHidden? }} filters
  */
