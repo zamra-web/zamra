@@ -1753,6 +1753,7 @@ function getDatabaseLookupMaps() {
     agentNameById: Object.fromEntries(_agents.map(a => [a.id, a.name || a.id])),
     sectorCodeById: Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode || `${s.sectorFrom || ''} ${s.sectorTo || ''}`.trim() || s.id])),
     airlineLabelById: Object.fromEntries(_airlines.map(a => [a.id, a.code ? `${a.code} - ${a.name || ''}`.trim() : (a.name || a.id)])),
+    airlineCodeById: Object.fromEntries(_airlines.map(a => [a.id, a.code || a.name || a.id])),
   };
 }
 
@@ -2290,7 +2291,7 @@ function renderDatabaseTable() {
   if (!wrap) return;
 
   const rows = getFilteredDatabaseRows();
-  const { agentNameById, sectorCodeById, airlineLabelById } = getDatabaseLookupMaps();
+  const { agentNameById, sectorCodeById, airlineLabelById, airlineCodeById } = getDatabaseLookupMaps();
   const totalEl = document.getElementById('database-total-count');
   if (totalEl) totalEl.textContent = rows.length.toLocaleString();
 
@@ -2362,6 +2363,7 @@ function renderDatabaseTable() {
           const agentName = agentNameById[fare.agentId] || fare.agentId;
           const sectorName = sectorCodeById[fare.sectorId] || fare.sectorId;
           const airlineName = airlineLabelById[fare.airlineId] || fare.airlineId;
+          const airlineCode = airlineCodeById[fare.airlineId] || fare.airlineId;
           
           const dateStr = fare.flightDate instanceof Date
             ? fare.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
@@ -2407,7 +2409,7 @@ function renderDatabaseTable() {
                   <option value="">No Airline</option>
                   ${buildAirlineOptions(fare.airlineId)}
                 </select>
-                ` : escapeHtml(airlineName)}
+                ` : escapeHtml(airlineCode)}
               </td>
               <td class="whitespace-nowrap text-[12px]">
                 ${isEditing ? `
@@ -2419,7 +2421,7 @@ function renderDatabaseTable() {
               <td class="whitespace-nowrap text-[12px]">
                 ${isEditing ? `
                 <select data-db-field="extraBaggage" class="db-cell-select min-w-[90px]">
-                  ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, toSafeNumber(fare.extraBaggage, 0))}
+                  ${buildKgOptionsHtml(ETICKET_CABIN_BAG_OPTIONS, toSafeNumber(fare.extraBaggage, 0))}
                 </select>
                 ` : (fare.extraBaggage ? fare.extraBaggage + ' kg' : '—')}
               </td>
