@@ -91,8 +91,6 @@ web/
 - **Table Controls** — "Show N entries" dropdown (10, 25, 50, 100, All) and a real-time Search bar (filters by name, email, phone, or ID).
 - **Pagination** — Previous/Next/page-number controls that integrate seamlessly with the search and entries limit.
 - **Hide All / Show All** — calls `bulkToggleAgentVisibility` Cloud Function, which updates the agent's `isActive` flag AND toggles `isHidden` on all their fares at once
-- **Bulk Delete Fares** — deletes fares matching any combination of optional filters: Agent, Sector, Start Date, End Date. At least one filter must be set. Calls `bulkDeleteFares` Cloud Function.
-- Confirm dialog shows a human-readable summary of the exact filter combination before deletion
 - Data from Firestore `agents` collection
 - **Table columns:** ID · Name · Email · Phone · **Commission** · Status · Actions
 
@@ -140,6 +138,7 @@ web/
 - **Spreadsheet View for `agent_fares`** — dedicated sheet-style table for admins to manage all fare rows in one place.
 - **Inline Editing** — editable cells for date, time, agent, sector, airline, **SP Rate + Commission**, baggage, extra baggage, and status.
 - **Rate Formula** — `Final Rate` is auto-calculated in-sheet as `SP Rate + Commission` (read-only field).
+- **Baggage Inputs** — `Baggage` and `Extra Baggage` use dropdowns powered by the same baggage option set used in the E-Ticket flow.
 - **Row Actions** — per-row Save, Reset, and Delete controls.
 - **Bulk Operations** — multi-select checkboxes + **Delete Selected** action.
 - **Save All Workflow** — tracks unsaved rows and allows saving all pending edits in one action.
@@ -341,4 +340,4 @@ npx firebase-tools@latest deploy --only hosting
 
 ---
 
-_Last audited: 2026-03-14 — Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal), removed fare edit controls from Reports, and set Database tab rate logic to `Final Rate = SP Rate + Commission`._
+_Last audited: 2026-03-14 — Added Database tab with sheet-style fare management (inline edit, save-all, row/bulk delete, filters, and add-fare modal), removed fare edit controls from Reports and bulk fare delete controls from Agents, and set Database tab rate logic to `Final Rate = SP Rate + Commission`._

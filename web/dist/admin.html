@@ -26,11 +26,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-  <script type="module" crossorigin src="/assets/admin-Cc5zNVWe.js"></script>
+  <script type="module" crossorigin src="/assets/admin-BkXfwOwr.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/firebase-config-zYKzaodH.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-DrXkAved.js">
-  <link rel="modulepreload" crossorigin href="/assets/db-DzAbaNrJ.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-BLTsEA2e.css">
+  <link rel="modulepreload" crossorigin href="/assets/auth-DpPgmvBs.js">
+  <link rel="modulepreload" crossorigin href="/assets/db-KU_q4EDz.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-D4ipUhHW.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -50,29 +50,29 @@
                     </div>
 
                     <!-- Main Navigation Links -->
-                    <div class="hidden sm:flex space-x-6 h-full items-center">
+                    <div class="hidden sm:flex space-x-5 h-full items-center">
                         <a href="#" data-tab="dashboard-tab" data-title="Poster"
-                            class="nav-link active text-primary hover:text-primary font-medium text-[14px]">Poster</a>
+                            class="nav-link active text-primary hover:text-primary font-medium text-[14px]"><i class="bi bi-image"></i><span>Poster</span></a>
                         <a href="#" data-tab="agent-sheets-tab" data-title="Rate Upload"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Rate Upload</a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-cloud-arrow-up"></i><span>Rate Upload</span></a>
                         <a href="#" data-tab="eticket-tab" data-title="E-Ticket"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">E-Ticket</a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-ticket-perforated"></i><span>E-Ticket</span></a>
                         <a href="#" data-tab="reports-tab" data-title="Reports"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Reports</a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-bar-chart-line"></i><span>Reports</span></a>
                         <a href="#" data-tab="database-tab" data-title="Database"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Database</a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-table"></i><span>Database</span></a>
                         <a href="#" data-tab="agents-tab" data-title="Agents"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Agents</a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-people"></i><span>Agents</span></a>
                         <a href="#" data-tab="sectors-tab" data-title="Sectors"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Sectors</a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-signpost-split"></i><span>Sectors</span></a>
                         <a href="#" data-tab="flights-tab" data-title="Flights"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]">Flights</a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-airplane"></i><span>Flights</span></a>
                     </div>
                 </div>
 
                 <!-- Admin Profile & Logout -->
                 <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-2 border border-border rounded-md px-3 py-1.5 text-[13px] bg-white/50">
+                    <div class="flex items-center gap-2 border border-border/80 rounded-lg px-3.5 py-1.5 text-[13px] bg-white/70 shadow-[0_10px_20px_-18px_rgba(15,23,42,0.55)]">
                         <i class="bi bi-person-circle text-primary text-base"></i>
                         <span id="admin-user-name" class="text-text-muted font-medium">Admin</span>
                     </div>
@@ -210,51 +210,22 @@
 
         <!-- AGENTS TAB -->
         <div id="agents-tab" class="tab-content">
-            <div class="flex justify-between items-center mb-6">
-                <div></div>
+            <div class="admin-tab-head mb-6">
+                <div>
+                    <span class="admin-tab-kicker"><i class="bi bi-people-fill"></i> Directory</span>
+                    <h2 class="admin-tab-title">Agent Management</h2>
+                    <p class="admin-tab-subtitle">Manage agent identities, commissions, and public visibility with fast in-table controls.</p>
+                </div>
                 <button id="agents-add-btn"
-                    class="admin-btn admin-btn-secondary h-[42px] px-5">+
+                    class="admin-btn admin-btn-primary h-[42px] px-5"><i class="bi bi-person-plus-fill"></i>
                     Add Agent</button>
             </div>
 
-            <div class="admin-panel p-6 text-text-main mb-8">
-                <h3 class="font-bold text-text-soft mb-6 text-sm uppercase tracking-wide">Bulk Delete Fares
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                    <div>
-                        <label class="admin-label text-[11px]">Agent <span class="font-normal opacity-60">(optional)</span></label>
-                        <select id="agents-bulk-agent-sel" class="admin-control">
-                            <option value="">All Agents</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="admin-label text-[11px]">Sector <span class="font-normal opacity-60">(optional)</span></label>
-                        <select id="agents-bulk-sector-sel" class="admin-control">
-                            <option value="">All Sectors</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="admin-label text-[11px]">Start Date <span class="font-normal opacity-60">(optional)</span></label>
-                        <input id="agents-bulk-start" type="date"
-                            class="admin-control">
-                    </div>
-                    <div>
-                        <label class="admin-label text-[11px]">End Date <span class="font-normal opacity-60">(optional)</span></label>
-                        <input id="agents-bulk-end" type="date"
-                            class="admin-control">
-                    </div>
-                    <div>
-                        <button id="agents-bulk-delete-btn"
-                            class="admin-btn admin-btn-danger w-full">Bulk
-                            Delete</button>
-                    </div>
-                </div>
-            </div>
-
             <div class="admin-panel p-6 text-text-main">
-                <div class="flex justify-between items-center mb-6">
-                    <div class="text-[14px] flex items-center">
-                        Show <select id="agents-limit" class="mx-2 admin-control admin-control-sm">
+                <div class="admin-toolbar-row mb-6">
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-funnel"></i>
+                        Show <select id="agents-limit" class="mx-1.5 admin-control admin-control-sm">
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50">50</option>
@@ -262,9 +233,10 @@
                             <option value="999999">All</option>
                         </select> entries
                     </div>
-                    <div class="flex items-center text-[14px]">
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-search"></i>
                         Search: <input type="text" id="agents-search"
-                            class="ml-2 admin-control admin-control-sm w-[200px]">
+                            class="ml-1.5 admin-control admin-control-sm w-[220px]" placeholder="Name, email, phone...">
                     </div>
                 </div>
                 <div class="admin-table-container">
@@ -581,17 +553,22 @@ Example:
 
         <!-- SECTORS TAB -->
         <div id="sectors-tab" class="tab-content">
-            <div class="flex justify-between items-center mb-6">
-                <div></div>
+            <div class="flex justify-between items-center admin-tab-head mb-6">
+                <div>
+                    <span class="admin-tab-kicker"><i class="bi bi-signpost-split-fill"></i> Routes</span>
+                    <h2 class="admin-tab-title">Sector Catalog</h2>
+                    <p class="admin-tab-subtitle">Define and maintain active origin-destination sectors used throughout pricing, reports, and tickets.</p>
+                </div>
                 <button
-                    class="admin-btn admin-btn-secondary h-[42px] px-5">+
+                    class="admin-btn admin-btn-primary h-[42px] px-5"><i class="bi bi-plus-circle"></i>
                     Add Sector</button>
             </div>
 
             <div class="admin-panel p-6 text-text-main">
-                <div class="flex justify-between items-center mb-6">
-                    <div class="text-[14px] flex items-center">
-                        Show <select id="sectors-limit" class="mx-2 admin-control admin-control-sm">
+                <div class="admin-toolbar-row mb-6">
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-funnel"></i>
+                        Show <select id="sectors-limit" class="mx-1.5 admin-control admin-control-sm">
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50">50</option>
@@ -599,9 +576,10 @@ Example:
                             <option value="999999">All</option>
                         </select> entries
                     </div>
-                    <div class="flex items-center text-[14px]">
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-search"></i>
                         Search: <input type="text" id="sectors-search"
-                            class="ml-2 admin-control admin-control-sm w-[200px]">
+                            class="ml-1.5 admin-control admin-control-sm w-[220px]" placeholder="From, to, or code...">
                     </div>
                 </div>
 
@@ -627,17 +605,22 @@ Example:
 
         <!-- FLIGHTS TAB -->
         <div id="flights-tab" class="tab-content">
-            <div class="flex justify-between items-center mb-6">
-                <div></div>
+            <div class="flex justify-between items-center admin-tab-head mb-6">
+                <div>
+                    <span class="admin-tab-kicker"><i class="bi bi-airplane-engines-fill"></i> Airlines</span>
+                    <h2 class="admin-tab-title">Flight Brands</h2>
+                    <p class="admin-tab-subtitle">Manage airline identities, IATA codes, and logo assets used in posters and e-tickets.</p>
+                </div>
                 <button
-                    class="admin-btn admin-btn-secondary h-[42px] px-5">+
-                    Add Flight</button>
+                    class="admin-btn admin-btn-primary h-[42px] px-5"><i class="bi bi-plus-circle"></i>
+                    Add Airline</button>
             </div>
 
             <div class="admin-panel p-6 text-text-main">
-                <div class="flex justify-between items-center mb-6">
-                    <div class="text-[14px] flex items-center">
-                        Show <select id="airlines-limit" class="mx-2 admin-control admin-control-sm">
+                <div class="admin-toolbar-row mb-6">
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-funnel"></i>
+                        Show <select id="airlines-limit" class="mx-1.5 admin-control admin-control-sm">
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50">50</option>
@@ -645,9 +628,10 @@ Example:
                             <option value="999999">All</option>
                         </select> entries
                     </div>
-                    <div class="flex items-center text-[14px]">
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-search"></i>
                         Search: <input type="text" id="airlines-search"
-                            class="ml-2 admin-control admin-control-sm w-[200px]">
+                            class="ml-1.5 admin-control admin-control-sm w-[220px]" placeholder="Airline name or IATA code...">
                     </div>
                 </div>
 
@@ -746,12 +730,12 @@ Example:
                     </div>
                 </div>
                 <div class="admin-panel p-5 flex items-center gap-4">
-                    <div class="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
-                        <i class="bi bi-people-fill text-purple-500 text-[18px]"></i>
+                    <div class="w-11 h-11 rounded-xl bg-cyan-50 flex items-center justify-center shrink-0">
+                        <i class="bi bi-people-fill text-cyan-600 text-[18px]"></i>
                     </div>
                     <div>
                         <p class="text-[11px] font-bold uppercase tracking-wider text-text-soft">Agents</p>
-                        <p id="stat-agents-count" class="text-[22px] font-black text-purple-600 leading-tight">—</p>
+                        <p id="stat-agents-count" class="text-[22px] font-black text-cyan-700 leading-tight">—</p>
                     </div>
                 </div>
                 <div class="admin-panel p-5 flex items-center gap-4">
@@ -846,12 +830,12 @@ Example:
                         <i class="bi bi-file-earmark-spreadsheet-fill text-green-500"></i> Export CSV
                     </button>
                 </div>
-                <div id="report-fares-results" class="text-center text-text-muted py-16 px-4">
-                    <div class="inline-flex flex-col items-center gap-3 opacity-50">
-                        <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-                            <i class="bi bi-table text-3xl text-slate-400"></i>
+                <div id="report-fares-results" class="admin-empty-state">
+                    <div class="admin-empty-state-card">
+                        <div class="admin-empty-state-icon">
+                            <i class="bi bi-table"></i>
                         </div>
-                        <p class="font-semibold text-[14px]">No data yet</p>
+                        <p class="admin-empty-state-title">No data yet</p>
                         <p class="text-[12px] max-w-xs">Select filters above and click <strong>Generate Report</strong> to see all matching fares here.</p>
                     </div>
                 </div>
@@ -954,12 +938,12 @@ Example:
                     </div>
                 </div>
                 <div id="database-table-wrap" class="admin-database-wrap">
-                    <div class="text-center text-text-muted py-16 px-4">
-                        <div class="inline-flex flex-col items-center gap-3 opacity-50">
-                            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-                                <i class="bi bi-table text-3xl text-slate-400"></i>
+                    <div class="admin-empty-state">
+                        <div class="admin-empty-state-card">
+                            <div class="admin-empty-state-icon">
+                                <i class="bi bi-table"></i>
                             </div>
-                            <p class="font-semibold text-[14px]">Loading database rows...</p>
+                            <p class="admin-empty-state-title">Loading database rows...</p>
                         </div>
                     </div>
                 </div>

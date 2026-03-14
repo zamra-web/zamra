@@ -12,7 +12,7 @@ import {
   getSectors, addSector, updateSector, deleteSector,
   getAirlines, addAirline, updateAirline, deleteAirline,
   getFares, addFare, saveFares, deleteFare, updateFare,
-  callBulkDeleteFares, callToggleAgentVisibility, callToggleSectorVisibility,
+  callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
 } from './db.js';
 
@@ -64,10 +64,32 @@ function toSafeNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+const ETICKET_CABIN_BAG_OPTIONS = [7, 10];
+const ETICKET_CHECKIN_BAG_OPTIONS = [15, 20, 25, 30, 35, 40];
+
+function buildKgOptionsHtml(options = [], selectedValue = 0) {
+  const selected = Math.max(0, parseBaggageNumber(selectedValue));
+  const unique = [...new Set(options.map(v => Math.max(0, parseBaggageNumber(v))))];
+  if (!unique.includes(selected)) unique.push(selected);
+  unique.sort((a, b) => a - b);
+  return unique
+    .map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v} Kg</option>`)
+    .join('');
+}
+
 function parseBaggageNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   const n = parseFloat(String(value).replace(/[^\d.]/g, ''));
   return Number.isFinite(n) ? n : 0;
+}
+
+function toKgDisplay(value, fallback = '—') {
+  if (value === null || value === undefined || value === '') return fallback;
+  const raw = String(value).trim();
+  if (!raw) return fallback;
+  const isNumericKg = /^\d+(\.\d+)?(\s*kg)?$/i.test(raw);
+  if (isNumericKg) return `${parseBaggageNumber(raw)} Kg`;
+  return raw.toUpperCase();
 }
 
 function asDate(value) {
@@ -296,6 +318,11 @@ async function renderActiveTab() {
   else if (id === 'dashboard-tab') await renderDashboardTab();
   else if (id === 'reports-tab') await renderReportsTab();
   else if (id === 'database-tab') await renderDatabaseTab();
+  else if (id === 'agent-sheets-tab') {
+    buildChips();
+    syncPill();
+    validate();
+  }
   else if (id === 'eticket-tab') await renderETicketTab();
 }
 
@@ -613,12 +640,12 @@ function renderReportFaresTable(fares) {
   if (!target) return;
 
   if (!fares || !fares.length) {
-    target.innerHTML = `<div class="text-center text-text-muted py-14 px-4">
-      <div class="inline-flex flex-col items-center gap-3 opacity-50">
-        <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
-          <i class="bi bi-inbox text-3xl text-slate-400"></i>
+    target.innerHTML = `<div class="admin-empty-state">
+      <div class="admin-empty-state-card">
+        <div class="admin-empty-state-icon">
+          <i class="bi bi-inbox"></i>
         </div>
-        <p class="font-semibold text-[14px]">No fares found</p>
+        <p class="admin-empty-state-title">No fares found</p>
         <p class="text-[12px]">Try adjusting your filters.</p>
       </div>
     </div>`;
@@ -697,10 +724,10 @@ function renderReportFaresTable(fares) {
                 <div class="flex gap-1">
                   <button onclick="window.__toggleFare('${f.id}', ${!f.isHidden})"
                     class="admin-action-btn ${f.isHidden ? 'admin-action-show' : 'admin-action-toggle'}">
-                    ${f.isHidden ? 'Show' : 'Hide'}
+                    <i class="bi ${f.isHidden ? 'bi-eye' : 'bi-eye-slash'}"></i>${f.isHidden ? 'Show' : 'Hide'}
                   </button>
                   <button onclick="window.__deleteFare('${f.id}')"
-                    class="admin-action-btn admin-action-delete">Del</button>
+                    class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Del</button>
                 </div>
               </td>
             </tr>`;
@@ -736,7 +763,7 @@ function renderReportFaresTable(fares) {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AGENTS TAB — Full CRUD + Bulk Delete + Toggle Active
+// AGENTS TAB — Full CRUD + Toggle Active
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderAgentsTab(fetchData = true) {
   if (fetchData) { _agents = await getAgents(); tablePage.agents = 1; }
@@ -771,8 +798,6 @@ async function renderAgentsTab(fetchData = true) {
   // Remove stale wired flag so delegation re-attaches after innerHTML replacement
   delete tbody.dataset.actionsWired;
   wireAgentActions();
-  wireAgentsBulkForm();
-  populateAgentBulkSelect();
 
   // Wire "+ Add Agent" button (by stable ID)
   const addBtn = document.getElementById('agents-add-btn');
@@ -797,11 +822,11 @@ function agentRow(a) {
     <td class="font-semibold text-navy">${comm}</td>
     <td>${statusBadge}</td>
     <td class="flex gap-1 flex-wrap">
-      <button data-action="edit-agent" data-id="${a.id}" class="admin-action-btn admin-action-edit">Edit</button>
-      <button data-action="delete-agent" data-id="${a.id}" class="admin-action-btn admin-action-delete">Delete</button>
+      <button data-action="edit-agent" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+      <button data-action="delete-agent" data-id="${a.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
       <button data-action="toggle-agent" data-id="${a.id}" data-active="${a.isActive !== false}"
         class="admin-action-btn ${a.isActive !== false ? 'admin-action-toggle' : 'admin-action-show'}">
-        ${a.isActive !== false ? 'Hide Fares' : 'Show Fares'}</button>
+        <i class="bi ${a.isActive !== false ? 'bi-eye-slash' : 'bi-eye'}"></i>${a.isActive !== false ? 'Hide Fares' : 'Show Fares'}</button>
     </td>
   </tr>`;
 }
@@ -932,70 +957,6 @@ function openAgentModal(agent) {
   });
 }
 
-function wireAgentsBulkForm() {
-  const bulkBtn = document.getElementById('agents-bulk-delete-btn');
-  if (!bulkBtn || bulkBtn.dataset.wired) return;
-  bulkBtn.dataset.wired = '1';
-
-  bulkBtn.addEventListener('click', async () => {
-    const agentSel  = document.getElementById('agents-bulk-agent-sel');
-    const sectorSel = document.getElementById('agents-bulk-sector-sel');
-    const startInput = document.getElementById('agents-bulk-start');
-    const endInput  = document.getElementById('agents-bulk-end');
-
-    const agentId  = agentSel?.value  || null;
-    const sectorId = sectorSel?.value || null;
-    const startDate = startInput?.value || null;
-    const endDate  = endInput?.value  || null;
-
-    // At least one meaningful filter must be set
-    const hasFilter = (agentId && agentId !== 'all') ||
-                      (sectorId && sectorId !== 'all') ||
-                      startDate || endDate;
-    if (!hasFilter) {
-      toast('warning', 'No Filter', 'Select at least an agent, a sector, or a date range before deleting.');
-      return;
-    }
-
-    // Build a human-readable summary for the confirm dialog
-    const parts = [];
-    if (agentId  && agentId  !== 'all') parts.push(`Agent: ${agentSel.options[agentSel.selectedIndex].text}`);
-    if (sectorId && sectorId !== 'all') parts.push(`Sector: ${sectorSel.options[sectorSel.selectedIndex].text}`);
-    if (startDate) parts.push(`from ${startDate}`);
-    if (endDate)   parts.push(`to ${endDate}`);
-
-    if (!confirm(`Delete ALL matching fares?\n${parts.join(' · ')}\n\nThis cannot be undone.`)) return;
-
-    bulkBtn.disabled = true; bulkBtn.textContent = 'Deleting…';
-    try {
-      const res = await callBulkDeleteFares(agentId, startDate, endDate, sectorId);
-      toast('success', 'Bulk Delete Complete', res.message);
-    } catch (e) { toast('error', 'Bulk Delete Failed', e.message); }
-    finally { bulkBtn.disabled = false; bulkBtn.textContent = 'Bulk Delete'; }
-  });
-}
-
-function populateAgentBulkSelect() {
-  // Agent dropdown
-  const agentSel = document.getElementById('agents-bulk-agent-sel');
-  if (agentSel) {
-    const currentAgent = agentSel.value;
-    agentSel.innerHTML = '<option value="">All Agents</option>';
-    _agents.forEach(a => agentSel.appendChild(new Option(a.name, a.id)));
-    if (currentAgent) agentSel.value = currentAgent;
-  }
-
-  // Sector dropdown
-  const sectorSel = document.getElementById('agents-bulk-sector-sel');
-  if (sectorSel) {
-    const currentSector = sectorSel.value;
-    sectorSel.innerHTML = '<option value="">All Sectors</option>';
-    _sectors.forEach(s => sectorSel.appendChild(new Option(s.sectorCode, s.id)));
-    if (currentSector) sectorSel.value = currentSector;
-  }
-}
-
-
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTORS TAB — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1046,11 +1007,11 @@ function sectorRow(s) {
     <td class="font-semibold">${sector.sectorTo}</td>
     <td><span class="font-mono font-bold text-primary">${sector.sectorCode}</span></td>
     <td class="flex gap-1">
-      <button data-action="edit-sector" data-id="${s.id}" class="admin-action-btn admin-action-edit">Edit</button>
-      <button data-action="delete-sector" data-id="${s.id}" class="admin-action-btn admin-action-delete">Delete</button>
+      <button data-action="edit-sector" data-id="${s.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+      <button data-action="delete-sector" data-id="${s.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
       <button data-action="toggle-sector" data-id="${s.id}" data-hidden="${s.isHidden === true}"
         class="admin-action-btn ${s.isHidden === true ? 'admin-action-show' : 'admin-action-toggle'}">
-        ${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
+        <i class="bi ${s.isHidden === true ? 'bi-eye' : 'bi-eye-slash'}"></i>${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
     </td>
   </tr>`;
 }
@@ -1160,7 +1121,7 @@ async function renderFlightsTab(fetchData = true) {
 
   tbody.innerHTML = pageData.length
     ? pageData.map(a => airlineRow(a)).join('')
-    : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No airlines yet. Click "+ Add Flight".</td></tr>`;
+    : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No airlines yet. Click "Add Airline".</td></tr>`;
 
   renderPaginationFooter('airlines', sorted.length, totalPages, start, limit);
 
@@ -1177,15 +1138,15 @@ async function renderFlightsTab(fetchData = true) {
 
 function airlineRow(a) {
   const logo = a.logoUrl
-    ? `<img src="${a.logoUrl}" class="h-7 w-7 object-contain rounded" alt="${a.name}">`
-    : `<span class="w-7 h-7 bg-primary-light text-primary text-xs font-bold rounded flex items-center justify-center">${a.code}</span>`;
+    ? `<span class="admin-logo-wrap"><img src="${a.logoUrl}" alt="${escapeHtml(a.name || 'Airline')}"></span>`
+    : `<span class="admin-logo-wrap"><span class="admin-logo-fallback">${escapeHtml((a.code || 'NA').slice(0, 3))}</span></span>`;
   return `<tr data-airline-id="${a.id}">
     <td>${logo}</td>
     <td class="font-semibold">${a.name}</td>
     <td><span class="font-mono font-bold text-primary">${a.code}</span></td>
     <td class="flex gap-1">
-      <button data-action="edit-airline" data-id="${a.id}" class="admin-action-btn admin-action-edit">Edit</button>
-      <button data-action="delete-airline" data-id="${a.id}" class="admin-action-btn admin-action-delete">Delete</button>
+      <button data-action="edit-airline" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+      <button data-action="delete-airline" data-id="${a.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
     </td>
   </tr>`;
 }
@@ -1593,9 +1554,11 @@ function renderLeaderboards(agentReport, sectorReport) {
     const maxCount = top[0].count || 1;
     agentsEl.innerHTML = top.map((a, i) => {
       const pct = Math.max(6, Math.round((a.count / maxCount) * 100));
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      const rankBadge = i === 0
+        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#fff7ed;color:#b45309;border:1px solid #fed7aa;"><i class="bi bi-trophy-fill" style="font-size:12px;"></i></span>`
+        : `<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;font-size:11px;font-weight:800;">#${i + 1}</span>`;
       return `<div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:16px;width:28px;text-align:center;flex-shrink:0;">${medal}</span>
+        <span style="width:28px;text-align:center;flex-shrink:0;">${rankBadge}</span>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px;">
             <span class="truncate">${a.name}</span>
@@ -2172,12 +2135,12 @@ function renderDatabaseTable() {
   const pageData = rows.slice(start, start + limit);
 
   if (!pageData.length) {
-    wrap.innerHTML = `<div class="text-center text-text-muted py-16 px-4">
-      <div class="inline-flex flex-col items-center gap-3 opacity-60">
-        <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
-          <i class="bi bi-database text-3xl text-slate-400"></i>
+    wrap.innerHTML = `<div class="admin-empty-state">
+      <div class="admin-empty-state-card">
+        <div class="admin-empty-state-icon">
+          <i class="bi bi-database"></i>
         </div>
-        <p class="font-semibold text-[14px]">No fares matched your filter</p>
+        <p class="admin-empty-state-title">No fares matched your filter</p>
       </div>
     </div>`;
     renderPaginationFooter('databaseFares', rows.length, totalPages, start, limit);
@@ -2268,10 +2231,14 @@ function renderDatabaseTable() {
                 <input type="number" data-db-field="commission" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.commission, 0)}" min="0" step="1">
               </td>
               <td>
-                <input type="number" data-db-field="baggage" class="db-cell-input db-cell-num" value="${parseBaggageNumber(fare.baggage)}" min="0" step="1">
+                <select data-db-field="baggage" class="db-cell-select min-w-[110px]">
+                  ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, parseBaggageNumber(fare.baggage))}
+                </select>
               </td>
               <td>
-                <input type="number" data-db-field="extraBaggage" class="db-cell-input db-cell-num" value="${toSafeNumber(fare.extraBaggage, 0)}" min="0" step="1">
+                <select data-db-field="extraBaggage" class="db-cell-select min-w-[110px]">
+                  ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, toSafeNumber(fare.extraBaggage, 0))}
+                </select>
               </td>
               <td>
                 <select data-db-field="isHidden" class="db-cell-select min-w-[94px]">
@@ -2281,9 +2248,9 @@ function renderDatabaseTable() {
               </td>
               <td>
                 <div class="flex gap-1">
-                  <button data-db-action="save" data-id="${fare.id}" class="admin-action-btn admin-action-edit" ${dirty ? '' : 'disabled'}>Save</button>
-                  <button data-db-action="reset" data-id="${fare.id}" class="admin-action-btn admin-action-toggle" ${dirty ? '' : 'disabled'}>Reset</button>
-                  <button data-db-action="delete" data-id="${fare.id}" class="admin-action-btn admin-action-delete">Delete</button>
+                  <button data-db-action="save" data-id="${fare.id}" class="admin-action-btn admin-action-edit" ${dirty ? '' : 'disabled'}><i class="bi bi-check2-circle"></i>Save</button>
+                  <button data-db-action="reset" data-id="${fare.id}" class="admin-action-btn admin-action-toggle" ${dirty ? '' : 'disabled'}><i class="bi bi-arrow-counterclockwise"></i>Reset</button>
+                  <button data-db-action="delete" data-id="${fare.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
                 </div>
               </td>
             </tr>
@@ -2481,11 +2448,15 @@ function openDatabaseAddFareModal() {
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="admin-label text-[10px] mb-1">Baggage (kg)</label>
-          <input id="db-add-bag" type="number" class="admin-control h-10" min="0" step="1" value="0">
+          <select id="db-add-bag" class="admin-control h-10">
+            ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 30)}
+          </select>
         </div>
         <div>
           <label class="admin-label text-[10px] mb-1">Extra Baggage (kg)</label>
-          <input id="db-add-exbag" type="number" class="admin-control h-10" min="0" step="1" value="0">
+          <select id="db-add-exbag" class="admin-control h-10">
+            ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 0)}
+          </select>
         </div>
       </div>
 
@@ -2620,7 +2591,8 @@ function initAgentSheets() {
 // Build agent chips from Firestore agents list
 function buildChips() {
   const cGrid = document.getElementById('chipGrid');
-  if (!cGrid || cGrid.children.length > 0) return;
+  if (!cGrid) return;
+  cGrid.innerHTML = '';
 
   const chipAgents = _agents.length ? [..._agents].sort((a, b) => {
     const numA = parseInt(a.id);
@@ -2630,8 +2602,15 @@ function buildChips() {
   }) : [];
 
   if (!chipAgents.length) {
+    selAgent = null;
     cGrid.innerHTML = `<p class="text-sm text-text-muted">No agents found. Add agents in the Agents tab first.</p>`;
+    syncPill();
+    validate();
     return;
+  }
+
+  if (selAgent && !chipAgents.some(agent => agent.id === selAgent)) {
+    selAgent = null;
   }
 
   chipAgents.forEach(agent => {
@@ -2639,9 +2618,13 @@ function buildChips() {
     c.className = 'rp-chip';
     c.dataset.agentId = agent.id;
     c.textContent = agent.id;
+    if (agent.id === selAgent) c.classList.add('on');
     c.addEventListener('click', () => pickAgent(agent.id, agent.name, c));
     cGrid.appendChild(c);
   });
+
+  syncPill();
+  validate();
 }
 
 
@@ -2943,20 +2926,14 @@ async function renderETicketTab() {
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Cabin Bag</label>
               <select name="paxCarryBag[]" class="admin-control h-10">
-                <option value="7 Kg" selected>7 Kg</option>
-                <option value="10 Kg">10 Kg</option>
+                ${buildKgOptionsHtml(ETICKET_CABIN_BAG_OPTIONS, 7)}
               </select>
             </div>
 
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Check-in Bag</label>
               <select name="paxCheckBag[]" class="admin-control h-10">
-                <option value="15 Kg">15 Kg</option>
-                <option value="20 Kg">20 Kg</option>
-                <option value="25 Kg">25 Kg</option>
-                <option value="30 Kg" selected>30 Kg</option>
-                <option value="35 Kg">35 Kg</option>
-                <option value="40 Kg">40 Kg</option>
+                ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 30)}
               </select>
             </div>
           </div>
@@ -3153,8 +3130,8 @@ async function generateETicket(formData) {
       const title = escapeHtml((paxTitles[i] || 'MR').toUpperCase());
       const name = escapeHtml((paxNames[i] || '').toUpperCase());
       const type = escapeHtml((paxTypes[i] || 'ADT').toUpperCase());
-      const checkBag = escapeHtml((paxCheckBag[i] || '—').toUpperCase());
-      const carryBag = escapeHtml((paxCarryBag[i] || '—').toUpperCase());
+      const checkBag = escapeHtml(toKgDisplay(paxCheckBag[i]));
+      const carryBag = escapeHtml(toKgDisplay(paxCarryBag[i]));
       const segment = matchedSector && matchedSector.sectorCode
         ? escapeHtml(matchedSector.sectorCode.toUpperCase())
         : escapeHtml(routeCode);
@@ -3230,16 +3207,16 @@ function toast(type, title, msg) {
   const tEl = document.getElementById('toastsEl');
   if (!tEl) return;
   const el = document.createElement('div');
-  const styles = { 
-    success:'border-green-500 bg-green-50 text-green-800', 
-    error:'border-red-500 bg-red-50 text-red-800', 
-    warning:'border-yellow-500 bg-yellow-50 text-yellow-800',
-    info:'border-primary bg-primary/10 text-[var(--color-primary-dark)]'
+  const styles = {
+    success: 'border-emerald-200 bg-emerald-50/95 text-emerald-900',
+    error: 'border-rose-200 bg-rose-50/95 text-rose-900',
+    warning: 'border-amber-200 bg-amber-50/95 text-amber-900',
+    info: 'border-blue-200 bg-blue-50/95 text-blue-900'
   };
-  el.className = `flex items-start gap-3 p-4 border-l-4 rounded shadow-md w-80 pointer-events-auto ${styles[type] || styles.error}`;
-  el.innerHTML = `<div class="mt-0.5">${TICONS[type]||TICONS.error}</div>
+  el.className = `flex items-start gap-3 p-4 border rounded-xl shadow-md w-80 pointer-events-auto backdrop-blur-sm ${styles[type] || styles.error}`;
+  el.innerHTML = `<div class="mt-0.5">${TICONS[type] || TICONS.error}</div>
     <div class="flex-1"><div class="font-bold text-sm leading-tight">${title}</div><div class="text-xs opacity-90 mt-1">${msg}</div></div>
-    <button class="opacity-50 hover:opacity-100" onclick="this.closest('div').remove()">
+    <button class="opacity-50 hover:opacity-100 transition-opacity" onclick="this.closest('div').remove()">
       <svg viewBox="0 0 12 12" fill="none" class="w-3 h-3"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
     </button>`;
   tEl.appendChild(el);
