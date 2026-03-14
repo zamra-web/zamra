@@ -50,7 +50,7 @@ web/
 ├── hajj-umrah.html             # Hajj & Umrah packages page
 ├── login.html                  # Admin login page
 ├── admin.html                  # Admin dashboard (auth-gated)
-├── vite.config.js              # Multi-page Vite config (index + login + admin)
+├── vite.config.js              # Multi-page Vite config (all HTML entrypoints)
 ├── package.json                # Dependencies: vite, tailwindcss, firebase
 │
 ├── public/
@@ -75,6 +75,7 @@ web/
             ├── auth.js             # onAuthChange, logoutUser helpers
             ├── login.js            # Login page logic
             ├── db.js               # Firestore + Storage service layer
+            ├── video-export.js     # Video poster export (Canvas + MediaRecorder)
             └── main.js             # Admin dashboard logic (all tabs)
 ```
 
@@ -203,7 +204,7 @@ All components use these tokens via Tailwind utility classes. Custom vanilla CSS
 ## Asset Management
 
 - **All images are local** — stored in `web/public/assets/img/`
-- External images (Unsplash, Zamra CDN) were migrated via `download_images.sh`
+- External images (Unsplash, Zamra CDN) were migrated into `web/public/assets/img/` (no external URLs)
 - Reference assets in HTML/JS as `/assets/img/filename.jpg` (Vite serves `public/` from root)
 
 ---

@@ -66,8 +66,13 @@ zamra/                              # Firebase project root — run firebase CLI
 │
 ├── functions/                      # Cloud Functions (Node.js 22)
 │   ├── index.js                    # bulkDeleteFares, bulkToggleAgentVisibility,
-│   │                               # bulkToggleSectorVisibility, generateAgentReport, ingestFaresFromN8n
+│   │                               # bulkToggleSectorVisibility, generateAgentReport (callable),
+│   │                               # ingestFaresFromN8n (HTTPS onRequest)
 │   └── package.json                # firebase-admin, firebase-functions
+│
+├── scripts/                        # One-off maintenance scripts
+│   ├── remove-processing-time.cjs  # REST-based cleanup: removes `processingTime` from visa docs
+│   └── remove-processing-time.js   # Admin SDK variant (legacy)
 │
 └── web/                            # ★ Vite project root — all website/dashboard code
     ├── index.html                  # Public homepage
@@ -97,6 +102,7 @@ zamra/                              # Firebase project root — run firebase CLI
                 ├── auth.js             # Auth state helpers
                 ├── login.js            # Login page
                 ├── db.js               # ★ All Firestore + Storage operations
+                ├── video-export.js     # Video poster export (Canvas + MediaRecorder)
                 └── main.js             # ★ All dashboard tab controllers
 ```
 
@@ -127,7 +133,8 @@ zamra/                              # Firebase project root — run firebase CLI
 
 ### Working on Cloud Functions
 - Functions live in `functions/index.js`
-- All functions are HTTPS Callable and require `admin: true` custom claim
+- Callable (onCall) functions are HTTPS Callable and require `admin: true` custom claim
+- `ingestFaresFromN8n` is an HTTPS onRequest endpoint secured via Bearer token (n8n → Firestore ingest)
 - Deploy with: `npx firebase-tools@latest deploy --only functions`
 
 ### Security Rules
@@ -140,7 +147,7 @@ zamra/                              # Firebase project root — run firebase CLI
 ## Asset Management
 
 - **All images are local** — stored in `web/public/assets/img/`
-- External images were migrated from Unsplash/CDN using `download_images.sh`
+- External images were migrated into `web/public/assets/img/` (no external image URLs)
 - Reference in code as `/assets/img/filename.jpg`
 - Airline/agent logos are uploaded to **Firebase Storage** via the admin dashboard and stored as URLs in Firestore
 - **Country flag images** for the Visas tab are stored in `country_flags/` in Firebase Storage — same pattern as `airline_logos/`

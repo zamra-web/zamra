@@ -6,15 +6,15 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2020,
   },
-  extends: ['eslint:recommended'],
+  extends: ["eslint:recommended"],
   rules: {
-    'no-restricted-globals': ['error', 'name', 'length'],
-    'prefer-arrow-callback': 'error',
+    "no-restricted-globals": ["error", "name", "length"],
+    "prefer-arrow-callback": "error",
     "quotes": ["error", "double"],
   },
   overrides: [
     {
-      files: ['**/*.spec.*'],
+      files: ["**/*.spec.*"],
       env: { mocha: true },
       rules: {},
     },

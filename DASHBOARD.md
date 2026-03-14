@@ -10,7 +10,6 @@ The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gate
 
 **Live URL:** https://zamra.vercel.app/admin.html  
 **Access:** Requires a Firebase account with `admin: true` custom claim.  
-**Current Admin:** `sahal@admin.com`
 
 ---
 
@@ -48,7 +47,8 @@ zamra/                          # Firebase project root
 ├── .firebaserc                 # Links CLI to zamra-web project
 │
 └── functions/                  # Cloud Functions (Node.js 22, 2nd Gen)
-    ├── index.js                # 4 callable functions
+    ├── index.js                # 4 callable functions + 1 onRequest ingest endpoint
+    ├── .eslintrc.js             # Functions lint config
     └── package.json            # firebase-admin, firebase-functions deps
 ```
 
@@ -66,6 +66,7 @@ web/
         ├── auth.js                     # onAuthChange(), logoutUser()
         ├── login.js                    # Login page logic
         ├── db.js                       # ★ Firestore + Storage service layer (all CRUD)
+        ├── video-export.js             # Video poster export (Canvas + MediaRecorder)
         └── main.js                     # ★ All tab controllers + modal + toast system
 ```
 
@@ -360,8 +361,9 @@ web/
 
 ## Cloud Functions
 
-All 4 functions are **HTTPS Callable**, deployed to `asia-south1`, running on **Node.js 22 (2nd Gen)**.  
-All require `admin: true` custom claim — enforced server-side via `requireAdmin()` helper.
+4 functions are **HTTPS Callable**, deployed to `asia-south1`, running on **Node.js 22 (2nd Gen)**.  
+They require `admin: true` custom claim — enforced server-side via `requireAdmin()` helper.  
+`ingestFaresFromN8n` is an **HTTPS onRequest** endpoint secured via Bearer token (used by n8n).
 
 | Function | What it does |
 |---|---|

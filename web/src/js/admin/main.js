@@ -173,7 +173,7 @@ const databaseFilters = {
 function applySortAndFilter(data, tab) {
   let filtered = data;
   const q = tableSearch[tab]?.toLowerCase();
-  
+
   if (q && tab === 'agents') {
     filtered = filtered.filter(a =>
       (a.name || '').toLowerCase().includes(q) ||
@@ -182,34 +182,34 @@ function applySortAndFilter(data, tab) {
       (a.id || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'sectors') {
-    filtered = filtered.filter(s => 
-      (s.sectorFrom || '').toLowerCase().includes(q) || 
-      (s.sectorTo || '').toLowerCase().includes(q) || 
+    filtered = filtered.filter(s =>
+      (s.sectorFrom || '').toLowerCase().includes(q) ||
+      (s.sectorTo || '').toLowerCase().includes(q) ||
       (s.sectorCode || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'airlines') {
-    filtered = filtered.filter(s => 
-      (s.name || '').toLowerCase().includes(q) || 
+    filtered = filtered.filter(s =>
+      (s.name || '').toLowerCase().includes(q) ||
       (s.code || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'visas') {
-    filtered = filtered.filter(v => 
-      (v.countryName || '').toLowerCase().includes(q) || 
+    filtered = filtered.filter(v =>
+      (v.countryName || '').toLowerCase().includes(q) ||
       (v.visaType || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'visaStampings') {
-    filtered = filtered.filter(v => 
-      (v.country || '').toLowerCase().includes(q) || 
+    filtered = filtered.filter(v =>
+      (v.country || '').toLowerCase().includes(q) ||
       (v.description || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'attestations') {
-    filtered = filtered.filter(v => 
-      (v.country || '').toLowerCase().includes(q) || 
+    filtered = filtered.filter(v =>
+      (v.country || '').toLowerCase().includes(q) ||
       (v.certificate || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'passportServices') {
-    filtered = filtered.filter(v => 
-      (v.type || '').toLowerCase().includes(q) || 
+    filtered = filtered.filter(v =>
+      (v.type || '').toLowerCase().includes(q) ||
       (v.description || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'tours') {
@@ -469,7 +469,7 @@ async function renderDashboardTab() {
     // Wire up download buttons
     document.getElementById('poster-download-jpg')?.addEventListener('click', () => downloadPoster('jpeg'));
     document.getElementById('poster-download-pdf')?.addEventListener('click', () => downloadPoster('pdf'));
-    
+
     // Wire up video download buttons
     document.getElementById('poster-download-vid-1x1')?.addEventListener('click', () => handleVideoPoster('1x1'));
     document.getElementById('poster-download-vid-9x16')?.addEventListener('click', () => handleVideoPoster('9x16'));
@@ -489,7 +489,7 @@ async function handleVideoPoster(ratio) {
     toast('warning', 'Validation Error', 'Please select a sector to generate the poster.');
     return;
   }
-  
+
   try {
     const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
     if (!fares || !fares.length) {
@@ -598,7 +598,7 @@ async function renderPoster(fares, sectorId) {
   const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))]
     .map(id => getAirline(id))
     .filter(a => a && a.logoUrl);
-  
+
   const blobUrlMap = {};
   await Promise.all(uniqueAirlines.map(async a => {
     const blobUrl = await fetchLogoBlob(a.logoUrl);
@@ -646,7 +646,7 @@ async function renderPoster(fares, sectorId) {
       const dt = f.flightDate instanceof Date
         ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
         : f.flightDate;
-      
+
       const airline = getAirline(f.airlineId);
       const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
       const logoSrc = airline ? blobUrlMap[airline.id] : null;
@@ -758,7 +758,7 @@ function inlineColorsForCanvas(el) {
     const val = cs.getPropertyValue(prop);
     // Only override if the value isn't already a plain rgb/rgba/hex value
     if (val && !val.startsWith('rgb') && !val.startsWith('#') && val !== 'transparent' && val !== 'initial') {
-      try { el.style[prop] = val; } catch (_) {}
+      try { el.style[prop] = val; } catch (_) { }
     }
   }
   // Recursively handle children
@@ -842,7 +842,7 @@ async function downloadPoster(format) {
 
         // Convert canvas px → mm (96 dpi screen, scale:2 → 192 dpi effective)
         const PX_PER_MM = 96 / 25.4;           // ~3.779 px/mm at 1×
-        const widthMm  = (canvas.width  / 2) / PX_PER_MM;
+        const widthMm = (canvas.width / 2) / PX_PER_MM;
         const heightMm = (canvas.height / 2) / PX_PER_MM;
 
         const pdf = new jsPDFCtor({
@@ -899,8 +899,8 @@ function renderReportFaresTable(fares) {
   }
 
   // Build lookup maps
-  const agentMap   = Object.fromEntries(_agents.map(a => [a.id, a.name]));
-  const sectorMap  = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
+  const agentMap = Object.fromEntries(_agents.map(a => [a.id, a.name]));
+  const sectorMap = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
   const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a.code]));
 
   // Sort (pagination-safe — no limit slice here)
@@ -929,26 +929,26 @@ function renderReportFaresTable(fares) {
     <div class="admin-table-container overflow-x-auto w-full rounded-none border-0 shadow-none">
       <table class="admin-table w-full text-sm">
         <thead><tr>
-          ${TH('flightDate','Date')}
-          ${TH('flightTime','Time')}
-          ${TH('sectorId','Sector')}
-          ${TH('airlineId','Airline')}
-          ${TH('agentId','Agent')}
-          ${TH('specialRate','SP Rate (₹)')}
-          ${TH('finalRate','Rate (₹)')}
-          ${TH('commission','Comm (₹)')}
-          ${TH('baggage','Bag')}
-          ${TH('extraBaggage','Ex.Bag')}
-          ${TH('isHidden','Status')}
+          ${TH('flightDate', 'Date')}
+          ${TH('flightTime', 'Time')}
+          ${TH('sectorId', 'Sector')}
+          ${TH('airlineId', 'Airline')}
+          ${TH('agentId', 'Agent')}
+          ${TH('specialRate', 'SP Rate (₹)')}
+          ${TH('finalRate', 'Rate (₹)')}
+          ${TH('commission', 'Comm (₹)')}
+          ${TH('baggage', 'Bag')}
+          ${TH('extraBaggage', 'Ex.Bag')}
+          ${TH('isHidden', 'Status')}
           <th class="whitespace-nowrap">Actions</th>
         </tr></thead>
         <tbody>
           ${pageData.map((f, idx) => {
-            const dateStr = f.flightDate instanceof Date
-              ? f.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
-              : (f.flightDate || '—');
-            const rowBg = idx % 2 === 1 ? 'bg-slate-50/60' : '';
-            return `<tr class="${rowBg} hover:bg-slate-100/80 transition-colors">
+    const dateStr = f.flightDate instanceof Date
+      ? f.flightDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : (f.flightDate || '—');
+    const rowBg = idx % 2 === 1 ? 'bg-slate-50/60' : '';
+    return `<tr class="${rowBg} hover:bg-slate-100/80 transition-colors">
               <td class="whitespace-nowrap font-semibold text-navy text-[13px]">${dateStr}</td>
               <td class="whitespace-nowrap text-text-muted text-[12px]">${f.flightTime || '—'}</td>
               <td class="whitespace-nowrap">
@@ -977,7 +977,7 @@ function renderReportFaresTable(fares) {
                 </div>
               </td>
             </tr>`;
-          }).join('')}
+  }).join('')}
         </tbody>
       </table>
     </div>
@@ -1120,18 +1120,17 @@ function renderPaginationFooter(tabName, total, totalPages, start, limit) {
       <span>Showing ${total ? start + 1 : 0} to ${end} of ${total} entries</span>
       <div class="admin-pagination-wrap">
         <button data-pg-action="prev" class="admin-pagination-btn" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>
-        ${(function() {
-          if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-          if (currentPage <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
-          if (currentPage >= totalPages - 3) return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
-          return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
-        })().map(p =>
-          p === '...' 
-            ? `<span class="admin-pagination-btn" style="cursor:default;opacity:0.5;background:transparent;">...</span>`
-            : `<button data-pg-action="goto" data-pg="${p}" class="admin-pagination-btn ${
-                p === currentPage ? 'admin-pagination-btn-active' : ''
-              }">${p}</button>`
-        ).join('')}
+        ${(function () {
+      if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+      if (currentPage <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
+      if (currentPage >= totalPages - 3) return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+      return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+    })().map(p =>
+      p === '...'
+        ? `<span class="admin-pagination-btn" style="cursor:default;opacity:0.5;background:transparent;">...</span>`
+        : `<button data-pg-action="goto" data-pg="${p}" class="admin-pagination-btn ${p === currentPage ? 'admin-pagination-btn-active' : ''
+        }">${p}</button>`
+    ).join('')}
         <button data-pg-action="next" class="admin-pagination-btn" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
       </div>
     </div>`;
@@ -1217,7 +1216,7 @@ function openAgentModal(agent) {
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderSectorsTab(fetchData = true) {
   if (fetchData) { _sectors = normalizeSectors(await getSectors()); tablePage.sectors = 1; }
-  
+
   // Wire up filter inputs if not already
   const searchInp = document.getElementById('sectors-search');
   const limitSel = document.getElementById('sectors-limit');
@@ -1250,7 +1249,7 @@ async function renderSectorsTab(fetchData = true) {
     addBtn.dataset.wired = '1';
     addBtn.addEventListener('click', () => openSectorModal(null));
   }
-  
+
   updateSortIcons('sectors');
 }
 
@@ -1387,7 +1386,7 @@ async function renderFlightsTab(fetchData = true) {
     addBtn.dataset.wired = '1';
     addBtn.addEventListener('click', () => openAirlineModal(null));
   }
-  
+
   updateSortIcons('airlines');
 }
 
@@ -1521,7 +1520,7 @@ async function renderReportsTab() {
         // Render the detailed fares table
         tablePage.reportFares = 1;
         renderReportFaresTable(_reportFares);
-        
+
       } catch (e) { toast('error', 'Report Failed', e.message); }
       finally {
         fetchBtn.disabled = false;
@@ -1538,14 +1537,14 @@ function renderReportCharts(report, tab) {
   const statsRow = document.getElementById('report-stats-row');
   if (statsRow) {
     statsRow.classList.remove('hidden');
-    const liveFares   = (_reportFares || []).filter(f => !f.isHidden).length;
+    const liveFares = (_reportFares || []).filter(f => !f.isHidden).length;
     const hiddenFares = (_reportFares || []).filter(f => f.isHidden).length;
     const agentsCount = new Set((_reportFares || []).map(f => f.agentId)).size;
     const rates = (_reportFares || []).map(f => f.finalRate || 0).filter(r => r > 0);
     const avgFare = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0;
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val.toLocaleString(); };
-    setEl('stat-total-fares',  totalFares);
-    setEl('stat-live-fares',   liveFares);
+    setEl('stat-total-fares', totalFares);
+    setEl('stat-live-fares', liveFares);
     setEl('stat-hidden-fares', hiddenFares);
     setEl('stat-agents-count', agentsCount);
     const avgEl = document.getElementById('stat-avg-fare');
@@ -1563,8 +1562,8 @@ function renderReportCharts(report, tab) {
   }
 
   // ── Donut Chart (SVG) — Fares per Sector ────────────────────────────────────
-  const donutSvg    = document.getElementById('donut-chart-svg');
-  const legendEl    = document.getElementById('pie-legend');
+  const donutSvg = document.getElementById('donut-chart-svg');
+  const legendEl = document.getElementById('pie-legend');
   if (donutSvg && sectorReport.length) {
     renderDonutChart(sectorReport.slice(0, 8), donutSvg, legendEl);
   }
@@ -1601,9 +1600,9 @@ function renderBarChart(data, container) {
   const chartH = H - PAD.top - PAD.bottom;
   const maxCount = Math.max(...data.map(d => d.count), 1);
   const BRAND_COLORS = [
-    ['#0c4a8a','#3b82f6'],['#065f46','#22c55e'],['#78350f','#f59e0b'],
-    ['#7f1d1d','#ef4444'],['#4c1d95','#8b5cf6'],['#134e4a','#14b8a6'],
-    ['#7c2d12','#f97316'],['#1e293b','#64748b'],
+    ['#0c4a8a', '#3b82f6'], ['#065f46', '#22c55e'], ['#78350f', '#f59e0b'],
+    ['#7f1d1d', '#ef4444'], ['#4c1d95', '#8b5cf6'], ['#134e4a', '#14b8a6'],
+    ['#7c2d12', '#f97316'], ['#1e293b', '#64748b'],
   ];
 
   // Y-axis ticks
@@ -1633,12 +1632,12 @@ function renderBarChart(data, container) {
             <g class="bar-group" data-name="${d.name}" data-count="${d.count}" data-avg="${avgTip}" style="cursor:pointer;">
               <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${barH.toFixed(1)}"
                 rx="6" fill="url(#${gradId})" opacity="0.92"
-                style="transform-origin:${(x + barW/2).toFixed(1)}px ${(PAD.top+chartH).toFixed(1)}px;
-                       animation:barGrow 0.6s cubic-bezier(.34,1.56,.64,1) ${i*0.07}s both;"/>
-              <text x="${(x + barW/2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle"
+                style="transform-origin:${(x + barW / 2).toFixed(1)}px ${(PAD.top + chartH).toFixed(1)}px;
+                       animation:barGrow 0.6s cubic-bezier(.34,1.56,.64,1) ${i * 0.07}s both;"/>
+              <text x="${(x + barW / 2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle"
                 font-size="11" font-weight="900" fill="${c2}">${d.count}</text>
-              <text x="${(x + barW/2).toFixed(1)}" y="${(PAD.top + chartH + 16).toFixed(1)}" text-anchor="middle"
-                font-size="10" font-weight="700" fill="#64748b">${(d.name || '').split(' ')[0].slice(0,8)}</text>
+              <text x="${(x + barW / 2).toFixed(1)}" y="${(PAD.top + chartH + 16).toFixed(1)}" text-anchor="middle"
+                font-size="10" font-weight="700" fill="#64748b">${(d.name || '').split(' ')[0].slice(0, 8)}</text>
             </g>`;
   }).join('');
 
@@ -1667,7 +1666,7 @@ function renderBarChart(data, container) {
         const rect = container.getBoundingClientRect();
         tip.style.display = 'block';
         tip.style.left = (e.clientX - rect.left + 12) + 'px';
-        tip.style.top  = (e.clientY - rect.top  - 40) + 'px';
+        tip.style.top = (e.clientY - rect.top - 40) + 'px';
         const avg = g.dataset.avg ? `<br><span style="opacity:.7;font-weight:500;">${g.dataset.avg}</span>` : '';
         tip.innerHTML = `${g.dataset.name}<br><span style="color:#60a5fa;">${g.dataset.count} fares</span>${avg}`;
       });
@@ -1678,7 +1677,7 @@ function renderBarChart(data, container) {
 
 // ── SVG Donut Chart ───────────────────────────────────────────────────────────
 function renderDonutChart(data, svg, legendEl) {
-  const COLORS = ['#1558c0','#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316'];
+  const COLORS = ['#1558c0', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316'];
   const CX = 110, CY = 110, R_OUTER = 95, R_INNER = 60;
   const total = data.reduce((s, r) => s + r.count, 0);
 
@@ -1760,7 +1759,7 @@ function renderDonutChart(data, svg, legendEl) {
 
   pathEls.forEach((el, i) => {
     el.addEventListener('mouseover', () => { highlight(i); highlightLegend(i); });
-    el.addEventListener('mouseout',  () => { highlight(-1); highlightLegend(-1); });
+    el.addEventListener('mouseout', () => { highlight(-1); highlightLegend(-1); });
   });
 
   // Legend
@@ -1784,7 +1783,7 @@ function renderDonutChart(data, svg, legendEl) {
 
     legendEl.querySelectorAll('.legend-row').forEach((row, i) => {
       row.addEventListener('mouseover', () => { highlight(i); highlightLegendRows(i); });
-      row.addEventListener('mouseout',  () => { highlight(-1); highlightLegendRows(-1); });
+      row.addEventListener('mouseout', () => { highlight(-1); highlightLegendRows(-1); });
     });
   }
 
@@ -1795,7 +1794,7 @@ function renderDonutChart(data, svg, legendEl) {
 
 // ── Leaderboard Cards ─────────────────────────────────────────────────────────
 function renderLeaderboards(agentReport, sectorReport) {
-  const BRAND = ['#1558c0','#3b82f6','#22c55e','#f59e0b','#ef4444'];
+  const BRAND = ['#1558c0', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444'];
 
   // Top agents by count
   const agentsEl = document.getElementById('leaderboard-agents');
@@ -1832,7 +1831,7 @@ function renderLeaderboards(agentReport, sectorReport) {
     sectorsEl.innerHTML = sorted.map((s, i) => {
       const pct = maxRate > minRate ? Math.max(6, Math.round(((s.avgRate - minRate) / (maxRate - minRate)) * 100)) : 50;
       return `<div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12px;font-weight:900;color:#94a3b8;width:20px;text-align:center;flex-shrink:0;">${i+1}</span>
+        <span style="font-size:12px;font-weight:900;color:#94a3b8;width:20px;text-align:center;flex-shrink:0;">${i + 1}</span>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px;">
             <span class="truncate">${s.name}</span>
@@ -1848,49 +1847,49 @@ function renderLeaderboards(agentReport, sectorReport) {
 }
 
 function downloadReportCSV(fares) {
-    if (!fares || !fares.length) {
-        toast('warning', 'No Data', 'No fares to export. Apply filters and fetch first.');
-        return;
-    }
+  if (!fares || !fares.length) {
+    toast('warning', 'No Data', 'No fares to export. Apply filters and fetch first.');
+    return;
+  }
 
-    const agentMap  = Object.fromEntries(_agents.map(a  => [a.id, a.name]));
-    const sectorMap = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
-    const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a.code || a.name]));
+  const agentMap = Object.fromEntries(_agents.map(a => [a.id, a.name]));
+  const sectorMap = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
+  const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a.code || a.name]));
 
-    // Helper: escape a value for CSV (wrap in quotes, escape internal quotes)
-    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  // Helper: escape a value for CSV (wrap in quotes, escape internal quotes)
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-    const headers = ['Date', 'Time', 'Sector', 'Airline', 'Agent', 'SP Rate (INR)', 'Rate (INR)', 'Commission (INR)', 'Baggage (kg)', 'Extra Baggage (kg)', 'Status'];
-    const rows = fares.map(f => {
-        const dt = f.flightDate instanceof Date
-            ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-            : (f.flightDate || '');
-        return [
-            esc(dt),
-            esc(f.flightTime || ''),
-            esc(sectorMap[f.sectorId] || f.sectorId),
-            esc(airlineMap[f.airlineId] || f.airlineId),
-            esc(agentMap[f.agentId] || f.agentId),
-            esc(f.specialRate || 0),
-            esc(f.finalRate || 0),
-            esc(f.commission || 0),
-            esc(f.baggage || ''),
-            esc(f.extraBaggage || ''),
-            esc(f.isHidden ? 'Hidden' : 'Live')
-        ].join(',');
-    });
+  const headers = ['Date', 'Time', 'Sector', 'Airline', 'Agent', 'SP Rate (INR)', 'Rate (INR)', 'Commission (INR)', 'Baggage (kg)', 'Extra Baggage (kg)', 'Status'];
+  const rows = fares.map(f => {
+    const dt = f.flightDate instanceof Date
+      ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : (f.flightDate || '');
+    return [
+      esc(dt),
+      esc(f.flightTime || ''),
+      esc(sectorMap[f.sectorId] || f.sectorId),
+      esc(airlineMap[f.airlineId] || f.airlineId),
+      esc(agentMap[f.agentId] || f.agentId),
+      esc(f.specialRate || 0),
+      esc(f.finalRate || 0),
+      esc(f.commission || 0),
+      esc(f.baggage || ''),
+      esc(f.extraBaggage || ''),
+      esc(f.isHidden ? 'Hidden' : 'Live')
+    ].join(',');
+  });
 
-    const csv = [headers.map(esc).join(','), ...rows].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `zamra-fares-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast('success', 'CSV Downloaded', `${fares.length} fares exported.`);
+  const csv = [headers.map(esc).join(','), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `zamra-fares-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  toast('success', 'CSV Downloaded', `${fares.length} fares exported.`);
 }
 
 
@@ -2176,7 +2175,7 @@ function wireDatabaseTableEvents() {
       if (merged.flightDate) {
         const dt = merged.flightDate instanceof Date ? merged.flightDate : new Date(merged.flightDate);
         if (!isNaN(dt)) {
-           dateStr = dt.toLocaleDateString('en-GB', dateOptions).replace(/,/g, ''); 
+          dateStr = dt.toLocaleDateString('en-GB', dateOptions).replace(/,/g, '');
         }
       }
 
@@ -2497,9 +2496,9 @@ function renderDatabaseTable() {
           ${TH('sectorId', 'Sector Code')}
           ${TH('flightDate', 'Date')}
           ${TH('flightTime', 'Time')}
-          ${TH('airlineId', 'Flight Code')}
+          ${TH('airlineId', 'Flight')}
           ${TH('baggage', 'Baggage')}
-          ${TH('extraBaggage', 'Extra Baggage')}
+          ${TH('extraBaggage', 'Extra')}
           ${TH('specialRate', 'SP Rate')}
           ${TH('commission', 'Commission')}
           ${TH('finalRate', 'Rate')}
@@ -2509,22 +2508,22 @@ function renderDatabaseTable() {
       </thead>
       <tbody>
         ${pageData.map((fare, idx) => {
-          const dirty = !!_databaseDrafts[fare.id];
-          const selected = _databaseSelected.has(fare.id);
-          const isEditing = _databaseEditing.has(fare.id) || dirty;
-          
-          const agentName = agentNameById[fare.agentId] || fare.agentId;
-          const sectorName = sectorCodeById[fare.sectorId] || fare.sectorId;
-          const airlineName = airlineLabelById[fare.airlineId] || fare.airlineId;
-          const airlineCode = airlineCodeById[fare.airlineId] || fare.airlineId;
-          
-          const dateStr = fare.flightDate instanceof Date
-            ? fare.flightDate.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
-            : (fare.flightDate ? toDateInputValue(fare.flightDate) : '—');
-            
-          const fareRowBg = idx % 2 === 1 ? 'bg-slate-50/60' : '';
+    const dirty = !!_databaseDrafts[fare.id];
+    const selected = _databaseSelected.has(fare.id);
+    const isEditing = _databaseEditing.has(fare.id) || dirty;
 
-          return `
+    const agentName = agentNameById[fare.agentId] || fare.agentId;
+    const sectorName = sectorCodeById[fare.sectorId] || fare.sectorId;
+    const airlineName = airlineLabelById[fare.airlineId] || fare.airlineId;
+    const airlineCode = airlineCodeById[fare.airlineId] || fare.airlineId;
+
+    const dateStr = fare.flightDate instanceof Date
+      ? fare.flightDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : (fare.flightDate ? toDateInputValue(fare.flightDate) : '—');
+
+    const fareRowBg = idx % 2 === 1 ? 'bg-slate-50/60' : '';
+
+    return `
             <tr data-fare-id="${fare.id}" class="${dirty ? 'admin-database-row-dirty' : fareRowBg} hover:bg-slate-100/80 transition-colors">
               <td class="text-center">
                 <input type="checkbox" data-db-select="${fare.id}" ${selected ? 'checked' : ''}>
@@ -2619,7 +2618,7 @@ function renderDatabaseTable() {
               </td>
             </tr>
           `;
-        }).join('')}
+  }).join('')}
       </tbody>
     </table>
   `;
@@ -2915,7 +2914,7 @@ function openDatabaseAddFareModal() {
 // AGENT SHEETS TAB — Submit rate data to Firestore (+ legacy n8n webhook)
 // ══════════════════════════════════════════════════════════════════════════════
 const WEBHOOK = 'https://n8n.srv1046139.hstgr.cloud/webhook/zamra';
-const MONTHS = { JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12' };
+const MONTHS = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
 const AIR_RX = /\b(IX|6E|G9|SV|WY|XY|QP|FZ|OV|AI|J9|SG)\b/;
 
 let selAgent = null;
@@ -3054,7 +3053,7 @@ function quickParse(text) {
       if (m) {
         const rate = parseInt(m[3]);
         if (rate >= 1000 && rate <= 99999) {
-          rows.push({ sector, date: `2026-${MONTHS[m[2].toUpperCase()]}-${m[1].padStart(2,'0')}`, airline: am ? am[1] : airline, rate });
+          rows.push({ sector, date: `2026-${MONTHS[m[2].toUpperCase()]}-${m[1].padStart(2, '0')}`, airline: am ? am[1] : airline, rate });
         }
       }
     }
@@ -3076,7 +3075,7 @@ function doPreview(text) {
     <td class="px-4 py-2 text-sm text-center border-b border-border">${r.date}</td>
     <td class="px-4 py-2 text-sm text-center border-b border-border">${r.airline}</td>
     <td class="px-4 py-2 text-sm text-center border-b border-border">₹${r.rate.toLocaleString()}</td></tr>`).join('');
-  if (rows.length > 60) tbody.innerHTML += `<tr><td colspan="4" class="text-center p-3 text-xs text-text-muted">+ ${rows.length-60} more</td></tr>`;
+  if (rows.length > 60) tbody.innerHTML += `<tr><td colspan="4" class="text-center p-3 text-xs text-text-muted">+ ${rows.length - 60} more</td></tr>`;
 }
 
 function hidePrev() { document.getElementById('prevBox')?.classList.remove('on'); }
@@ -3100,7 +3099,7 @@ async function handleSheetSubmit() {
 
   const hEntry = {
     id: Date.now(), agent: selAgent,
-    time: new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }),
+    time: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
     rows: parsedRows.length, status: 'pen',
   };
   rateHistory.unshift(hEntry);
@@ -3120,7 +3119,7 @@ async function handleSheetSubmit() {
     if (n8nResp.ok) {
       hEntry.status = 'ok';
       // Use estimated rows just for UI stat
-      totalEntries += parsedRows.length; 
+      totalEntries += parsedRows.length;
       saveHistory(); renderHistory(); updateStats();
       toast('success', 'Submitted', 'Rates sent to the AI parser. Firestore will update in a moment.');
       setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
@@ -3159,10 +3158,10 @@ function renderHistory() {
   wrap.innerHTML = rateHistory.map(h => {
     const agentName = _agents.find(a => a.id === h.agent)?.name || `Agent ${h.agent}`;
     return `<div class="flex items-center gap-4 bg-white p-3 rounded-lg border border-border/50 shadow-sm mb-2 transition-transform hover:-translate-y-0.5">
-      <div class="w-10 h-10 rounded-full bg-primary-light text-primary font-bold flex items-center justify-center shrink-0 text-xs text-center">${agentName.split(' ')[0].slice(0,3)}</div>
+      <div class="w-10 h-10 rounded-full bg-primary-light text-primary font-bold flex items-center justify-center shrink-0 text-xs text-center">${agentName.split(' ')[0].slice(0, 3)}</div>
       <div class="flex-1"><div class="text-sm font-bold text-navy">${agentName}</div><div class="text-[11px] font-semibold text-text-muted mt-0.5">${h.time}</div></div>
       <div class="text-right"><div class="text-[15px] font-black tracking-tight text-navy">${h.rows}</div><div class="text-[10px] font-bold uppercase text-text-muted">entries</div></div>
-      <div class="w-2.5 h-2.5 rounded-full ${h.status==='ok'?'bg-green-500':h.status==='err'?'bg-red-500':'bg-yellow-400'}"></div>
+      <div class="w-2.5 h-2.5 rounded-full ${h.status === 'ok' ? 'bg-green-500' : h.status === 'err' ? 'bg-red-500' : 'bg-yellow-400'}"></div>
     </div>`;
   }).join('');
 }
@@ -3226,19 +3225,19 @@ async function renderETicketTab() {
 
     // Populate dropdowns with current global data
     if (airlineSelect && _airlines) {
-      airlineSelect.innerHTML = '<option value="">Select Airline</option>' + 
+      airlineSelect.innerHTML = '<option value="">Select Airline</option>' +
         _airlines.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
     }
-    
+
     if (originSelect && _sectors) {
       const uniqueOrigins = [...new Set(_sectors.map(s => s.sectorFrom).filter(Boolean))].sort();
-      originSelect.innerHTML = '<option value="">Select Origin</option>' + 
+      originSelect.innerHTML = '<option value="">Select Origin</option>' +
         uniqueOrigins.map(o => `<option value="${o}">${o}</option>`).join('');
     }
 
     if (destinationSelect && _sectors) {
       const uniqueDests = [...new Set(_sectors.map(s => s.sectorTo).filter(Boolean))].sort();
-      destinationSelect.innerHTML = '<option value="">Select Destination</option>' + 
+      destinationSelect.innerHTML = '<option value="">Select Destination</option>' +
         uniqueDests.map(d => `<option value="${d}">${d}</option>`).join('');
     }
 
@@ -3622,7 +3621,7 @@ async function renderVisasTab(fetchData = true) {
       _visaStampings = vs;
       _attestations = att;
       _passportServices = ps;
-      
+
       tablePage.visas = 1;
       tablePage.visaStampings = 1;
       tablePage.attestations = 1;
@@ -3757,10 +3756,10 @@ function wireVisaActions() {
     if (action === 'edit-visa') openVisaModal(visa);
     if (action === 'delete-visa') {
       if (!confirm(`Delete visa for "${visa?.countryName}"?`)) return;
-      try { 
-        await deleteVisa(id); 
-        toast('success', 'Deleted', `Visa for "${visa?.countryName}" removed.`); 
-        await renderVisasTab(); 
+      try {
+        await deleteVisa(id);
+        toast('success', 'Deleted', `Visa for "${visa?.countryName}" removed.`);
+        await renderVisasTab();
       }
       catch (e) { toast('error', 'Error', e.message); }
     }
@@ -3770,9 +3769,9 @@ function wireVisaActions() {
 function openVisaModal(visa) {
   const tpl = document.getElementById('modal-visa-form');
   if (!tpl) return;
-  
+
   openModal(visa ? 'Edit Visa' : 'Add New Visa', tpl.innerHTML);
-  
+
   // Re-fetch elements from the newly cloned form in the modal!
   const modalForm = document.getElementById('visa-form');
   const idInput = document.getElementById('visa-id');
@@ -3792,7 +3791,7 @@ function openVisaModal(visa) {
     const btn = modalForm.querySelector('button[type="submit"]');
     btn.disabled = true;
     btn.textContent = 'Saving...';
-    
+
     try {
       const vId = idInput.value;
       const data = {
@@ -3800,7 +3799,7 @@ function openVisaModal(visa) {
         visaType: typeInput.value.trim(),
         rate: Number(rateInput.value),
       };
-      
+
       const fileInput = document.getElementById('visa-flag');
       const file = fileInput.files[0];
 
@@ -3847,10 +3846,10 @@ function wireVisaStampingActions() {
     if (action === 'edit-visa-stamping') openVisaStampingModal(item);
     if (action === 'delete-visa-stamping') {
       if (!confirm(`Delete visa stamping for "${item?.country}"?`)) return;
-      try { 
-        await deleteVisaStamping(id); 
-        toast('success', 'Deleted', `Visa Stamping for "${item?.country}" removed.`); 
-        await renderVisasTab(true); 
+      try {
+        await deleteVisaStamping(id);
+        toast('success', 'Deleted', `Visa Stamping for "${item?.country}" removed.`);
+        await renderVisasTab(true);
       }
       catch (e) { toast('error', 'Error', e.message); }
     }
@@ -3860,9 +3859,9 @@ function wireVisaStampingActions() {
 function openVisaStampingModal(item) {
   const tpl = document.getElementById('modal-visa-stamping-form');
   if (!tpl) return;
-  
+
   openModal(item ? 'Edit Visa Stamping' : 'Add Visa Stamping', tpl.innerHTML);
-  
+
   const modalForm = document.getElementById('visa-stamping-form');
   const idInput = document.getElementById('visa-stamping-id');
   const countryInput = document.getElementById('visa-stamping-country');
@@ -3881,7 +3880,7 @@ function openVisaStampingModal(item) {
     const btn = modalForm.querySelector('button[type="submit"]');
     btn.disabled = true;
     btn.textContent = 'Saving...';
-    
+
     try {
       const vId = idInput.value;
       const data = {
@@ -3889,7 +3888,7 @@ function openVisaStampingModal(item) {
         description: descInput.value.trim(),
         cost: Number(costInput.value),
       };
-      
+
       if (vId) await updateVisaStamping(vId, data);
       else await addVisaStamping(data);
 
@@ -3933,10 +3932,10 @@ function wireAttestationActions() {
     if (action === 'edit-attestation') openAttestationModal(item);
     if (action === 'delete-attestation') {
       if (!confirm(`Delete attestation for "${item?.country}"?`)) return;
-      try { 
-        await deleteAttestation(id); 
-        toast('success', 'Deleted', `Attestation for "${item?.country}" removed.`); 
-        await renderVisasTab(true); 
+      try {
+        await deleteAttestation(id);
+        toast('success', 'Deleted', `Attestation for "${item?.country}" removed.`);
+        await renderVisasTab(true);
       }
       catch (e) { toast('error', 'Error', e.message); }
     }
@@ -3946,9 +3945,9 @@ function wireAttestationActions() {
 function openAttestationModal(item) {
   const tpl = document.getElementById('modal-attestation-form');
   if (!tpl) return;
-  
+
   openModal(item ? 'Edit Attestation' : 'Add Attestation', tpl.innerHTML);
-  
+
   const modalForm = document.getElementById('attestation-form');
   const idInput = document.getElementById('attestation-id');
   const countryInput = document.getElementById('attestation-country');
@@ -3967,7 +3966,7 @@ function openAttestationModal(item) {
     const btn = modalForm.querySelector('button[type="submit"]');
     btn.disabled = true;
     btn.textContent = 'Saving...';
-    
+
     try {
       const vId = idInput.value;
       const data = {
@@ -3975,7 +3974,7 @@ function openAttestationModal(item) {
         certificate: certInput.value.trim(),
         cost: Number(costInput.value),
       };
-      
+
       if (vId) await updateAttestation(vId, data);
       else await addAttestation(data);
 
@@ -4019,10 +4018,10 @@ function wirePassportServiceActions() {
     if (action === 'edit-passport-service') openPassportServiceModal(item);
     if (action === 'delete-passport-service') {
       if (!confirm(`Delete passport service "${item?.type}"?`)) return;
-      try { 
-        await deletePassportService(id); 
-        toast('success', 'Deleted', `Passport service "${item?.type}" removed.`); 
-        await renderVisasTab(true); 
+      try {
+        await deletePassportService(id);
+        toast('success', 'Deleted', `Passport service "${item?.type}" removed.`);
+        await renderVisasTab(true);
       }
       catch (e) { toast('error', 'Error', e.message); }
     }
@@ -4032,9 +4031,9 @@ function wirePassportServiceActions() {
 function openPassportServiceModal(item) {
   const tpl = document.getElementById('modal-passport-service-form');
   if (!tpl) return;
-  
+
   openModal(item ? 'Edit Passport Service' : 'Add Passport Service', tpl.innerHTML);
-  
+
   const modalForm = document.getElementById('passport-service-form');
   const idInput = document.getElementById('passport-service-id');
   const typeInput = document.getElementById('passport-service-type');
@@ -4053,7 +4052,7 @@ function openPassportServiceModal(item) {
     const btn = modalForm.querySelector('button[type="submit"]');
     btn.disabled = true;
     btn.textContent = 'Saving...';
-    
+
     try {
       const vId = idInput.value;
       const data = {
@@ -4061,7 +4060,7 @@ function openPassportServiceModal(item) {
         description: descInput.value.trim(),
         cost: Number(costInput.value),
       };
-      
+
       if (vId) await updatePassportService(vId, data);
       else await addPassportService(data);
 
@@ -4237,21 +4236,21 @@ function openTourModal(tour) {
 
   openModal(tour ? 'Edit Tour Package' : 'Add Tour Package', tpl.innerHTML, true);
 
-  const modalForm   = document.getElementById('tour-form');
-  const idInput     = document.getElementById('tour-id');
-  const titleInput  = document.getElementById('tour-title');
-  const catInput    = document.getElementById('tour-category');
-  const durInput    = document.getElementById('tour-duration');
-  const priceInput  = document.getElementById('tour-price');
+  const modalForm = document.getElementById('tour-form');
+  const idInput = document.getElementById('tour-id');
+  const titleInput = document.getElementById('tour-title');
+  const catInput = document.getElementById('tour-category');
+  const durInput = document.getElementById('tour-duration');
+  const priceInput = document.getElementById('tour-price');
   const activeInput = document.getElementById('tour-active');
-  const descInput   = document.getElementById('tour-description');
-  const hlInput     = document.getElementById('tour-highlights');
-  const inclInput   = document.getElementById('tour-inclusions');
-  const exclInput   = document.getElementById('tour-exclusions');
+  const descInput = document.getElementById('tour-description');
+  const hlInput = document.getElementById('tour-highlights');
+  const inclInput = document.getElementById('tour-inclusions');
+  const exclInput = document.getElementById('tour-exclusions');
 
   // Itinerary container + add-day button
   const itinContainer = document.getElementById('tour-itinerary-container');
-  const addDayBtn     = document.getElementById('tour-add-day-btn');
+  const addDayBtn = document.getElementById('tour-add-day-btn');
 
   // Helper: add a day card
   const addDayCard = (dayLabel = '', activities = []) => {
@@ -4277,16 +4276,16 @@ function openTourModal(tour) {
 
   // Populate fields when editing
   if (tour) {
-    idInput.value       = tour.id;
-    titleInput.value    = tour.title || '';
-    catInput.value      = tour.category || 'International';
-    durInput.value      = tour.duration || '';
-    priceInput.value    = tour.price || 0;
+    idInput.value = tour.id;
+    titleInput.value = tour.title || '';
+    catInput.value = tour.category || 'International';
+    durInput.value = tour.duration || '';
+    priceInput.value = tour.price || 0;
     activeInput.checked = tour.isActive !== false;
-    descInput.value     = tour.description || '';
-    hlInput.value       = arrayToLines(tour.highlights);
-    inclInput.value     = arrayToLines(tour.inclusions);
-    exclInput.value     = arrayToLines(tour.exclusions);
+    descInput.value = tour.description || '';
+    hlInput.value = arrayToLines(tour.highlights);
+    inclInput.value = arrayToLines(tour.inclusions);
+    exclInput.value = arrayToLines(tour.exclusions);
 
     // Render existing itinerary days
     const itin = Array.isArray(tour.itinerary) ? tour.itinerary : [];
@@ -4311,16 +4310,16 @@ function openTourModal(tour) {
       const itinerary = _readTourItinerary(itinContainer);
 
       const data = {
-        title:       titleInput.value.trim(),
-        category:    catInput.value,
-        duration:    durInput.value.trim(),
-        price:       Number(priceInput.value) || 0,
-        isActive:    activeInput.checked,
+        title: titleInput.value.trim(),
+        category: catInput.value,
+        duration: durInput.value.trim(),
+        price: Number(priceInput.value) || 0,
+        isActive: activeInput.checked,
         description: descInput.value.trim(),
-        highlights:  linesToArray(hlInput.value),
+        highlights: linesToArray(hlInput.value),
         itinerary,
-        inclusions:  linesToArray(inclInput.value),
-        exclusions:  linesToArray(exclInput.value),
+        inclusions: linesToArray(inclInput.value),
+        exclusions: linesToArray(exclInput.value),
       };
 
       const imageFile = document.getElementById('tour-image')?.files[0] || null;
@@ -4396,7 +4395,7 @@ function hajjUmrahRow(p) {
   const statusBadge = p.isActive !== false
     ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[11px] font-semibold"><i class="bi bi-check-circle-fill text-[9px]"></i>Active</span>`
     : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-semibold"><i class="bi bi-dash-circle text-[9px]"></i>Hidden</span>`;
-  
+
   const typeBadge = p.type === 'Hajj'
     ? `<span class="px-2 py-0.5 rounded bg-blue-50 text-primary text-[11px] font-semibold">Hajj</span>`
     : `<span class="px-2 py-0.5 rounded bg-amber-50 text-amber-600 text-[11px] font-semibold">Umrah</span>`;

@@ -1,6 +1,7 @@
 /**
  * Zamra Travels — Firebase Cloud Functions
- * All functions are HTTPS Callable (v2) and require admin auth.
+ * Callable (onCall) functions require admin auth.
+ * ingestFaresFromN8n is an onRequest endpoint secured via Bearer token.
  */
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
@@ -325,26 +326,26 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
 const { onRequest } = require("firebase-functions/v2/https");
 
 exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).send('Method Not Allowed');
+  if (req.method !== "POST") {
+    return res.status(405).send("Method Not Allowed");
   }
 
   const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== 'Bearer ZAMRA_SECURE_N8N_KEY_2026') {
-    return res.status(401).send('Unauthorized');
+  if (!authHeader || authHeader !== "Bearer ZAMRA_SECURE_N8N_KEY_2026") {
+    return res.status(401).send("Unauthorized");
   }
 
   const fares = req.body.firebaseData;
   if (!fares || !Array.isArray(fares)) {
-    return res.status(400).send('Invalid payload: expected { firebaseData: [...] }');
+    return res.status(400).send("Invalid payload: expected { firebaseData: [...] }");
   }
 
   // Load Sectors mapping
   const sectorMap = {};
   const sectorsSnap = await db.collection("sectors").get();
   sectorsSnap.forEach(d => {
-      const dbCode = d.data().sectorCode || '';
-      sectorMap[dbCode.replace('-', ' ').trim()] = d.id;
+      const dbCode = d.data().sectorCode || "";
+      sectorMap[dbCode.replace("-", " ").trim()] = d.id;
   });
 
   // Load Airlines mapping
@@ -370,16 +371,16 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
     const chunk = fares.slice(i, i + BATCH_LIMIT);
     
     chunk.forEach(row => {
-      const newRef = db.collection('agent_fares').doc();
-      const n8nSectorCode = String(row.sector_code || '').trim();
+      const newRef = db.collection("agent_fares").doc();
+      const n8nSectorCode = String(row.sector_code || "").trim();
       const sectorId = sectorMap[n8nSectorCode] || n8nSectorCode;
       
-      const n8nFlightCode = String(row.flight_code || '').trim();
+      const n8nFlightCode = String(row.flight_code || "").trim();
       const airlineId = airlineMap[n8nFlightCode] || n8nFlightCode;
       
       const agentIdStr = String(row.agent_id);
-      const flightDate = Timestamp.fromDate(new Date(row.date + 'T00:00:00Z'));
-      const flightTimeStr = (row.time_start && row.time_end) ? `${row.time_start} - ${row.time_end}` : '';
+      const flightDate = Timestamp.fromDate(new Date(row.date + "T00:00:00Z"));
+      const flightTimeStr = (row.time_start && row.time_end) ? `${row.time_start} - ${row.time_end}` : "";
 
       // Use agent's stored commission; n8n payload can override if explicitly provided
       const commission = (row.commission !== undefined && row.commission !== null)
@@ -393,11 +394,11 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
         flightDate,
         specialRate: row.sp_rate ? Number(row.sp_rate) : 0,
         finalRate: row.rate ? Number(row.rate) : 0,
-        baggage: String(row.baggage || ''),
+        baggage: String(row.baggage || ""),
         extraBaggage: row.extra_baggage ? Number(row.extra_baggage) : 0,
         commission,
         supplierRate: 0,
-        isHidden: row.show === 'no',
+        isHidden: row.show === "no",
         flightTime: flightTimeStr,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
