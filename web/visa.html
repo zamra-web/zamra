@@ -8,7 +8,7 @@
   <meta name="description" content="Expert visa assistance for UAE, Saudi Arabia, and beyond. Tourist visas, stamping, attestation, and passport services — all in one place.">
 
   <!-- Favicons -->
-  <link href="/assets/img/favicon.webp?v=2" rel="icon">
+  <link href="/assets/img/favicon.webp?v=3" rel="icon">
   <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
   <!-- Google Fonts -->
@@ -96,7 +96,7 @@
       text-transform: uppercase;
     }
     .hero-stat {
-      padding: 20px 28px;
+      padding: 14px 18px;
       background: rgba(255,255,255,0.08);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255,255,255,0.15);
@@ -265,6 +265,7 @@
       box-shadow: 0 4px 20px -6px rgba(12, 74, 138, 0.06);
       display: flex;
       flex-direction: column;
+      position: relative;
     }
     .service-card:hover {
       transform: translateY(-5px);
@@ -317,6 +318,30 @@
       background: var(--color-primary);
       border-color: var(--color-primary);
       color: white;
+    }
+
+    /* Stamping Art */
+    .service-card--stamping::after {
+      content: '';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 84px;
+      height: 84px;
+      border-radius: 999px;
+      border: 2px dashed rgba(12, 74, 138, 0.18);
+      background: radial-gradient(circle at 30% 30%, rgba(12, 74, 138, 0.12), transparent 65%);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    .service-card--stamping .service-icon-wrap {
+      background: linear-gradient(135deg, #0c4a8a, #1e67c2);
+      color: #fff;
+      box-shadow: 0 10px 22px -16px rgba(12, 74, 138, 0.65);
+    }
+    .service-card--stamping:hover .service-icon-wrap {
+      background: #073160;
+      color: #fff;
     }
 
     /* Modal */
@@ -436,35 +461,103 @@
       inset: 0;
       background: radial-gradient(ellipse at 90% 50%, rgba(96,165,250,0.25) 0%, transparent 60%);
     }
+
+    @media (max-width: 640px) {
+      .visa-tab-btn {
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+      .tab-bar-sticky {
+        top: 72px;
+      }
+      .visa-card {
+        border-radius: 20px;
+      }
+      .visa-card-image {
+        height: 140px;
+      }
+      .visa-card-image h3 {
+        font-size: 18px;
+        left: 16px;
+        bottom: 12px;
+        right: 52px;
+      }
+      .visa-card-body {
+        padding: 16px;
+      }
+      .visa-rate {
+        font-size: 20px;
+      }
+      .visa-enquire-btn {
+        padding: 8px 14px;
+        border-radius: 10px;
+      }
+      .service-card {
+        padding: 18px;
+        border-radius: 18px;
+      }
+      .service-rate {
+        font-size: 18px;
+      }
+      .service-arrow-btn {
+        width: 36px;
+        height: 36px;
+      }
+      #visa-modal {
+        padding: 12px;
+      }
+      #visa-modal-content {
+        max-width: 96vw;
+        max-height: 90vh;
+        overflow-y: auto;
+        border-radius: 22px;
+      }
+      #modal-banner {
+        height: 130px;
+      }
+      .modal-info-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .modal-info-value {
+        text-align: left;
+        max-width: 100%;
+      }
+      .modal-enquire-btn {
+        padding: 14px;
+        font-size: 15px;
+      }
+    }
   </style>
 </head>
 
 <body>
 
   <!-- ── Header ─────────────────────────────────────────────────────────────── -->
-  <header class="sticky top-0 z-[1000] bg-white/90 backdrop-blur-xl border-b border-slate-100 transition-all" id="header">
-    <div class="w-full max-w-[1280px] mx-auto px-6 flex justify-between items-center h-[80px]">
+  <header class="site-header" id="header">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 flex justify-between items-center h-[80px] max-sm:h-[72px]">
       <a href="/index.html" class="flex items-center">
-        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[56px] w-auto mix-blend-multiply">
+        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[56px] max-sm:h-[48px] w-auto mix-blend-multiply">
       </a>
 
       <nav class="hidden md:block" id="nav-menu">
         <ul class="flex gap-8 list-none m-0 p-0">
-          <li><a href="/index.html#about" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">About</a></li>
-          <li><a href="/index.html#services" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Services</a></li>
-          <li><a href="/tours.html" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Tours</a></li>
-          <li><a href="/visa.html" class="text-primary font-heading font-bold text-[15px] relative py-2 transition-colors">Visa</a></li>
-          <li><a href="/index.html#flights" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Flights</a></li>
-          <li><a href="/hajj-umrah.html" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Hajj-Umrah</a></li>
-          <li><a href="/index.html#contact" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Contact</a></li>
+          <li><a href="/index.html#about" class="site-nav-link">About</a></li>
+          <li><a href="/index.html#services" class="site-nav-link">Services</a></li>
+          <li><a href="/index.html#flights" class="site-nav-link">Flights</a></li>
+          <li><a href="/tours.html" class="site-nav-link">Tours</a></li>
+          <li><a href="/visa.html" class="site-nav-link active" aria-current="page">Visa</a></li>
+          <li><a href="/hajj-umrah.html" class="site-nav-link">Hajj-Umrah</a></li>
+          <li><a href="/index.html#contact" class="site-nav-link">Contact</a></li>
         </ul>
       </nav>
 
-      <div class="flex items-center gap-4">
-        <a href="/index.html#enquiry" class="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full font-heading font-semibold text-[15px] bg-primary text-white shadow-[var(--shadow-premium-soft)] premium-hover-lift max-md:hidden">
+      <div class="flex items-center gap-4 max-sm:gap-3">
+        <a href="/index.html#enquiry" class="btn-primary px-7 py-3 rounded-full text-[15px] premium-hover-lift max-md:hidden">
           Enquiry <i class="bi bi-arrow-right"></i>
         </a>
-        <button class="md:hidden text-[28px] bg-transparent border-none text-text-main cursor-pointer" id="mobile-toggle" aria-label="Toggle mobile menu">
+        <button class="md:hidden text-[28px] max-sm:text-[26px] bg-transparent border-none text-text-main cursor-pointer" id="mobile-toggle" aria-label="Toggle mobile menu" aria-expanded="false">
           <i class="bi bi-list"></i>
         </button>
       </div>
@@ -472,39 +565,39 @@
   </header>
 
   <!-- ── Hero ───────────────────────────────────────────────────────────────── -->
-  <section class="visa-hero py-[80px] md:py-[110px]">
+  <section class="visa-hero py-[56px] max-sm:py-[48px] md:py-[72px]">
     <div class="visa-hero-grid"></div>
-    <div class="w-full max-w-[1280px] mx-auto px-6 relative z-10">
-      <div class="text-center mb-12">
-        <div class="hero-badge mb-5">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 relative z-10">
+      <div class="text-center mb-8 md:mb-10">
+        <div class="hero-badge mb-4">
           <i class="bi bi-globe-europe-africa"></i>
           Visa &amp; Immigration Services
         </div>
-        <h1 class="font-heading text-[42px] md:text-[62px] font-black text-white leading-[1.08] tracking-[-1.5px] mb-5">
+        <h1 class="font-heading text-[36px] max-sm:text-[30px] md:text-[52px] font-black text-white leading-[1.08] max-sm:leading-[1.12] tracking-[-1.2px] mb-4">
           Your Gateway to<br>
           <span style="background: linear-gradient(90deg, #93c5fd, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">the World</span>
         </h1>
-        <p class="text-blue-200/80 text-[18px] md:text-[20px] max-w-[560px] mx-auto leading-relaxed">
+        <p class="text-blue-200/80 text-[16px] max-sm:text-[14px] md:text-[18px] max-w-[540px] mx-auto leading-relaxed">
           Professional visa assistance, stamping, attestation, and passport services — handled with expertise and care.
         </p>
       </div>
 
       <!-- Stats Row -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-[860px] mx-auto">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 max-w-[760px] mx-auto">
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">50+</div>
+          <div class="text-[22px] max-sm:text-[20px] md:text-[24px] font-black text-white font-heading">50+</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Countries</div>
         </div>
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">5000+</div>
+          <div class="text-[22px] max-sm:text-[20px] md:text-[24px] font-black text-white font-heading">5000+</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Visas Processed</div>
         </div>
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">48h</div>
+          <div class="text-[22px] max-sm:text-[20px] md:text-[24px] font-black text-white font-heading">48h</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Avg Processing</div>
         </div>
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">99%</div>
+          <div class="text-[22px] max-sm:text-[20px] md:text-[24px] font-black text-white font-heading">99%</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Success Rate</div>
         </div>
       </div>
@@ -513,13 +606,13 @@
 
   <!-- ── Tab Navigation Bar ─────────────────────────────────────────────────── -->
   <div class="tab-bar-sticky shadow-sm">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
-      <div class="flex gap-2 py-3 overflow-x-auto scrollbar-none">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
+      <div class="flex gap-2 max-sm:gap-3 py-3 max-sm:py-2 overflow-x-auto scrollbar-none">
         <button class="visa-tab-btn active" data-tab="visas" id="tab-visas">
           <i class="bi bi-passport"></i> Tourist Visas
         </button>
         <button class="visa-tab-btn" data-tab="stamping" id="tab-stamping">
-          <i class="bi bi-stamp"></i> Visa Stamping
+          <i class="bi bi-file-earmark-check"></i> Visa Stamping
         </button>
         <button class="visa-tab-btn" data-tab="attestations" id="tab-attestations">
           <i class="bi bi-patch-check"></i> Attestations
@@ -532,8 +625,8 @@
   </div>
 
   <!-- ── Tourist Visas Panel ─────────────────────────────────────────────────── -->
-  <section class="visa-section-panel active py-[70px] bg-[#f8fafc]" id="panel-visas">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
+  <section class="visa-section-panel active py-[70px] max-sm:py-[56px] bg-[#f8fafc]" id="panel-visas">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>
           <div class="section-label mb-3"><i class="bi bi-passport"></i> Tourist Visas</div>
@@ -570,11 +663,11 @@
   </section>
 
   <!-- ── Visa Stamping Panel ──────────────────────────────────────────────────── -->
-  <section class="visa-section-panel py-[70px] bg-[#f8fafc]" id="panel-stamping">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
+  <section class="visa-section-panel py-[70px] max-sm:py-[56px] bg-[#f8fafc]" id="panel-stamping">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>
-          <div class="section-label mb-3"><i class="bi bi-stamp"></i> Visa Stamping</div>
+          <div class="section-label mb-3"><i class="bi bi-file-earmark-check"></i> Visa Stamping</div>
           <h2 class="font-heading text-[30px] md:text-[38px] font-bold text-navy leading-tight">Stamping Services</h2>
           <p class="text-text-muted mt-2 max-w-[480px]">Professional and reliable visa stamping for employment, family, and business needs.</p>
         </div>
@@ -589,7 +682,7 @@
         <div class="skeleton h-[200px]"></div>
       </div>
       <div id="visa-stamping-empty" class="hidden text-center py-[60px]">
-        <div class="w-20 h-20 bg-primary/5 text-primary rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl"><i class="bi bi-stamp"></i></div>
+        <div class="w-20 h-20 bg-primary/5 text-primary rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl"><i class="bi bi-file-earmark-check"></i></div>
         <p class="text-text-muted">No stamping services currently listed.</p>
       </div>
       <div id="visa-stamping-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
@@ -597,8 +690,8 @@
   </section>
 
   <!-- ── Attestations Panel ─────────────────────────────────────────────────── -->
-  <section class="visa-section-panel py-[70px] bg-[#f8fafc]" id="panel-attestations">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
+  <section class="visa-section-panel py-[70px] max-sm:py-[56px] bg-[#f8fafc]" id="panel-attestations">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>
           <div class="section-label mb-3"><i class="bi bi-patch-check"></i> Attestation</div>
@@ -624,8 +717,8 @@
   </section>
 
   <!-- ── Passport Services Panel ─────────────────────────────────────────────── -->
-  <section class="visa-section-panel py-[70px] bg-[#f8fafc]" id="panel-passport">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
+  <section class="visa-section-panel py-[70px] max-sm:py-[56px] bg-[#f8fafc]" id="panel-passport">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>
           <div class="section-label mb-3"><i class="bi bi-journal-bookmark"></i> Passport</div>
@@ -651,18 +744,18 @@
   </section>
 
   <!-- ── CTA Strip ──────────────────────────────────────────────────────────── -->
-  <section class="cta-strip py-[70px]">
-    <div class="w-full max-w-[1280px] mx-auto px-6 relative z-10 text-center">
+  <section class="cta-strip py-[70px] max-sm:py-[56px]">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 relative z-10 text-center">
       <div class="hero-badge mb-5 mx-auto w-fit"><i class="bi bi-headset"></i> Expert Support</div>
-      <h2 class="font-heading text-[30px] md:text-[42px] font-bold text-white mb-4 tracking-tight">Not sure which visa you need?</h2>
-      <p class="text-blue-200/75 text-[17px] max-w-[500px] mx-auto mb-8">Our visa specialists are ready to guide you through the process step by step.</p>
+      <h2 class="font-heading text-[30px] max-sm:text-[26px] md:text-[42px] font-bold text-white mb-4 tracking-tight">Not sure which visa you need?</h2>
+      <p class="text-blue-200/75 text-[17px] max-sm:text-[14px] max-w-[500px] mx-auto mb-8">Our visa specialists are ready to guide you through the process step by step.</p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
         <a href="https://wa.me/919846606739?text=Hello%20Zamra%20Travels%2C%20I%20need%20visa%20assistance." target="_blank"
-          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#25D366] hover:bg-[#1ea855] text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 shadow-xl shadow-[#25D366]/30">
+          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#25D366] hover:bg-[#1ea855] text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 shadow-xl shadow-[#25D366]/30 w-full sm:w-auto">
           <i class="bi bi-whatsapp text-[20px]"></i> Chat on WhatsApp
         </a>
         <a href="tel:+919846606739"
-          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 backdrop-blur-sm">
+          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 backdrop-blur-sm w-full sm:w-auto">
           <i class="bi bi-telephone-fill text-[18px]"></i> +91 98466 06739
         </a>
       </div>
@@ -670,12 +763,12 @@
   </section>
 
   <!-- ── Footer ─────────────────────────────────────────────────────────────── -->
-  <footer class="bg-navy-dark text-white pt-[60px] md:pt-[80px]">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
-      <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-[60px] pb-[60px] border-b border-white/10">
+  <footer class="bg-navy-dark text-white pt-[60px] max-sm:pt-[50px] md:pt-[80px]">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
+      <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-[60px] max-sm:gap-[40px] pb-[60px] max-sm:pb-[40px] border-b border-white/10">
         <div>
           <a href="/index.html" class="block mb-[20px]">
-            <img src="/assets/img/favicon.webp?v=2" alt="Zamra Travels" class="h-[80px] w-auto">
+            <img src="/assets/img/favicon.webp?v=3" alt="Zamra Travels" class="h-[80px] max-sm:h-[60px] w-auto">
           </a>
           <p class="text-slate-400 leading-[1.6] mb-[24px] max-w-[400px]">Your trusted travel companion offering the best deals on flights, visas, tours, and more. Experience the world with comfort and ease.</p>
           <div class="flex gap-[12px]">
@@ -699,7 +792,7 @@
           <ul class="list-none">
             <li class="flex gap-[16px] text-slate-400 items-start mb-[12px]">
               <i class="bi bi-geo-alt text-white text-[18px] mt-[2px]"></i>
-              <span>Malappuram Melmuri<br>Kerala, India</span>
+              <span>Kizhakkethala, Down Hill,<br>Malappuram, Kerala 676519, India</span>
             </li>
             <li class="flex gap-[16px] text-slate-400 items-start mb-[12px]">
               <i class="bi bi-telephone text-white text-[18px] mt-[2px]"></i>
@@ -712,16 +805,16 @@
           </ul>
         </div>
       </div>
-      <div class="py-[24px] text-center text-slate-500">
+      <div class="py-[24px] max-sm:py-[20px] text-center text-slate-500">
         <p>&copy; 2026 <strong class="text-white">Zamra Travels</strong>. All Rights Reserved.</p>
       </div>
     </div>
   </footer>
 
   <!-- ── Floating Social ────────────────────────────────────────────────────── -->
-  <div class="fixed bottom-[30px] right-[30px] flex flex-col gap-[12px] z-[99]">
-    <a href="https://wa.me/919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-[#25D366]"><i class="bi bi-whatsapp"></i></a>
-    <a href="tel:+919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-primary"><i class="bi bi-telephone-fill"></i></a>
+  <div class="fixed bottom-[30px] right-[30px] flex flex-col gap-[12px] z-[99] max-sm:bottom-[calc(env(safe-area-inset-bottom)+12px)] max-sm:right-4 max-sm:gap-[8px]">
+    <a href="https://wa.me/919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-[#25D366] max-sm:w-[46px] max-sm:h-[46px] max-sm:text-[20px]"><i class="bi bi-whatsapp"></i></a>
+    <a href="tel:+919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-primary max-sm:w-[46px] max-sm:h-[46px] max-sm:text-[20px]"><i class="bi bi-telephone-fill"></i></a>
   </div>
 
   <!-- ── Visa Details Modal ──────────────────────────────────────────────────── -->

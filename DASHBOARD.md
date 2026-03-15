@@ -72,6 +72,15 @@ web/
 
 ---
 
+## Navigation (Desktop + Mobile)
+
+- Desktop uses the top nav links (`.nav-link`) to switch tabs.
+- Mobile uses the `#admin-tab-select` dropdown (shown only on small screens) to switch tabs.
+- `initTabs()` in `web/src/js/admin/main.js` keeps the dropdown and active tab in sync. If you add/remove tabs, update both the nav links and the dropdown options in `web/admin.html`.
+- Small-screen spacing, controls, and tables are tuned in `web/src/styles/admin/style.css` to keep the dashboard usable on mobile with touch-friendly controls and smooth horizontal scrolling for wide tables.
+
+---
+
 ## Dashboard Tabs
 
 ### 1. 📊 Dashboard Tab
@@ -180,7 +189,7 @@ web/
 - **Full CRUD for tour packages** — Add / Edit (modal form) / Delete.
 - **Table columns:** Cover Image · Title · Category · Duration · Price · Status (Active / Hidden) · Actions
 - **Add/Edit modal fields:**
-  - Title, Category (`International` / `Domestic` / `Hajj-Umrah`), Duration
+  - Title, Category (`International` / `Domestic`), Duration
   - Price in ₹ (set `0` for "Call for Price")
   - Active toggle — controls visibility on public `/tours.html`
   - Description, Highlights (newline-separated list)
@@ -192,7 +201,7 @@ web/
     - No JSON input required — the form serialises into the `Array<{day, activities[]}>` structure automatically on submit.
   - Inclusions / Exclusions (newline-separated lists)
   - Cover Image upload → Firebase Storage `tour_images/` folder
-- **Live Sync** — data drives `/tours.html` and `/tour-detail.html` public pages.
+- **Live Sync** — data drives `/tours.html` public pages (details open in modal).
 - Data from Firestore `tours` collection.
 
 ### 11. 🕋 Hajj & Umrah Tab
@@ -307,7 +316,7 @@ web/
 | Field | Type | Notes |
 |---|---|---|
 | `title` | String | Tour package name e.g. `'Malaysia 4D/3N'` |
-| `category` | String | `'International'`, `'Domestic'`, or `'Hajj-Umrah'` |
+| `category` | String | `'International'` or `'Domestic'` |
 | `duration` | String | e.g. `'4 Days / 3 Nights'` |
 | `price` | Number | Price in ₹; `0` means "Call for Price" |
 | `description` | String | Short overview for the listing page |
@@ -482,4 +491,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-03-14 — Database tab updated to use a concise read-only default view with togglable inline editing per row to eliminate horizontal scroll issues. Added missing Firestore composite indexes (`isHidden + flightDate`, `agentId + sectorId + isHidden + flightDate`) to fix poster "All Sectors" query. Removed filter guards from both the Reports tab frontend and the `generateAgentReport` Cloud Function so full-dataset reports (all sectors, all agents, entire timeline) can now be generated. Tours tab itinerary upgraded from raw JSON textarea to dynamic day-builder UI. Admin modal made scrollable and supports wide mode._
+_Last audited: 2026-03-16 — Tours and Hajj/Umrah public details now open in modals (no standalone tour detail route). Admin tour category options limited to International/Domestic. All other dashboard behaviors unchanged._

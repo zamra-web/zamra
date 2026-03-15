@@ -1,71 +1,12 @@
 // Modern Zamra Travels JavaScript
 import { getSectors, getFares, getAirlines } from '../admin/db.js';
+import { initSiteChrome } from './site-chrome.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  // 1. Sticky Header
-  const header = document.getElementById('header');
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 50) {
-      header.classList.add('scrolled');
-    } else {
-      header.classList.remove('scrolled');
-    }
-  });
+  initSiteChrome({ enableSmoothScroll: true });
 
-  // 2. Mobile Navigation Toggle
-  const mobileToggle = document.getElementById('mobile-toggle');
-  const navMenu = document.getElementById('nav-menu');
-
-  if (mobileToggle) {
-    mobileToggle.addEventListener('click', () => {
-      navMenu.classList.toggle('active');
-      const icon = mobileToggle.querySelector('i');
-      if (navMenu.classList.contains('active')) {
-        icon.classList.replace('bi-list', 'bi-x-lg');
-      } else {
-        icon.classList.replace('bi-x-lg', 'bi-list');
-      }
-    });
-  }
-
-  // Smooth scrolling for anchor links & close mobile menu
-  const anchorLinks = document.querySelectorAll('a[href^="#"]');
-  anchorLinks.forEach(link => {
-    link.addEventListener('click', function (e) {
-      const targetId = this.getAttribute('href');
-      
-      // Close mobile menu if open
-      if (navMenu && navMenu.classList.contains('active')) {
-        navMenu.classList.remove('active');
-        if (mobileToggle) {
-          mobileToggle.querySelector('i').classList.replace('bi-x-lg', 'bi-list');
-        }
-      }
-
-      // Perform smooth scrolling
-      if (targetId && targetId !== '#') {
-        const targetElement = document.querySelector(targetId);
-        if (targetElement) {
-          e.preventDefault(); // Prevent default jump / refresh
-          
-          const headerOffset = 80; // height of the sticky header
-          const elementPosition = targetElement.getBoundingClientRect().top;
-          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-
-          window.scrollTo({
-            top: offsetPosition,
-            behavior: "smooth"
-          });
-          
-          // Optionally update URL hash without scrolling
-          window.history.pushState(null, '', targetId);
-        }
-      }
-    });
-  });
-
-  // 3. Populate Sectors Dynamically
+  // 1. Populate Sectors Dynamically
   const indianAirports = [
     { id: 'kozhikode', code: 'CCJ', name: 'Kozhikode' },
     { id: 'kochi', code: 'COK', name: 'Kochi' },
@@ -201,6 +142,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sector) {
           const today = new Date();
           today.setHours(0,0,0,0);
+
+          let fares = await getFares({
+            sectorId: sector.id,
+            startDate: today.toISOString()
+          });
 
           // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
           const groupedFaresMap = new Map();

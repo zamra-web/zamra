@@ -14,7 +14,6 @@ export default defineConfig({
                 login: resolve(__dirname, 'login.html'),
                 visa: resolve(__dirname, 'visa.html'),
                 tours: resolve(__dirname, 'tours.html'),
-                tourDetail: resolve(__dirname, 'tour-detail.html'),
                 hajjUmrah: resolve(__dirname, 'hajj-umrah.html'),
             }
         }

@@ -8,7 +8,7 @@
   <meta name="description" content="Explore premium Hajj and Umrah packages with Zamra Travels. Your trusted partner for a peaceful and blessed pilgrimage.">
 
   <!-- Favicons -->
-  <link href="/assets/img/favicon.webp?v=2" rel="icon">
+  <link href="/assets/img/favicon.webp?v=3" rel="icon">
   <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
   <!-- Google Fonts -->
@@ -30,7 +30,6 @@
       background: linear-gradient(135deg, #0c4a8a 0%, #073160 50%, #17529b 100%);
       position: relative;
       overflow: hidden;
-      min-height: 420px;
       display: flex;
       align-items: center;
     }
@@ -67,7 +66,7 @@
       text-transform: uppercase;
     }
     .hero-stat {
-      padding: 18px 24px;
+      padding: 14px 18px;
       background: rgba(255,255,255,0.08);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255,255,255,0.15);
@@ -379,35 +378,75 @@
       margin: 0 auto 20px;
       font-size: 36px;
     }
+
+    @media (max-width: 640px) {
+      .filter-bar {
+        border-radius: 16px;
+      }
+      .category-chip {
+        padding: 7px 14px;
+        font-size: 12.5px;
+      }
+      .search-input {
+        padding: 10px 14px 10px 38px;
+        font-size: 13.5px;
+      }
+      .hajjumrah-card {
+        border-radius: 20px;
+      }
+      .hajjumrah-card-image {
+        height: 190px;
+      }
+      .hajjumrah-card-title {
+        font-size: 18px;
+      }
+      .hajjumrah-card-body {
+        padding: 16px;
+      }
+      .hajjumrah-details-grid {
+        grid-template-columns: 1fr;
+      }
+      .hajjumrah-card-footer {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .hajjumrah-view-btn {
+        width: 100%;
+        justify-content: center;
+      }
+      .hajjumrah-price-value {
+        font-size: 20px;
+      }
+    }
   </style>
 </head>
 
 <body>
 
   <!-- ── Header ─────────────────────────────────────────────────────────────── -->
-  <header class="sticky top-0 z-[1000] bg-white/90 backdrop-blur-xl border-b border-slate-100 transition-all" id="header">
-    <div class="w-full max-w-[1280px] mx-auto px-6 flex justify-between items-center h-[80px]">
+  <header class="site-header" id="header">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 flex justify-between items-center h-[80px] max-sm:h-[72px]">
       <a href="/index.html" class="flex items-center">
-        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[56px] w-auto mix-blend-multiply">
+        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[56px] max-sm:h-[48px] w-auto mix-blend-multiply">
       </a>
 
       <nav class="hidden md:block" id="nav-menu">
         <ul class="flex gap-8 list-none m-0 p-0">
-          <li><a href="/index.html#about" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">About</a></li>
-          <li><a href="/index.html#services" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Services</a></li>
-          <li><a href="/tours.html" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Tours</a></li>
-          <li><a href="/visa.html" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Visa</a></li>
-          <li><a href="/index.html#flights" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Flights</a></li>
-          <li><a href="/hajj-umrah.html" class="text-primary font-heading font-bold text-[15px] relative py-2 transition-colors">Hajj-Umrah</a></li>
-          <li><a href="/index.html#contact" class="text-text-muted font-heading font-semibold text-[15px] relative py-2 hover:text-primary transition-colors">Contact</a></li>
+          <li><a href="/index.html#about" class="site-nav-link">About</a></li>
+          <li><a href="/index.html#services" class="site-nav-link">Services</a></li>
+          <li><a href="/index.html#flights" class="site-nav-link">Flights</a></li>
+          <li><a href="/tours.html" class="site-nav-link">Tours</a></li>
+          <li><a href="/visa.html" class="site-nav-link">Visa</a></li>
+          <li><a href="/hajj-umrah.html" class="site-nav-link active" aria-current="page">Hajj-Umrah</a></li>
+          <li><a href="/index.html#contact" class="site-nav-link">Contact</a></li>
         </ul>
       </nav>
 
-      <div class="flex items-center gap-4">
-        <a href="/index.html#enquiry" class="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full font-heading font-semibold text-[15px] bg-primary text-white shadow-[var(--shadow-premium-soft)] premium-hover-lift max-md:hidden">
+      <div class="flex items-center gap-4 max-sm:gap-3">
+        <a href="/index.html#enquiry" class="btn-primary px-7 py-3 rounded-full text-[15px] premium-hover-lift max-md:hidden">
           Enquiry <i class="bi bi-arrow-right"></i>
         </a>
-        <button class="md:hidden text-[28px] bg-transparent border-none text-text-main cursor-pointer" id="mobile-toggle" aria-label="Toggle mobile menu">
+        <button class="md:hidden text-[28px] max-sm:text-[26px] bg-transparent border-none text-text-main cursor-pointer" id="mobile-toggle" aria-label="Toggle mobile menu" aria-expanded="false">
           <i class="bi bi-list"></i>
         </button>
       </div>
@@ -415,40 +454,40 @@
   </header>
 
   <!-- ── Hero ───────────────────────────────────────────────────────────────── -->
-  <section class="hajjumrah-hero py-[80px] md:py-[110px]">
+  <section class="hajjumrah-hero py-[56px] max-sm:py-[48px] md:py-[72px]">
     <div class="hajjumrah-hero-bg-img"></div>
     <div class="hajjumrah-hero-grid"></div>
-    <div class="w-full max-w-[1280px] mx-auto px-6 relative z-10">
-      <div class="text-center mb-12">
-        <div class="hero-badge mb-5">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 relative z-10">
+      <div class="text-center mb-8 md:mb-10">
+        <div class="hero-badge mb-4">
           <i class="bi bi-moon-stars text-amber-200"></i>
           Spiritual Journeys
         </div>
-        <h1 class="font-heading text-[42px] md:text-[62px] font-black text-white leading-[1.08] tracking-[-1.5px] mb-5">
+        <h1 class="font-heading text-[36px] max-sm:text-[30px] md:text-[52px] font-black text-white leading-[1.08] max-sm:leading-[1.12] tracking-[-1.2px] mb-4">
           Step into<br>
           <span style="background: linear-gradient(90deg, #fde68a, #fcd34d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Divine Grace</span>
         </h1>
-        <p class="text-blue-100/90 text-[18px] md:text-[20px] max-w-[580px] mx-auto leading-relaxed">
+        <p class="text-blue-100/90 text-[16px] max-sm:text-[14px] md:text-[18px] max-w-[560px] mx-auto leading-relaxed">
           Experience a truly blessed and peaceful pilgrimage with our carefully crafted Hajj and Umrah packages.
         </p>
       </div>
 
       <!-- Stats Row -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-[860px] mx-auto">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 max-w-[760px] mx-auto">
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">Premium</div>
+          <div class="text-[20px] max-sm:text-[18px] md:text-[24px] font-black text-white font-heading">Premium</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Accommodation</div>
         </div>
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">Guided</div>
+          <div class="text-[20px] max-sm:text-[18px] md:text-[24px] font-black text-white font-heading">Guided</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Ziyarat Tours</div>
         </div>
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">Direct</div>
+          <div class="text-[20px] max-sm:text-[18px] md:text-[24px] font-black text-white font-heading">Direct</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Flight Options</div>
         </div>
         <div class="hero-stat">
-          <div class="text-[28px] font-black text-white font-heading">Easy</div>
+          <div class="text-[20px] max-sm:text-[18px] md:text-[24px] font-black text-white font-heading">Easy</div>
           <div class="text-blue-200/70 text-[13px] mt-1 font-medium">Visa Processing</div>
         </div>
       </div>
@@ -456,8 +495,8 @@
   </section>
 
   <!-- ── Filter Bar ─────────────────────────────────────────────────────────── -->
-  <div class="sticky top-[80px] z-[100] bg-white/90 backdrop-blur-xl border-b border-slate-100">
-    <div class="w-full max-w-[1280px] mx-auto px-6 py-4">
+  <div class="sticky top-[80px] max-sm:top-[72px] z-[100] bg-white/90 backdrop-blur-xl border-b border-slate-100">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 py-4">
       <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
 
         <!-- Category Chips -->
@@ -483,17 +522,17 @@
   </div>
 
   <!-- ── Grid ─────────────────────────────────────────────────────────── -->
-  <section class="py-[70px] bg-[#f8fafc]">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
+  <section class="py-[70px] max-sm:py-[56px] bg-[#f8fafc]">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
 
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>
           <div class="section-label mb-3"><i class="bi bi-moon-stars"></i> Current Packages</div>
-          <h2 class="font-heading text-[30px] md:text-[38px] font-bold text-navy leading-tight">Featured Hajj & Umrah</h2>
-          <p class="text-text-muted mt-2 max-w-[480px]">Our packages are designed to give you peace of mind so you can focus on your prayers.</p>
+          <h2 class="font-heading text-[30px] max-sm:text-[26px] md:text-[38px] font-bold text-navy leading-tight">Featured Hajj & Umrah</h2>
+          <p class="text-text-muted mt-2 max-sm:text-[14px] max-w-[480px]">Our packages are designed to give you peace of mind so you can focus on your prayers.</p>
         </div>
         <a href="https://wa.me/919846606739?text=Hello%20Zamra%20Travels%2C%20I%20am%20interested%20in%20a%20Hajj/Umrah%20package." target="_blank"
-          class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#25D366] text-white font-heading font-semibold text-[14px] transition-all hover:bg-[#1ea855] hover:-translate-y-0.5 shadow-md shadow-[#25D366]/20 shrink-0">
+          class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#25D366] text-white font-heading font-semibold text-[14px] transition-all hover:bg-[#1ea855] hover:-translate-y-0.5 shadow-md shadow-[#25D366]/20 shrink-0 w-full sm:w-auto justify-center">
           <i class="bi bi-whatsapp"></i> Book Now
         </a>
       </div>
@@ -522,19 +561,110 @@
     </div>
   </section>
 
+  <!-- ── Hajj/Umrah Details Modal ──────────────────────────────────────────── -->
+  <div id="hajjumrah-modal" class="fixed inset-0 z-[2000] hidden">
+    <div id="hajjumrah-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-[980px] mx-auto my-6 max-sm:my-4 max-sm:mx-4 bg-white rounded-[28px] max-sm:rounded-[22px] shadow-2xl overflow-hidden">
+      <button id="hajjumrah-modal-close" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 border border-slate-200 text-slate-500 hover:text-navy hover:border-slate-300 flex items-center justify-center shadow-md">
+        <i class="bi bi-x-lg text-[14px]"></i>
+      </button>
+      <div class="max-h-[90vh] overflow-y-auto">
+        <div id="hajjumrah-modal-hero" class="relative h-[240px] max-sm:h-[200px] bg-gradient-to-br from-[#0c4a8a] to-[#1e67c2] bg-cover bg-center">
+          <div class="absolute inset-0 bg-gradient-to-t from-[#071937]/80 via-[#071937]/30 to-transparent"></div>
+          <div class="absolute top-4 left-4">
+            <span id="hajjumrah-modal-type" class="px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide uppercase text-white bg-white/15 border border-white/25 backdrop-blur-md"></span>
+          </div>
+          <div class="absolute bottom-4 left-5 right-5">
+            <h3 id="hajjumrah-modal-title" class="text-white text-[26px] max-sm:text-[22px] md:text-[30px] font-black font-heading leading-tight"></h3>
+            <p id="hajjumrah-modal-duration" class="text-white/80 text-[14px] mt-1 flex items-center gap-2">
+              <i class="bi bi-clock"></i>
+              <span></span>
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[1.45fr_0.9fr] gap-0">
+          <div class="p-6 max-sm:p-5 md:p-7 space-y-6">
+            <div class="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <div class="flex flex-col gap-1">
+                <span class="text-[11px] uppercase tracking-[0.12em] text-text-muted font-semibold">Departure</span>
+                <span class="text-[13px] font-semibold text-navy"><i class="bi bi-geo-alt text-primary opacity-80"></i> <span id="hajjumrah-modal-departure"></span></span>
+              </div>
+              <div class="flex flex-col gap-1">
+                <span class="text-[11px] uppercase tracking-[0.12em] text-text-muted font-semibold">Airline</span>
+                <span class="text-[13px] font-semibold text-navy"><i class="bi bi-airplane text-primary opacity-80"></i> <span id="hajjumrah-modal-airline"></span></span>
+              </div>
+              <div class="flex flex-col gap-1">
+                <span class="text-[11px] uppercase tracking-[0.12em] text-text-muted font-semibold">Date</span>
+                <span class="text-[13px] font-semibold text-navy"><i class="bi bi-calendar3 text-primary opacity-80"></i> <span id="hajjumrah-modal-date"></span></span>
+              </div>
+            </div>
+
+            <div id="hajjumrah-modal-description-block" class="space-y-2">
+              <div class="text-[11px] uppercase tracking-[0.14em] text-text-muted font-semibold">Overview</div>
+              <p id="hajjumrah-modal-description" class="text-[14px] leading-relaxed text-text-muted"></p>
+            </div>
+
+            <div id="hajjumrah-modal-highlights-block" class="space-y-2">
+              <div class="text-[11px] uppercase tracking-[0.14em] text-text-muted font-semibold">Highlights</div>
+              <div id="hajjumrah-modal-highlights" class="space-y-2"></div>
+            </div>
+
+            <div id="hajjumrah-modal-inclusions-block" class="space-y-2">
+              <div class="text-[11px] uppercase tracking-[0.14em] text-text-muted font-semibold">Inclusions</div>
+              <div id="hajjumrah-modal-inclusions" class="space-y-2"></div>
+            </div>
+          </div>
+
+          <div class="p-6 max-sm:p-5 md:p-7 bg-slate-50 border-t lg:border-t-0 lg:border-l border-slate-200 space-y-4">
+            <div class="rounded-2xl bg-white border border-slate-200 p-4">
+              <div id="hajjumrah-modal-price-label" class="text-[11px] uppercase tracking-[0.14em] text-text-muted font-semibold">Cost from</div>
+              <div id="hajjumrah-modal-price" class="text-[30px] font-black text-navy mt-1"></div>
+              <div id="hajjumrah-modal-price-note" class="text-[12px] text-text-muted mt-1"></div>
+            </div>
+
+            <div class="rounded-2xl bg-white border border-slate-200 p-4 space-y-2">
+              <div class="text-[11px] uppercase tracking-[0.14em] text-text-muted font-semibold">Quick Info</div>
+              <div class="flex items-center gap-2 text-[13px] text-navy">
+                <i class="bi bi-geo-alt text-primary"></i>
+                <span id="hajjumrah-modal-quick-departure"></span>
+              </div>
+              <div class="flex items-center gap-2 text-[13px] text-navy">
+                <i class="bi bi-airplane text-primary"></i>
+                <span id="hajjumrah-modal-quick-airline"></span>
+              </div>
+              <div class="flex items-center gap-2 text-[13px] text-navy">
+                <i class="bi bi-calendar3 text-primary"></i>
+                <span id="hajjumrah-modal-quick-date"></span>
+              </div>
+            </div>
+
+            <a id="hajjumrah-modal-wa" href="#" target="_blank"
+              class="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-2xl bg-[#25D366] hover:bg-[#1ea855] text-white font-heading font-bold text-[15px] transition-all hover:-translate-y-0.5 shadow-lg shadow-[#25D366]/25">
+              <i class="bi bi-whatsapp text-[18px]"></i> Enquire Now
+            </a>
+            <button id="hajjumrah-modal-close-btn" class="inline-flex items-center justify-center w-full px-5 py-3 rounded-2xl border border-slate-200 text-navy font-heading font-semibold text-[14px] hover:bg-slate-100 transition-all">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── CTA Strip ──────────────────────────────────────────────────────────── -->
-  <section class="cta-strip py-[70px]">
-    <div class="w-full max-w-[1280px] mx-auto px-6 relative z-10 text-center">
+  <section class="cta-strip py-[70px] max-sm:py-[56px]">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 relative z-10 text-center">
       <div class="hero-badge mb-5 mx-auto w-fit"><i class="bi bi-headset"></i> Need Assistance?</div>
-      <h2 class="font-heading text-[30px] md:text-[42px] font-bold text-white mb-4 tracking-tight">Customized Group Packages</h2>
-      <p class="text-blue-200/75 text-[17px] max-w-[500px] mx-auto mb-8">We also arrange private group packages for families and organizations. Contact us for tailored services.</p>
+      <h2 class="font-heading text-[30px] max-sm:text-[26px] md:text-[42px] font-bold text-white mb-4 tracking-tight">Customized Group Packages</h2>
+      <p class="text-blue-200/75 text-[17px] max-sm:text-[14px] max-w-[500px] mx-auto mb-8">We also arrange private group packages for families and organizations. Contact us for tailored services.</p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
         <a href="https://wa.me/919846606739?text=Hello%20Zamra%20Travels%2C%20I%20need%20help%20planning%20a%20private%20Umrah%20group." target="_blank"
-          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#25D366] hover:bg-[#1ea855] text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 shadow-xl shadow-[#25D366]/30">
+          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#25D366] hover:bg-[#1ea855] text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 shadow-xl shadow-[#25D366]/30 w-full sm:w-auto">
           <i class="bi bi-whatsapp text-[20px]"></i> Chat on WhatsApp
         </a>
         <a href="tel:+919846606739"
-          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 backdrop-blur-sm">
+          class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-heading font-bold text-[16px] transition-all hover:-translate-y-1 backdrop-blur-sm w-full sm:w-auto">
           <i class="bi bi-telephone-fill text-[18px]"></i> +91 98466 06739
         </a>
       </div>
@@ -542,12 +672,12 @@
   </section>
 
   <!-- ── Footer ─────────────────────────────────────────────────────────────── -->
-  <footer class="bg-navy-dark text-white pt-[60px] md:pt-[80px]">
-    <div class="w-full max-w-[1280px] mx-auto px-6">
-      <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-[60px] pb-[60px] border-b border-white/10">
+  <footer class="bg-navy-dark text-white pt-[60px] max-sm:pt-[50px] md:pt-[80px]">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
+      <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-[60px] max-sm:gap-[40px] pb-[60px] max-sm:pb-[40px] border-b border-white/10">
         <div>
           <a href="/index.html" class="block mb-[20px]">
-            <img src="/assets/img/favicon.webp?v=2" alt="Zamra Travels" class="h-[80px] w-auto">
+            <img src="/assets/img/favicon.webp?v=3" alt="Zamra Travels" class="h-[80px] max-sm:h-[60px] w-auto">
           </a>
           <p class="text-slate-400 leading-[1.6] mb-[24px] max-w-[400px]">Your trusted travel companion offering the best deals on flights, visas, tours, and more. Experience the world with comfort and ease.</p>
           <div class="flex gap-[12px]">
@@ -572,7 +702,7 @@
           <ul class="list-none">
             <li class="flex gap-[16px] text-slate-400 items-start mb-[12px]">
               <i class="bi bi-geo-alt text-white text-[18px] mt-[2px]"></i>
-              <span>Malappuram Melmuri<br>Kerala, India</span>
+              <span>Kizhakkethala, Down Hill,<br>Malappuram, Kerala 676519, India</span>
             </li>
             <li class="flex gap-[16px] text-slate-400 items-start mb-[12px]">
               <i class="bi bi-telephone text-white text-[18px] mt-[2px]"></i>
@@ -585,16 +715,16 @@
           </ul>
         </div>
       </div>
-      <div class="py-[24px] text-center text-slate-500">
+      <div class="py-[24px] max-sm:py-[20px] text-center text-slate-500">
         <p>&copy; 2026 <strong class="text-white">Zamra Travels</strong>. All Rights Reserved.</p>
       </div>
     </div>
   </footer>
 
   <!-- ── Floating Social ────────────────────────────────────────────────────── -->
-  <div class="fixed bottom-[30px] right-[30px] flex flex-col gap-[12px] z-[99]">
-    <a href="https://wa.me/919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-[#25D366]"><i class="bi bi-whatsapp"></i></a>
-    <a href="tel:+919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-primary"><i class="bi bi-telephone-fill"></i></a>
+  <div class="fixed bottom-[30px] right-[30px] flex flex-col gap-[12px] z-[99] max-sm:bottom-[calc(env(safe-area-inset-bottom)+12px)] max-sm:right-4 max-sm:gap-[8px]">
+    <a href="https://wa.me/919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-[#25D366] max-sm:w-[46px] max-sm:h-[46px] max-sm:text-[20px]"><i class="bi bi-whatsapp"></i></a>
+    <a href="tel:+919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-primary max-sm:w-[46px] max-sm:h-[46px] max-sm:text-[20px]"><i class="bi bi-telephone-fill"></i></a>
   </div>
 
   <script type="module" src="/src/js/web/hajj-umrah.js"></script>

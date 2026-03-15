@@ -7,7 +7,7 @@
     <title>Admin Login - Zamra Travels</title>
     <meta name="description" content="Secure admin login portal for Zamra Travels management dashboard.">
     <!-- Favicons -->
-    <link href="/assets/img/favicon.webp?v=2" rel="icon">
+    <link href="/assets/img/favicon.webp?v=3" rel="icon">
     <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
     <!-- Google Fonts -->
@@ -212,6 +212,28 @@
                 linear-gradient(90deg, rgba(12, 74, 138, 0.03) 1px, transparent 1px);
             background-size: 60px 60px;
         }
+
+        @media (max-width: 640px) {
+            .orb {
+                opacity: 0.25;
+                filter: blur(80px);
+            }
+            .orb-1 {
+                width: 220px;
+                height: 220px;
+            }
+            .orb-2 {
+                width: 160px;
+                height: 160px;
+            }
+            .orb-3 {
+                width: 120px;
+                height: 120px;
+            }
+            .login-card {
+                border-radius: 24px;
+            }
+        }
     </style>
 </head>
 
@@ -225,7 +247,7 @@
     <div class="orb orb-3"></div>
 
     <!-- Login Container -->
-    <div class="relative z-10 w-full max-w-[440px] mx-4">
+    <div class="relative z-10 w-full max-w-[440px] mx-4 max-sm:mx-3">
 
         <!-- Login Card -->
         <div class="login-card bg-white/80 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-white/60 overflow-hidden" id="login-card">
@@ -234,7 +256,7 @@
             <div class="h-1.5 w-full bg-gradient-to-r from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)]"></div>
 
             <!-- Card Body -->
-            <div class="p-8 sm:p-10">
+            <div class="p-8 max-sm:p-6 sm:p-10">
                 
                 <!-- Logo & Title -->
                 <div class="text-center mb-8">

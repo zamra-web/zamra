@@ -6,6 +6,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { initSiteChrome } from './site-chrome.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDXVaGrWYqKwJBh7ow1GVCzTqnJJJDLlcM",
@@ -102,24 +103,19 @@ function packageCard(pkg) {
     ? `<div class="hajjumrah-price-value">₹${Number(pkg.price).toLocaleString()}</div>`
     : `<div class="hajjumrah-price-value call"><i class="bi bi-telephone-fill"></i> Call for Price</div>`;
 
-  const highlightsList = normalizeList(pkg.highlights);
-  const inclusionsList = normalizeList(pkg.inclusions);
+  const highlightsPreview = normalizeList(pkg.highlights).slice(0, 3);
+  const highlightsHtml = highlightsPreview.map(h =>
+    `<div class="hajjumrah-highlight-item"><i class="bi bi-check-circle-fill"></i><span>${escHtml(h)}</span></div>`
+  ).join('');
 
-  const description = pkg.description
-    ? `<p class="text-[13px] text-text-muted leading-relaxed">${escHtml(pkg.description)}</p>`
-    : '';
-
-  const highlightsSection = buildListSection('Highlights', highlightsList);
-  const inclusionsSection = buildListSection('Inclusions', inclusionsList);
-
-  const detailSections = [description, highlightsSection, inclusionsSection].filter(Boolean);
-  const detailsBlock = detailSections.length
-    ? `<div class="hajjumrah-highlights">${detailSections.join('')}</div>`
-    : '<div class="hajjumrah-highlights"><p class="text-[13px] text-text-muted">Contact us for full package details.</p></div>';
+  const descSnippet = (pkg.description || '').trim();
+  const detailsPreview = highlightsHtml
+    ? `<div class="hajjumrah-highlights">${highlightsHtml}</div>`
+    : descSnippet
+      ? `<div class="hajjumrah-highlights"><p class="text-[13px] text-text-muted">${escHtml(descSnippet.slice(0, 100))}…</p></div>`
+      : '<div class="hajjumrah-highlights"><p class="text-[13px] text-text-muted">Contact us for full package details.</p></div>';
 
   const badgeBg = pkg.type === 'Hajj' ? 'rgba(7, 49, 96, 0.75)' : 'rgba(217, 119, 6, 0.75)';
-
-  const whatsappMessage = encodeURIComponent(`Hello Zamra Travels, I am interested in the ${pkg.title} package.`);
 
   return `
     <div class="hajjumrah-card">
@@ -151,16 +147,16 @@ function packageCard(pkg) {
           </div>
         </div>
 
-        ${detailsBlock}
+        ${detailsPreview}
         
         <div class="hajjumrah-card-footer">
           <div class="hajjumrah-price">
             <span class="hajjumrah-price-label">${pkg.price && pkg.price > 0 ? 'Cost from' : 'Price'}</span>
             ${price}
           </div>
-          <a href="https://wa.me/919846606739?text=${whatsappMessage}" target="_blank" class="hajjumrah-view-btn bg-[#25D366] hover:bg-[#1ea855]">
-            <i class="bi bi-whatsapp"></i> Book
-          </a>
+          <button type="button" class="hajjumrah-view-btn border-0 cursor-pointer" data-hajjumrah-id="${pkg.id}">
+            View Details <i class="bi bi-arrow-right"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -186,17 +182,93 @@ function normalizeList(value) {
   return [];
 }
 
-function buildListSection(label, items) {
+function buildIconList(items, iconClass) {
   if (!items.length) return '';
-  const listItems = items.map(item =>
-    `<div class="hajjumrah-highlight-item"><i class="bi bi-check-circle-fill"></i><span>${escHtml(item)}</span></div>`
+  return items.map(item =>
+    `<div class="flex items-start gap-2 text-[13px] text-text-muted">
+      <i class="${iconClass} text-[14px] mt-[2px]"></i>
+      <span>${escHtml(item)}</span>
+    </div>`
   ).join('');
-  return `
-    <div class="flex flex-col gap-2">
-      <div class="text-[11px] uppercase tracking-[0.12em] text-text-muted font-semibold">${escHtml(label)}</div>
-      ${listItems}
-    </div>
-  `;
+}
+
+function renderHajjUmrahModal(pkg) {
+  const modal = document.getElementById('hajjumrah-modal');
+  if (!modal) return;
+
+  const hero = document.getElementById('hajjumrah-modal-hero');
+  const typeEl = document.getElementById('hajjumrah-modal-type');
+  const titleEl = document.getElementById('hajjumrah-modal-title');
+  const durationEl = document.querySelector('#hajjumrah-modal-duration span');
+  const descEl = document.getElementById('hajjumrah-modal-description');
+  const highlightsEl = document.getElementById('hajjumrah-modal-highlights');
+  const inclusionsEl = document.getElementById('hajjumrah-modal-inclusions');
+  const priceEl = document.getElementById('hajjumrah-modal-price');
+  const priceLabelEl = document.getElementById('hajjumrah-modal-price-label');
+  const priceNoteEl = document.getElementById('hajjumrah-modal-price-note');
+  const waBtn = document.getElementById('hajjumrah-modal-wa');
+
+  const depEl = document.getElementById('hajjumrah-modal-departure');
+  const airlineEl = document.getElementById('hajjumrah-modal-airline');
+  const dateEl = document.getElementById('hajjumrah-modal-date');
+  const quickDepEl = document.getElementById('hajjumrah-modal-quick-departure');
+  const quickAirlineEl = document.getElementById('hajjumrah-modal-quick-airline');
+  const quickDateEl = document.getElementById('hajjumrah-modal-quick-date');
+
+  const descBlock = document.getElementById('hajjumrah-modal-description-block');
+  const highlightsBlock = document.getElementById('hajjumrah-modal-highlights-block');
+  const inclusionsBlock = document.getElementById('hajjumrah-modal-inclusions-block');
+
+  if (hero) {
+    hero.style.backgroundImage = pkg.coverImageUrl ? `url("${pkg.coverImageUrl}")` : '';
+  }
+  if (typeEl) typeEl.textContent = pkg.type || 'Umrah';
+  if (titleEl) titleEl.textContent = pkg.title || 'Package';
+  if (durationEl) durationEl.textContent = `${pkg.days || '—'} Days / ${pkg.nights || '—'} Nights`;
+
+  if (depEl) depEl.textContent = pkg.departureCity || '—';
+  if (airlineEl) airlineEl.textContent = pkg.airline || '—';
+  if (dateEl) dateEl.textContent = pkg.departureDate || '—';
+  if (quickDepEl) quickDepEl.textContent = pkg.departureCity || '—';
+  if (quickAirlineEl) quickAirlineEl.textContent = pkg.airline || '—';
+  if (quickDateEl) quickDateEl.textContent = pkg.departureDate || '—';
+
+  if (descEl) descEl.textContent = pkg.description || '';
+  if (descBlock) descBlock.classList.toggle('hidden', !pkg.description);
+
+  const highlights = normalizeList(pkg.highlights);
+  const inclusions = normalizeList(pkg.inclusions);
+  if (highlightsEl) highlightsEl.innerHTML = buildIconList(highlights, 'bi bi-check-circle-fill text-emerald-500');
+  if (inclusionsEl) inclusionsEl.innerHTML = buildIconList(inclusions, 'bi bi-check-circle-fill text-emerald-500');
+  if (highlightsBlock) highlightsBlock.classList.toggle('hidden', !highlights.length);
+  if (inclusionsBlock) inclusionsBlock.classList.toggle('hidden', !inclusions.length);
+
+  if (priceEl && priceLabelEl) {
+    if (pkg.price && pkg.price > 0) {
+      priceLabelEl.textContent = 'Cost from';
+      priceEl.textContent = `₹${Number(pkg.price).toLocaleString()}`;
+      if (priceNoteEl) priceNoteEl.textContent = 'Per person';
+    } else {
+      priceLabelEl.textContent = 'Price';
+      priceEl.textContent = 'Call for Price';
+      if (priceNoteEl) priceNoteEl.textContent = '';
+    }
+  }
+
+  if (waBtn) {
+    const msg = encodeURIComponent(`Hello Zamra Travels, I am interested in the ${pkg.title} ${pkg.type ? `(${pkg.type})` : ''} package from ${pkg.departureCity || 'your city'} on ${pkg.departureDate || 'your upcoming date'}. Please share full details.`);
+    waBtn.href = `https://wa.me/919846606739?text=${msg}`;
+  }
+
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeHajjUmrahModal() {
+  const modal = document.getElementById('hajjumrah-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
 }
 
 // ── Event Wiring ─────────────────────────────────────────────────────────────
@@ -222,14 +294,25 @@ function wireEvents() {
     }, 220);
   });
 
-  // Mobile nav toggle
-  document.getElementById('mobile-toggle')?.addEventListener('click', () => {
-    document.getElementById('nav-menu')?.classList.toggle('mobile-open');
+  // Hajj/Umrah modal (view details)
+  document.getElementById('hajjumrah-grid')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-hajjumrah-id]');
+    if (!btn) return;
+    const pkg = _allPackages.find(p => p.id === btn.dataset.hajjumrahId);
+    if (pkg) renderHajjUmrahModal(pkg);
+  });
+
+  document.getElementById('hajjumrah-modal-close')?.addEventListener('click', closeHajjUmrahModal);
+  document.getElementById('hajjumrah-modal-close-btn')?.addEventListener('click', closeHajjUmrahModal);
+  document.getElementById('hajjumrah-modal-backdrop')?.addEventListener('click', closeHajjUmrahModal);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeHajjUmrahModal();
   });
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  initSiteChrome({ enableSmoothScroll: false });
   wireEvents();
   loadPackages();
 });

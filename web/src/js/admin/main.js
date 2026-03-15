@@ -346,6 +346,7 @@ function initTabs() {
   const navLinks = document.querySelectorAll('.nav-link');
   const tabContents = document.querySelectorAll('.tab-content');
   const pageTitle = document.getElementById('page-title');
+  const tabSelect = document.getElementById('admin-tab-select');
 
   navLinks.forEach(link => {
     link.addEventListener('click', async (e) => {
@@ -359,11 +360,27 @@ function initTabs() {
       tabContents.forEach(c => c.classList.remove('active'));
       document.getElementById(targetId)?.classList.add('active');
       if (pageTitle && targetTitle) pageTitle.textContent = targetTitle;
+      if (tabSelect && targetId) tabSelect.value = targetId;
 
       // Render the newly active tab
       await renderActiveTab();
     });
   });
+
+  if (tabSelect) {
+    const activeLink = document.querySelector('.nav-link.active');
+    if (activeLink?.dataset?.tab) {
+      tabSelect.value = activeLink.dataset.tab;
+    }
+
+    tabSelect.addEventListener('change', () => {
+      const targetId = tabSelect.value;
+      const targetLink = document.querySelector(`.nav-link[data-tab="${targetId}"]`);
+      if (targetLink) {
+        targetLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      }
+    });
+  }
 }
 
 async function renderActiveTab() {
@@ -1041,8 +1058,6 @@ async function renderAgentsTab(fetchData = true) {
   // Render pagination footer (use sorted.length so filtered count is accurate)
   renderPaginationFooter('agents', sorted.length, totalPages, start, limit);
 
-  // Remove stale wired flag so delegation re-attaches after innerHTML replacement
-  delete tbody.dataset.actionsWired;
   wireAgentActions();
 
   // Wire "+ Add Agent" button (by stable ID)

@@ -80,7 +80,6 @@ zamra/                              # Firebase project root — run firebase CLI
     ├── admin.html                  # Admin dashboard
     ├── visa.html                   # Visa services page
     ├── tours.html                  # Tours listing page
-    ├── tour-detail.html            # Tour detail page (loaded via ?id= query param)
     ├── hajj-umrah.html             # Hajj & Umrah packages page
     ├── vite.config.js              # Multi-page Vite config
     ├── package.json                # vite, tailwindcss, firebase SDK
@@ -95,8 +94,8 @@ zamra/                              # Firebase project root — run firebase CLI
             ├── web/main.js         # Public site logic (flight search, UI)
             ├── web/visa.js         # Visa page logic (tabs, card render, modal)
             ├── web/tours.js        # Tours listing (fetch, filter chips, search)
-            ├── web/tour-detail.js  # Tour detail (reads ?id=, single tour + sidebar)
             ├── web/hajj-umrah.js   # Hajj & Umrah page (fetch, filter, render grid)
+            ├── web/site-chrome.js  # Shared header/nav + mobile menu behavior
             └── admin/
                 ├── firebase-config.js  # Firebase init (auth, db, storage, functions)
                 ├── auth.js             # Auth state helpers
@@ -118,9 +117,11 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Update docs:** Whenever you make significant structural changes, update the relevant `.md` file.
 
 ### Working on the Public Website
-- Edit `web/index.html`, `web/visa.html`, `web/tours.html`, `web/tour-detail.html`, `web/hajj-umrah.html`,  
+- Edit `web/index.html`, `web/visa.html`, `web/tours.html`, `web/hajj-umrah.html`,  
   `web/src/js/web/main.js`, `web/src/js/web/visa.js`, `web/src/js/web/tours.js`,  
-  `web/src/js/web/tour-detail.js`, `web/src/js/web/hajj-umrah.js`, `web/src/styles/web/style.css`
+  `web/src/js/web/hajj-umrah.js`, `web/src/styles/web/style.css`
+- Use `initSiteChrome()` from `web/src/js/web/site-chrome.js` for header/nav + mobile menu behavior
+- Keep header/nav styling consistent via `site-header`, `site-nav-link`, and `btn-primary` classes in `web/src/styles/web/style.css`
 - Reference images as `/assets/img/filename` (served from `web/public/assets/img/`)
 - Do **not** add external image URLs — add images to `web/public/assets/img/` instead
 
@@ -153,6 +154,7 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Country flag images** for the Visas tab are stored in `country_flags/` in Firebase Storage — same pattern as `airline_logos/`
 - **Tour cover images** are uploaded via the Tours tab and stored in `tour_images/` in Firebase Storage — URL saved as `coverImageUrl` on the Firestore `tours` document
 - **Hajj & Umrah cover images** are uploaded via the admin dashboard and stored in `hajj_umrah_images/` in Firebase Storage.
+- **Favicon updates**: update `/assets/img/favicon.webp` and bump the query param (e.g. `?v=3`) in all HTML `<link rel="icon">` references to force cache refresh.
 
 ---
 
@@ -160,7 +162,8 @@ zamra/                              # Firebase project root — run firebase CLI
 
 - Responsive layouts via Tailwind `md:` and `max-sm:` breakpoints
 - Mobile hamburger nav uses vanilla CSS in `@layer components` in `web/src/styles/web/style.css`
-- Admin dashboard is desktop-first but remains usable on tablet
+- Mobile nav open state locks body scroll via `nav-open` and closes automatically on resize in `web/src/js/web/site-chrome.js`
+- Admin dashboard is desktop-first but remains usable on tablet and small screens (tightened spacing + touch-friendly controls)
 
 ---
 

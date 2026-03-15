@@ -32,7 +32,6 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | `web/index.html` | `/` | Homepage — hero, flight search, sectors, services |
 | `web/visa.html` | `/visa.html` | Visa services — tabbed UI for Visas, Stamping, Attestations, Passport Services |
 | `web/tours.html` | `/tours.html` | Tours listing page — category filter chips, search, tour card grid |
-| `web/tour-detail.html` | `/tour-detail.html?id=<docId>` | Tour detail page — itinerary timeline, inclusions/exclusions, sidebar |
 | `web/hajj-umrah.html` | `/hajj-umrah.html` | Hajj & Umrah packages page — filters, search, package grid |
 | `web/login.html` | `/login.html` | Admin login page (Firebase Auth) |
 | `web/admin.html` | `/admin.html` | Admin dashboard (auth-gated, see DASHBOARD.md) |
@@ -46,7 +45,6 @@ web/
 ├── index.html                  # Homepage entry point
 ├── visa.html                   # Visa services page
 ├── tours.html                  # Tours listing page
-├── tour-detail.html            # Tour detail page
 ├── hajj-umrah.html             # Hajj & Umrah packages page
 ├── login.html                  # Admin login page
 ├── admin.html                  # Admin dashboard (auth-gated)
@@ -68,7 +66,6 @@ web/
         │   ├── main.js         # All frontend logic (flight search, UI interactions)
         │   ├── visa.js         # Visa page logic — tab switching, card rendering, modal, WhatsApp link
         │   ├── tours.js        # Tours listing page — fetch, render cards, category filter chips, search
-        │   ├── tour-detail.js  # Tour detail page — reads ?id=, fetches single tour + sidebar tours
         │   └── hajj-umrah.js   # Hajj & Umrah page — fetch, render cards, filter by type, search
         └── admin/
             ├── firebase-config.js  # Firebase app init — exports auth, db, storage, functions
@@ -112,6 +109,9 @@ web/
 ### 📱 Mobile Optimisation
 - Fully responsive via Tailwind `md:` and `max-sm:` breakpoints
 - Mobile hamburger nav uses vanilla CSS `@layer components` in `style.css`
+- Mobile nav open state locks body scroll (`body.nav-open`) and auto-closes on resize
+- Sticky filter/tab bars use a reduced top offset on small screens (`top: 72px`)
+- Floating contact actions respect safe-area insets on mobile
 
 ## Visa Page (`visa.html` + `visa.js`)
 
@@ -127,8 +127,8 @@ A sticky tab bar sits just below the header (at `top: 80px`) with four tabs:
 Tabs are client-side only: clicking a tab adds/removes `.active` on `.visa-section-panel` divs — no page reload.
 
 ### Cards
-- **Visa cards** (`visa-card` class): flag image fills the card header with gradient overlay; country name and arrow button overlay the image; visa type chip, processing time, and rate in the body below.
-- **Service cards** (`service-card` class): icon block + title + sub-detail + rate. Icon animates to white-on-blue on hover.
+- **Visa cards** (`visa-card` class): flag image fills the card header with gradient overlay and country name; visa type chip and rate sit below with a single action button.
+- **Service cards** (`service-card` class): icon block + title + sub-detail + rate. Icon animates to white-on-blue on hover; stamping cards include a subtle stamp-art accent.
 - All cards have `translateY` hover lift with a primary-tinted box shadow.
 
 ### Modal (`#visa-modal`)
@@ -147,24 +147,18 @@ All visa-page-specific styles live in a `<style>` block inside `visa.html` (not 
 
 ---
 
-## Tours Pages (`tours.html` + `tour-detail.html`)
+## Tours Pages (`tours.html`)
 
 ### Tours Listing (`tours.html`)
 - **Hero** with animated stats (total tours count, categories).
-- **Category filter chips** — All, International, Domestic, Hajj-Umrah — toggle active state and re-filter the card grid.
+- **Category filter chips** — All, International, Domestic — toggle active state and re-filter the card grid.
 - **Text search** — debounced 300 ms; searches by title, category, and destination.
 - **Skeleton loaders** shown while Firestore fetches; empty-state message when no matches.
-- **Tour cards** — cover image, category chip, duration, title, price (or "Call for Price" if `price === 0`), and a "View Details" button linking to `/tour-detail.html?id=<docId>`.
+- **Tour cards** — cover image, category chip, duration, title, price (or "Call for Price" if `price === 0`), and a **premium modal** with full details (overview, highlights, itinerary, inclusions/exclusions) plus WhatsApp enquiry CTA.
 - **CTA strip** — WhatsApp enquiry button for custom packages.
 - Logic in `src/js/web/tours.js` — fetches only `isActive === true` tours via `getTours()`.
 
-### Tour Detail (`tour-detail.html?id=<docId>`)
-Loads the tour document ID from the URL query param `?id=`.
-- **Left column (main content):** hero image, breadcrumbs, title, description, day-by-day itinerary timeline, inclusions list, exclusions list.
-- **Right column (sticky sidebar):** price badge (or "Call for Price"), quick info (duration, category), Call Now button, WhatsApp enquiry button, other active tours list for navigation.
-- **Meta tags** (title, description) updated dynamically per tour.
-- **Not-found state** shown if the tour ID does not exist in Firestore.
-- Logic in `src/js/web/tour-detail.js`.
+Tour details now open in a modal directly from the listing page. There is no standalone tour detail route.
 
 ---
 
@@ -174,7 +168,7 @@ Loads the tour document ID from the URL query param `?id=`.
 - **Category filter chips** — All, Hajj, Umrah — to quickly filter packages.
 - **Text search** — debounced 300 ms; searches by title, destination/city, and airline.
 - **Skeleton loaders** shown while fetching from Firestore; empty state when no matches.
-- **Package cards** — displays cover image, package type (Hajj/Umrah), days/nights, title, and price. Includes a primary CTA button to book via WhatsApp.
+- **Package cards** — displays cover image, package type (Hajj/Umrah), days/nights, title, and price. Full details open in a premium modal with WhatsApp enquiry CTA.
 - **CTA strip** — Contact buttons for custom Hajj & Umrah packages.
 - Logic in `src/js/web/hajj-umrah.js` — fetches only `isActive === true` packages from the `hajj_umrah_packages` collection.
   - Query uses **only** `where('isActive', '==', true)` — no `orderBy` clause. This avoids requiring a Firestore composite index. Results are sorted **client-side** by `departureDate` (ascending) after fetch.
@@ -198,6 +192,18 @@ The site uses a **Tailwind CSS v4 `@theme` design token system** defined in `web
 ```
 
 All components use these tokens via Tailwind utility classes. Custom vanilla CSS is minimal and limited to the hamburger menu mechanism.
+
+---
+
+## Shared Site Chrome
+
+All public pages share a consistent header/nav/CTA system:
+- `web/src/js/web/site-chrome.js` powers the sticky header state, mobile menu toggle, and homepage smooth scrolling.
+- Mobile nav open state toggles `body.nav-open` to prevent background scroll and closes when viewport returns to desktop width.
+- Header/nav styles are standardized via `site-header` and `site-nav-link` classes in `web/src/styles/web/style.css`.
+- Primary CTAs use `btn-primary` (secondary CTAs use `btn-secondary`) for consistent gradients, shadows, and hover behavior.
+- Mobile menu visibility is controlled by `#nav-menu.active` in `style.css`.
+- Motion honors `prefers-reduced-motion` by disabling heavy animations in `style.css`.
 
 ---
 
@@ -255,4 +261,4 @@ cd web && npm run build        # outputs to web/dist/
 
 ---
 
-_Last audited: 2026-03-14 — Fixed Hajj & Umrah public page showing no packages: removed compound `where + orderBy` query (required a missing Firestore composite index) and replaced with client-side sort by `departureDate`. Added dynamic tour itinerary day-builder in admin. Admin modal is now scrollable and supports a wide mode for complex forms._
+_Last audited: 2026-03-16 — Shared site chrome consolidates header/nav behavior, mobile menu uses `#nav-menu.active`, and Tours/Hajj/Umrah details continue to open in premium modals (no standalone tour detail route). Hajj/Umrah still sorts client-side by `departureDate`._

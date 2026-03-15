@@ -1,27 +1,20 @@
 // Visa page JavaScript — Premium redesign
 import { getVisas, getVisaStampings, getAttestations, getPassportServices } from '../admin/db.js';
+import { initSiteChrome } from './site-chrome.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  // ── 1. Sticky Header ───────────────────────────────────────────────────────
+  initSiteChrome({ enableSmoothScroll: false });
+
   const header = document.getElementById('header');
-  window.addEventListener('scroll', () => {
-    header.classList.toggle('shadow-sm', window.scrollY > 30);
-  });
+  const escHtml = (value = '') => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
-  // ── 2. Mobile Nav ──────────────────────────────────────────────────────────
-  const mobileToggle = document.getElementById('mobile-toggle');
-  const navMenu = document.getElementById('nav-menu');
-  if (mobileToggle) {
-    mobileToggle.addEventListener('click', () => {
-      navMenu.classList.toggle('active');
-      const icon = mobileToggle.querySelector('i');
-      icon.classList.toggle('bi-list');
-      icon.classList.toggle('bi-x-lg');
-    });
-  }
-
-  // ── 3. Tab Navigation ──────────────────────────────────────────────────────
+  // ── 1. Tab Navigation ──────────────────────────────────────────────────────
   const tabMap = {
     visas: 'panel-visas',
     stamping: 'panel-stamping',
@@ -39,10 +32,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update panels
       document.querySelectorAll('.visa-section-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById(tabMap[targetTab])?.classList.add('active');
+      const targetPanel = document.getElementById(tabMap[targetTab]);
+      targetPanel?.classList.add('active');
 
-      // Scroll to tab bar
-      document.querySelector('.tab-bar-sticky')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Scroll to the active panel and keep it pinned below header + tab bar
+      const tabBar = document.querySelector('.tab-bar-sticky');
+      if (targetPanel) {
+        const headerHeight = header?.offsetHeight || 0;
+        const tabBarHeight = tabBar?.offsetHeight || 0;
+        const offset = headerHeight + tabBarHeight + 8;
+        const top = targetPanel.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+      }
     });
   });
 
@@ -68,14 +69,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let typeValue = '';
     let rateValue = formatRate(data.rate);
     let waText = '';
+    let safeFlagUrl = '';
 
     if (serviceType === 'visa') {
       title = data.countryName || data.country || 'Unknown';
       typeValue = data.visaType || 'Tourist';
+      safeFlagUrl = escHtml(data.flagUrl || '');
       modalBanner.innerHTML = `
-        <div class="absolute inset-0 bg-cover bg-center scale-105" style="background-image: url('${data.flagUrl || ''}'); filter: brightness(0.65) blur(2px);"></div>
+        <div class="absolute inset-0 bg-cover bg-center scale-105" style="background-image: url('${safeFlagUrl}'); filter: brightness(0.65) blur(2px);"></div>
         <div class="w-[76px] h-[76px] rounded-2xl border-4 border-white/30 shadow-2xl overflow-hidden relative z-10 bg-white">
-          <img src="${data.flagUrl || ''}" alt="${title}" class="w-full h-full object-cover">
+          <img src="${safeFlagUrl}" alt="${escHtml(title)}" class="w-full h-full object-cover">
         </div>
       `;
       waText = `Hello Zamra Travels, I am interested in a visa for:\n\n🌍 Country: *${title}*\n📄 Visa Type: *${typeValue}*\n💵 Rate: *${rateValue}*\n\nPlease provide more information.`;
@@ -86,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
       modalBanner.innerHTML = `
         <div class="absolute inset-0 bg-gradient-to-br from-primary to-blue-500 opacity-90"></div>
         <div class="w-[76px] h-[76px] rounded-2xl border-4 border-white/25 shadow-2xl relative z-10 bg-white/10 backdrop-blur-sm flex items-center justify-center text-white text-[34px]">
-          <i class="bi bi-stamp"></i>
+          <i class="bi bi-file-earmark-check"></i>
         </div>
       `;
       waText = `Hello Zamra Travels, I need visa stamping for:\n\n🌍 Country: *${title}*\n📋 Service: *${typeValue}*\n💵 Rate: *${rateValue}*\n\nPlease provide more details.`;
@@ -139,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadVisas = async () => {
     const loadingEl = document.getElementById('visas-loading');
     const emptyEl = document.getElementById('visas-empty');
-    const grid = document.getElementById('visas-grid');
+      const grid = document.getElementById('visas-grid');
 
     try {
       const visas = await getVisas();
@@ -157,27 +160,26 @@ document.addEventListener('DOMContentLoaded', () => {
       visas.forEach(visa => {
         const card = document.createElement('div');
         card.className = 'visa-card';
+        const safeCountry = escHtml(visa.countryName || '');
+        const safeVisaType = escHtml(visa.visaType || 'Tourist');
         const flagImg = visa.flagUrl
-          ? `<img src="${visa.flagUrl}" alt="${visa.countryName}" loading="lazy">`
+          ? `<img src="${escHtml(visa.flagUrl)}" alt="${safeCountry}" loading="lazy">`
           : `<div class="w-full h-full bg-gradient-to-br from-primary/60 to-blue-400/60"></div>`;
 
         card.innerHTML = `
           <div class="visa-card-image">
             ${flagImg}
             <div class="visa-card-image-overlay"></div>
-            <h3>${visa.countryName || ''}</h3>
-            <div class="visa-card-image-badge view-btn">
-              <i class="bi bi-arrow-right"></i>
-            </div>
+            <h3>${safeCountry}</h3>
           </div>
           <div class="visa-card-body">
             <div class="flex items-center justify-between mb-3">
-              <span class="visa-type-chip">${visa.visaType || 'Tourist'}</span>
+              <span class="visa-type-chip">${safeVisaType}</span>
             </div>
             <div class="visa-rate-row">
               <div>
                 <small class="visa-rate small">Starting from</small>
-                <div class="visa-rate">${formatRate(visa.rate)}</div>
+                <div class="visa-rate">${escHtml(formatRate(visa.rate))}</div>
               </div>
               <button class="visa-enquire-btn view-btn">
                 <i class="bi bi-arrow-right"></i>
@@ -230,23 +232,26 @@ document.addEventListener('DOMContentLoaded', () => {
         let titleLine = item.country || item.type || 'Service';
         let subLine = '';
         if (serviceType === 'attestation') {
-          subLine = `<p class="text-text-muted text-[13px] leading-snug mt-1 line-clamp-2">${item.certificate || ''}</p>`;
+          subLine = `<p class="text-text-muted text-[13px] leading-snug mt-1 line-clamp-2">${escHtml(item.certificate || '')}</p>`;
         } else {
-          subLine = `<p class="text-text-muted text-[13px] leading-snug mt-1 line-clamp-2">${item.description || ''}</p>`;
+          subLine = `<p class="text-text-muted text-[13px] leading-snug mt-1 line-clamp-2">${escHtml(item.description || '')}</p>`;
+        }
+        if (serviceType === 'stamping') {
+          card.classList.add('service-card--stamping');
         }
 
         card.innerHTML = `
           <div class="flex items-start gap-4 mb-4">
             <div class="service-icon-wrap"><i class="${iconClass}"></i></div>
             <div class="flex-1 min-w-0">
-              <h3 class="text-[17px] font-bold text-navy leading-snug">${titleLine}</h3>
+              <h3 class="text-[17px] font-bold text-navy leading-snug">${escHtml(titleLine)}</h3>
               ${subLine}
             </div>
           </div>
           <div class="service-rate-section">
             <div>
               <small class="service-rate small">Rate</small>
-              <div class="service-rate">${formatRate(rateToDisplay)}</div>
+              <div class="service-rate">${escHtml(formatRate(rateToDisplay))}</div>
             </div>
             <button class="service-arrow-btn view-btn"><i class="bi bi-arrow-right"></i></button>
           </div>
@@ -267,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Init ───────────────────────────────────────────────────────────────────
   loadVisas();
-  renderServices(getVisaStampings, 'visa-stamping', 'stamping', 'bi bi-stamp');
+  renderServices(getVisaStampings, 'visa-stamping', 'stamping', 'bi bi-file-earmark-check');
   renderServices(getAttestations, 'attestations', 'attestation', 'bi bi-patch-check');
   renderServices(getPassportServices, 'passport-services', 'passport', 'bi bi-journal-bookmark');
 

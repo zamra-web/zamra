@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Zamra Travels</title>
     <!-- Favicons -->
-    <link href="/assets/img/favicon.webp?v=2" rel="icon">
+    <link href="/assets/img/favicon.webp?v=3" rel="icon">
     <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
     <!-- Google Fonts -->
@@ -26,12 +26,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-  <script type="module" crossorigin src="/assets/admin-DqZ7ssIF.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/index.esm-kRT_WKqT.js">
-  <link rel="modulepreload" crossorigin href="/assets/firebase-config-aHS-3htW.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-CBOUPohp.js">
-  <link rel="modulepreload" crossorigin href="/assets/db-C0m7-YSF.js">
-  <link rel="stylesheet" crossorigin href="/assets/auth-DsbnXk3M.css">
+  <script type="module" crossorigin src="/assets/admin-CEJmcbdW.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/index.esm-DPDniVF0.js">
+  <link rel="modulepreload" crossorigin href="/assets/firebase-config-CsZGR70X.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-DLtQESii.js">
+  <link rel="modulepreload" crossorigin href="/assets/db-Dzh3zJx8.js">
+  <link rel="stylesheet" crossorigin href="/assets/auth-DMfGk7CE.css">
 </head>
 
 <body class="bg-bg-main font-sans antialiased text-text-main min-h-screen flex flex-col relative overflow-x-hidden">
@@ -91,12 +91,29 @@
                 </div>
             </div>
         </div>
+
+        <div class="sm:hidden px-1 pb-3">
+            <label class="sr-only" for="admin-tab-select">Navigate</label>
+            <select id="admin-tab-select" class="admin-control w-full" aria-label="Select admin section">
+                <option value="dashboard-tab">Poster Generator</option>
+                <option value="agent-sheets-tab">Rate Upload</option>
+                <option value="eticket-tab">E-Ticket</option>
+                <option value="reports-tab">Reports</option>
+                <option value="database-tab">Database</option>
+                <option value="agents-tab">Agents</option>
+                <option value="sectors-tab">Sectors</option>
+                <option value="flights-tab">Flights</option>
+                <option value="visas-tab">Visas</option>
+                <option value="tours-tab">Tours</option>
+                <option value="hajjumrah-tab">Hajj/Umrah</option>
+            </select>
+        </div>
     </nav>
 
 
 
     <!-- Main Content Wrapper -->
-    <main class="flex-1 w-full max-w-[1400px] mx-auto py-8 px-4 sm:px-6 lg:px-8 relative z-0">
+    <main class="flex-1 w-full max-w-[1400px] mx-auto py-8 max-sm:py-6 px-4 sm:px-6 lg:px-8 relative z-0">
 
         <!-- DASHBOARD TAB (Poster Generator) -->
         <div id="dashboard-tab" class="tab-content active">
@@ -1250,7 +1267,7 @@ Example:
                             <div>
                                 <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Zamra Travels</p>
                                 <h2 class="mt-1 text-[24px] md:text-[28px] font-semibold text-slate-900 tracking-[0.02em] font-serif">Electronic Travel Ticket</h2>
-                                <p class="mt-2 text-[12px] text-slate-600">Kizhakethala Down Hill, Malappuram, Kerala 676519</p>
+                                <p class="mt-2 text-[12px] text-slate-600">Kizhakkethala, Down Hill, Malappuram, Kerala 676519, India</p>
                                 <p class="text-[12px] text-slate-600">Email: zamratravelsmlp@gmail.com | Mobile: +91 98466 06739</p>
                             </div>
                             <div class="md:text-right">
@@ -1510,7 +1527,6 @@ Example:
                     <select id="tour-category" class="admin-control" required>
                         <option value="International">International</option>
                         <option value="Domestic">Domestic</option>
-                        <option value="Hajj-Umrah">Hajj / Umrah</option>
                     </select>
                 </div>
                 <div>
