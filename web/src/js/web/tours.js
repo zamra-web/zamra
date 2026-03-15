@@ -5,7 +5,7 @@
  */
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDXVaGrWYqKwJBh7ow1GVCzTqnJJJDLlcM",
@@ -28,10 +28,10 @@ async function loadTours() {
   try {
     const snap = await getDocs(query(
       collection(db, 'tours'),
-      where('isActive', '==', true),
-      orderBy('title')
+      where('isActive', '==', true)
     ));
     _allTours = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _allTours.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
   } catch (e) {
     console.error('Error loading tours:', e);
     _allTours = [];

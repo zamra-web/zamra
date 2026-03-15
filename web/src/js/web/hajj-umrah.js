@@ -102,9 +102,20 @@ function packageCard(pkg) {
     ? `<div class="hajjumrah-price-value">₹${Number(pkg.price).toLocaleString()}</div>`
     : `<div class="hajjumrah-price-value call"><i class="bi bi-telephone-fill"></i> Call for Price</div>`;
 
-  const highlights = (pkg.highlights || []).slice(0, 2).map(h =>
-    `<div class="hajjumrah-highlight-item"><i class="bi bi-check-circle-fill"></i><span>${escHtml(h)}</span></div>`
-  ).join('');
+  const highlightsList = normalizeList(pkg.highlights);
+  const inclusionsList = normalizeList(pkg.inclusions);
+
+  const description = pkg.description
+    ? `<p class="text-[13px] text-text-muted leading-relaxed">${escHtml(pkg.description)}</p>`
+    : '';
+
+  const highlightsSection = buildListSection('Highlights', highlightsList);
+  const inclusionsSection = buildListSection('Inclusions', inclusionsList);
+
+  const detailSections = [description, highlightsSection, inclusionsSection].filter(Boolean);
+  const detailsBlock = detailSections.length
+    ? `<div class="hajjumrah-highlights">${detailSections.join('')}</div>`
+    : '<div class="hajjumrah-highlights"><p class="text-[13px] text-text-muted">Contact us for full package details.</p></div>';
 
   const badgeBg = pkg.type === 'Hajj' ? 'rgba(7, 49, 96, 0.75)' : 'rgba(217, 119, 6, 0.75)';
 
@@ -140,7 +151,7 @@ function packageCard(pkg) {
           </div>
         </div>
 
-        ${highlights ? `<div class="hajjumrah-highlights">${highlights}</div>` : '<div class="hajjumrah-highlights"><p class="text-[13px] text-text-muted">' + escHtml((pkg.description || '').slice(0, 100)) + '…</p></div>'}
+        ${detailsBlock}
         
         <div class="hajjumrah-card-footer">
           <div class="hajjumrah-price">
@@ -163,6 +174,29 @@ function escHtml(str = '') {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function normalizeList(value) {
+  if (Array.isArray(value)) {
+    return value.map(v => String(v).trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split('\n').map(v => v.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function buildListSection(label, items) {
+  if (!items.length) return '';
+  const listItems = items.map(item =>
+    `<div class="hajjumrah-highlight-item"><i class="bi bi-check-circle-fill"></i><span>${escHtml(item)}</span></div>`
+  ).join('');
+  return `
+    <div class="flex flex-col gap-2">
+      <div class="text-[11px] uppercase tracking-[0.12em] text-text-muted font-semibold">${escHtml(label)}</div>
+      ${listItems}
+    </div>
+  `;
 }
 
 // ── Event Wiring ─────────────────────────────────────────────────────────────
