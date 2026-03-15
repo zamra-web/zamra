@@ -35,7 +35,7 @@
     .hajjumrah-hero-bg-img {
       position: absolute;
       inset: 0;
-      background-image: url('/assets/img/hero-bg.jpg'); /* You may want to upload a specific bg for this page */
+      background-image: url('/assets/img/hero-banner-bg.png');
       background-size: cover;
       background-position: center;
       opacity: 0.18;
@@ -418,10 +418,10 @@
       }
     }
   </style>
-  <script type="module" crossorigin src="/assets/hajjUmrah-BrxJBmi3.js"></script>
+  <script type="module" crossorigin src="/assets/hajjUmrah-DUATe82M.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/index.esm-DPDniVF0.js">
-  <link rel="modulepreload" crossorigin href="/assets/site-chrome-Dy5oun64.js">
-  <link rel="stylesheet" crossorigin href="/assets/site-chrome-Dzz15jOp.css">
+  <link rel="modulepreload" crossorigin href="/assets/site-chrome-DG-Gy5Bv.js">
+  <link rel="stylesheet" crossorigin href="/assets/site-chrome-Drr2BL9K.css">
 </head>
 
 <body>
@@ -565,14 +565,14 @@
   </section>
 
   <!-- ── Hajj/Umrah Details Modal ──────────────────────────────────────────── -->
-  <div id="hajjumrah-modal" class="fixed inset-0 z-[2000] hidden">
+  <div id="hajjumrah-modal" class="fixed inset-0 z-[2000] hidden flex items-center justify-center p-4 max-sm:p-0 max-sm:items-end">
     <div id="hajjumrah-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
-    <div class="relative w-full max-w-[980px] mx-auto my-6 max-sm:my-4 max-sm:mx-4 bg-white rounded-[28px] max-sm:rounded-[22px] shadow-2xl overflow-hidden">
+    <div class="relative w-full max-w-[980px] mx-auto my-6 max-sm:my-0 max-sm:mx-0 bg-white rounded-[28px] max-sm:rounded-t-[26px] max-sm:rounded-b-none max-sm:h-[92vh] shadow-2xl max-sm:shadow-[0_-20px_50px_rgba(15,23,42,0.25)] overflow-hidden">
       <button id="hajjumrah-modal-close" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 border border-slate-200 text-slate-500 hover:text-navy hover:border-slate-300 flex items-center justify-center shadow-md">
         <i class="bi bi-x-lg text-[14px]"></i>
       </button>
-      <div class="max-h-[90vh] overflow-y-auto">
-        <div id="hajjumrah-modal-hero" class="relative h-[240px] max-sm:h-[200px] bg-gradient-to-br from-[#0c4a8a] to-[#1e67c2] bg-cover bg-center">
+      <div class="max-h-[90vh] overflow-y-auto overscroll-contain max-sm:max-h-[92vh] max-sm:pb-[calc(16px+env(safe-area-inset-bottom))]">
+        <div id="hajjumrah-modal-hero" class="relative h-[240px] max-sm:h-[180px] bg-gradient-to-br from-[#0c4a8a] to-[#1e67c2] bg-cover bg-center">
           <div class="absolute inset-0 bg-gradient-to-t from-[#071937]/80 via-[#071937]/30 to-transparent"></div>
           <div class="absolute top-4 left-4">
             <span id="hajjumrah-modal-type" class="px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide uppercase text-white bg-white/15 border border-white/25 backdrop-blur-md"></span>
@@ -588,7 +588,7 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-[1.45fr_0.9fr] gap-0">
           <div class="p-6 max-sm:p-5 md:p-7 space-y-6">
-            <div class="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div class="flex flex-col gap-1">
                 <span class="text-[11px] uppercase tracking-[0.12em] text-text-muted font-semibold">Departure</span>
                 <span class="text-[13px] font-semibold text-navy"><i class="bi bi-geo-alt text-primary opacity-80"></i> <span id="hajjumrah-modal-departure"></span></span>

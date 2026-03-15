@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <h3 class="flex items-center gap-3 text-[24px] text-accent mb-6 border-b-2 border-border pb-3 font-heading font-bold">
           <i class="bi bi-geo-alt-fill text-[1.1em]"></i> Flights From ${label}
         </h3>
-        <div class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6" id="grid-${label.replace(/\s+/g, '-').toLowerCase()}"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="grid-${label.replace(/\s+/g, '-').toLowerCase()}"></div>
       `;
 
       gridsContainer.appendChild(sectionDiv);
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       origins.forEach(origin => {
         const card = document.createElement('div');
-        card.className = 'sector-card bg-gradient-to-r from-primary to-[#1558c0] p-[18px_24px] rounded-[16px] shadow-[var(--shadow-premium-soft)] cursor-pointer hover:shadow-[0_8px_25px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all duration-300 flex items-center relative overflow-hidden group';
+        card.className = 'sector-card bg-gradient-to-r from-primary to-[#1558c0] p-[18px_24px] max-sm:px-4 max-sm:py-4 rounded-[16px] shadow-[var(--shadow-premium-soft)] cursor-pointer hover:shadow-[0_8px_25px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all duration-300 flex items-center relative overflow-hidden group';
         card.innerHTML = `<h4 class="text-[17px] font-heading font-extrabold text-white m-0 flex items-center justify-between z-[2] relative w-full">${origin.name} (${origin.code}) <i class="bi bi-arrow-right-circle text-white/80 text-[22px]"></i></h4>`;
 
         // Add click event to open Routes Modal
@@ -137,7 +137,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const airlineMap = {};
         airlines.forEach(a => airlineMap[a.id] = a.name);
 
-        let faresHtml = '';
+        const isMobile = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+        let tableRows = '';
+        let cardRows = '';
+        let hasFares = false;
 
         if (sector) {
           const today = new Date();
@@ -170,47 +173,86 @@ document.addEventListener('DOMContentLoaded', () => {
              return a.flightDate.getTime() - b.flightDate.getTime();
           });
 
-          if (fares.length === 0) {
-             faresHtml = `<tr><td colspan="5" class="p-[14px_15px] text-center text-text-muted">No flights available currently.</td></tr>`;
-          } else {
-             faresHtml = fares.map(fare => {
-                const airlineName = airlineMap[fare.airlineId] || 'Unknown Airline';
-                const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
-                const dateStr = fare.flightDate.toLocaleDateString('en-GB', dateOptions);
-                const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
-                const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
-                const price = `\u20b9${fare.finalRate.toLocaleString('en-IN')}`;
-                const waMsg = encodeURIComponent(`Hello Zamra Travels, I'd like to book this flight:\n\n\u2708\ufe0f *${airlineName}*\n\ud83d\uddef\ufe0f Route: *${routeName}*\n\ud83d\udcc5 Date: *${dateStr}*\n\u23f0 Dep: ${dep} | Arr: ${arr}\n\ud83d\udcb5 Price: *${price}*\n\nPlease confirm availability!`);
-                const waLink = `https://wa.me/919846606739?text=${waMsg}`;
-                
-                return `
-                          <tr class="border-b border-[#e2e8f0] [&:nth-of-type(even)]:bg-[#fafbfc] [&:last-of-type]:border-b-2 [&:last-of-type]:border-primary hover:bg-[#f1f5f9] transition-colors">
-                              <td class="p-[12px_15px] whitespace-nowrap"><strong>${dateStr}</strong></td>
-                              <td class="p-[12px_15px] whitespace-nowrap"><strong>${airlineName}</strong></td>
-                              <td class="p-[12px_15px]">${dep}</td>
-                              <td class="p-[12px_15px]">${arr}</td>
-                              <td class="p-[12px_15px] text-right"><strong>${price}</strong></td>
-                              <td class="p-[12px_10px] text-center">
-                                <a href="${waLink}" target="_blank" class="inline-flex items-center gap-1.5 bg-gradient-to-r from-primary to-[#1558c0] text-white text-[12px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap hover:shadow-[0_3px_10px_rgba(26,115,232,0.35)] hover:-translate-y-0.5 transition-all">
-                                  <i class="bi bi-whatsapp"></i> Book Now
-                                </a>
-                              </td>
-                          </tr>`;
-             }).join('');
+          if (fares.length > 0) {
+            hasFares = true;
+            const normalizedFares = fares.map(fare => {
+              const airlineName = airlineMap[fare.airlineId] || 'Unknown Airline';
+              const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+              const dateStr = fare.flightDate.toLocaleDateString('en-GB', dateOptions);
+              const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
+              const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
+              const price = `\u20b9${fare.finalRate.toLocaleString('en-IN')}`;
+              const waMsg = encodeURIComponent(`Hello Zamra Travels, I'd like to book this flight:\n\n\u2708\ufe0f *${airlineName}*\n\ud83d\uddef\ufe0f Route: *${routeName}*\n\ud83d\udcc5 Date: *${dateStr}*\n\u23f0 Dep: ${dep} | Arr: ${arr}\n\ud83d\udcb5 Price: *${price}*\n\nPlease confirm availability!`);
+              const waLink = `https://wa.me/919846606739?text=${waMsg}`;
+              return { airlineName, dateStr, dep, arr, price, waLink };
+            });
+
+            tableRows = normalizedFares.map(fare => `
+              <tr class="border-b border-[#e2e8f0] [&:nth-of-type(even)]:bg-[#fafbfc] [&:last-of-type]:border-b-2 [&:last-of-type]:border-primary hover:bg-[#f1f5f9] transition-colors">
+                  <td class="p-[12px_15px] whitespace-nowrap"><strong>${fare.dateStr}</strong></td>
+                  <td class="p-[12px_15px] whitespace-nowrap"><strong>${fare.airlineName}</strong></td>
+                  <td class="p-[12px_15px]">${fare.dep}</td>
+                  <td class="p-[12px_15px]">${fare.arr}</td>
+                  <td class="p-[12px_15px] text-right"><strong>${fare.price}</strong></td>
+                  <td class="p-[12px_10px] text-center">
+                    <a href="${fare.waLink}" target="_blank" class="inline-flex items-center gap-1.5 bg-gradient-to-r from-primary to-[#1558c0] text-white text-[12px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap hover:shadow-[0_3px_10px_rgba(26,115,232,0.35)] hover:-translate-y-0.5 transition-all">
+                      <i class="bi bi-whatsapp"></i> Book Now
+                    </a>
+                  </td>
+              </tr>
+            `).join('');
+
+            cardRows = normalizedFares.map(fare => `
+              <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-premium-soft)]">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">Date</div>
+                    <div class="text-[15px] font-bold text-navy">${fare.dateStr}</div>
+                    <div class="text-[12px] font-semibold text-text-muted mt-1">${fare.airlineName}</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">Price</div>
+                    <div class="text-[18px] font-black text-navy">${fare.price}</div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-3">
+                  <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div class="text-[10px] uppercase tracking-[0.14em] text-text-muted font-semibold">Departure</div>
+                    <div class="text-[13px] font-semibold text-navy">${fare.dep}</div>
+                  </div>
+                  <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div class="text-[10px] uppercase tracking-[0.14em] text-text-muted font-semibold">Arrival</div>
+                    <div class="text-[13px] font-semibold text-navy">${fare.arr}</div>
+                  </div>
+                </div>
+                <a href="${fare.waLink}" target="_blank" class="mt-4 inline-flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-primary to-[#1558c0] text-white text-[13px] font-bold shadow-[0_4px_14px_rgba(26,115,232,0.25)]">
+                  <i class="bi bi-whatsapp"></i> Book Now
+                </a>
+              </div>
+            `).join('');
           }
         } else {
-          faresHtml = `<tr><td colspan="5" class="p-[14px_15px] text-center text-text-muted">No flights available currently.</td></tr>`;
+          hasFares = false;
         }
 
+        const emptyState = `
+          <div class="rounded-2xl border border-dashed border-border bg-[#f8fafc] p-6 text-center text-text-muted font-semibold">
+            No flights available currently.
+          </div>
+        `;
+
         modalBody.innerHTML = `
-                <div class="text-center mb-4">
-                    <button class="mb-4 text-primary font-bold text-[14px] hover:underline flex items-center gap-2 justify-center mx-auto" id="back-to-routes">
-                      <i class="bi bi-arrow-left"></i> Back to Destinations
-                    </button>
-                    <h4 class="text-primary-dark font-bold text-lg mb-[8px]">Available Flights for ${routeName}</h4>
-                    <p class="text-text-muted text-sm">Prices are introductory and subject to availability.</p>
-                </div>
-                <div class="overflow-x-auto w-full pb-2">
+          <div class="text-center mb-4">
+              <button class="mb-4 text-primary font-bold text-[14px] hover:underline flex items-center gap-2 justify-center mx-auto" id="back-to-routes">
+                <i class="bi bi-arrow-left"></i> Back to Destinations
+              </button>
+              <h4 class="text-primary-dark font-bold text-lg mb-[8px]">Available Flights for ${routeName}</h4>
+              <p class="text-text-muted text-sm">Prices are introductory and subject to availability.</p>
+          </div>
+          ${hasFares
+            ? (isMobile
+              ? `<div class="space-y-4">${cardRows}</div>`
+              : `<div class="overflow-x-auto w-full pb-2">
                   <table class="w-full min-w-[680px] border-collapse my-[10px] text-[14px] text-left rounded-[10px] overflow-hidden">
                       <thead>
                           <tr class="bg-[#f8fafc] text-text-muted font-bold border-b-2 border-[#e2e8f0]">
@@ -223,11 +265,14 @@ document.addEventListener('DOMContentLoaded', () => {
                           </tr>
                       </thead>
                       <tbody>
-                          ${faresHtml}
+                          ${tableRows}
                       </tbody>
                   </table>
-                </div>
-            `;
+                </div>`
+            )
+            : emptyState
+          }
+        `;
       
         const backBtn = document.getElementById('back-to-routes');
         if (backBtn) {
@@ -468,51 +513,50 @@ async function searchFlights() {
       else matchedLogo = '';
 
       htmlContent += `
-        <div class="bg-white rounded-[16px] p-4 lg:p-6 mb-4 shadow-[0_2px_12px_rgba(13,31,60,0.06)] border border-border transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(13,31,60,0.1)] relative">
+        <div class="bg-white rounded-[18px] max-sm:rounded-[22px] p-4 lg:p-6 shadow-[0_2px_12px_rgba(13,31,60,0.06)] border border-border transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(13,31,60,0.1)] relative overflow-hidden">
           
           <!-- MOBILE VIEW (< lg) -->
           <div class="flex flex-col gap-4 lg:hidden">
-            <!-- Mobile Top Section -->
-            <div class="flex items-center justify-start gap-4 border-b border-border pb-4">
-              <div class="w-[60px] h-[60px] shrink-0 bg-[#f8fafc] rounded-xl border border-border/50 flex items-center justify-center p-2">
-                <img src="${matchedLogo}" onerror="this.style.display='none'" class="max-h-full max-w-full object-contain">
-              </div>
-              <div>
-                <div class="text-[12px] font-bold text-text-muted uppercase tracking-wider mb-1">${item.airline}</div>
-                <div class="text-[18px] font-heading font-bold text-navy flex items-baseline gap-1.5 leading-none">
-                  ${day} <span class="text-primary text-[14px]">${month}</span>
+            <div class="flex items-start justify-between gap-3 border-b border-border pb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-[54px] h-[54px] shrink-0 bg-[#f8fafc] rounded-2xl border border-border/50 flex items-center justify-center p-2">
+                  <img src="${matchedLogo}" onerror="this.style.display='none'" class="max-h-full max-w-full object-contain">
                 </div>
+                <div>
+                  <div class="text-[11px] font-bold text-text-muted uppercase tracking-[0.16em] mb-1">${item.airline}</div>
+                  <div class="text-[17px] font-heading font-bold text-navy flex items-baseline gap-1.5 leading-none">
+                    ${day} <span class="text-primary text-[13px]">${month}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">Price</div>
+                <div class="text-[20px] font-heading font-black text-navy leading-none">${item.price}</div>
               </div>
             </div>
 
-            <!-- Mobile Middle Section -->
-            <div class="flex flex-row items-center justify-between gap-2 px-2">
-              <div class="text-left flex-none">
-                <div class="text-[20px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.originCode}</div>
-                <div class="text-[12px] font-medium text-text-muted uppercase">Dep: ${item.departure}</div>
+            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-1">
+              <div class="text-left">
+                <div class="text-[18px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.originCode}</div>
+                <div class="text-[11px] font-semibold text-text-muted uppercase">Dep ${item.departure}</div>
               </div>
               
-              <!-- Mobile Connector -->
               <div class="flex flex-col items-center px-2">
-                <i class="bi bi-arrow-right text-primary text-[24px]"></i>
+                <div class="w-9 h-9 rounded-full bg-[#f8fafc] border border-border flex items-center justify-center">
+                  <i class="bi bi-arrow-right text-primary text-[18px]"></i>
+                </div>
                 <div class="text-[10px] text-text-muted font-bold mt-1">${item.baggageLabel}</div>
               </div>
 
-              <div class="text-right flex-none">
-                <div class="text-[20px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.destinationCode}</div>
-                <div class="text-[12px] font-medium text-text-muted uppercase">Arr: ${item.arrival}</div>
+              <div class="text-right">
+                <div class="text-[18px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.destinationCode}</div>
+                <div class="text-[11px] font-semibold text-text-muted uppercase">Arr ${item.arrival}</div>
               </div>
             </div>
 
-            <!-- Mobile Bottom Section -->
-            <div class="flex sm:flex-row flex-col items-center justify-between w-full border-t border-border pt-4 gap-3 sm:gap-0">
-              <div class="flex flex-col items-center sm:items-start w-full sm:w-auto">
-                <span class="text-[24px] font-heading font-bold text-navy leading-none tracking-tight">${item.price}</span>
-              </div>
-              <a href="${waLink}" target="_blank" class="w-full sm:w-auto bg-gradient-to-r from-primary to-[#1558c0] text-white font-heading font-bold text-[14px] px-6 py-3 rounded-xl hover:shadow-[0_4px_14px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all text-center whitespace-nowrap">
-                Book Now
-              </a>
-            </div>
+            <a href="${waLink}" target="_blank" class="w-full bg-gradient-to-r from-primary to-[#1558c0] text-white font-heading font-bold text-[14px] px-6 py-3 rounded-xl hover:shadow-[0_4px_14px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all text-center whitespace-nowrap">
+              Book Now
+            </a>
           </div>
 
           <!-- DESKTOP VIEW (>= lg) -->
@@ -530,13 +574,13 @@ async function searchFlights() {
             </div>
 
             <!-- Middle side: Routes & Details -->
-            <div class="flex flex-1 flex-row items-center justify-between gap-8 px-6">
+            <div class="flex flex-1 flex-row items-center gap-8 px-6 min-w-0">
               
               <!-- Route -->
-              <div class="flex items-center gap-6 lg:gap-8 mx-0">
-                <div class="text-left w-[100px]">
+              <div class="flex flex-1 min-w-0 items-center gap-6 lg:gap-8">
+                <div class="text-left flex-1 min-w-0">
                   <div class="text-[13px] font-medium text-text-muted mb-1 capitalize">From</div>
-                  <div class="text-[20px] font-bold text-navy uppercase leading-none tracking-tight break-words truncate w-[100px]">${item.origin}</div>
+                  <div class="text-[20px] font-bold text-navy uppercase leading-tight tracking-tight break-words whitespace-normal">${item.origin}</div>
                   <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.originCode}</div>
                 </div>
                 
@@ -544,9 +588,9 @@ async function searchFlights() {
                   <i class="bi bi-arrow-right text-primary text-[20px]"></i>
                 </div>
                 
-                <div class="text-left w-[100px]">
+                <div class="text-left flex-1 min-w-0">
                   <div class="text-[13px] font-medium text-text-muted mb-1 capitalize">To</div>
-                  <div class="text-[20px] font-bold text-navy uppercase leading-none tracking-tight break-words truncate w-[100px]">${item.destination}</div>
+                  <div class="text-[20px] font-bold text-navy uppercase leading-tight tracking-tight break-words whitespace-normal">${item.destination}</div>
                   <div class="text-[13px] font-medium text-text-muted mt-1 uppercase">${item.destinationCode}</div>
                 </div>
               </div>

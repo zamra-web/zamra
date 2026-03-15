@@ -40,6 +40,52 @@ let _databaseDrafts = {};
 let _databaseSelected = new Set();
 let _databaseEditing = new Set();
 
+// ── Theme Toggle ─────────────────────────────────────────────────────────────
+const THEME_STORAGE_KEY = 'zamra-admin-theme';
+let _activeTheme = 'light';
+
+function getStoredTheme() {
+  try { return localStorage.getItem(THEME_STORAGE_KEY); } catch { return null; }
+}
+
+function getSystemTheme() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  _activeTheme = theme;
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  const toggle = document.getElementById('admin-theme-toggle');
+  if (toggle) {
+    toggle.classList.toggle('is-dark', theme === 'dark');
+    toggle.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+    toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+}
+
+function initThemeToggle() {
+  const toggle = document.getElementById('admin-theme-toggle');
+  if (!toggle || toggle.dataset.wired) return;
+  toggle.dataset.wired = '1';
+  toggle.addEventListener('click', () => {
+    const nextTheme = _activeTheme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch { /* ignore */ }
+    applyTheme(nextTheme);
+  });
+  applyTheme(_activeTheme);
+}
+
+const storedTheme = getStoredTheme();
+applyTheme(storedTheme || getSystemTheme());
+
+if (!storedTheme && window.matchMedia) {
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  media.addEventListener?.('change', (e) => {
+    if (!getStoredTheme()) applyTheme(e.matches ? 'dark' : 'light');
+  });
+}
+
 function normalizeDamammText(value) {
   if (value === null || value === undefined) return value;
   return String(value).replace(/damamm/gi, (match) => {
@@ -316,6 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.success) window.location.href = '/login.html';
     });
   }
+  initThemeToggle();
   initModal();
   initTabs();
   initAgentSheets();
@@ -436,6 +483,151 @@ function openModal(title, bodyHtml, wide = false) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD TAB — Poster Generator
 // ══════════════════════════════════════════════════════════════════════════════
+const POSTER_MAX_ROWS = 10;
+const POSTER_THEMES = [
+  {
+    id: 'classic',
+    topBar: ['#0c4a8a', '#1e67c2', '#60a5fa'],
+    headerBg: '#0f172a',
+    headerOverlayFrom: '#0f172a',
+    headerOverlayTo: 'rgba(15, 23, 42, 0)',
+    badgeBg: 'rgba(12, 74, 138, 0.22)',
+    badgeBorder: 'rgba(96, 165, 250, 0.35)',
+    badgeText: '#dbeafe',
+    subtitle: '#dbeafe',
+    accent: '#60a5fa',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#eef4ff',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#f3f6ff',
+    sectorChipBg: 'rgba(37, 99, 235, 0.12)',
+    sectorChipText: '#2563eb',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#2563eb'
+  },
+  {
+    id: 'deep',
+    topBar: ['#073160', '#0c4a8a', '#1e67c2'],
+    headerBg: '#111827',
+    headerOverlayFrom: '#111827',
+    headerOverlayTo: 'rgba(17, 24, 39, 0)',
+    badgeBg: 'rgba(12, 74, 138, 0.24)',
+    badgeBorder: 'rgba(30, 103, 194, 0.38)',
+    badgeText: '#e0efff',
+    subtitle: '#cfe1ff',
+    accent: '#1e67c2',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#eef4ff',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#f4f7ff',
+    sectorChipBg: 'rgba(30, 103, 194, 0.12)',
+    sectorChipText: '#1e67c2',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#1e67c2'
+  },
+  {
+    id: 'royal',
+    topBar: ['#0f4f9e', '#1e67c2', '#60a5fa'],
+    headerBg: '#0c1f3a',
+    headerOverlayFrom: '#0c1f3a',
+    headerOverlayTo: 'rgba(12, 31, 58, 0)',
+    badgeBg: 'rgba(15, 79, 158, 0.22)',
+    badgeBorder: 'rgba(96, 165, 250, 0.35)',
+    badgeText: '#dbeafe',
+    subtitle: '#dbeafe',
+    accent: '#0f4f9e',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#ecf3ff',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#f0f7ff',
+    sectorChipBg: 'rgba(15, 79, 158, 0.12)',
+    sectorChipText: '#0f4f9e',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#0f4f9e'
+  }
+];
+
+function hashStringSeed(value = '') {
+  const str = String(value);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function pickPosterTheme(seedValue) {
+  if (!POSTER_THEMES.length) return null;
+  const idx = hashStringSeed(seedValue) % POSTER_THEMES.length;
+  return POSTER_THEMES[idx];
+}
+
+function applyPosterTheme(frameEl, theme) {
+  if (!frameEl || !theme) return;
+
+  const topBar = frameEl.querySelector('[data-poster-top-bar]');
+  if (topBar) topBar.style.background = `linear-gradient(to right, ${theme.topBar.join(', ')})`;
+
+  const header = frameEl.querySelector('[data-poster-header]');
+  if (header) header.style.backgroundColor = theme.headerBg;
+
+  const headerOverlay = frameEl.querySelector('[data-poster-header-overlay]');
+  if (headerOverlay) headerOverlay.style.background = `linear-gradient(to top, ${theme.headerOverlayFrom}, ${theme.headerOverlayTo})`;
+
+  const badge = frameEl.querySelector('[data-poster-badge]');
+  if (badge) {
+    badge.style.backgroundColor = theme.badgeBg;
+    badge.style.borderColor = theme.badgeBorder;
+    badge.style.color = theme.badgeText;
+  }
+
+  const subtitle = frameEl.querySelector('[data-poster-subtitle]');
+  if (subtitle) subtitle.style.color = theme.subtitle;
+
+  const body = frameEl.querySelector('[data-poster-body]');
+  if (body) body.style.backgroundColor = theme.bodyBg;
+
+  const card = frameEl.querySelector('[data-poster-card]');
+  if (card) {
+    card.style.backgroundColor = theme.cardBg;
+    card.style.borderColor = theme.cardBorder;
+  }
+
+  const headRow = frameEl.querySelector('[data-poster-table-head]');
+  if (headRow) {
+    headRow.style.borderBottom = `2px solid ${theme.tableBorder}`;
+    headRow.style.backgroundColor = theme.tableHeadBg;
+  }
+  frameEl.querySelectorAll('[data-poster-th]').forEach(th => {
+    th.style.color = theme.tableHeadText;
+  });
+
+  const footer = frameEl.querySelector('[data-poster-footer]');
+  if (footer) {
+    footer.style.backgroundColor = theme.footerBg;
+    footer.style.borderTopColor = theme.footerBorder;
+  }
+  frameEl.querySelectorAll('[data-poster-footer-accent]').forEach(el => {
+    el.style.color = theme.footerAccent;
+  });
+}
+
 async function renderDashboardTab() {
   const tab = document.getElementById('dashboard-tab');
   if (!tab) return;
@@ -634,10 +826,12 @@ async function renderPoster(fares, sectorId) {
       .replace(/^-+|-+$/g, '')
       .toLowerCase();
 
-  const renderIntoFrame = (frameEl, frameFares, frameSectorId) => {
+  const renderIntoFrame = (frameEl, frameFares, frameSectorId, theme) => {
     const titleEl = frameEl.querySelector('[data-poster-title]') || frameEl.querySelector('#poster-sector-title');
     const tbody = frameEl.querySelector('[data-poster-tbody]') || frameEl.querySelector('#poster-fares-tbody');
     if (!titleEl || !tbody) return;
+
+    applyPosterTheme(frameEl, theme);
 
     const sector = _sectors.find(s => s.id === frameSectorId);
     let originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
@@ -653,28 +847,36 @@ async function renderPoster(fares, sectorId) {
         destName = '';
       }
     }
+    const accent = theme?.accent || '#60a5fa';
     titleEl.innerHTML = destName
-      ? `${originName} <span style="color:#60a5fa;font-weight:900;">&#8594;</span> ${destName}`
+      ? `${originName} <span style="color:${accent};font-weight:900;">&#8594;</span> ${destName}`
       : `${originName}`;
 
     // Render table rows — use only explicit hex/rgb inline styles; no Tailwind classes
     // that would resolve to oklch() (which html2canvas 1.4.x cannot parse).
-    tbody.innerHTML = frameFares.map((f, i) => {
+    const rows = [];
+    const rowAlt = theme?.rowAlt || '#f8fafc';
+    const rowBorder = theme?.tableBorder || '#f1f5f9';
+    const sectorChipBg = theme?.sectorChipBg || 'rgba(37,99,235,0.1)';
+    const sectorChipText = theme?.sectorChipText || '#2563eb';
+    const fareText = theme?.fareText || '#0f172a';
+
+    frameFares.forEach((f, i) => {
       const dt = f.flightDate instanceof Date
         ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
         : f.flightDate;
 
       const airline = getAirline(f.airlineId);
-      const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const rowBg = i % 2 === 0 ? '#ffffff' : rowAlt;
       const logoSrc = airline ? blobUrlMap[airline.id] : null;
 
       // Airline cell: logo if available; airline name as fallback
       const airlineCell = logoSrc
-        ? `<img src="${logoSrc}" style="height:24px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
+        ? `<img src="${logoSrc}" style="height:26px;max-width:90px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
         : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:13px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
 
       // Sector cell
-      const sectorCell = `<span style="font-weight:700;color:#2563eb;background-color:rgba(37,99,235,0.1);padding:4px 8px;border-radius:6px;font-size:12px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
+      const sectorCell = `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:4px 8px;border-radius:6px;font-size:12px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
 
       // Time cell: parse "HH:MM - HH:MM" or "HH:MM" from flightTime
       let timeCell = '<span style="color:#94a3b8;font-size:13px;">—</span>';
@@ -687,19 +889,33 @@ async function renderPoster(fares, sectorId) {
         }
       }
 
-      return `
-        <tr style="background-color:${rowBg};border-bottom:1px solid #f1f5f9;">
+      rows.push(`
+        <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
           <td style="padding:10px 8px;font-weight:700;color:#0f172a;font-size:13px;white-space:nowrap;">${dt}</td>
           <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
           <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
           <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
           <td style="padding:10px 8px;text-align:right;vertical-align:middle;">
-            <div style="display:inline-block;color:#0f172a;font-weight:900;font-size:15px;">
+            <div style="display:inline-block;color:${fareText};font-weight:900;font-size:15px;">
               &#8377;${(f.finalRate || 0).toLocaleString()}
             </div>
           </td>
-        </tr>`;
-    }).join('');
+        </tr>`);
+    });
+
+    for (let i = frameFares.length; i < POSTER_MAX_ROWS; i++) {
+      const rowBg = i % 2 === 0 ? '#ffffff' : rowAlt;
+      rows.push(`
+        <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
+          <td style="padding:10px 8px;">&nbsp;</td>
+          <td style="padding:10px 8px;">&nbsp;</td>
+          <td style="padding:10px 8px;">&nbsp;</td>
+          <td style="padding:10px 8px;">&nbsp;</td>
+          <td style="padding:10px 8px;">&nbsp;</td>
+        </tr>`);
+    }
+
+    tbody.innerHTML = rows.join('');
   };
 
   // Split fares by sector for rendering
@@ -724,10 +940,28 @@ async function renderPoster(fares, sectorId) {
     sectorIdsToRender = [sectorId];
   }
 
-  // Render one poster per sector
-  sectorIdsToRender.forEach((sid, idx) => {
+  const chunkFares = (list, size) => {
+    const chunks = [];
+    for (let i = 0; i < list.length; i += size) {
+      chunks.push(list.slice(i, i + size));
+    }
+    return chunks;
+  };
+
+  const framesToRender = [];
+  sectorIdsToRender.forEach((sid) => {
     const frameFares = faresBySector.get(sid) || [];
     if (!frameFares.length) return;
+    const chunks = chunkFares(frameFares, POSTER_MAX_ROWS);
+    const totalPages = chunks.length || 1;
+    chunks.forEach((chunk, idx) => {
+      framesToRender.push({ sid, fares: chunk, page: idx + 1, pages: totalPages });
+    });
+  });
+
+  // Render one poster per sector (and page)
+  framesToRender.forEach((entry, idx) => {
+    const { sid, fares: frameFares, page, pages } = entry;
 
     let frameEl = templateFrame;
     if (idx > 0) {
@@ -741,7 +975,7 @@ async function renderPoster(fares, sectorId) {
       // Give the frame a unique ID so html2canvas onclone can target it reliably
       const sectorCode = sectorMap[sid] || sid;
       const slug = fileSafe(sectorCode) || `sector-${idx + 1}`;
-      frameEl.id = `poster-render-frame-${slug}-${idx + 1}`;
+      frameEl.id = `poster-render-frame-${slug}-${page}-${idx + 1}`;
 
       stack.appendChild(frameEl);
     } else {
@@ -751,8 +985,12 @@ async function renderPoster(fares, sectorId) {
     frameEl.dataset.posterFrame = '1';
     frameEl.dataset.sectorId = sid;
     frameEl.dataset.sectorCode = sectorMap[sid] || sid;
+    frameEl.dataset.posterPage = String(page);
+    frameEl.dataset.posterPageCount = String(pages);
 
-    renderIntoFrame(frameEl, frameFares, sid);
+    const themeSeed = sectorMap[sid] || sid;
+    const theme = pickPosterTheme(themeSeed);
+    renderIntoFrame(frameEl, frameFares, sid, theme);
   });
 
   container.classList.remove('hidden');
@@ -843,7 +1081,10 @@ async function downloadPoster(format) {
 
       const sectorPart = posterEl.dataset.sectorCode || posterEl.dataset.sectorId || `poster-${i + 1}`;
       const slug = fileSafe(sectorPart) || `poster-${i + 1}`;
-      const baseName = `zamra-poster-${slug}-${ts}`;
+      const page = Number(posterEl.dataset.posterPage || 1);
+      const pageCount = Number(posterEl.dataset.posterPageCount || 1);
+      const pageSuffix = pageCount > 1 ? `-p${page}` : '';
+      const baseName = `zamra-poster-${slug}${pageSuffix}-${ts}`;
 
       if (format === 'jpeg') {
         const link = document.createElement('a');
@@ -1171,42 +1412,46 @@ function renderPaginationFooter(tabName, total, totalPages, start, limit) {
 function openAgentModal(agent) {
   const isEdit = !!agent;
   openModal(isEdit ? 'Edit Agent' : 'Add New Agent', `
-    <form id="agent-form" class="flex flex-col gap-4">
-      <div>
-        <label class="admin-label text-[11px] mb-1">Agent ID *</label>
-        <input name="id" required value="${agent?.id || ''}" placeholder="e.g. AGENT1"
-          ${isEdit ? 'readonly class="admin-control cursor-not-allowed bg-slate-100 text-slate-500"' : 'class="admin-control"'}>
-        ${isEdit ? '<p class="text-[11px] text-text-soft mt-1">Agent ID cannot be changed after creation.</p>' : ''}
+    <form id="agent-form" class="admin-modal-form">
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Agent Profile</p>
+            <p class="admin-form-section-desc">Details used across fares and reports.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Agent ID *</label>
+            <input name="id" required value="${agent?.id || ''}" placeholder="e.g. AGENT1"
+              ${isEdit ? 'readonly class="admin-control cursor-not-allowed bg-slate-100 text-slate-500"' : 'class="admin-control"'}>
+            ${isEdit ? '<p class="admin-help">Agent ID cannot be changed after creation.</p>' : ''}
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Name *</label>
+            <input name="name" required value="${agent?.name || ''}" class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Email</label>
+            <input name="email" type="email" value="${agent?.email || ''}" class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Phone</label>
+            <input name="contactPhone" value="${agent?.contactPhone || ''}" class="admin-control">
+          </div>
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Commission (₹) *</label>
+            <input name="commission" type="number" min="0" required value="${agent?.commission !== undefined ? agent.commission : 500}"
+              class="admin-control" placeholder="e.g. 500">
+            <p class="admin-help">This commission is auto-applied to all fares ingested for this agent.</p>
+          </div>
+        </div>
       </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">Name *</label>
-        <input name="name" required value="${agent?.name || ''}"
-          class="admin-control">
-      </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">Email</label>
-        <input name="email" type="email" value="${agent?.email || ''}"
-          class="admin-control">
-      </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">Phone</label>
-        <input name="contactPhone" value="${agent?.contactPhone || ''}"
-          class="admin-control">
-      </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">Commission (₹) *</label>
-        <input name="commission" type="number" min="0" required value="${agent?.commission !== undefined ? agent.commission : 500}"
-          class="admin-control"
-          placeholder="e.g. 500">
-        <p class="text-[11px] text-text-soft mt-1">This commission is auto-applied to all fares ingested for this agent.</p>
-      </div>
-      <div class="flex gap-3 pt-2">
-        <button type="submit"
-          class="admin-btn admin-btn-primary flex-1 text-sm">
+      <div class="admin-modal-footer">
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary text-sm">
           ${isEdit ? 'Save Changes' : 'Add Agent'}
         </button>
-        <button type="button" id="modal-cancel"
-          class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
       </div>
     </form>`);
 
@@ -1319,27 +1564,37 @@ function wireSectorActions() {
 function openSectorModal(sector) {
   const isEdit = !!sector;
   openModal(isEdit ? 'Edit Sector' : 'Add New Sector', `
-    <form id="sector-form" class="flex flex-col gap-4">
-      <div>
-        <label class="admin-label text-[11px] mb-1">From City *</label>
-        <input name="sectorFrom" required placeholder="e.g. Kozhikode" value="${sector?.sectorFrom || ''}"
-          class="admin-control">
+    <form id="sector-form" class="admin-modal-form">
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Sector Details</p>
+            <p class="admin-form-section-desc">Define the route and sector code.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">From City *</label>
+            <input name="sectorFrom" required placeholder="e.g. Kozhikode" value="${sector?.sectorFrom || ''}"
+              class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">To City *</label>
+            <input name="sectorTo" required placeholder="e.g. Jeddah" value="${sector?.sectorTo || ''}"
+              class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Sector Code *</label>
+            <input name="sectorCode" required placeholder="e.g. CCJ JED" value="${sector?.sectorCode || ''}"
+              class="admin-control font-mono tracking-wide">
+          </div>
+        </div>
       </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">To City *</label>
-        <input name="sectorTo" required placeholder="e.g. Jeddah" value="${sector?.sectorTo || ''}"
-          class="admin-control">
-      </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">Sector Code *</label>
-        <input name="sectorCode" required placeholder="e.g. CCJ JED" value="${sector?.sectorCode || ''}"
-          class="admin-control font-mono tracking-wide">
-      </div>
-      <div class="flex gap-3 pt-2">
-        <button type="submit" class="admin-btn admin-btn-primary flex-1 text-sm">
+      <div class="admin-modal-footer">
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary text-sm">
           ${isEdit ? 'Save Changes' : 'Add Sector'}
         </button>
-        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
       </div>
     </form>`);
 
@@ -1444,28 +1699,39 @@ function wireAirlineActions() {
 function openAirlineModal(airline) {
   const isEdit = !!airline;
   openModal(isEdit ? 'Edit Airline' : 'Add New Airline', `
-    <form id="airline-form" class="flex flex-col gap-4">
-      <div>
-        <label class="admin-label text-[11px] mb-1">Airline Name *</label>
-        <input name="name" required placeholder="e.g. Air India Express" value="${airline?.name || ''}"
-          class="admin-control">
+    <form id="airline-form" class="admin-modal-form">
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Airline Details</p>
+            <p class="admin-form-section-desc">Name, IATA code, and logo.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">Airline Name *</label>
+            <input name="name" required placeholder="e.g. Air India Express" value="${airline?.name || ''}"
+              class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">IATA Code *</label>
+            <input name="code" required maxlength="3" placeholder="e.g. IX" value="${airline?.code || ''}"
+              class="admin-control font-mono tracking-widest uppercase">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Logo (optional)</label>
+            <div class="admin-file">
+              <input type="file" name="logoFile" accept="image/*">
+              ${airline?.logoUrl ? `<img src="${airline.logoUrl}" class="mt-3 h-9 object-contain rounded" alt="current logo">` : ''}
+            </div>
+          </div>
+        </div>
       </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">IATA Code *</label>
-        <input name="code" required maxlength="3" placeholder="e.g. IX" value="${airline?.code || ''}"
-          class="admin-control font-mono tracking-widest uppercase">
-      </div>
-      <div>
-        <label class="admin-label text-[11px] mb-1">Logo (optional)</label>
-        <input type="file" name="logoFile" accept="image/*"
-          class="w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-light file:text-primary cursor-pointer">
-        ${airline?.logoUrl ? `<img src="${airline.logoUrl}" class="mt-2 h-8 object-contain rounded" alt="current logo">` : ''}
-      </div>
-      <div class="flex gap-3 pt-2">
-        <button type="submit" class="admin-btn admin-btn-primary flex-1 text-sm">
+      <div class="admin-modal-footer">
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary text-sm">
           ${isEdit ? 'Save Changes' : 'Add Airline'}
         </button>
-        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
       </div>
     </form>`);
 
@@ -2773,87 +3039,112 @@ async function deleteSelectedDatabaseRows() {
 function openDatabaseAddFareModal() {
   const dateDefault = toDateInputValue(new Date());
   openModal('Add Fare Row', `
-    <form id="database-add-form" class="space-y-4">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="admin-label text-[10px] mb-1">Date *</label>
-          <input id="db-add-date" type="date" class="admin-control h-10" value="${dateDefault}" required>
+    <form id="database-add-form" class="admin-modal-form">
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Flight Details</p>
+            <p class="admin-form-section-desc">Date, time, agent, sector, and airline.</p>
+          </div>
         </div>
-        <div>
-          <label class="admin-label text-[10px] mb-1">Time</label>
-          <input id="db-add-time" type="text" class="admin-control h-10" placeholder="e.g. 04:05 - 11:10">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">Date *</label>
+            <input id="db-add-date" type="date" class="admin-control" value="${dateDefault}" required>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Time</label>
+            <input id="db-add-time" type="text" class="admin-control" placeholder="e.g. 04:05 - 11:10">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+          <div class="admin-field">
+            <label class="admin-label">Agent *</label>
+            <select id="db-add-agent" class="admin-control" required>
+              <option value="">Select Agent</option>
+              ${_agents.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.id)} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('')}
+            </select>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Sector *</label>
+            <select id="db-add-sector" class="admin-control" required>
+              <option value="">Select Sector</option>
+              ${_sectors.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.sectorCode || s.id)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Airline</label>
+            <select id="db-add-airline" class="admin-control">
+              <option value="">No Airline</option>
+              ${_airlines.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.code || '—')} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('')}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-4">
-        <div>
-          <label class="admin-label text-[10px] mb-1">Agent *</label>
-          <select id="db-add-agent" class="admin-control h-10" required>
-            <option value="">Select Agent</option>
-            ${_agents.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.id)} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('')}
-          </select>
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Pricing</p>
+            <p class="admin-form-section-desc">Rates and commission.</p>
+          </div>
         </div>
-        <div>
-          <label class="admin-label text-[10px] mb-1">Sector *</label>
-          <select id="db-add-sector" class="admin-control h-10" required>
-            <option value="">Select Sector</option>
-            ${_sectors.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.sectorCode || s.id)}</option>`).join('')}
-          </select>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">SP Rate (₹)</label>
+            <input id="db-add-sp" type="number" class="admin-control" min="0" step="1" value="0">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Commission (₹)</label>
+            <input id="db-add-comm" type="number" class="admin-control bg-slate-50 text-slate-500" min="0" step="1" value="0" readonly tabindex="-1">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Final Rate (₹)</label>
+            <input id="db-add-rate" type="number" class="admin-control bg-slate-50 text-slate-500" min="0" step="1" value="0" readonly tabindex="-1">
+          </div>
         </div>
-        <div>
-          <label class="admin-label text-[10px] mb-1">Airline</label>
-          <select id="db-add-airline" class="admin-control h-10">
-            <option value="">No Airline</option>
-            ${_airlines.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.code || '—')} · ${escapeHtml(a.name || 'Unnamed')}</option>`).join('')}
-          </select>
+        <p class="admin-help mt-2">Rate is auto-calculated as <strong>SP Rate + Commission</strong>.</p>
+      </div>
+
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Baggage &amp; Status</p>
+            <p class="admin-form-section-desc">Check-in, extra baggage, and visibility.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">Baggage (kg)</label>
+            <select id="db-add-bag" class="admin-control">
+              ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 30)}
+            </select>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Extra Baggage (kg)</label>
+            <select id="db-add-exbag" class="admin-control">
+              ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 20)}
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <div class="admin-field">
+            <label class="admin-label">Status</label>
+            <select id="db-add-status" class="admin-control">
+              <option value="live">Live</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-4">
-        <div>
-          <label class="admin-label text-[10px] mb-1">SP Rate (₹)</label>
-          <input id="db-add-sp" type="number" class="admin-control h-10" min="0" step="1" value="0">
-        </div>
-        <div>
-          <label class="admin-label text-[10px] mb-1">Commission (₹)</label>
-          <input id="db-add-comm" type="number" class="admin-control h-10 bg-slate-50 text-slate-500" min="0" step="1" value="0" readonly tabindex="-1">
-        </div>
-        <div>
-          <label class="admin-label text-[10px] mb-1">Final Rate (₹)</label>
-          <input id="db-add-rate" type="number" class="admin-control h-10 bg-slate-50 text-slate-500" min="0" step="1" value="0" readonly tabindex="-1">
-        </div>
-      </div>
-      <p class="text-[11px] text-text-soft -mt-2">Rate is auto-calculated as <strong>SP Rate + Commission</strong>.</p>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="admin-label text-[10px] mb-1">Baggage (kg)</label>
-          <select id="db-add-bag" class="admin-control h-10">
-            ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 30)}
-          </select>
-        </div>
-        <div>
-          <label class="admin-label text-[10px] mb-1">Extra Baggage (kg)</label>
-          <select id="db-add-exbag" class="admin-control h-10">
-            ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 20)}
-          </select>
-        </div>
-      </div>
-
-      <div>
-        <label class="admin-label text-[10px] mb-1">Status</label>
-        <select id="db-add-status" class="admin-control h-10">
-          <option value="live">Live</option>
-          <option value="hidden">Hidden</option>
-        </select>
-      </div>
-
-      <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+      <div class="admin-modal-footer">
         <button type="button" onclick="document.getElementById('admin-modal').close()" class="admin-btn admin-btn-ghost px-5">Cancel</button>
         <button type="submit" class="admin-btn admin-btn-primary px-5">Add Fare</button>
       </div>
     </form>
-  `);
+  `, true);
 
   const form = document.getElementById('database-add-form');
   if (!form) return;
@@ -4199,21 +4490,22 @@ function arrayToLines(arr = []) {
 function _tourItineraryDayHtml(index, dayLabel = '', activities = []) {
   const activityLines = activities.length ? activities.join('\n') : '';
   return `
-    <div class="tour-day-row relative rounded-xl border border-slate-200 bg-slate-50/70 p-4" data-day-index="${index}">
+    <div class="tour-day-row admin-form-section relative bg-white" data-day-index="${index}">
       <div class="flex items-center justify-between mb-3 pr-8">
-        <span class="tour-day-number text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">Day ${index + 1}</span>
+        <span class="tour-day-number admin-label text-primary">Day ${index + 1}</span>
       </div>
       <button type="button" class="tour-remove-day absolute top-3 right-3 w-7 h-7 rounded-full border border-red-200 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center" title="Remove day">
         <i class="bi bi-x-lg text-[11px]"></i>
       </button>
-      <div class="space-y-2.5">
-        <div>
-          <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Day Label / Title *</label>
-          <input type="text" class="tour-day-label admin-control h-9 text-sm" placeholder="e.g. Day 1 – Arrival" value="${escapeHtml(dayLabel)}" required>
+      <div class="grid grid-cols-1 gap-3">
+        <div class="admin-field">
+          <label class="admin-label">Day Label / Title *</label>
+          <input type="text" class="tour-day-label admin-control" placeholder="e.g. Day 1 – Arrival" value="${escapeHtml(dayLabel)}" required>
         </div>
-        <div>
-          <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Activities <span class="font-normal normal-case">(one per line)</span></label>
-          <textarea class="tour-day-activities admin-control text-sm" rows="3" placeholder="Airport pickup&#10;Hotel check-in&#10;Welcome dinner">${escapeHtml(activityLines)}</textarea>
+        <div class="admin-field">
+          <label class="admin-label">Activities</label>
+          <p class="admin-help">One activity per line.</p>
+          <textarea class="tour-day-activities admin-control" rows="3" placeholder="Airport pickup&#10;Hotel check-in&#10;Welcome dinner">${escapeHtml(activityLines)}</textarea>
         </div>
       </div>
     </div>`;
@@ -4462,7 +4754,7 @@ function openHajjUmrahModal(pkg) {
   const tpl = document.getElementById('modal-hajjumrah-form');
   if (!tpl) return;
 
-  openModal(pkg ? 'Edit Package' : 'Add Package', tpl.innerHTML);
+  openModal(pkg ? 'Edit Package' : 'Add Package', tpl.innerHTML, true);
 
   const modalForm = document.getElementById('hajjumrah-form');
   const idInput = document.getElementById('hajjumrah-id');

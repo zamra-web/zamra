@@ -76,6 +76,7 @@ web/
 
 - Desktop uses the top nav links (`.nav-link`) to switch tabs.
 - Mobile uses the `#admin-tab-select` dropdown (shown only on small screens) to switch tabs.
+- A light/dark **theme toggle** sits beside the admin user chip and persists to `localStorage` (defaults to system theme if no preference set).
 - `initTabs()` in `web/src/js/admin/main.js` keeps the dropdown and active tab in sync. If you add/remove tabs, update both the nav links and the dropdown options in `web/admin.html`.
 - Small-screen spacing, controls, and tables are tuned in `web/src/styles/admin/style.css` to keep the dashboard usable on mobile with touch-friendly controls and smooth horizontal scrolling for wide tables.
 
@@ -88,8 +89,11 @@ web/
   - Displays fares sorted by date
   - **All Sectors** renders **one poster per sector** (instead of mixing sectors into a single table)
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
+  - **Consistent size** — posters use a fixed height and pad empty rows so the layout never shrinks
+  - **Auto-page** — sectors with more than 10 fares split into multiple posters (page per chunk)
   - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
+  - **Dynamic brand themes** — gradients and accents rotate per sector using the Zamra palette
   - **Download JPEG** — renders poster(s) to canvas at 2× resolution and triggers a `.jpg` download (downloads one file per sector for All Sectors)
   - **Download PDF** — converts poster canvas to a mm-based jsPDF page exactly sized to the poster dimensions (downloads one file per sector for All Sectors)
   - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)

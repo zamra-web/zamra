@@ -3,6 +3,96 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
     const toastMessage = `Generating ${ratio} Video... Please remain on this tab.`;
     if (window.toast) window.toast('info', 'Video Generation', toastMessage);
 
+    if (typeof MediaRecorder === 'undefined') {
+        if (window.toast) window.toast('error', 'Video Generation', 'Your browser does not support MediaRecorder.');
+        throw new Error('MediaRecorder is not supported in this browser.');
+    }
+
+    const VIDEO_THEMES = [
+        {
+            id: 'classic',
+            topBar: ['#0c4a8a', '#1e67c2', '#60a5fa'],
+            headerBg: '#0f172a',
+            headerOverlayFrom: '#0f172a',
+            headerOverlayTo: 'rgba(15, 23, 42, 0)',
+            badgeBg: 'rgba(12, 74, 138, 0.25)',
+            badgeBorder: 'rgba(96, 165, 250, 0.4)',
+            badgeText: '#dbeafe',
+            subtitle: '#dbeafe',
+            accent: '#60a5fa',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#f3f6ff',
+            sectorText: '#2563eb',
+            fareBadgeBg: '#0f172a',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#2563eb'
+        },
+        {
+            id: 'deep',
+            topBar: ['#073160', '#0c4a8a', '#1e67c2'],
+            headerBg: '#111827',
+            headerOverlayFrom: '#111827',
+            headerOverlayTo: 'rgba(17, 24, 39, 0)',
+            badgeBg: 'rgba(12, 74, 138, 0.28)',
+            badgeBorder: 'rgba(30, 103, 194, 0.45)',
+            badgeText: '#e0efff',
+            subtitle: '#cfe1ff',
+            accent: '#1e67c2',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#f4f7ff',
+            sectorText: '#1e67c2',
+            fareBadgeBg: '#111827',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#1e67c2'
+        },
+        {
+            id: 'royal',
+            topBar: ['#0f4f9e', '#1e67c2', '#60a5fa'],
+            headerBg: '#0c1f3a',
+            headerOverlayFrom: '#0c1f3a',
+            headerOverlayTo: 'rgba(12, 31, 58, 0)',
+            badgeBg: 'rgba(15, 79, 158, 0.25)',
+            badgeBorder: 'rgba(96, 165, 250, 0.4)',
+            badgeText: '#dbeafe',
+            subtitle: '#dbeafe',
+            accent: '#0f4f9e',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#f0f7ff',
+            sectorText: '#0f4f9e',
+            fareBadgeBg: '#0c1f3a',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#0f4f9e'
+        }
+    ];
+
+    function hashStringSeed(value = '') {
+        const str = String(value);
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash |= 0;
+        }
+        return Math.abs(hash);
+    }
+
+    function pickTheme(seedValue) {
+        if (!VIDEO_THEMES.length) return VIDEO_THEMES[0];
+        const idx = hashStringSeed(seedValue) % VIDEO_THEMES.length;
+        return VIDEO_THEMES[idx];
+    }
+
     return new Promise(async (resolve, reject) => {
         try {
             // 1. Dimensions setup
@@ -20,12 +110,15 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             // 2. Pre-load assets
             let titleText = 'MULTIPLE → SECTORS';
+            let themeSeed = sectorId;
             if (sectorId !== 'all') {
                 const sector = sectors.find(s => s.id === sectorId);
                 const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
                 const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
                 titleText = `${originName} → ${destName}`;
+                themeSeed = sector?.sectorCode || `${originName}-${destName}`;
             }
+            const theme = pickTheme(themeSeed);
 
             // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
             const groupedFaresMap = new Map();
@@ -104,7 +197,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             await new Promise((res) => {
                 bgImg.onload = res;
                 bgImg.onerror = res;
-                bgImg.src = '/assets/img/hero-bg.webp';
+                bgImg.src = '/assets/img/hero-banner-bg.png';
             });
 
             // Load Zamra logo
@@ -145,8 +238,20 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             recorder.start(100); // Record in 100ms chunks to ensure data availability
 
             // 4. Animation loop
-            const totalDuration = 10000 + (sortedFares.length * 1500); // 10s base + 1.5s per fare
+            const headerHeight = ratio === '9x16' ? 400 : 300;
+            const rowHeight = 90;
+            const footerHeight = 100;
+            const startY = headerHeight + 60;
+            const availableHeight = height - startY - footerHeight - 20;
+            const maxRows = Math.max(1, Math.floor(availableHeight / rowHeight));
+            const visibleFares = sortedFares.slice(0, maxRows);
+
+            const totalDuration = 10000 + (visibleFares.length * 1500); // 10s base + 1.5s per fare
             const startTime = performance.now();
+            let stopped = false;
+
+            const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+            const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
             function drawRoundedRect(x, y, w, h, r) {
                 ctx.beginPath();
@@ -163,42 +268,53 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             }
 
             function drawFrame(now) {
+                if (stopped) return;
                 const elapsed = now - startTime;
                 
                 if (elapsed > totalDuration) {
                     try {
+                        stopped = true;
                         recorder.stop();
                     } catch(e) { console.error("Error stopping recorder", e); }
                     return; // End loop
                 }
 
                 // --- Draw Background ---
-                ctx.fillStyle = '#f8fafc'; // bg-slate-50
+                ctx.fillStyle = theme.bodyBg;
+                ctx.fillRect(0, 0, width, height);
+
+                // Ambient gradient wash for premium depth
+                const wash = ctx.createLinearGradient(0, 0, width, height);
+                wash.addColorStop(0, 'rgba(255,255,255,0.35)');
+                wash.addColorStop(0.5, 'rgba(255,255,255,0)');
+                wash.addColorStop(1, 'rgba(37,99,235,0.06)');
+                ctx.fillStyle = wash;
                 ctx.fillRect(0, 0, width, height);
 
                 // --- Draw Header Area ---
                 // Depending on ratio, header height changes
-                const headerHeight = ratio === '9x16' ? 400 : 300;
+                // Use precomputed headerHeight
                 
                 // Draw Hero Image with overlay
-                ctx.fillStyle = '#1e293b';
+                ctx.fillStyle = theme.headerBg;
                 ctx.fillRect(0, 0, width, headerHeight);
                 if (bgImg.complete && bgImg.width > 0) {
-                    ctx.globalAlpha = 0.2;
+                    const parallax = 6 * Math.sin(elapsed / 1800);
+                    ctx.globalAlpha = 0.22;
                     // Cover logic
                     const scale = Math.max(width / bgImg.width, headerHeight / bgImg.height);
                     const dw = bgImg.width * scale;
                     const dh = bgImg.height * scale;
                     const dx = (width - dw) / 2;
-                    const dy = (headerHeight - dh) / 2;
+                    const dy = (headerHeight - dh) / 2 + parallax;
                     ctx.drawImage(bgImg, dx, dy, dw, dh);
                     ctx.globalAlpha = 1.0;
                 }
 
                 // Gradient overlay
                 const grad = ctx.createLinearGradient(0, 0, 0, headerHeight);
-                grad.addColorStop(0, '#1e293b');
-                grad.addColorStop(1, 'transparent');
+                grad.addColorStop(0, theme.headerOverlayFrom);
+                grad.addColorStop(1, theme.headerOverlayTo);
                 ctx.fillStyle = grad;
                 ctx.globalAlpha = 0.8;
                 ctx.fillRect(0, 0, width, headerHeight);
@@ -209,46 +325,75 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.textBaseline = 'middle';
                 
                 // Top Decor
-                const topGrad = ctx.createLinearGradient(0,0,width,0);
-                topGrad.addColorStop(0, '#2563eb');
-                topGrad.addColorStop(0.5, '#60a5fa');
-                topGrad.addColorStop(1, '#1558c0');
+                const topShift = (Math.sin(elapsed / 1600) + 1) / 2;
+                const topGrad = ctx.createLinearGradient(-width * 0.15 * topShift, 0, width * (1 + 0.15 * topShift), 0);
+                topGrad.addColorStop(0, theme.topBar[0]);
+                topGrad.addColorStop(0.5, theme.topBar[1]);
+                topGrad.addColorStop(1, theme.topBar[2]);
                 ctx.fillStyle = topGrad;
                 ctx.fillRect(0, 0, width, 16);
 
                 // Badge
                 const badgeW = 200, badgeH = 40;
                 const badgeY = 60;
-                ctx.fillStyle = 'rgba(37, 99, 235, 0.4)';
-                drawRoundedRect((width/2) - (badgeW/2), badgeY, badgeW, badgeH, 20);
+                const badgePulse = 1 + 0.02 * Math.sin(elapsed / 700);
+                ctx.fillStyle = theme.badgeBg;
+                drawRoundedRect((width/2) - (badgeW/2), badgeY, badgeW * badgePulse, badgeH, 20);
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(37, 99, 235, 0.6)';
+                ctx.strokeStyle = theme.badgeBorder;
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 
-                ctx.fillStyle = '#bfdbfe';
+                ctx.fillStyle = theme.badgeText;
                 ctx.font = 'bold 16px Arial, sans-serif';
                 ctx.fillText('EXCLUSIVE DEALS', width/2, badgeY + (badgeH/2));
 
                 // Title
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '900 ' + (ratio === '16x9' ? '70px' : '56px') + ' Arial, sans-serif';
-                ctx.fillText(titleText, width/2, badgeY + 80);
+                const titleSize = ratio === '16x9' ? 70 : 56;
+                ctx.font = `900 ${titleSize}px Arial, sans-serif`;
+                ctx.textBaseline = 'middle';
+                const arrow = '→';
+                if (titleText.includes(arrow)) {
+                    const parts = titleText.split(arrow);
+                    const left = parts[0].trim();
+                    const right = parts[1].trim();
+                    const arrowText = ` ${arrow} `;
+                    ctx.textAlign = 'left';
+                    const leftWidth = ctx.measureText(left).width;
+                    const arrowWidth = ctx.measureText(arrowText).width;
+                    const rightWidth = ctx.measureText(right).width;
+                    const totalWidth = leftWidth + arrowWidth + rightWidth;
+                    const startX = (width - totalWidth) / 2;
+                    const titleY = badgeY + 80 - (6 * (1 - easeOutCubic(Math.min(1, elapsed / 800))));
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(left, startX, titleY);
+                    ctx.fillStyle = theme.accent;
+                    ctx.fillText(arrowText, startX + leftWidth, titleY);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(right, startX + leftWidth + arrowWidth, titleY);
+                    ctx.textAlign = 'center';
+                } else {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.textAlign = 'center';
+                    const titleY = badgeY + 80 - (6 * (1 - easeOutCubic(Math.min(1, elapsed / 800))));
+                    ctx.fillText(titleText, width/2, titleY);
+                }
                 
                 // Subtitle
-                ctx.fillStyle = '#dbeafe';
+                ctx.fillStyle = theme.subtitle;
                 ctx.font = '700 24px Arial, sans-serif';
-                ctx.fillText('SPECIAL FARES AVAILABLE NOW', width/2, badgeY + 140);
+                const subtitleY = badgeY + 140 - (8 * (1 - easeOutCubic(Math.min(1, elapsed / 1000))));
+                ctx.globalAlpha = Math.min(1, elapsed / 1000);
+                ctx.fillText('SPECIAL FARES AVAILABLE NOW', width/2, subtitleY);
+                ctx.globalAlpha = 1.0;
 
                 // --- Draw Fares ---
                 // Layout calculations
-                const startY = headerHeight + 60;
-                const rowHeight = 90;
                 const marginX = ratio === '9x16' ? 40 : (ratio === '1x1' ? 80 : 160);
                 const listWidth = width - (marginX * 2);
 
                 // Draw Table Header
-                ctx.fillStyle = '#64748b';
+                ctx.fillStyle = theme.tableHeadText;
                 ctx.font = 'bold 18px Arial, sans-serif';
                 ctx.textAlign = 'left';
                 ctx.fillText('DATE', marginX + 20, startY - 20);
@@ -262,28 +407,28 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.fillText('FARE', marginX + listWidth - 20, startY - 20);
 
                 // Draw rows (animated entrance)
-                for (let i = 0; i < sortedFares.length; i++) {
-                    const f = sortedFares[i];
+                for (let i = 0; i < visibleFares.length; i++) {
+                    const f = visibleFares[i];
                     const entryTime = 1000 + (i * 800); // Starts appearing after 1s, staggered by 0.8s
                     
                     if (elapsed < entryTime) continue; // Not yet visible
                     
                     // Fade in effect
-                    const fadeDuration = 500;
-                    const opacity = Math.min(1, (elapsed - entryTime) / fadeDuration);
+                    const fadeDuration = 650;
+                    const progress = Math.min(1, (elapsed - entryTime) / fadeDuration);
+                    const opacity = easeOutCubic(progress);
                     
                     // Slide up effect
-                    const slideOffset = 20 * (1 - opacity);
+                    const slideOffset = 26 * (1 - opacity);
                     const y = startY + (i * rowHeight) + slideOffset;
                     
                     ctx.globalAlpha = opacity;
                     
                     // Row Background
-                    if (i % 2 === 0) {
-                        ctx.fillStyle = '#ffffff';
-                        drawRoundedRect(marginX, y, listWidth, rowHeight - 10, 12);
-                        ctx.fill();
-                    }
+                    const rowBg = i % 2 === 0 ? '#ffffff' : theme.rowAlt;
+                    ctx.fillStyle = rowBg;
+                    drawRoundedRect(marginX, y, listWidth, rowHeight - 10, 12);
+                    ctx.fill();
 
                     // Content
                     ctx.fillStyle = '#0f172a';
@@ -299,7 +444,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
                     // Sector
                     ctx.font = '700 22px Arial, sans-serif';
-                    ctx.fillStyle = '#2563eb';
+                    ctx.fillStyle = theme.sectorText;
                     ctx.textAlign = 'center';
                     const sName = sectorMap[f.sectorId] || f.sectorId;
                     ctx.fillText(sName, marginX + (listWidth * 0.25), y + (rowHeight/2) - 5);
@@ -340,11 +485,11 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     const badgeW = textW + 40;
                     const badgeH = 50;
                     
-                    ctx.fillStyle = '#0f172a';
+                    ctx.fillStyle = theme.fareBadgeBg;
                     drawRoundedRect(badgeRight - badgeW, y + (rowHeight/2) - 5 - (badgeH/2), badgeW, badgeH, 12);
                     ctx.fill();
                     
-                    ctx.fillStyle = '#ffffff';
+                    ctx.fillStyle = theme.fareBadgeText;
                     ctx.fillText(fareText, badgeRight - 20, y + (rowHeight/2) - 5);
 
                     ctx.globalAlpha = 1.0;
@@ -352,19 +497,19 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
                 // --- Draw Footer ---
                 // Slide up footer at the very end
-                const footerEntryTime = 1000 + (sortedFares.length * 800) + 500;
+                const footerEntryTime = 1000 + (visibleFares.length * 800) + 500;
                 if (elapsed > footerEntryTime) {
-                    const footerOpacity = Math.min(1, (elapsed - footerEntryTime) / 500);
+                    const footerOpacity = easeInOut(Math.min(1, (elapsed - footerEntryTime) / 600));
                     ctx.globalAlpha = footerOpacity;
                     
                     const fHeight = 100;
                     const fY = height - fHeight + (20 * (1 - footerOpacity));
                     
-                    ctx.fillStyle = '#ffffff';
+                    ctx.fillStyle = theme.footerBg;
                     ctx.fillRect(0, height - fHeight, width, fHeight); // Fixed bg
                     ctx.fillRect(0, fY, width, fHeight); // Moving bg inside
                     
-                    ctx.fillStyle = '#f1f5f9';
+                    ctx.fillStyle = theme.footerBorder;
                     ctx.fillRect(0, height - fHeight, width, 2);
 
                     // Logo
@@ -372,7 +517,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         ctx.drawImage(logoImg, marginX, height - (fHeight/2) - 24, 48, 48);
                     }
                     
-                    ctx.fillStyle = '#1e293b';
+                    ctx.fillStyle = theme.footerText;
                     ctx.font = '900 24px Arial, sans-serif';
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
@@ -381,6 +526,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     // Contact
                     ctx.font = '700 20px Arial, sans-serif';
                     ctx.textAlign = 'right';
+                    ctx.fillStyle = theme.footerText;
                     ctx.fillText('zamratravels.com  |  +91 98466 06739', width - marginX, height - (fHeight/2));
 
                     ctx.globalAlpha = 1.0;
@@ -390,17 +536,34 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 requestAnimationFrame(drawFrame);
             }
 
+            const safetyStop = setTimeout(() => {
+                if (!stopped && recorder.state === 'recording') {
+                    try {
+                        stopped = true;
+                        recorder.stop();
+                    } catch (e) {
+                        console.error('Safety stop error:', e);
+                    }
+                }
+            }, totalDuration + 1500);
+
             // Start loop
             requestAnimationFrame(drawFrame);
 
             // 5. Handle recording completion
             recorder.onstop = () => {
+                clearTimeout(safetyStop);
                 const blob = new Blob(chunks, { type: mimeType });
+                if (!blob || !blob.size) {
+                    if (window.toast) window.toast('error', 'Generation Error', 'No video data was produced.');
+                    reject(new Error('No video data generated.'));
+                    return;
+                }
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                // Force .mp4 extension for maximum compatibility across devices
-                a.download = `zamra-video-${ratio}-${sectorSlug}-${Date.now()}.mp4`;
+                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                a.download = `zamra-video-${ratio}-${sectorSlug}-${Date.now()}.${ext}`;
                 a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();

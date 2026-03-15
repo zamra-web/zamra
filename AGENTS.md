@@ -131,6 +131,7 @@ zamra/                              # Firebase project root — run firebase CLI
 - Bulk operations use Cloud Functions via `callXxx()` wrappers in `db.js`
 - Use the `openModal(title, html, wide = false)` helper in `main.js` for any new modal forms. Pass `wide = true` for forms that need extra width (currently: Tours). This toggles the modal between `max-w-lg` (default) and `max-w-2xl`.
 - Use the `toast(type, title, msg)` helper for all user feedback
+- Admin has a **light/dark theme toggle** (persisted to `localStorage`) that sets `data-theme` on `<html>` — keep new UI compatible with both modes.
 
 ### Working on Cloud Functions
 - Functions live in `functions/index.js`
@@ -150,6 +151,7 @@ zamra/                              # Firebase project root — run firebase CLI
 - **All images are local** — stored in `web/public/assets/img/`
 - External images were migrated into `web/public/assets/img/` (no external image URLs)
 - Reference in code as `/assets/img/filename.jpg`
+- **Shared hero background**: use `/assets/img/hero-banner-bg.png` for hero overlays (Tours, Hajj/Umrah, and admin header background).
 - Airline/agent logos are uploaded to **Firebase Storage** via the admin dashboard and stored as URLs in Firestore
 - **Country flag images** for the Visas tab are stored in `country_flags/` in Firebase Storage — same pattern as `airline_logos/`
 - **Tour cover images** are uploaded via the Tours tab and stored in `tour_images/` in Firebase Storage — URL saved as `coverImageUrl` on the Firestore `tours` document
@@ -164,6 +166,8 @@ zamra/                              # Firebase project root — run firebase CLI
 - Mobile hamburger nav uses vanilla CSS in `@layer components` in `web/src/styles/web/style.css`
 - Mobile nav open state locks body scroll via `nav-open` and closes automatically on resize in `web/src/js/web/site-chrome.js`
 - Admin dashboard is desktop-first but remains usable on tablet and small screens (tightened spacing + touch-friendly controls)
+- **Public tours + Hajj/Umrah modals** use a bottom‑sheet layout on mobile for better thumb reach and scrolling.
+- **Flight Details modal + live flight results** switch to card layouts on mobile to avoid horizontal scrolling.
 
 ---
 

@@ -87,14 +87,15 @@ web/
 - Deduplicates identical flights (same sector, airline, date, and time), automatically showing only the cheapest rate
 - Displays cheapest fare per sector, sorted by price
 - Implemented in `web/src/js/web/main.js`
+- **Mobile UI** — live results render as compact card rows with clear price + CTA and extra bottom spacing to avoid overlap with floating actions.
 
 ### ✈️ Sectors Display (Lowest Fare Flight Tickets)
 - Reads `sectors` collection from Firestore
 - Groups routes by top-level "Origin" cards (e.g., India to Middle East)
 - Clicking an Origin opens a modal with destination Routes
 - Clicking a Route opens the **Flight Details modal** with live pricing
-  - Modal width: `max-w-[760px]` — wide enough to show all columns (Date, Airlines, Departure, Arrival, Price, Book Now) **without horizontal scrolling**
-  - Table `min-w-[680px]` ensures the Book Now button is always immediately visible
+  - Modal width: `max-w-[760px]` — wide enough to show all columns (Date, Airlines, Departure, Arrival, Price, Book Now) **without horizontal scrolling** on desktop
+  - **Mobile:** switches to stacked fare cards (no horizontal scroll)
 - Includes "Back to Destinations" navigation within the modal
 - **Book Now** button opens a pre-filled WhatsApp message to the Zamra Travels number
 
@@ -112,6 +113,7 @@ web/
 - Mobile nav open state locks body scroll (`body.nav-open`) and auto-closes on resize
 - Sticky filter/tab bars use a reduced top offset on small screens (`top: 72px`)
 - Floating contact actions respect safe-area insets on mobile
+- Live flight results and sector modal adapt to **card layouts** on mobile to avoid horizontal scrolling
 
 ## Visa Page (`visa.html` + `visa.js`)
 
@@ -151,10 +153,12 @@ All visa-page-specific styles live in a `<style>` block inside `visa.html` (not 
 
 ### Tours Listing (`tours.html`)
 - **Hero** with animated stats (total tours count, categories).
+- **Hero background** uses `/assets/img/hero-banner-bg.png` (shared site hero backdrop).
 - **Category filter chips** — All, International, Domestic — toggle active state and re-filter the card grid.
 - **Text search** — debounced 300 ms; searches by title, category, and destination.
 - **Skeleton loaders** shown while Firestore fetches; empty-state message when no matches.
 - **Tour cards** — cover image, category chip, duration, title, price (or "Call for Price" if `price === 0`), and a **premium modal** with full details (overview, highlights, itinerary, inclusions/exclusions) plus WhatsApp enquiry CTA.
+  - **Mobile modal** uses a bottom‑sheet layout for better thumb reach and scrolling.
 - **CTA strip** — WhatsApp enquiry button for custom packages.
 - Logic in `src/js/web/tours.js` — fetches only `isActive === true` tours via `getTours()`.
 
@@ -165,10 +169,12 @@ Tour details now open in a modal directly from the listing page. There is no sta
 ## Hajj & Umrah Page (`hajj-umrah.html` + `hajj-umrah.js`)
 
 - **Hero** with animated background image and stats (packages, happy pilgrims, global presence).
+- **Hero background** uses `/assets/img/hero-banner-bg.png` (shared site hero backdrop).
 - **Category filter chips** — All, Hajj, Umrah — to quickly filter packages.
 - **Text search** — debounced 300 ms; searches by title, destination/city, and airline.
 - **Skeleton loaders** shown while fetching from Firestore; empty state when no matches.
 - **Package cards** — displays cover image, package type (Hajj/Umrah), days/nights, title, and price. Full details open in a premium modal with WhatsApp enquiry CTA.
+  - **Mobile modal** uses a bottom‑sheet layout for better readability.
 - **CTA strip** — Contact buttons for custom Hajj & Umrah packages.
 - Logic in `src/js/web/hajj-umrah.js` — fetches only `isActive === true` packages from the `hajj_umrah_packages` collection.
   - Query uses **only** `where('isActive', '==', true)` — no `orderBy` clause. This avoids requiring a Firestore composite index. Results are sorted **client-side** by `departureDate` (ascending) after fetch.
