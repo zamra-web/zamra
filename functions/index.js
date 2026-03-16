@@ -331,7 +331,7 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
   }
 
   const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== "Bearer ZAMRA_SECURE_N8N_KEY_2026") {
+  if (!authHeader || authHeader !== "Bearer ZamraFirestore") {
     return res.status(401).send("Unauthorized");
   }
 
