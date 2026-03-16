@@ -114,12 +114,27 @@ firebase auth:import users.json --project NEW_PROJECT_ID --hash-algo=STANDARD_SC
 firebase auth:set-custom-claims UID '{"admin":true}' --project NEW_PROJECT_ID
 ```
 
+Or use the helper script once the user exists in Firebase Auth:
+
+```bash
+SERVICE_ACCOUNT_PATH="/path/to/new-service-account.json" \
+node scripts/set-admin-claim.cjs --email admin@example.com
+```
+
 **B7. Migrate Firebase Storage**
 1. Sync objects between buckets using `gsutil`.
 2. Example:
 
 ```bash
 gsutil -m rsync -r gs://OLD_BUCKET gs://NEW_BUCKET
+```
+
+3. If Firestore docs still reference the **old** bucket in `logoUrl`, `flagUrl`, or `coverImageUrl`,
+   run the bulk URL migrator to copy objects + rewrite URLs:
+
+```bash
+SERVICE_ACCOUNT_PATH="/path/to/new-service-account.json" \
+node scripts/migrate-storage-urls.cjs
 ```
 
 **B8. Deploy Rules, Indexes, and Functions**
@@ -168,12 +183,13 @@ git push neworigin main
 2. Admin login works and admin users can write to Firestore.
 3. Firestore collections contain expected data counts.
 4. Storage assets (logos, tours, hajj/umrah images) load correctly.
-5. Poster generator only shows fares from today onward and dedupes identical flights to the lowest price.
-6. Poster exports (JPEG/PDF + video) render the footer and show `+91 9846606739`, with varied color themes between runs.
-7. Cloud Functions deploy and callable functions succeed.
-8. n8n ingest works with the new endpoint.
-9. If your Vercel domain changed, update `cors.json` and re‑apply Storage CORS rules.
-10. Authorized domains in Firebase Auth include the new Vercel domain.
+5. Admin users have `admin: true` custom claims (Reports + Database tabs load without permission errors).
+6. Poster generator only shows fares from today onward and dedupes identical flights to the lowest price.
+7. Poster exports (JPEG/PDF + video) render the footer and show `+91 9846606739`, with varied color themes between runs.
+8. Cloud Functions deploy and callable functions succeed.
+9. n8n ingest works with the new endpoint.
+10. If your Vercel domain changed, update `cors.json` and re‑apply Storage CORS rules.
+11. Authorized domains in Firebase Auth include the new Vercel domain.
 
 ---
 

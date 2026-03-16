@@ -22,6 +22,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | JavaScript | Vanilla ES Modules (no framework) |
 | Database | Firebase Firestore (read-only from public pages) |
 | Hosting | Vercel (`www.zamratravels.com`) |
+| Analytics | Vercel Analytics + Speed Insights (`@vercel/analytics`, `@vercel/speed-insights`) |
 
 ---
 

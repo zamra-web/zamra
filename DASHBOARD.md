@@ -10,6 +10,8 @@ The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gate
 
 **Live URL:** https://www.zamratravels.com/admin.html  
 **Access:** Requires a Firebase account with `admin: true` custom claim.  
+If reports or database tabs show “missing permissions,” set claims with `scripts/set-admin-claim.cjs`
+(user must sign out/in to refresh tokens).
 
 ---
 

@@ -71,8 +71,11 @@ zamra/                              # Firebase project root — run firebase CLI
 │   └── package.json                # firebase-admin, firebase-functions
 │
 ├── scripts/                        # One-off maintenance scripts
+│   ├── delete-hajj-umrah-tours.cjs # Cleanup helper for legacy tours data
+│   ├── migrate-storage-urls.cjs    # Bulk migrate Storage URLs + copy objects to new bucket
 │   ├── remove-processing-time.cjs  # REST-based cleanup: removes `processingTime` from visa docs
-│   └── remove-processing-time.js   # Admin SDK variant (legacy)
+│   ├── remove-processing-time.js   # Admin SDK variant (legacy)
+│   └── set-admin-claim.cjs         # Set admin custom claim by email/uid
 │
 └── web/                            # ★ Vite project root — all website/dashboard code
     ├── index.html                  # Public homepage
