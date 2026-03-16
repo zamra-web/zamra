@@ -94,10 +94,11 @@ web/
   - **Auto-page** — sectors with more than 10 fares split into multiple posters (page per chunk)
   - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown — airline + time are normalized so duplicates across agents collapse reliably
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
-  - **Dynamic brand themes** — gradients and accents rotate per sector using the Zamra palette
+  - **Dynamic brand themes** — each generation randomizes across a larger curated palette so posters feel fresh when shared
+  - **Footer contact** — poster footer phone is `+91 9846606739`
   - **Download JPEG** — renders poster(s) to canvas at 2× resolution and triggers a `.jpg` download (downloads one file per sector for All Sectors)
   - **Download PDF** — converts poster canvas to a mm-based jsPDF page exactly sized to the poster dimensions (downloads one file per sector for All Sectors)
-  - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Uses the same deduping logic as posters. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)
+  - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Uses the same deduping logic as posters. Randomizes the color theme per export. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)
   - Export buttons disable during generation and re-enable once done
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
 - All data from Firestore `agent_fares` + `airlines`
@@ -497,4 +498,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-03-16 — Admin modal UX refreshed (sticky header/footer, premium form cards). Tours and Hajj/Umrah public details now open in modals (no standalone tour detail route). Admin tour category options limited to International/Domestic. All other dashboard behaviors unchanged._
+_Last audited: 2026-03-16 — Admin dark mode refined for readability. Poster generator now randomizes across a larger theme palette per export (JPEG/PDF + video), and poster footer contact updated to +91 9846606739. Admin modal UX refreshed (sticky header/footer, premium form cards). Tours and Hajj/Umrah public details now open in modals (no standalone tour detail route). Admin tour category options limited to International/Domestic._

@@ -163,9 +163,10 @@ git push neworigin main
 3. Firestore collections contain expected data counts.
 4. Storage assets (logos, tours, hajj/umrah images) load correctly.
 5. Poster generator only shows fares from today onward and dedupes identical flights to the lowest price.
-5. Cloud Functions deploy and callable functions succeed.
-6. n8n ingest works with the new endpoint.
-7. Authorized domains in Firebase Auth include the new Vercel domain.
+6. Poster exports (JPEG/PDF + video) render the footer and show `+91 9846606739`, with varied color themes between runs.
+7. Cloud Functions deploy and callable functions succeed.
+8. n8n ingest works with the new endpoint.
+9. Authorized domains in Firebase Auth include the new Vercel domain.
 
 ---
 

@@ -598,23 +598,228 @@ const POSTER_THEMES = [
     footerBg: '#ffffff',
     footerBorder: '#e2e8f0',
     footerAccent: '#0f4f9e'
+  },
+  {
+    id: 'sunset',
+    topBar: ['#f97316', '#f43f5e', '#8b5cf6'],
+    headerBg: '#3b1020',
+    headerOverlayFrom: '#3b1020',
+    headerOverlayTo: 'rgba(59, 16, 32, 0)',
+    badgeBg: 'rgba(249, 115, 22, 0.22)',
+    badgeBorder: 'rgba(248, 113, 113, 0.45)',
+    badgeText: '#ffe4e6',
+    subtitle: '#fee2e2',
+    accent: '#f97316',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#fff7ed',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#fff1f2',
+    sectorChipBg: 'rgba(249, 115, 22, 0.12)',
+    sectorChipText: '#ea580c',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#f97316'
+  },
+  {
+    id: 'orchid',
+    topBar: ['#8b5cf6', '#d946ef', '#f43f5e'],
+    headerBg: '#2a1240',
+    headerOverlayFrom: '#2a1240',
+    headerOverlayTo: 'rgba(42, 18, 64, 0)',
+    badgeBg: 'rgba(217, 70, 239, 0.22)',
+    badgeBorder: 'rgba(216, 180, 254, 0.45)',
+    badgeText: '#f5d0fe',
+    subtitle: '#f5d0fe',
+    accent: '#d946ef',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#fdf2ff',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#fdf2ff',
+    sectorChipBg: 'rgba(217, 70, 239, 0.12)',
+    sectorChipText: '#c026d3',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#d946ef'
+  },
+  {
+    id: 'emerald',
+    topBar: ['#10b981', '#22c55e', '#06b6d4'],
+    headerBg: '#083a2e',
+    headerOverlayFrom: '#083a2e',
+    headerOverlayTo: 'rgba(8, 58, 46, 0)',
+    badgeBg: 'rgba(16, 185, 129, 0.22)',
+    badgeBorder: 'rgba(94, 234, 212, 0.4)',
+    badgeText: '#ccfbf1',
+    subtitle: '#ccfbf1',
+    accent: '#10b981',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#ecfdf5',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#ecfdf5',
+    sectorChipBg: 'rgba(16, 185, 129, 0.12)',
+    sectorChipText: '#059669',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#10b981'
+  },
+  {
+    id: 'aqua',
+    topBar: ['#0ea5e9', '#22d3ee', '#14b8a6'],
+    headerBg: '#0b2d44',
+    headerOverlayFrom: '#0b2d44',
+    headerOverlayTo: 'rgba(11, 45, 68, 0)',
+    badgeBg: 'rgba(14, 165, 233, 0.22)',
+    badgeBorder: 'rgba(34, 211, 238, 0.4)',
+    badgeText: '#cffafe',
+    subtitle: '#cffafe',
+    accent: '#22d3ee',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#ecfeff',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#ecfeff',
+    sectorChipBg: 'rgba(34, 211, 238, 0.12)',
+    sectorChipText: '#0891b2',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#22d3ee'
+  },
+  {
+    id: 'citrus',
+    topBar: ['#facc15', '#f59e0b', '#f97316'],
+    headerBg: '#422006',
+    headerOverlayFrom: '#422006',
+    headerOverlayTo: 'rgba(66, 32, 6, 0)',
+    badgeBg: 'rgba(245, 158, 11, 0.22)',
+    badgeBorder: 'rgba(251, 191, 36, 0.45)',
+    badgeText: '#fef3c7',
+    subtitle: '#fef3c7',
+    accent: '#f59e0b',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#fffbeb',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#fffbeb',
+    sectorChipBg: 'rgba(245, 158, 11, 0.12)',
+    sectorChipText: '#d97706',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#f59e0b'
+  },
+  {
+    id: 'rose',
+    topBar: ['#fb7185', '#f43f5e', '#e11d48'],
+    headerBg: '#3a0b17',
+    headerOverlayFrom: '#3a0b17',
+    headerOverlayTo: 'rgba(58, 11, 23, 0)',
+    badgeBg: 'rgba(244, 63, 94, 0.22)',
+    badgeBorder: 'rgba(251, 113, 133, 0.45)',
+    badgeText: '#ffe4e6',
+    subtitle: '#ffe4e6',
+    accent: '#f43f5e',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#fff1f2',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#fff1f2',
+    sectorChipBg: 'rgba(244, 63, 94, 0.12)',
+    sectorChipText: '#e11d48',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#f43f5e'
+  },
+  {
+    id: 'forest',
+    topBar: ['#16a34a', '#22c55e', '#84cc16'],
+    headerBg: '#0b2a1a',
+    headerOverlayFrom: '#0b2a1a',
+    headerOverlayTo: 'rgba(11, 42, 26, 0)',
+    badgeBg: 'rgba(34, 197, 94, 0.22)',
+    badgeBorder: 'rgba(132, 204, 22, 0.4)',
+    badgeText: '#dcfce7',
+    subtitle: '#dcfce7',
+    accent: '#22c55e',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#f0fdf4',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#f0fdf4',
+    sectorChipBg: 'rgba(34, 197, 94, 0.12)',
+    sectorChipText: '#15803d',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#22c55e'
+  },
+  {
+    id: 'ocean',
+    topBar: ['#06b6d4', '#0ea5e9', '#6366f1'],
+    headerBg: '#0a2440',
+    headerOverlayFrom: '#0a2440',
+    headerOverlayTo: 'rgba(10, 36, 64, 0)',
+    badgeBg: 'rgba(14, 165, 233, 0.22)',
+    badgeBorder: 'rgba(99, 102, 241, 0.4)',
+    badgeText: '#dbeafe',
+    subtitle: '#dbeafe',
+    accent: '#0ea5e9',
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: '#eff6ff',
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: '#eff6ff',
+    sectorChipBg: 'rgba(14, 165, 233, 0.12)',
+    sectorChipText: '#0284c7',
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: '#0ea5e9'
   }
 ];
 
-function hashStringSeed(value = '') {
-  const str = String(value);
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-function pickPosterTheme(seedValue) {
-  if (!POSTER_THEMES.length) return null;
-  const idx = hashStringSeed(seedValue) % POSTER_THEMES.length;
-  return POSTER_THEMES[idx];
+function buildPosterThemeOrder(seed) {
+  const list = [...POSTER_THEMES];
+  if (list.length <= 1) return list;
+  const rand = mulberry32(seed);
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
 }
 
 function applyPosterTheme(frameEl, theme) {
@@ -1050,6 +1255,10 @@ async function renderPoster(fares, sectorId) {
     });
   });
 
+  const themeOrder = buildPosterThemeOrder(
+    Date.now() + Math.floor(Math.random() * 1_000_000)
+  );
+
   // Render one poster per sector (and page)
   framesToRender.forEach((entry, idx) => {
     const { sid, fares: frameFares, page, pages } = entry;
@@ -1079,8 +1288,9 @@ async function renderPoster(fares, sectorId) {
     frameEl.dataset.posterPage = String(page);
     frameEl.dataset.posterPageCount = String(pages);
 
-    const themeSeed = sectorMap[sid] || sid;
-    const theme = pickPosterTheme(themeSeed);
+    const theme = themeOrder.length
+      ? themeOrder[idx % themeOrder.length]
+      : POSTER_THEMES[0];
     renderIntoFrame(frameEl, frameFares, sid, theme);
   });
 

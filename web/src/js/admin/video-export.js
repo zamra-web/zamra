@@ -1,3 +1,5 @@
+let lastVideoThemeId = null;
+
 export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines) {
     // Show loading toast (assuming toast is globally available or we can just use basic UI feedback)
     const toastMessage = `Generating ${ratio} Video... Please remain on this tab.`;
@@ -74,6 +76,182 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             footerBorder: '#f1f5f9',
             footerText: '#1e293b',
             footerAccent: '#0f4f9e'
+        },
+        {
+            id: 'sunset',
+            topBar: ['#f97316', '#f43f5e', '#8b5cf6'],
+            headerBg: '#3b1020',
+            headerOverlayFrom: '#3b1020',
+            headerOverlayTo: 'rgba(59, 16, 32, 0)',
+            badgeBg: 'rgba(249, 115, 22, 0.25)',
+            badgeBorder: 'rgba(248, 113, 113, 0.45)',
+            badgeText: '#ffe4e6',
+            subtitle: '#fee2e2',
+            accent: '#f97316',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#fff1f2',
+            sectorText: '#ea580c',
+            fareBadgeBg: '#3b1020',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#f97316'
+        },
+        {
+            id: 'orchid',
+            topBar: ['#8b5cf6', '#d946ef', '#f43f5e'],
+            headerBg: '#2a1240',
+            headerOverlayFrom: '#2a1240',
+            headerOverlayTo: 'rgba(42, 18, 64, 0)',
+            badgeBg: 'rgba(217, 70, 239, 0.25)',
+            badgeBorder: 'rgba(216, 180, 254, 0.45)',
+            badgeText: '#f5d0fe',
+            subtitle: '#f5d0fe',
+            accent: '#d946ef',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#fdf2ff',
+            sectorText: '#c026d3',
+            fareBadgeBg: '#2a1240',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#d946ef'
+        },
+        {
+            id: 'emerald',
+            topBar: ['#10b981', '#22c55e', '#06b6d4'],
+            headerBg: '#083a2e',
+            headerOverlayFrom: '#083a2e',
+            headerOverlayTo: 'rgba(8, 58, 46, 0)',
+            badgeBg: 'rgba(16, 185, 129, 0.25)',
+            badgeBorder: 'rgba(94, 234, 212, 0.4)',
+            badgeText: '#ccfbf1',
+            subtitle: '#ccfbf1',
+            accent: '#10b981',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#ecfdf5',
+            sectorText: '#059669',
+            fareBadgeBg: '#083a2e',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#10b981'
+        },
+        {
+            id: 'aqua',
+            topBar: ['#0ea5e9', '#22d3ee', '#14b8a6'],
+            headerBg: '#0b2d44',
+            headerOverlayFrom: '#0b2d44',
+            headerOverlayTo: 'rgba(11, 45, 68, 0)',
+            badgeBg: 'rgba(14, 165, 233, 0.25)',
+            badgeBorder: 'rgba(34, 211, 238, 0.4)',
+            badgeText: '#cffafe',
+            subtitle: '#cffafe',
+            accent: '#22d3ee',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#ecfeff',
+            sectorText: '#0891b2',
+            fareBadgeBg: '#0b2d44',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#22d3ee'
+        },
+        {
+            id: 'citrus',
+            topBar: ['#facc15', '#f59e0b', '#f97316'],
+            headerBg: '#422006',
+            headerOverlayFrom: '#422006',
+            headerOverlayTo: 'rgba(66, 32, 6, 0)',
+            badgeBg: 'rgba(245, 158, 11, 0.25)',
+            badgeBorder: 'rgba(251, 191, 36, 0.45)',
+            badgeText: '#fef3c7',
+            subtitle: '#fef3c7',
+            accent: '#f59e0b',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#fffbeb',
+            sectorText: '#d97706',
+            fareBadgeBg: '#422006',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#f59e0b'
+        },
+        {
+            id: 'rose',
+            topBar: ['#fb7185', '#f43f5e', '#e11d48'],
+            headerBg: '#3a0b17',
+            headerOverlayFrom: '#3a0b17',
+            headerOverlayTo: 'rgba(58, 11, 23, 0)',
+            badgeBg: 'rgba(244, 63, 94, 0.25)',
+            badgeBorder: 'rgba(251, 113, 133, 0.45)',
+            badgeText: '#ffe4e6',
+            subtitle: '#ffe4e6',
+            accent: '#f43f5e',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#fff1f2',
+            sectorText: '#e11d48',
+            fareBadgeBg: '#3a0b17',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#f43f5e'
+        },
+        {
+            id: 'forest',
+            topBar: ['#16a34a', '#22c55e', '#84cc16'],
+            headerBg: '#0b2a1a',
+            headerOverlayFrom: '#0b2a1a',
+            headerOverlayTo: 'rgba(11, 42, 26, 0)',
+            badgeBg: 'rgba(34, 197, 94, 0.25)',
+            badgeBorder: 'rgba(132, 204, 22, 0.4)',
+            badgeText: '#dcfce7',
+            subtitle: '#dcfce7',
+            accent: '#22c55e',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#f0fdf4',
+            sectorText: '#15803d',
+            fareBadgeBg: '#0b2a1a',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#22c55e'
+        },
+        {
+            id: 'ocean',
+            topBar: ['#06b6d4', '#0ea5e9', '#6366f1'],
+            headerBg: '#0a2440',
+            headerOverlayFrom: '#0a2440',
+            headerOverlayTo: 'rgba(10, 36, 64, 0)',
+            badgeBg: 'rgba(14, 165, 233, 0.25)',
+            badgeBorder: 'rgba(99, 102, 241, 0.4)',
+            badgeText: '#dbeafe',
+            subtitle: '#dbeafe',
+            accent: '#0ea5e9',
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt: '#eff6ff',
+            sectorText: '#0284c7',
+            fareBadgeBg: '#0a2440',
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: '#0ea5e9'
         }
     ];
 
@@ -198,16 +376,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         return RATIO_PRESETS[ratioKey] || RATIO_PRESETS['1x1'];
     }
 
-    function hashStringSeed(value = '') {
-        const str = String(value);
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = ((hash << 5) - hash) + str.charCodeAt(i);
-            hash |= 0;
-        }
-        return Math.abs(hash);
-    }
-
     function normalizeFlightTime(value) {
         if (!value) return '';
         const raw = String(value).trim();
@@ -219,10 +387,17 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         return parts[0] || cleaned;
     }
 
-    function pickTheme(seedValue) {
-        if (!VIDEO_THEMES.length) return VIDEO_THEMES[0];
-        const idx = hashStringSeed(seedValue) % VIDEO_THEMES.length;
-        return VIDEO_THEMES[idx];
+    function pickRandomTheme() {
+        if (!VIDEO_THEMES.length) return null;
+        if (VIDEO_THEMES.length === 1) return VIDEO_THEMES[0];
+        let theme = VIDEO_THEMES[Math.floor(Math.random() * VIDEO_THEMES.length)];
+        let guard = 0;
+        while (theme && theme.id === lastVideoThemeId && guard < 6) {
+            theme = VIDEO_THEMES[Math.floor(Math.random() * VIDEO_THEMES.length)];
+            guard += 1;
+        }
+        if (theme && theme.id) lastVideoThemeId = theme.id;
+        return theme || VIDEO_THEMES[0];
     }
 
     return new Promise(async (resolve, reject) => {
@@ -239,15 +414,13 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             // 2. Pre-load assets
             let titleText = 'MULTIPLE → SECTORS';
-            let themeSeed = sectorId;
             if (sectorId !== 'all') {
                 const sector = sectors.find(s => s.id === sectorId);
                 const originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
                 const destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
                 titleText = `${originName} → ${destName}`;
-                themeSeed = sector?.sectorCode || `${originName}-${destName}`;
             }
-            const theme = pickTheme(themeSeed);
+            const theme = pickRandomTheme();
             const motion = preset.motion;
 
             const airlineMap = {};
@@ -430,14 +603,13 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             function drawFrame(now) {
                 if (stopped) return;
-                const elapsed = now - startTime;
-                
+                let elapsed = now - startTime;
+                let shouldStop = false;
+
                 if (elapsed > totalDuration) {
-                    try {
-                        stopped = true;
-                        recorder.stop();
-                    } catch(e) { console.error("Error stopping recorder", e); }
-                    return; // End loop
+                    // Clamp to final frame so footer and end-state always render.
+                    elapsed = totalDuration;
+                    shouldStop = true;
                 }
 
                 // --- Draw Background ---
@@ -686,9 +858,17 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.font = `700 ${preset.footer.infoSize}px Arial, sans-serif`;
                     ctx.textAlign = 'right';
                     ctx.fillStyle = theme.footerText;
-                    ctx.fillText('zamratravels.com  |  +91 98466 06739', width - marginX, height - (fHeight/2));
+                    ctx.fillText('zamratravels.com  |  +91 9846606739', width - marginX, height - (fHeight/2));
 
                     ctx.globalAlpha = 1.0;
+                }
+
+                if (shouldStop) {
+                    try {
+                        stopped = true;
+                        recorder.stop();
+                    } catch(e) { console.error("Error stopping recorder", e); }
+                    return;
                 }
 
                 // Next frame
