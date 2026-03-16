@@ -178,6 +178,7 @@ zamra/                              # Firebase project root — run firebase CLI
 
 - **`firebase.json` is at the `zamra/` root**, not inside `web/`. Always run firebase CLI from `zamra/`.
 - **Frontend Hosting** is on Vercel (`www.zamratravels.com`). Pushing to Git will auto-deploy the site. Do not use `firebase deploy --only hosting` for the primary frontend.
+- **Vercel Hobby deploys are author‑gated** — if the commit **author** doesn’t have access to the Vercel project, deployments are blocked. Ensure the local Git author is set to the owning account before pushing.
 - **Vite config is inside `web/`** — build and dev commands run from `web/`.
 - **Admin security** depends on the `admin: true` Firebase custom claim — without it, all Firestore writes are blocked even when authenticated.
 - **Firestore indexes** — complex queries on `agent_fares` require the indexes in `firestore.indexes.json`. Deploy them before testing queries.

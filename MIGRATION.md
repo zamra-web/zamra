@@ -164,6 +164,16 @@ git push neworigin main
 ```
 
 3. Make sure the new repo has the latest code and branch protections if needed.
+4. **Vercel Hobby note:** Deployments are blocked if the **commit author** is not the project owner. Ensure your local Git author is set to the new account before pushing:
+
+```bash
+git config user.name "zamra-web"
+git config user.email "jobslive49@gmail.com"
+
+# Update the latest commit’s author if needed
+git commit --amend --reset-author --no-edit
+git push --force-with-lease
+```
 
 ---
 

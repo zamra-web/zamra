@@ -1,8 +1,31 @@
 let lastVideoThemeHue = null;
 
+function normalizeRatioKey(value) {
+    const cleaned = String(value || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[×:]/g, 'x')
+        .replace(/\s+/g, '');
+    if (cleaned === '9x16' || cleaned === '16x9' || cleaned === '1x1') return cleaned;
+    return '1x1';
+}
+
+function pickMimeType({ forceMimeType, candidates } = {}) {
+    if (forceMimeType && MediaRecorder.isTypeSupported(forceMimeType)) return forceMimeType;
+    const fallback = candidates && candidates.length
+        ? candidates
+        : ['video/mp4', 'video/webm; codecs=h264', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    for (const type of fallback) {
+        if (MediaRecorder.isTypeSupported(type)) return type;
+    }
+    return '';
+}
+
 export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
+    const ratioKey = normalizeRatioKey(ratio);
+    const ratioLabel = ratioKey.replace('x', ':');
     // Show loading toast (assuming toast is globally available or we can just use basic UI feedback)
-    const toastMessage = `Generating ${ratio} Video... Please remain on this tab.`;
+    const toastMessage = `Generating ${ratioLabel} Video... Please remain on this tab.`;
     if (window.toast) window.toast('info', 'Video Generation', toastMessage);
 
     if (typeof MediaRecorder === 'undefined') {
@@ -503,15 +526,26 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
     return new Promise(async (resolve, reject) => {
         try {
             // 1. Dimensions setup
-            const preset = getPreset(ratio);
-            const { autoDownload = true, returnBlob = false } = options || {};
+            const preset = getPreset(ratioKey);
+            const {
+                autoDownload = true,
+                returnBlob = false,
+                renderScale,
+                forceMimeType,
+                mimeCandidates,
+                retryAttempt = 0
+            } = options || {};
             const { width, height } = preset;
 
             const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
+            const scale = clamp(renderScale ?? 1, 0.5, 1);
+            canvas.width = Math.round(width * scale);
+            canvas.height = Math.round(height * scale);
             const ctx = canvas.getContext('2d');
             ctx.imageSmoothingEnabled = true;
+            if (scale !== 1) {
+                ctx.setTransform(scale, 0, 0, scale, 0, 0);
+            }
 
             // 2. Pre-load assets
             let titleText = 'MULTIPLE → SECTORS';
@@ -653,17 +687,24 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             // 3. Start Recording
             const stream = canvas.captureStream(30); // 30 FPS
             
-            // Prefer MP4 if available (Safari/Chrome 129+), fallback to webm with h264, then standard webm
-            let mimeType = 'video/mp4';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/webm; codecs=h264';
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = 'video/webm';
-                }
+            const mimeType = pickMimeType({ forceMimeType, candidates: mimeCandidates });
+            if (!mimeType) {
+                throw new Error('No supported video mime type available for this browser.');
             }
             
             const recorder = new MediaRecorder(stream, { mimeType });
             const chunks = [];
+            let settled = false;
+            const safeResolve = (value) => {
+                if (settled) return;
+                settled = true;
+                resolve(value);
+            };
+            const safeReject = (error) => {
+                if (settled) return;
+                settled = true;
+                reject(error);
+            };
             recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
 
             // Start Recorder
@@ -756,6 +797,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 const pageElapsed = elapsed - (activePage?.start || 0);
                 const visibleFares = activePage?.page || [];
                 const footerEntryTime = activePage?.footerEntryTime || 0;
+                const rowCount = activePage?.rowCount || 1;
+                const listOffset = Math.max(0, (availableHeight - (rowCount * rowHeight)) / 2);
+                const listStartY = startY + listOffset;
 
                 // --- Draw Background ---
                 ctx.fillStyle = theme.bodyBg;
@@ -877,15 +921,15 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.fillStyle = theme.tableHeadText;
                 ctx.font = `bold ${tableSizes.headSize}px Arial, sans-serif`;
                 ctx.textAlign = 'left';
-                ctx.fillText('DATE', marginX + 20, startY - tableSizes.headOffset);
+                ctx.fillText('DATE', marginX + 20, listStartY - tableSizes.headOffset);
                 
                 ctx.textAlign = 'center';
-                ctx.fillText('SECTOR', marginX + (listWidth * preset.columns.sector), startY - tableSizes.headOffset);
-                ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), startY - tableSizes.headOffset);
-                ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), startY - tableSizes.headOffset);
+                ctx.fillText('SECTOR', marginX + (listWidth * preset.columns.sector), listStartY - tableSizes.headOffset);
+                ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), listStartY - tableSizes.headOffset);
+                ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), listStartY - tableSizes.headOffset);
                 
                 ctx.textAlign = 'right';
-                ctx.fillText('FARE', marginX + listWidth - 20, startY - tableSizes.headOffset);
+                ctx.fillText('FARE', marginX + listWidth - 20, listStartY - tableSizes.headOffset);
 
                 // Draw rows (animated entrance)
                 for (let i = 0; i < visibleFares.length; i++) {
@@ -901,7 +945,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     
                     // Slide up effect
                     const slideOffset = motion.rowSlide * (1 - opacity);
-                    const y = startY + (i * rowHeight) + slideOffset;
+                    const y = listStartY + (i * rowHeight) + slideOffset;
                     
                     ctx.globalAlpha = opacity;
                     
@@ -1041,19 +1085,42 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             requestAnimationFrame(drawFrame);
 
             // 5. Handle recording completion
-            recorder.onstop = () => {
+            recorder.onstop = async () => {
                 clearTimeout(safetyStop);
                 const blob = new Blob(chunks, { type: mimeType });
                 if (!blob || !blob.size) {
+                    if (retryAttempt < 1) {
+                        if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed. Retrying at a smaller size…');
+                        try {
+                            const retry = await downloadVideoPoster(
+                                ratioKey,
+                                fares,
+                                sectorId,
+                                sectors,
+                                airlines,
+                                {
+                                    ...options,
+                                    renderScale: Math.min(scale, 0.8),
+                                    forceMimeType: null,
+                                    mimeCandidates: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'],
+                                    retryAttempt: retryAttempt + 1
+                                }
+                            );
+                            safeResolve(retry);
+                            return;
+                        } catch (retryError) {
+                            console.error('Video retry failed:', retryError);
+                        }
+                    }
                     if (window.toast) window.toast('error', 'Generation Error', 'No video data was produced.');
                     try {
                         stream.getTracks().forEach(track => track.stop());
                     } catch (_) { }
-                    reject(new Error('No video data generated.'));
+                    safeReject(new Error('No video data generated.'));
                     return;
                 }
                 const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-                const filename = `zamra-video-${ratio}-${sectorSlug}-${Date.now()}.${ext}`;
+                const filename = `zamra-video-${ratioKey}-${sectorSlug}-${Date.now()}.${ext}`;
 
                 if (autoDownload) {
                     const url = URL.createObjectURL(blob);
@@ -1067,29 +1134,52 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
                     }, 100);
-                    if (window.toast) window.toast('success', 'Video Generated', `Your ${ratio} video has been downloaded!`);
+                    if (window.toast) window.toast('success', 'Video Generated', `Your ${ratioLabel} video has been downloaded!`);
                 }
 
                 try {
                     stream.getTracks().forEach(track => track.stop());
                 } catch (_) { }
 
-                resolve(returnBlob ? { blob, filename, mimeType } : undefined);
+                safeResolve(returnBlob ? { blob, filename, mimeType } : undefined);
             };
 
-            recorder.onerror = (e) => {
+            recorder.onerror = async (e) => {
                 console.error("Recorder Error:", e);
+                if (retryAttempt < 1) {
+                    if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed. Retrying at a smaller size…');
+                    try {
+                        const retry = await downloadVideoPoster(
+                            ratioKey,
+                            fares,
+                            sectorId,
+                            sectors,
+                            airlines,
+                            {
+                                ...options,
+                                renderScale: Math.min(scale, 0.8),
+                                forceMimeType: null,
+                                mimeCandidates: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'],
+                                retryAttempt: retryAttempt + 1
+                            }
+                        );
+                        safeResolve(retry);
+                        return;
+                    } catch (retryError) {
+                        console.error('Video retry failed:', retryError);
+                    }
+                }
                 if (window.toast) window.toast('error', 'Generation Error', 'Failed to encode the video stream.');
                 try {
                     stream.getTracks().forEach(track => track.stop());
                 } catch (_) { }
-                reject(e);
+                safeReject(e);
             };
 
         } catch (error) {
             console.error(error);
             if (window.toast) window.toast('error', 'Generation Failed', error.message);
-            reject(error);
+            safeReject(error);
         }
     });
 }

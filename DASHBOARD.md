@@ -456,20 +456,21 @@ Functions:
 
 ## How to Set Admin Custom Claim
 
-Run once when adding a new admin user (requires service account key):
+Run once when adding a new admin user (requires a service account key):
 
-```javascript
-// save as set-admin-claim.js, run: node set-admin-claim.js
-const admin = require('./functions/node_modules/firebase-admin');
-const serviceAccount = require('./service-account.json');
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-admin.auth().getUserByEmail('EMAIL@HERE.COM').then(u => {
-  admin.auth().setCustomUserClaims(u.uid, { admin: true });
-  console.log('Done — user must sign out and back in.');
-});
+```bash
+SERVICE_ACCOUNT_PATH="/path/to/service-account.json" \
+node scripts/set-admin-claim.cjs --email admin@example.com
 ```
 
-> **Important:** The service account JSON is **not committed to git**. Download from Firebase Console → Project Settings → Service Accounts when needed, then delete after use.
+Or by UID:
+
+```bash
+SERVICE_ACCOUNT_PATH="/path/to/service-account.json" \
+node scripts/set-admin-claim.cjs --uid USER_UID
+```
+
+> **Important:** The service account JSON is **not committed to git**. Download from Firebase Console → Project Settings → Service Accounts when needed, then delete after use. Users must sign out/in (or refresh token) for the claim to take effect.
 
 ---
 
