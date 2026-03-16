@@ -8,7 +8,7 @@
 
 The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gated management panel for Zamra Travels staff. It allows admins to manage agents, flight sectors, airlines, pricing data, and view aggregated reports — all backed by live Firestore data and Cloud Functions.
 
-**Live URL:** https://zamra.vercel.app/admin.html  
+**Live URL:** https://www.zamratravels.com/admin.html  
 **Access:** Requires a Firebase account with `admin: true` custom claim.  
 
 ---
@@ -17,9 +17,9 @@ The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gate
 
 | Property | Value |
 |---|---|
-| Project ID | `zamra-web` |
-| Hosting URL | https://zamra.vercel.app |
-| Console | https://console.firebase.google.com/project/zamra-web |
+| Project ID | `zamra-web-01` |
+| Hosting URL | https://www.zamratravels.com/ |
+| Console | https://console.firebase.google.com/project/zamra-web-01 |
 | Plan | **Blaze (pay-as-you-go)** |
 | Auth | Email/Password |
 
@@ -44,7 +44,7 @@ zamra/                          # Firebase project root
 ├── firestore.rules             # Firestore security rules
 ├── firestore.indexes.json      # Compound indexes for agent_fares queries
 ├── storage.rules               # Firebase Storage security rules
-├── .firebaserc                 # Links CLI to zamra-web project
+├── .firebaserc                 # Links CLI to zamra-web-01 project
 │
 └── functions/                  # Cloud Functions (Node.js 22, 2nd Gen)
     ├── index.js                # 4 callable functions + 1 onRequest ingest endpoint

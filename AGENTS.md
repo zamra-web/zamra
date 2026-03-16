@@ -17,8 +17,8 @@ Zamra Travels is a premium flight booking and travel services web portal with a 
 1. **Public Website** (`web/index.html`) — Live flight search, sectors, services. Read-only Firestore. See [WEBSITE.md](./WEBSITE.md).
 2. **Admin Dashboard** (`web/admin.html`) — E-Ticket Generator, Poster Generator, CRUD for agents/sectors/airlines/fares, reports. Firebase-integrated with Cloud Functions. See [DASHBOARD.md](./DASHBOARD.md).
 
-**Live URL:** https://zamra.vercel.app  
-**Firebase Project:** `zamra-web` (Blaze plan)
+**Live URL:** https://www.zamratravels.com/  
+**Firebase Project:** `zamra-web-01` (Blaze plan)
 
 ---
 
@@ -62,7 +62,7 @@ zamra/                              # Firebase project root — run firebase CLI
 ├── firestore.rules                 # Firestore security rules
 ├── firestore.indexes.json          # Compound indexes for agent_fares
 ├── storage.rules                   # Firebase Storage security rules
-├── .firebaserc                     # Links CLI → zamra-web project
+├── .firebaserc                     # Links CLI → zamra-web-01 project
 │
 ├── functions/                      # Cloud Functions (Node.js 22)
 │   ├── index.js                    # bulkDeleteFares, bulkToggleAgentVisibility,
@@ -174,7 +174,7 @@ zamra/                              # Firebase project root — run firebase CLI
 ## Key Gotchas for AI Agents
 
 - **`firebase.json` is at the `zamra/` root**, not inside `web/`. Always run firebase CLI from `zamra/`.
-- **Frontend Hosting** is on Vercel (`zamra.vercel.app`). Pushing to Git will auto-deploy the site. Do not use `firebase deploy --only hosting` for the primary frontend.
+- **Frontend Hosting** is on Vercel (`www.zamratravels.com`). Pushing to Git will auto-deploy the site. Do not use `firebase deploy --only hosting` for the primary frontend.
 - **Vite config is inside `web/`** — build and dev commands run from `web/`.
 - **Admin security** depends on the `admin: true` Firebase custom claim — without it, all Firestore writes are blocked even when authenticated.
 - **Firestore indexes** — complex queries on `agent_fares` require the indexes in `firestore.indexes.json`. Deploy them before testing queries.

@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const PROJECT_ID = 'zamra-web';
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'zamra-web-01';
 const COLLECTION = 'tours';
 const PAGE_SIZE = 1000;
 const DO_DELETE = process.argv.includes('--delete');

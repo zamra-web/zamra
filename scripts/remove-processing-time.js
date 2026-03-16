@@ -15,7 +15,7 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-const PROJECT_ID = 'zamra-web';
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'zamra-web-01';
 const COLLECTIONS = ['visas', 'visa_stamping'];
 
 // Initialise admin SDK using Application Default Credentials

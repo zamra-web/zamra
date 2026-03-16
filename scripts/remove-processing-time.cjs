@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const PROJECT_ID = 'zamra-web';
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'zamra-web-01';
 const COLLECTIONS = ['visas', 'visa_stamping'];
 
 // Get the access token from the Firebase CLI config

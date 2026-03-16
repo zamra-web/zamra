@@ -8,7 +8,7 @@
 
 The main website (`web/index.html`) is a premium, public-facing flight booking and travel services portal for Zamra Travels. It is fully responsive, mobile-optimised, and driven by live data from Firebase Firestore.
 
-**Live URL:** https://zamra.vercel.app  
+**Live URL:** https://www.zamratravels.com/  
 **Local dev:** `cd web && npm run dev` → http://localhost:5173
 
 ---
@@ -21,7 +21,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | Styling | Tailwind CSS v4 (`@tailwindcss/vite` plugin) |
 | JavaScript | Vanilla ES Modules (no framework) |
 | Database | Firebase Firestore (read-only from public pages) |
-| Hosting | Vercel (`zamra.vercel.app`) |
+| Hosting | Vercel (`www.zamratravels.com`) |
 
 ---
 
@@ -245,7 +245,7 @@ cd web && npm run build        # outputs to web/dist/
 
 # Deployment
 # The frontend is hosted on Vercel. Simply push your code to git,
-# and Vercel will automatically build and deploy the changes to zamra.vercel.app.
+# and Vercel will automatically build and deploy the changes to www.zamratravels.com.
 ```
 
 ---

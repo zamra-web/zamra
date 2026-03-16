@@ -1,10 +1,16 @@
 # Zamra Travels Migration Guide
 
-This guide covers a safe, end‑to‑end migration of the Zamra codebase and Firebase data to a new owner account (jobslive49@gmail.com), plus GitHub and Vercel ownership changes. It includes two paths so you can choose the safest fit for your goals.
+This guide covers a safe, end‑to‑end migration of the Zamra codebase and Firebase data to a new owner account (jobslive49@gmail.com), plus GitHub and Vercel ownership changes. It originally included two paths; the repo is now configured for **Option B** (new Firebase project).
 
-If you want, tell me which option you plan to use (A or B) and I can tailor the steps to your exact choice.
+**Status (Option B Completed — 2026-03-16)**
+1. **Firebase Project (active):** `zamra-web-01`
+2. **Firestore location:** `nam5`
+3. **Storage bucket:** `zamra-web-01.firebasestorage.app` (US‑EAST1)
+4. **Functions region:** `asia-south1`
+5. **n8n ingest URL:** `https://asia-south1-zamra-web-01.cloudfunctions.net/ingestFaresFromN8n`
+6. **Code config updated in:** `.firebaserc`, `web/src/js/admin/firebase-config.js`, `web/src/js/web/tours.js`, `web/src/js/web/hajj-umrah.js`
 
-**Quick Decision**
+**Quick Decision (Reference)**
 1. Choose Option A if you want to keep the existing Firebase project and only change ownership. This is the fastest path and avoids data export/import.
 2. Choose Option B if you want a brand‑new Firebase project under the new Gmail and to copy all data into it.
 
@@ -24,10 +30,10 @@ If you want, tell me which option you plan to use (A or B) and I can tailor the 
 
 **Option A: Transfer Ownership (No Data Copy)**
 
-This keeps the existing Firebase project (`zamra-web`) and simply transfers ownership to `jobslive49@gmail.com`.
+This keeps the existing Firebase project (legacy project ID) and simply transfers ownership to `jobslive49@gmail.com`.
 
 **A1. Firebase Ownership Transfer**
-1. Add `jobslive49@gmail.com` as an **Owner** in Google Cloud Console for the existing project (`zamra-web`).
+1. Add `jobslive49@gmail.com` as an **Owner** in Google Cloud Console for the existing project.
 2. Confirm the new owner can open Firebase Console and access Firestore, Storage, Auth, and Functions.
 
 **A2. GitHub Transfer**
@@ -166,7 +172,8 @@ git push neworigin main
 6. Poster exports (JPEG/PDF + video) render the footer and show `+91 9846606739`, with varied color themes between runs.
 7. Cloud Functions deploy and callable functions succeed.
 8. n8n ingest works with the new endpoint.
-9. Authorized domains in Firebase Auth include the new Vercel domain.
+9. If your Vercel domain changed, update `cors.json` and re‑apply Storage CORS rules.
+10. Authorized domains in Firebase Auth include the new Vercel domain.
 
 ---
 
