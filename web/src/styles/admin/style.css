@@ -381,6 +381,7 @@ html[data-theme="dark"] {
         padding: 0 0.875rem;
         font-size: 0.875rem;
         color: var(--text-main);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 10px 18px -20px rgba(15, 23, 42, 0.25);
         transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
     }
 
@@ -395,7 +396,7 @@ html[data-theme="dark"] {
     .admin-control:focus {
         background: #ffffff;
         border-color: var(--primary);
-        box-shadow: 0 0 0 4px rgba(12, 74, 138, 0.11);
+        box-shadow: 0 0 0 4px rgba(12, 74, 138, 0.12), 0 12px 20px -18px rgba(12, 74, 138, 0.3);
         outline: none;
     }
 
@@ -1029,8 +1030,11 @@ html[data-theme="dark"] {
 
     /* ─── Admin Modal System ─── */
     .admin-modal {
-        background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
         border: 1px solid #dbe6f4;
+        border-radius: 1.6rem;
         box-shadow: 0 40px 90px -40px rgba(15, 23, 42, 0.45), 0 24px 50px -40px rgba(12, 74, 138, 0.35);
     }
 
@@ -1040,25 +1044,42 @@ html[data-theme="dark"] {
     }
 
     .admin-modal-header {
-        background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(180deg, #fbfdff 0%, #eef4ff 100%);
         border-bottom: 1px solid #e2e8f0;
+        backdrop-filter: blur(8px);
     }
 
     .admin-modal-body {
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+
+    .admin-modal-header #modal-close-btn {
         background: #ffffff;
+        border: 1px solid #e2e8f0;
+        color: var(--text-muted);
+        box-shadow: 0 8px 16px -12px rgba(15, 23, 42, 0.4);
+    }
+
+    .admin-modal-header #modal-close-btn:hover {
+        background: #eef4ff;
+        color: var(--navy);
     }
 
     .admin-modal-form {
         display: flex;
         flex-direction: column;
-        gap: 1.25rem;
+        gap: 1.5rem;
     }
 
     .admin-form-section {
         border: 1px solid #e2e8f0;
-        background: #f8fafc;
+        background: #ffffff;
         border-radius: 1rem;
-        padding: 1rem;
+        padding: 1.1rem 1.15rem;
+        box-shadow: 0 14px 30px -24px rgba(15, 23, 42, 0.2);
     }
 
     .admin-form-section-head {
@@ -1066,15 +1087,17 @@ html[data-theme="dark"] {
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.85rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px dashed #e2e8f0;
     }
 
     .admin-form-section-title {
-        font-size: 0.7rem;
+        font-size: 0.72rem;
         font-weight: 700;
         letter-spacing: 0.18em;
         text-transform: uppercase;
-        color: var(--text-muted);
+        color: var(--text-mid);
     }
 
     .admin-form-section-desc {
@@ -1102,8 +1125,13 @@ html[data-theme="dark"] {
         display: flex;
         justify-content: flex-end;
         gap: 0.75rem;
-        padding-top: 1rem;
+        padding: 0.9rem 1.1rem 0.1rem;
+        margin-top: 0.25rem;
         border-top: 1px solid #e2e8f0;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 52%);
+        position: sticky;
+        bottom: -1px;
+        z-index: 1;
     }
 
     .admin-toggle {
@@ -1235,6 +1263,7 @@ html[data-theme="dark"] .admin-control {
     background: #0f172a;
     border-color: #23324d;
     color: var(--text-main);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 12px 18px -24px rgba(0, 0, 0, 0.7);
 }
 
 html[data-theme="dark"] .admin-control::placeholder {
@@ -1248,7 +1277,7 @@ html[data-theme="dark"] .admin-control:hover {
 html[data-theme="dark"] .admin-control:focus {
     background: #0b1220;
     border-color: var(--primary-light);
-    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.18);
+    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.2), 0 16px 22px -26px rgba(0, 0, 0, 0.8);
 }
 
 html[data-theme="dark"] .admin-btn-secondary {
@@ -1303,6 +1332,7 @@ html[data-theme="dark"] .admin-pagination-btn:hover {
 html[data-theme="dark"] .admin-modal {
     background: linear-gradient(180deg, #0f172a 0%, #0b1324 100%);
     border-color: #1f2a44;
+    box-shadow: 0 40px 90px -50px rgba(0, 0, 0, 0.75), 0 24px 50px -40px rgba(12, 74, 138, 0.2);
 }
 
 html[data-theme="dark"] .admin-modal-header {
@@ -1317,6 +1347,28 @@ html[data-theme="dark"] .admin-modal-body {
 html[data-theme="dark"] .admin-form-section {
     background: #0b1324;
     border-color: #1f2a44;
+    box-shadow: 0 18px 40px -32px rgba(0, 0, 0, 0.75);
+}
+
+html[data-theme="dark"] .admin-form-section-head {
+    border-bottom-color: #24324d;
+}
+
+html[data-theme="dark"] .admin-modal-footer {
+    border-top-color: #22324a;
+    background: linear-gradient(180deg, rgba(11, 19, 36, 0) 0%, #0b1324 55%);
+}
+
+html[data-theme="dark"] .admin-modal-header #modal-close-btn {
+    background: #0f172a;
+    border-color: #22324a;
+    color: #cbd5e1;
+    box-shadow: 0 10px 18px -14px rgba(0, 0, 0, 0.7);
+}
+
+html[data-theme="dark"] .admin-modal-header #modal-close-btn:hover {
+    background: #18243a;
+    color: #ffffff;
 }
 
 html[data-theme="dark"] .admin-toggle {
@@ -1334,55 +1386,55 @@ html[data-theme="dark"] .admin-file input[type="file"]::file-selector-button {
     color: #bfdbfe;
 }
 
-html[data-theme="dark"] main .bg-white {
+html[data-theme="dark"] :is(main, .admin-modal) .bg-white {
     background-color: #0f172a !important;
 }
 
-html[data-theme="dark"] main .bg-slate-50 {
+html[data-theme="dark"] :is(main, .admin-modal) .bg-slate-50 {
     background-color: #0f172a !important;
 }
 
-html[data-theme="dark"] main .bg-slate-100 {
+html[data-theme="dark"] :is(main, .admin-modal) .bg-slate-100 {
     background-color: #111c31 !important;
 }
 
-html[data-theme="dark"] main [class*="bg-white/"] {
+html[data-theme="dark"] :is(main, .admin-modal) [class*="bg-white/"] {
     background-color: rgba(15, 23, 42, 0.7) !important;
 }
 
-html[data-theme="dark"] main [class*="bg-slate-50/"] {
+html[data-theme="dark"] :is(main, .admin-modal) [class*="bg-slate-50/"] {
     background-color: rgba(15, 23, 42, 0.7) !important;
 }
 
-html[data-theme="dark"] main [class*="border-slate-"] {
+html[data-theme="dark"] :is(main, .admin-modal) [class*="border-slate-"] {
     border-color: #24324d !important;
 }
 
-html[data-theme="dark"] main [class*="text-slate-900"] {
+html[data-theme="dark"] :is(main, .admin-modal, #toastsEl) [class*="text-slate-900"] {
     color: #e2e8f0 !important;
 }
 
-html[data-theme="dark"] main [class*="text-slate-800"] {
+html[data-theme="dark"] :is(main, .admin-modal, #toastsEl) [class*="text-slate-800"] {
     color: #d5deed !important;
 }
 
-html[data-theme="dark"] main [class*="text-slate-700"] {
+html[data-theme="dark"] :is(main, .admin-modal, #toastsEl) [class*="text-slate-700"] {
     color: #c7d2e6 !important;
 }
 
-html[data-theme="dark"] main [class*="text-slate-600"] {
+html[data-theme="dark"] :is(main, .admin-modal, #toastsEl) [class*="text-slate-600"] {
     color: #b4c2d9 !important;
 }
 
-html[data-theme="dark"] main [class*="text-slate-500"] {
+html[data-theme="dark"] :is(main, .admin-modal, #toastsEl) [class*="text-slate-500"] {
     color: #9aa7bd !important;
 }
 
-html[data-theme="dark"] main [class*="text-slate-400"] {
+html[data-theme="dark"] :is(main, .admin-modal, #toastsEl) [class*="text-slate-400"] {
     color: #8a9ab4 !important;
 }
 
-html[data-theme="dark"] main [class*="text-slate-300"] {
+html[data-theme="dark"] :is(main, .admin-modal, #toastsEl) [class*="text-slate-300"] {
     color: #7b8aa6 !important;
 }
 

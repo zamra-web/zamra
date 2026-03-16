@@ -162,6 +162,7 @@ git push neworigin main
 2. Admin login works and admin users can write to Firestore.
 3. Firestore collections contain expected data counts.
 4. Storage assets (logos, tours, hajj/umrah images) load correctly.
+5. Poster generator only shows fares from today onward and dedupes identical flights to the lowest price.
 5. Cloud Functions deploy and callable functions succeed.
 6. n8n ingest works with the new endpoint.
 7. Authorized domains in Firebase Auth include the new Vercel domain.

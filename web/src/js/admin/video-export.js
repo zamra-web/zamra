@@ -87,6 +87,17 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         return Math.abs(hash);
     }
 
+    function normalizeFlightTime(value) {
+        if (!value) return '';
+        const raw = String(value).trim();
+        if (!raw) return '';
+        const cleaned = raw.replace(/[–—]/g, '-').replace(/\s+/g, ' ');
+        if (!cleaned.includes('-')) return cleaned;
+        const parts = cleaned.split('-').map(p => p.trim()).filter(Boolean);
+        if (parts.length >= 2) return `${parts[0]} - ${parts[1]}`;
+        return parts[0] || cleaned;
+    }
+
     function pickTheme(seedValue) {
         if (!VIDEO_THEMES.length) return VIDEO_THEMES[0];
         const idx = hashStringSeed(seedValue) % VIDEO_THEMES.length;
@@ -120,11 +131,33 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             }
             const theme = pickTheme(themeSeed);
 
+            const airlineMap = {};
+            airlines.forEach(a => {
+                if (a.id) airlineMap[a.id.trim().toLowerCase()] = a;
+                if (a.code) airlineMap[a.code.trim().toLowerCase()] = a;
+                if (a.name) airlineMap[a.name.trim().toLowerCase()] = a;
+            });
+
+            const getAirline = (rawId) => {
+                if (!rawId) return null;
+                return airlineMap[String(rawId).trim().toLowerCase()];
+            };
+
+            const toAirlineKey = (rawId) => {
+                const airline = getAirline(rawId);
+                if (airline?.id) return airline.id;
+                return String(rawId || '').trim().toLowerCase();
+            };
+
+            const toTimeKey = (rawTime) => normalizeFlightTime(rawTime).replace(/\s+/g, '');
+
             // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
             const groupedFaresMap = new Map();
             fares.forEach(fare => {
                 const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
-                const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
+                const airlineKey = toAirlineKey(fare.airlineId);
+                const timeKey = toTimeKey(fare.flightTime);
+                const key = `${fare.sectorId}_${airlineKey}_${dtTime}_${timeKey}`;
                 if (!groupedFaresMap.has(key)) {
                     groupedFaresMap.set(key, fare);
                 } else {
@@ -141,18 +174,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 if (valB instanceof Date) valB = valB.getTime();
                 return valA - valB;
             });
-
-            const airlineMap = {};
-            airlines.forEach(a => {
-                if (a.id) airlineMap[a.id.trim().toLowerCase()] = a;
-                if (a.code) airlineMap[a.code.trim().toLowerCase()] = a;
-                if (a.name) airlineMap[a.name.trim().toLowerCase()] = a;
-            });
-
-            const getAirline = (rawId) => {
-                if (!rawId) return null;
-                return airlineMap[String(rawId).trim().toLowerCase()];
-            };
 
             const sectorMap = {};
             sectors.forEach(s => {

@@ -87,16 +87,17 @@ web/
 ### 1. 📊 Dashboard Tab
 - **Poster Generator** — select a sector (or 'All Sectors') and optional date range, click **Generate Poster** to preview a shareable fare poster
   - Displays fares sorted by date
+  - **Default date floor = today** — poster fetches always start from today to avoid expired fares (even if the date input is blank or earlier)
   - **All Sectors** renders **one poster per sector** (instead of mixing sectors into a single table)
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
   - **Consistent size** — posters use a fixed height and pad empty rows so the layout never shrinks
   - **Auto-page** — sectors with more than 10 fares split into multiple posters (page per chunk)
-  - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown
+  - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown — airline + time are normalized so duplicates across agents collapse reliably
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Dynamic brand themes** — gradients and accents rotate per sector using the Zamra palette
   - **Download JPEG** — renders poster(s) to canvas at 2× resolution and triggers a `.jpg` download (downloads one file per sector for All Sectors)
   - **Download PDF** — converts poster canvas to a mm-based jsPDF page exactly sized to the poster dimensions (downloads one file per sector for All Sectors)
-  - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)
+  - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Uses the same deduping logic as posters. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)
   - Export buttons disable during generation and re-enable once done
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
 - All data from Firestore `agent_fares` + `airlines`
@@ -438,7 +439,8 @@ Functions:
 
 - **Modal:** Native `<dialog>` element (`#admin-modal`) — JS sets `#modal-title` and `#modal-body` HTML, then calls `.showModal()`
   - **Width:** defaults to `max-w-lg`; switches to `max-w-2xl` when `openModal()` is called with `wide = true` (used for Tours and similar wide forms)
-  - **Scrollable body:** `#modal-body` has `overflow-y-auto`; the header is `shrink-0` so it stays pinned while the body scrolls. Max height is `90vh` so tall forms (e.g. tour with many itinerary days) never overflow the viewport.
+  - **Scrollable body:** `#modal-body` has `overflow-y-auto`; the header is sticky so it stays pinned while the body scrolls. Max height is `90vh` so tall forms (e.g. tour with many itinerary days) never overflow the viewport.
+  - **Sticky footer:** `.admin-modal-footer` stays visible with a soft gradient so action buttons are always in reach.
 - **Toasts:** `#toastsEl` container — `toast(type, title, msg)` renders success/error/warning notifications with auto-dismiss (7s)
 - **Tables:** `.admin-table` CSS class with alternating row striping and hover states; each tab renders into its own `<div id="[tab]-results">` container
 - **Auth guard:** Page is hidden via `document.documentElement.style.visibility = 'hidden'` until `onAuthChange` confirms valid admin session
@@ -495,4 +497,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-03-16 — Tours and Hajj/Umrah public details now open in modals (no standalone tour detail route). Admin tour category options limited to International/Domestic. All other dashboard behaviors unchanged._
+_Last audited: 2026-03-16 — Admin modal UX refreshed (sticky header/footer, premium form cards). Tours and Hajj/Umrah public details now open in modals (no standalone tour detail route). Admin tour category options limited to International/Domestic. All other dashboard behaviors unchanged._

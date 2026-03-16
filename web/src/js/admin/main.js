@@ -184,6 +184,45 @@ function endOfDayMs(value) {
   return Number.isNaN(d.getTime()) ? null : d.getTime();
 }
 
+function normalizeFlightTime(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const cleaned = raw.replace(/[–—]/g, '-').replace(/\s+/g, ' ');
+  if (!cleaned.includes('-')) return cleaned;
+  const parts = cleaned.split('-').map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0]} - ${parts[1]}`;
+  return parts[0] || cleaned;
+}
+
+function getPosterDateRange(startInput, endInput) {
+  const todayStr = toDateInputValue(new Date());
+
+  if (startInput) {
+    startInput.min = todayStr;
+    if (!startInput.value || startInput.value < todayStr) {
+      startInput.value = todayStr;
+    }
+  }
+
+  if (endInput) {
+    endInput.min = todayStr;
+    if (endInput.value && endInput.value < todayStr) {
+      endInput.value = '';
+    }
+  }
+
+  const startDate = startInput?.value || todayStr;
+  let endDate = endInput?.value || null;
+
+  if (endDate && endDate < startDate) {
+    endDate = null;
+    if (endInput) endInput.value = '';
+  }
+
+  return { startDate, endDate };
+}
+
 // ── Sorting & Search State ────────────────────────────────────────────────────
 let tableSort = {
   agents: { key: 'id', asc: true },
@@ -641,6 +680,10 @@ async function renderDashboardTab() {
     });
   }
 
+  const startInput = document.getElementById('poster-start-date');
+  const endInput = document.getElementById('poster-end-date');
+  getPosterDateRange(startInput, endInput);
+
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');
   if (generateBtn && !generateBtn.dataset.wired) {
@@ -649,8 +692,7 @@ async function renderDashboardTab() {
       const startInput = document.getElementById('poster-start-date');
       const endInput = document.getElementById('poster-end-date');
       const sectorId = sectorSel?.value;
-      const startDate = startInput?.value || null;
-      const endDate = endInput?.value || null;
+      const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
       if (!sectorId) {
         toast('warning', 'Validation Error', 'Please select a sector to generate the poster.');
@@ -691,8 +733,7 @@ async function handleVideoPoster(ratio) {
   const startInput = document.getElementById('poster-start-date');
   const endInput = document.getElementById('poster-end-date');
   const sectorId = sectorSel?.value;
-  const startDate = startInput?.value || null;
-  const endDate = endInput?.value || null;
+  const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
   if (!sectorId) {
     toast('warning', 'Validation Error', 'Please select a sector to generate the poster.');
@@ -759,11 +800,33 @@ async function renderPoster(fares, sectorId) {
   // Remove any previously-cloned frames (keep the template in place)
   stack.querySelectorAll('[data-poster-clone="1"]').forEach(el => el.remove());
 
+  const airlineMap = {};
+  _airlines.forEach(a => {
+    if (a.id) airlineMap[a.id.trim().toLowerCase()] = a;
+    if (a.code) airlineMap[a.code.trim().toLowerCase()] = a;
+    if (a.name) airlineMap[a.name.trim().toLowerCase()] = a;
+  });
+
+  const getAirline = (rawId) => {
+    if (!rawId) return null;
+    return airlineMap[String(rawId).trim().toLowerCase()];
+  };
+
+  const toAirlineKey = (rawId) => {
+    const airline = getAirline(rawId);
+    if (airline?.id) return airline.id;
+    return String(rawId || '').trim().toLowerCase();
+  };
+
+  const toTimeKey = (rawTime) => normalizeFlightTime(rawTime).replace(/\s+/g, '');
+
   // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
   const groupedFaresMap = new Map();
   fares.forEach(fare => {
     const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
-    const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
+    const airlineKey = toAirlineKey(fare.airlineId);
+    const timeKey = toTimeKey(fare.flightTime);
+    const key = `${fare.sectorId}_${airlineKey}_${dtTime}_${timeKey}`;
     if (!groupedFaresMap.has(key)) {
       groupedFaresMap.set(key, fare);
     } else {
@@ -781,18 +844,6 @@ async function renderPoster(fares, sectorId) {
     if (valB instanceof Date) valB = valB.getTime();
     return valA - valB;
   });
-
-  const airlineMap = {};
-  _airlines.forEach(a => {
-    if (a.id) airlineMap[a.id.trim().toLowerCase()] = a;
-    if (a.code) airlineMap[a.code.trim().toLowerCase()] = a;
-    if (a.name) airlineMap[a.name.trim().toLowerCase()] = a;
-  });
-
-  const getAirline = (rawId) => {
-    if (!rawId) return null;
-    return airlineMap[String(rawId).trim().toLowerCase()];
-  };
 
   // Pre-fetch airline logos as blob URLs — sidesteps CORS for html2canvas
   async function fetchLogoBlob(url) {
