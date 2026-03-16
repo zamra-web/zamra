@@ -35,6 +35,7 @@ let _passportServices = [];
 let _tours = [];
 let _hajjUmrahPackages = [];
 let _reportFares = [];
+let _lastReportSummary = null;
 let _databaseFares = [];
 let _databaseDrafts = {};
 let _databaseSelected = new Set();
@@ -61,6 +62,11 @@ function applyTheme(theme) {
     toggle.classList.toggle('is-dark', theme === 'dark');
     toggle.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
     toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+
+  if (_lastReportSummary && _reportFares) {
+    const tab = document.getElementById('reports-tab');
+    renderReportCharts(_lastReportSummary, tab, { silent: true });
   }
 }
 
@@ -811,16 +817,119 @@ function mulberry32(seed) {
   };
 }
 
-function buildPosterThemeOrder(seed) {
-  const list = [...POSTER_THEMES];
-  if (list.length <= 1) return list;
-  const rand = mulberry32(seed);
-  for (let i = list.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [list[i], list[j]] = [list[j], list[i]];
+function randomSeed() {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0];
   }
-  return list;
+  return Math.floor(Math.random() * 1_000_000_000);
 }
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function hslToHex(h, s, l) {
+  const hue = ((h % 360) + 360) % 360;
+  const sat = clamp(s, 0, 100) / 100;
+  const light = clamp(l, 0, 100) / 100;
+  const c = (1 - Math.abs(2 * light - 1)) * sat;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = light - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hue < 60) { r = c; g = x; }
+  else if (hue < 120) { r = x; g = c; }
+  else if (hue < 180) { g = c; b = x; }
+  else if (hue < 240) { g = x; b = c; }
+  else if (hue < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const toHex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function hexToRgb(hex) {
+  const raw = hex.replace('#', '').trim();
+  const full = raw.length === 3
+    ? raw.split('').map(c => c + c).join('')
+    : raw.padEnd(6, '0');
+  const num = parseInt(full, 16);
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  };
+}
+
+function rgbaFromHex(hex, alpha) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${clamp(alpha, 0, 1)})`;
+}
+
+function pickHue(rand, lastHue) {
+  let hue = Math.floor(rand() * 360);
+  let guard = 0;
+  while (lastHue !== null) {
+    const diff = Math.abs(hue - lastHue);
+    const wrapped = Math.min(diff, 360 - diff);
+    if (wrapped >= 32) break;
+    hue = Math.floor(rand() * 360);
+    guard += 1;
+    if (guard > 8) break;
+  }
+  return hue;
+}
+
+function generatePosterTheme(seed, lastHue) {
+  const rand = mulberry32(seed);
+  const hue = pickHue(rand, lastHue);
+  const accent = hslToHex(hue, 82, 54);
+  const accentSoft = hslToHex(hue, 72, 62);
+  const accentAlt = hslToHex((hue + 28) % 360, 85, 56);
+  const headerBg = hslToHex(hue, 42, 17);
+  return {
+    id: `gen-${hue}`,
+    __hue: hue,
+    topBar: [accent, accentAlt, accentSoft],
+    headerBg,
+    headerOverlayFrom: headerBg,
+    headerOverlayTo: rgbaFromHex(headerBg, 0),
+    badgeBg: rgbaFromHex(accent, 0.22),
+    badgeBorder: rgbaFromHex(accentAlt, 0.45),
+    badgeText: hslToHex(hue, 70, 92),
+    subtitle: hslToHex(hue, 70, 88),
+    accent: accentAlt,
+    bodyBg: '#f8fafc',
+    cardBg: '#ffffff',
+    cardBorder: '#e2e8f0',
+    tableHeadBg: hslToHex(hue, 70, 96),
+    tableHeadText: '#475569',
+    tableBorder: '#e2e8f0',
+    rowAlt: hslToHex(hue, 70, 97),
+    sectorChipBg: rgbaFromHex(accent, 0.12),
+    sectorChipText: hslToHex(hue, 78, 36),
+    fareText: '#0f172a',
+    footerBg: '#ffffff',
+    footerBorder: '#e2e8f0',
+    footerAccent: accent
+  };
+}
+
+function buildPosterThemeOrder(count) {
+  const themes = [];
+  let lastHue = null;
+  const baseSeed = randomSeed();
+  for (let i = 0; i < count; i += 1) {
+    const theme = generatePosterTheme(baseSeed + (i * 131071), lastHue);
+    lastHue = theme.__hue ?? lastHue;
+    themes.push(theme);
+  }
+  return themes;
+}
+
+let isVideoPosterGenerating = false;
 
 function applyPosterTheme(frameEl, theme) {
   if (!frameEl || !theme) return;
@@ -985,6 +1094,31 @@ async function handleVideoPoster(ratio) {
     return;
   }
 
+  if (isVideoPosterGenerating) {
+    toast('warning', 'Video Generation', 'A video export is already running. Please wait…');
+    return;
+  }
+
+  const progressEl = document.getElementById('poster-video-progress');
+  const setProgress = (msg) => {
+    if (!progressEl) return;
+    if (msg) {
+      progressEl.textContent = msg;
+      progressEl.classList.remove('hidden');
+    } else {
+      progressEl.classList.add('hidden');
+    }
+  };
+
+  const videoBtns = [
+    document.getElementById('poster-download-vid-1x1'),
+    document.getElementById('poster-download-vid-9x16'),
+    document.getElementById('poster-download-vid-16x9')
+  ].filter(Boolean);
+  videoBtns.forEach(btn => { btn.disabled = true; });
+  isVideoPosterGenerating = true;
+  setProgress('Preparing video…');
+
   try {
     const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
     if (!fares || !fares.length) {
@@ -1009,28 +1143,84 @@ async function handleVideoPoster(ratio) {
       });
 
       toast('info', 'Video Generation', `Generating ${sectorIds.length} videos. This may take a while…`);
+      const downloads = [];
       let ok = 0;
       let fail = 0;
-      for (const sid of sectorIds) {
+      for (let idx = 0; idx < sectorIds.length; idx += 1) {
+        const sid = sectorIds[idx];
         const sectorFares = faresBySector.get(sid) || [];
         if (!sectorFares.length) continue;
+        const sectorLabel = _sectors.find(s => s.id === sid)?.sectorCode || sid;
+        setProgress(`Rendering ${idx + 1}/${sectorIds.length} · ${sectorLabel}`);
         try {
-          await downloadVideoPoster(ratio, sectorFares, sid, _sectors, _airlines);
+          const result = await downloadVideoPoster(
+            ratio,
+            sectorFares,
+            sid,
+            _sectors,
+            _airlines,
+            { autoDownload: true, returnBlob: true }
+          );
+          if (result?.blob) downloads.push(result);
           ok += 1;
         } catch (e) {
           fail += 1;
           console.error('Video generation failed for sector', sid, e);
         }
+        await new Promise(res => setTimeout(res, 250));
       }
-      if (ok) toast('success', 'Video Generation', `Downloaded ${ok} videos successfully.`);
+      if (ok) toast('success', 'Video Generation', `Generated ${ok} videos successfully.`);
       if (fail) toast('error', 'Video Generation', `${fail} videos failed to generate. Check console for details.`);
+
+      if (downloads.length > 1) {
+        const listHtml = downloads.map((item, idx) => `
+          <button type="button" class="admin-btn admin-btn-secondary w-full" data-video-download="${idx}">
+            Download ${item.filename}
+          </button>
+        `).join('');
+
+        openModal('Video Downloads', `
+          <div class="space-y-3">
+            <p class="text-sm text-text-muted">
+              If your browser blocked multiple downloads, use these buttons to save each video.
+            </p>
+            ${listHtml}
+          </div>
+        `);
+
+        const body = document.getElementById('modal-body');
+        body.querySelectorAll('[data-video-download]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = Number(btn.dataset.videoDownload);
+            const item = downloads[idx];
+            if (!item?.blob) return;
+            const url = URL.createObjectURL(item.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = item.filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }, 200);
+          });
+        });
+      }
       return;
     }
 
+    const singleLabel = _sectors.find(s => s.id === sectorId)?.sectorCode || sectorId;
+    setProgress(`Rendering 1/1 · ${singleLabel}`);
     await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines);
   } catch (e) {
     console.error('Video generation failed', e);
     toast('error', 'Generation Failed', e.message || 'Video generation failed.');
+  } finally {
+    isVideoPosterGenerating = false;
+    videoBtns.forEach(btn => { btn.disabled = false; });
+    setProgress('');
   }
 }
 
@@ -1255,9 +1445,11 @@ async function renderPoster(fares, sectorId) {
     });
   });
 
-  const themeOrder = buildPosterThemeOrder(
-    Date.now() + Math.floor(Math.random() * 1_000_000)
-  );
+  const themePool = buildPosterThemeOrder(sectorIdsToRender.length || 1);
+  const themeBySector = new Map();
+  sectorIdsToRender.forEach((sid, idx) => {
+    themeBySector.set(sid, themePool[idx] || themePool[0]);
+  });
 
   // Render one poster per sector (and page)
   framesToRender.forEach((entry, idx) => {
@@ -1288,9 +1480,7 @@ async function renderPoster(fares, sectorId) {
     frameEl.dataset.posterPage = String(page);
     frameEl.dataset.posterPageCount = String(pages);
 
-    const theme = themeOrder.length
-      ? themeOrder[idx % themeOrder.length]
-      : POSTER_THEMES[0];
+    const theme = themeBySector.get(sid) || themePool[0];
     renderIntoFrame(frameEl, frameFares, sid, theme);
   });
 
@@ -2112,7 +2302,8 @@ async function renderReportsTab() {
   }
 }
 
-function renderReportCharts(report, tab) {
+function renderReportCharts(report, tab, opts = {}) {
+  _lastReportSummary = report;
   const { agentReport, sectorReport, totalFares } = report;
 
   // ── Stat Cards ──────────────────────────────────────────────────────────────
@@ -2170,22 +2361,40 @@ function renderReportCharts(report, tab) {
     }
   }
 
-  toast('success', 'Report Ready', `${totalFares} fare${totalFares !== 1 ? 's' : ''} aggregated.`);
+  if (!opts.silent) {
+    toast('success', 'Report Ready', `${totalFares} fare${totalFares !== 1 ? 's' : ''} aggregated.`);
+  }
+}
+
+function isDarkTheme() {
+  return document.documentElement.dataset.theme === 'dark';
 }
 
 // ── SVG Bar Chart ─────────────────────────────────────────────────────────────
 function renderBarChart(data, container) {
+  const isDark = isDarkTheme();
   const W = container.clientWidth || 480;
   const H = 260;
   const PAD = { top: 32, right: 16, bottom: 48, left: 48 };
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
   const maxCount = Math.max(...data.map(d => d.count), 1);
-  const BRAND_COLORS = [
-    ['#0c4a8a', '#3b82f6'], ['#065f46', '#22c55e'], ['#78350f', '#f59e0b'],
-    ['#7f1d1d', '#ef4444'], ['#4c1d95', '#8b5cf6'], ['#134e4a', '#14b8a6'],
-    ['#7c2d12', '#f97316'], ['#1e293b', '#64748b'],
-  ];
+  const BRAND_COLORS = isDark
+    ? [
+      ['#60a5fa', '#93c5fd'], ['#34d399', '#6ee7b7'], ['#fbbf24', '#fde68a'],
+      ['#fb7185', '#fecdd3'], ['#a78bfa', '#c4b5fd'], ['#2dd4bf', '#5eead4'],
+      ['#fb923c', '#fdba74'], ['#94a3b8', '#cbd5e1'],
+    ]
+    : [
+      ['#0c4a8a', '#3b82f6'], ['#065f46', '#22c55e'], ['#78350f', '#f59e0b'],
+      ['#7f1d1d', '#ef4444'], ['#4c1d95', '#8b5cf6'], ['#134e4a', '#14b8a6'],
+      ['#7c2d12', '#f97316'], ['#1e293b', '#64748b'],
+    ];
+  const gridColor = isDark ? '#22324a' : '#f1f5f9';
+  const axisColor = isDark ? '#2f415c' : '#cbd5e1';
+  const tickColor = isDark ? '#9fb1cb' : '#94a3b8';
+  const labelColor = isDark ? '#cbd5e1' : '#64748b';
+  const tooltipBg = isDark ? '#0b1324' : '#0f172a';
 
   // Y-axis ticks
   const ticks = 4;
@@ -2193,8 +2402,8 @@ function renderBarChart(data, container) {
   const yTicks = Array.from({ length: ticks + 1 }, (_, i) => i * tickStep);
   const yTickLines = yTicks.map(v => {
     const y = PAD.top + chartH - (v / (yTicks[yTicks.length - 1] || 1)) * chartH;
-    return `<line x1="${PAD.left}" y1="${y.toFixed(1)}" x2="${W - PAD.right}" y2="${y.toFixed(1)}" stroke="#f1f5f9" stroke-width="1"/>
-            <text x="${PAD.left - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#94a3b8" font-weight="600">${v}</text>`;
+    return `<line x1="${PAD.left}" y1="${y.toFixed(1)}" x2="${W - PAD.right}" y2="${y.toFixed(1)}" stroke="${gridColor}" stroke-width="1"/>
+            <text x="${PAD.left - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="${tickColor}" font-weight="600">${v}</text>`;
   }).join('');
 
   const barW = Math.min(48, (chartW / data.length) * 0.6);
@@ -2219,7 +2428,7 @@ function renderBarChart(data, container) {
               <text x="${(x + barW / 2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle"
                 font-size="11" font-weight="900" fill="${c2}">${d.count}</text>
               <text x="${(x + barW / 2).toFixed(1)}" y="${(PAD.top + chartH + 16).toFixed(1)}" text-anchor="middle"
-                font-size="10" font-weight="700" fill="#64748b">${(d.name || '').split(' ')[0].slice(0, 8)}</text>
+                font-size="10" font-weight="700" fill="${labelColor}">${(d.name || '').split(' ')[0].slice(0, 8)}</text>
             </g>`;
   }).join('');
 
@@ -2229,13 +2438,13 @@ function renderBarChart(data, container) {
       @keyframes barGrow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
       #bar-svg .bar-group:hover rect { opacity: 1; filter: brightness(1.1); }
     </style>
-    <div id="${tooltipId}" style="position:absolute;display:none;background:#0f172a;color:#fff;font-size:12px;font-weight:700;
+    <div id="${tooltipId}" style="position:absolute;display:none;background:${tooltipBg};color:#fff;font-size:12px;font-weight:700;
       padding:8px 12px;border-radius:10px;pointer-events:none;z-index:10;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.2);
       line-height:1.6;"></div>
     <svg id="bar-svg" width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;">
       ${yTickLines}
-      <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + chartH}" stroke="#cbd5e1" stroke-width="1.5"/>
-      <line x1="${PAD.left}" y1="${PAD.top + chartH}" x2="${W - PAD.right}" y2="${PAD.top + chartH}" stroke="#cbd5e1" stroke-width="1.5"/>
+      <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + chartH}" stroke="${axisColor}" stroke-width="1.5"/>
+      <line x1="${PAD.left}" y1="${PAD.top + chartH}" x2="${W - PAD.right}" y2="${PAD.top + chartH}" stroke="${axisColor}" stroke-width="1.5"/>
       ${bars}
     </svg>`;
 
@@ -2259,17 +2468,32 @@ function renderBarChart(data, container) {
 
 // ── SVG Donut Chart ───────────────────────────────────────────────────────────
 function renderDonutChart(data, svg, legendEl) {
-  const COLORS = ['#1558c0', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316'];
+  const isDark = isDarkTheme();
+  const COLORS = isDark
+    ? ['#60a5fa', '#93c5fd', '#34d399', '#fbbf24', '#fb7185', '#a78bfa', '#2dd4bf', '#fb923c']
+    : ['#1558c0', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316'];
+  const centerFill = isDark ? '#0f172a' : '#ffffff';
+  const centerCountColor = isDark ? '#e2e8f0' : '#0f172a';
+  const centerLabelColor = isDark ? '#9fb1cb' : '#64748b';
+  const segmentStroke = isDark ? '#0b1324' : 'white';
+  const legendNameColor = isDark ? '#cbd5e1' : '#64748b';
+  const legendCountColor = isDark ? '#e2e8f0' : '#0f172a';
+  const legendPctColor = isDark ? '#9fb1cb' : '#94a3b8';
+  const legendHoverBg = isDark ? '#1e2a44' : '#f1f5f9';
   const CX = 110, CY = 110, R_OUTER = 95, R_INNER = 60;
   const total = data.reduce((s, r) => s + r.count, 0);
 
   const segGroup = svg.getElementById ? svg.getElementById('donut-segments') : svg.querySelector('#donut-segments');
   const centerCount = svg.querySelector('#donut-center-count');
   const centerLabel = svg.querySelector('#donut-center-label');
+  const centerCircle = svg.querySelector('circle');
   if (!segGroup) return;
 
   if (centerCount) centerCount.textContent = total;
   if (centerLabel) centerLabel.textContent = 'FARES';
+  if (centerCircle) centerCircle.setAttribute('fill', centerFill);
+  if (centerCount) centerCount.setAttribute('fill', centerCountColor);
+  if (centerLabel) centerLabel.setAttribute('fill', centerLabelColor);
 
   // Helper: polar to cartesian
   const polar = (cx, cy, r, deg) => ({
@@ -2307,7 +2531,7 @@ function renderDonutChart(data, svg, legendEl) {
     const el = document.createElementNS(NS, 'path');
     el.setAttribute('d', p.pathD);
     el.setAttribute('fill', p.color);
-    el.setAttribute('stroke', 'white');
+    el.setAttribute('stroke', segmentStroke);
     el.setAttribute('stroke-width', '2');
     el.style.cursor = 'pointer';
     el.style.transition = 'transform 0.2s, filter 0.2s';
@@ -2350,14 +2574,14 @@ function renderDonutChart(data, svg, legendEl) {
       <div class="flex items-center gap-2 text-[12px] cursor-default legend-row" data-legend-idx="${i}"
         style="padding:4px 6px;border-radius:8px;transition:background 0.15s;">
         <span style="width:10px;height:10px;border-radius:50%;background:${p.color};flex-shrink:0;"></span>
-        <span class="truncate" style="color:#64748b;flex:1;">${p.name}</span>
-        <span style="font-weight:900;color:#0f172a;margin-left:auto;">${p.count}</span>
-        <span style="color:#94a3b8;font-size:10px;width:36px;text-align:right;">${p.pct}%</span>
+        <span class="truncate" style="color:${legendNameColor};flex:1;">${p.name}</span>
+        <span style="font-weight:900;color:${legendCountColor};margin-left:auto;">${p.count}</span>
+        <span style="color:${legendPctColor};font-size:10px;width:36px;text-align:right;">${p.pct}%</span>
       </div>`).join('');
 
     const highlightLegendRows = (idx) => {
       legendEl.querySelectorAll('.legend-row').forEach((row, j) => {
-        row.style.background = j === idx ? '#f1f5f9' : '';
+        row.style.background = j === idx ? legendHoverBg : '';
       });
     };
     // Expose so segment hover can call it
@@ -2376,7 +2600,18 @@ function renderDonutChart(data, svg, legendEl) {
 
 // ── Leaderboard Cards ─────────────────────────────────────────────────────────
 function renderLeaderboards(agentReport, sectorReport) {
-  const BRAND = ['#1558c0', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444'];
+  const isDark = isDarkTheme();
+  const BRAND = isDark
+    ? ['#60a5fa', '#93c5fd', '#34d399', '#fbbf24', '#fb7185']
+    : ['#1558c0', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444'];
+  const textMain = isDark ? '#e2e8f0' : '#0f172a';
+  const textMuted = isDark ? '#9fb1cb' : '#94a3b8';
+  const barBg = isDark ? '#1e2a44' : '#f1f5f9';
+  const rankBg = isDark ? '#111c31' : '#f8fafc';
+  const rankBorder = isDark ? '#24324d' : '#e2e8f0';
+  const trophyBg = isDark ? '#2a1d0e' : '#fff7ed';
+  const trophyBorder = isDark ? '#5a3b14' : '#fed7aa';
+  const avgColor = isDark ? '#fbbf24' : '#f59e0b';
 
   // Top agents by count
   const agentsEl = document.getElementById('leaderboard-agents');
@@ -2386,16 +2621,16 @@ function renderLeaderboards(agentReport, sectorReport) {
     agentsEl.innerHTML = top.map((a, i) => {
       const pct = Math.max(6, Math.round((a.count / maxCount) * 100));
       const rankBadge = i === 0
-        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#fff7ed;color:#b45309;border:1px solid #fed7aa;"><i class="bi bi-trophy-fill" style="font-size:12px;"></i></span>`
-        : `<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;font-size:11px;font-weight:800;">#${i + 1}</span>`;
+        ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:${trophyBg};color:#f59e0b;border:1px solid ${trophyBorder};"><i class="bi bi-trophy-fill" style="font-size:12px;"></i></span>`
+        : `<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:${rankBg};color:${textMuted};border:1px solid ${rankBorder};font-size:11px;font-weight:800;">#${i + 1}</span>`;
       return `<div style="display:flex;align-items:center;gap:10px;">
         <span style="width:28px;text-align:center;flex-shrink:0;">${rankBadge}</span>
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:${textMain};margin-bottom:4px;">
             <span class="truncate">${a.name}</span>
             <span style="color:${BRAND[i]};margin-left:8px;">${a.count} fares</span>
           </div>
-          <div style="background:#f1f5f9;border-radius:99px;height:6px;overflow:hidden;">
+          <div style="background:${barBg};border-radius:99px;height:6px;overflow:hidden;">
             <div style="width:${pct}%;height:100%;background:${BRAND[i]};border-radius:99px;transition:width 0.8s cubic-bezier(.34,1.56,.64,1);"></div>
           </div>
         </div>
@@ -2413,14 +2648,14 @@ function renderLeaderboards(agentReport, sectorReport) {
     sectorsEl.innerHTML = sorted.map((s, i) => {
       const pct = maxRate > minRate ? Math.max(6, Math.round(((s.avgRate - minRate) / (maxRate - minRate)) * 100)) : 50;
       return `<div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12px;font-weight:900;color:#94a3b8;width:20px;text-align:center;flex-shrink:0;">${i + 1}</span>
+        <span style="font-size:12px;font-weight:900;color:${textMuted};width:20px;text-align:center;flex-shrink:0;">${i + 1}</span>
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:${textMain};margin-bottom:4px;">
             <span class="truncate">${s.name}</span>
-            <span style="color:#f59e0b;margin-left:8px;">avg ₹${Math.round(s.avgRate).toLocaleString()}</span>
+            <span style="color:${avgColor};margin-left:8px;">avg ₹${Math.round(s.avgRate).toLocaleString()}</span>
           </div>
-          <div style="background:#f1f5f9;border-radius:99px;height:6px;overflow:hidden;">
-            <div style="width:${pct}%;height:100%;background:linear-gradient(to right,#22c55e,#f59e0b);border-radius:99px;transition:width 0.8s cubic-bezier(.34,1.56,.64,1);"></div>
+          <div style="background:${barBg};border-radius:99px;height:6px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:linear-gradient(to right,#22c55e,${avgColor});border-radius:99px;transition:width 0.8s cubic-bezier(.34,1.56,.64,1);"></div>
           </div>
         </div>
       </div>`;

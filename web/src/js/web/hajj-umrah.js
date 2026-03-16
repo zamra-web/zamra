@@ -9,12 +9,12 @@ import { getFirestore, collection, getDocs, query, where } from 'firebase/firest
 import { initSiteChrome } from './site-chrome.js';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDXVaGrWYqKwJBh7ow1GVCzTqnJJJDLlcM",
-  authDomain: "zamra-web.firebaseapp.com",
-  projectId: "zamra-web",
-  storageBucket: "zamra-web.firebasestorage.app",
-  messagingSenderId: "1087844474513",
-  appId: "1:1087844474513:web:a6e8dcf6e3d0b4b5bc3671"
+  apiKey: "AIzaSyAktrHNfNsRzZQpt2KuyDFjmkDt48vBauA",
+  authDomain: "zamra-web-01.firebaseapp.com",
+  projectId: "zamra-web-01",
+  storageBucket: "zamra-web-01.firebasestorage.app",
+  messagingSenderId: "871356823310",
+  appId: "1:871356823310:web:ca0d35ef2d21c6f602895f"
 };
 
 const app = initializeApp(firebaseConfig, 'hajj-umrah-public');

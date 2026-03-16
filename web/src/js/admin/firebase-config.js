@@ -7,13 +7,13 @@ import { getFunctions } from 'firebase/functions';
 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBiL_oYigmGpdL6Po-OYEKrIBkyHa95yNo",
-  authDomain: "zamra-web.firebaseapp.com",
-  projectId: "zamra-web",
-  storageBucket: "zamra-web.firebasestorage.app",
-  messagingSenderId: "667791446355",
-  appId: "1:667791446355:web:744fe88826623837c291a6",
-  measurementId: "G-5ZL3JCFZ7Z"
+  apiKey: "AIzaSyAktrHNfNsRzZQpt2KuyDFjmkDt48vBauA",
+  authDomain: "zamra-web-01.firebaseapp.com",
+  projectId: "zamra-web-01",
+  storageBucket: "zamra-web-01.firebasestorage.app",
+  messagingSenderId: "871356823310",
+  appId: "1:871356823310:web:ca0d35ef2d21c6f602895f",
+  measurementId: "G-CRR6LJWDFJ"
 };
 
 // Initialize Firebase (singleton)
@@ -26,4 +26,3 @@ const storage = getStorage(app);
 const functions = getFunctions(app, 'asia-south1');
 
 export { app, auth, db, storage, functions };
-

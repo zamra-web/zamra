@@ -1,6 +1,6 @@
-let lastVideoThemeId = null;
+let lastVideoThemeHue = null;
 
-export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines) {
+export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
     // Show loading toast (assuming toast is globally available or we can just use basic UI feedback)
     const toastMessage = `Generating ${ratio} Video... Please remain on this tab.`;
     if (window.toast) window.toast('info', 'Video Generation', toastMessage);
@@ -376,6 +376,112 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         return RATIO_PRESETS[ratioKey] || RATIO_PRESETS['1x1'];
     }
 
+    function mulberry32(seed) {
+        let t = seed >>> 0;
+        return () => {
+            t += 0x6D2B79F5;
+            let r = Math.imul(t ^ (t >>> 15), 1 | t);
+            r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+            return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    function randomSeed() {
+        if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+            const buf = new Uint32Array(1);
+            crypto.getRandomValues(buf);
+            return buf[0];
+        }
+        return Math.floor(Math.random() * 1_000_000_000);
+    }
+
+    function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    function hslToHex(h, s, l) {
+        const hue = ((h % 360) + 360) % 360;
+        const sat = clamp(s, 0, 100) / 100;
+        const light = clamp(l, 0, 100) / 100;
+        const c = (1 - Math.abs(2 * light - 1)) * sat;
+        const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+        const m = light - c / 2;
+        let r = 0, g = 0, b = 0;
+        if (hue < 60) { r = c; g = x; }
+        else if (hue < 120) { r = x; g = c; }
+        else if (hue < 180) { g = c; b = x; }
+        else if (hue < 240) { g = x; b = c; }
+        else if (hue < 300) { r = x; b = c; }
+        else { r = c; b = x; }
+        const toHex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    function hexToRgb(hex) {
+        const raw = hex.replace('#', '').trim();
+        const full = raw.length === 3
+            ? raw.split('').map(c => c + c).join('')
+            : raw.padEnd(6, '0');
+        const num = parseInt(full, 16);
+        return {
+            r: (num >> 16) & 255,
+            g: (num >> 8) & 255,
+            b: num & 255
+        };
+    }
+
+    function rgbaFromHex(hex, alpha) {
+        const { r, g, b } = hexToRgb(hex);
+        return `rgba(${r}, ${g}, ${b}, ${clamp(alpha, 0, 1)})`;
+    }
+
+    function pickHue(rand, lastHue) {
+        let hue = Math.floor(rand() * 360);
+        let guard = 0;
+        while (lastHue !== null) {
+            const diff = Math.abs(hue - lastHue);
+            const wrapped = Math.min(diff, 360 - diff);
+            if (wrapped >= 32) break;
+            hue = Math.floor(rand() * 360);
+            guard += 1;
+            if (guard > 8) break;
+        }
+        return hue;
+    }
+
+    function generateVideoTheme(seed, lastHue) {
+        const rand = mulberry32(seed);
+        const hue = pickHue(rand, lastHue);
+        const accent = hslToHex(hue, 82, 54);
+        const accentSoft = hslToHex(hue, 72, 62);
+        const accentAlt = hslToHex((hue + 28) % 360, 85, 56);
+        const headerBg = hslToHex(hue, 42, 17);
+        const rowAlt = hslToHex(hue, 70, 96);
+        return {
+            id: `gen-${hue}`,
+            __hue: hue,
+            topBar: [accent, accentAlt, accentSoft],
+            headerBg,
+            headerOverlayFrom: headerBg,
+            headerOverlayTo: rgbaFromHex(headerBg, 0),
+            badgeBg: rgbaFromHex(accent, 0.22),
+            badgeBorder: rgbaFromHex(accentAlt, 0.45),
+            badgeText: hslToHex(hue, 70, 92),
+            subtitle: hslToHex(hue, 70, 88),
+            accent: accentAlt,
+            bodyBg: '#f8fafc',
+            tableHeadText: '#64748b',
+            rowAlt,
+            sectorText: hslToHex(hue, 78, 36),
+            fareBadgeBg: hslToHex(hue, 48, 20),
+            fareBadgeText: '#ffffff',
+            footerBg: '#ffffff',
+            footerBorder: '#f1f5f9',
+            footerText: '#1e293b',
+            footerAccent: accent
+        };
+    }
+
     function normalizeFlightTime(value) {
         if (!value) return '';
         const raw = String(value).trim();
@@ -388,22 +494,17 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
     }
 
     function pickRandomTheme() {
-        if (!VIDEO_THEMES.length) return null;
-        if (VIDEO_THEMES.length === 1) return VIDEO_THEMES[0];
-        let theme = VIDEO_THEMES[Math.floor(Math.random() * VIDEO_THEMES.length)];
-        let guard = 0;
-        while (theme && theme.id === lastVideoThemeId && guard < 6) {
-            theme = VIDEO_THEMES[Math.floor(Math.random() * VIDEO_THEMES.length)];
-            guard += 1;
-        }
-        if (theme && theme.id) lastVideoThemeId = theme.id;
-        return theme || VIDEO_THEMES[0];
+        const seed = randomSeed();
+        const theme = generateVideoTheme(seed, lastVideoThemeHue);
+        if (theme && theme.__hue !== undefined) lastVideoThemeHue = theme.__hue;
+        return theme;
     }
 
     return new Promise(async (resolve, reject) => {
         try {
             // 1. Dimensions setup
             const preset = getPreset(ratio);
+            const { autoDownload = true, returnBlob = false } = options || {};
             const { width, height } = preset;
 
             const canvas = document.createElement('canvas');
@@ -566,21 +667,60 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
 
             // Start Recorder
-            recorder.start(100); // Record in 100ms chunks to ensure data availability
+            recorder.start(); // Let the browser decide chunking for more stable output
 
             // 4. Animation loop
             const headerHeight = preset.headerHeight;
-            const rowHeight = preset.rowHeight;
             const footerHeight = preset.footerHeight;
             const startY = headerHeight + preset.headerGap;
             const availableHeight = height - startY - footerHeight - preset.footerGap;
-            const computedMaxRows = Math.max(1, Math.floor(availableHeight / rowHeight));
-            const maxRows = preset.maxRows ? Math.min(computedMaxRows, preset.maxRows) : computedMaxRows;
-            const visibleFares = sortedFares.slice(0, maxRows);
+            const desiredRows = Math.min(sortedFares.length || 1, 10);
+            const rawRowHeight = desiredRows ? Math.floor(availableHeight / desiredRows) : preset.rowHeight;
+            const rowHeight = Math.min(preset.rowHeight, rawRowHeight);
+            const rowScale = Math.min(1, rowHeight / preset.rowHeight);
+            const rowInset = Math.max(6, Math.round(preset.rowInset * rowScale));
+            const cornerRadius = Math.max(8, Math.round(12 * rowScale));
+            const maxRows = Math.max(1, Math.min(desiredRows, Math.floor(availableHeight / rowHeight)));
+            const rowsPerPage = maxRows;
+            const pages = [];
+            for (let i = 0; i < sortedFares.length; i += rowsPerPage) {
+                pages.push(sortedFares.slice(i, i + rowsPerPage));
+            }
+            if (!pages.length) pages.push([]);
+            const tableSizes = {
+                headSize: Math.max(12, Math.round(preset.table.headSize * rowScale)),
+                headOffset: Math.round(preset.table.headOffset * rowScale),
+                dateSize: Math.max(14, Math.round(preset.table.dateSize * rowScale)),
+                sectorSize: Math.max(12, Math.round(preset.table.sectorSize * rowScale)),
+                timeSize: Math.max(12, Math.round(preset.table.timeSize * rowScale)),
+                fareSize: Math.max(14, Math.round(preset.table.fareSize * rowScale))
+            };
+            const logoDims = {
+                maxW: Math.max(70, Math.round(preset.logo.maxW * rowScale)),
+                h: Math.max(22, Math.round(preset.logo.h * rowScale))
+            };
+            const fareBadge = {
+                height: Math.max(30, Math.round(50 * rowScale)),
+                padX: Math.max(14, Math.round(20 * rowScale))
+            };
+            const rowTextOffset = Math.round(5 * rowScale);
 
             const rowsStart = motion.rowsStart;
-            const footerEntryTime = rowsStart + (visibleFares.length * motion.rowStagger) + motion.footerDelay;
-            const totalDuration = footerEntryTime + motion.footerReveal + motion.hold;
+            const pageMeta = [];
+            let totalDuration = 0;
+            pages.forEach((page) => {
+                const rowCount = Math.max(1, page.length);
+                const footerEntryTime = rowsStart + (rowCount * motion.rowStagger) + motion.footerDelay;
+                const duration = footerEntryTime + motion.footerReveal + motion.hold;
+                pageMeta.push({
+                    page,
+                    rowCount,
+                    footerEntryTime,
+                    start: totalDuration,
+                    end: totalDuration + duration
+                });
+                totalDuration += duration;
+            });
             const startTime = performance.now();
             let stopped = false;
 
@@ -612,6 +752,11 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     shouldStop = true;
                 }
 
+                const activePage = pageMeta.find(meta => elapsed <= meta.end) || pageMeta[pageMeta.length - 1];
+                const pageElapsed = elapsed - (activePage?.start || 0);
+                const visibleFares = activePage?.page || [];
+                const footerEntryTime = activePage?.footerEntryTime || 0;
+
                 // --- Draw Background ---
                 ctx.fillStyle = theme.bodyBg;
                 ctx.fillRect(0, 0, width, height);
@@ -632,7 +777,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.fillStyle = theme.headerBg;
                 ctx.fillRect(0, 0, width, headerHeight);
                 if (bgImg.complete && bgImg.width > 0) {
-                    const parallax = motion.parallaxAmp * Math.sin(elapsed / motion.parallaxSpeed);
+                    const parallax = motion.parallaxAmp * Math.sin(pageElapsed / motion.parallaxSpeed);
                     ctx.globalAlpha = 0.22;
                     // Cover logic
                     const scale = Math.max(width / bgImg.width, headerHeight / bgImg.height);
@@ -658,7 +803,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.textBaseline = 'middle';
                 
                 // Top Decor
-                const topShift = (Math.sin(elapsed / motion.topShiftSpeed) + 1) / 2;
+                const topShift = (Math.sin(pageElapsed / motion.topShiftSpeed) + 1) / 2;
                 const topGrad = ctx.createLinearGradient(-width * motion.topShiftAmp * topShift, 0, width * (1 + motion.topShiftAmp * topShift), 0);
                 topGrad.addColorStop(0, theme.topBar[0]);
                 topGrad.addColorStop(0.5, theme.topBar[1]);
@@ -669,7 +814,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 // Badge
                 const badgeW = preset.badge.w, badgeH = preset.badge.h;
                 const badgeY = preset.badge.y;
-                const badgePulse = 1 + motion.badgePulseAmp * Math.sin(elapsed / motion.badgePulseSpeed);
+                const badgePulse = 1 + motion.badgePulseAmp * Math.sin(pageElapsed / motion.badgePulseSpeed);
                 const badgeWidth = badgeW * badgePulse;
                 const badgeX = (width / 2) - (badgeWidth / 2);
                 ctx.fillStyle = theme.badgeBg;
@@ -687,7 +832,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 const titleSize = fittedTitleSize;
                 ctx.font = `900 ${titleSize}px Arial, sans-serif`;
                 ctx.textBaseline = 'middle';
-                const headerT = easeOutCubic(Math.min(1, elapsed / motion.headerFade));
+                const headerT = easeOutCubic(Math.min(1, pageElapsed / motion.headerFade));
                 if (titleText.includes(arrow)) {
                     const parts = titleText.split(arrow);
                     const left = parts[0].trim();
@@ -715,7 +860,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 }
                 
                 // Subtitle
-                const subtitleT = easeOutCubic(Math.min(1, Math.max(0, (elapsed - 120) / (motion.headerFade + 200))));
+                const subtitleT = easeOutCubic(Math.min(1, Math.max(0, (pageElapsed - 120) / (motion.headerFade + 200))));
                 ctx.fillStyle = theme.subtitle;
                 ctx.font = `700 ${preset.subtitle.size}px Arial, sans-serif`;
                 const subtitleY = badgeY + preset.subtitle.offset - (motion.subtitleRise * (1 - subtitleT));
@@ -730,28 +875,28 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
                 // Draw Table Header
                 ctx.fillStyle = theme.tableHeadText;
-                ctx.font = `bold ${preset.table.headSize}px Arial, sans-serif`;
+                ctx.font = `bold ${tableSizes.headSize}px Arial, sans-serif`;
                 ctx.textAlign = 'left';
-                ctx.fillText('DATE', marginX + 20, startY - preset.table.headOffset);
+                ctx.fillText('DATE', marginX + 20, startY - tableSizes.headOffset);
                 
                 ctx.textAlign = 'center';
-                ctx.fillText('SECTOR', marginX + (listWidth * preset.columns.sector), startY - preset.table.headOffset);
-                ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), startY - preset.table.headOffset);
-                ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), startY - preset.table.headOffset);
+                ctx.fillText('SECTOR', marginX + (listWidth * preset.columns.sector), startY - tableSizes.headOffset);
+                ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), startY - tableSizes.headOffset);
+                ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), startY - tableSizes.headOffset);
                 
                 ctx.textAlign = 'right';
-                ctx.fillText('FARE', marginX + listWidth - 20, startY - preset.table.headOffset);
+                ctx.fillText('FARE', marginX + listWidth - 20, startY - tableSizes.headOffset);
 
                 // Draw rows (animated entrance)
                 for (let i = 0; i < visibleFares.length; i++) {
                     const f = visibleFares[i];
                     const entryTime = rowsStart + (i * motion.rowStagger);
                     
-                    if (elapsed < entryTime) continue; // Not yet visible
+                    if (pageElapsed < entryTime) continue; // Not yet visible
                     
                     // Fade in effect
                     const fadeDuration = motion.rowReveal;
-                    const progress = Math.min(1, (elapsed - entryTime) / fadeDuration);
+                    const progress = Math.min(1, (pageElapsed - entryTime) / fadeDuration);
                     const opacity = easeInOut(progress);
                     
                     // Slide up effect
@@ -763,7 +908,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     // Row Background
                     const rowBg = i % 2 === 0 ? '#ffffff' : theme.rowAlt;
                     ctx.fillStyle = rowBg;
-                    drawRoundedRect(marginX, y, listWidth, rowHeight - preset.rowInset, 12);
+                    drawRoundedRect(marginX, y, listWidth, rowHeight - rowInset, cornerRadius);
                     ctx.fill();
 
                     // Content
@@ -775,15 +920,15 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
                         : f.flightDate;
                     ctx.textAlign = 'left';
-                    ctx.font = `900 ${preset.table.dateSize}px Arial, sans-serif`;
-                    ctx.fillText(dt, marginX + 20, y + (rowHeight/2) - 5);
+                    ctx.font = `900 ${tableSizes.dateSize}px Arial, sans-serif`;
+                    ctx.fillText(dt, marginX + 20, y + (rowHeight/2) - rowTextOffset);
 
                     // Sector
-                    ctx.font = `700 ${preset.table.sectorSize}px Arial, sans-serif`;
+                    ctx.font = `700 ${tableSizes.sectorSize}px Arial, sans-serif`;
                     ctx.fillStyle = theme.sectorText;
                     ctx.textAlign = 'center';
                     const sName = sectorMap[f.sectorId] || f.sectorId;
-                    ctx.fillText(sName, marginX + (listWidth * preset.columns.sector), y + (rowHeight/2) - 5);
+                    ctx.fillText(sName, marginX + (listWidth * preset.columns.sector), y + (rowHeight/2) - rowTextOffset);
                     ctx.fillStyle = '#0f172a'; // reset
 
                     // Airline Logo/Text
@@ -791,46 +936,46 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     const airlineObj = getAirline(f.airlineId);
                     const logo = airlineObj ? loadedLogos[airlineObj.id] : null;
                     if (logo && logo.width > 0) {
-                        const logoW = Math.min(preset.logo.maxW, logo.width);
-                        const logoH = preset.logo.h;
-                        ctx.drawImage(logo, centerX - (logoW/2), y + (rowHeight/2) - 5 - (logoH/2), logoW, logoH);
+                        const logoW = Math.min(logoDims.maxW, logo.width);
+                        const logoH = logoDims.h;
+                        ctx.drawImage(logo, centerX - (logoW/2), y + (rowHeight/2) - rowTextOffset - (logoH/2), logoW, logoH);
                     } else {
-                        ctx.font = `700 ${Math.max(18, preset.table.sectorSize - 2)}px Arial, sans-serif`;
+                        ctx.font = `700 ${Math.max(14, tableSizes.sectorSize - 2)}px Arial, sans-serif`;
                         ctx.textAlign = 'center';
                         const aName = airlineObj?.name || f.airlineId || '—';
-                        ctx.fillText(aName, centerX, y + (rowHeight/2) - 5);
+                        ctx.fillText(aName, centerX, y + (rowHeight/2) - rowTextOffset);
                     }
 
                     // Time
                     let timeText = normalizeFlightTime(f.flightTime) || '—';
-                    ctx.font = `800 ${preset.table.timeSize}px Arial, sans-serif`;
+                    ctx.font = `800 ${tableSizes.timeSize}px Arial, sans-serif`;
                     ctx.textAlign = 'center';
-                    ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - 5);
+                    ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - rowTextOffset);
 
                     // Fare Badge
                     const fareText = `₹${(f.finalRate || 0).toLocaleString()}`;
-                    ctx.font = `900 ${preset.table.fareSize}px Arial, sans-serif`;
+                    ctx.font = `900 ${tableSizes.fareSize}px Arial, sans-serif`;
                     ctx.textAlign = 'right';
                     
                     const textW = ctx.measureText(fareText).width;
                     const badgeRight = marginX + listWidth - 20;
-                    const badgeW = textW + 40;
-                    const badgeH = 50;
+                    const badgeW = textW + (fareBadge.padX * 2);
+                    const badgeH = fareBadge.height;
                     
                     ctx.fillStyle = theme.fareBadgeBg;
-                    drawRoundedRect(badgeRight - badgeW, y + (rowHeight/2) - 5 - (badgeH/2), badgeW, badgeH, 12);
+                    drawRoundedRect(badgeRight - badgeW, y + (rowHeight/2) - rowTextOffset - (badgeH/2), badgeW, badgeH, cornerRadius);
                     ctx.fill();
                     
                     ctx.fillStyle = theme.fareBadgeText;
-                    ctx.fillText(fareText, badgeRight - 20, y + (rowHeight/2) - 5);
+                    ctx.fillText(fareText, badgeRight - fareBadge.padX, y + (rowHeight/2) - rowTextOffset);
 
                     ctx.globalAlpha = 1.0;
                 }
 
                 // --- Draw Footer ---
                 // Slide up footer at the very end
-                if (elapsed > footerEntryTime) {
-                    const footerOpacity = easeInOut(Math.min(1, (elapsed - footerEntryTime) / motion.footerReveal));
+                if (pageElapsed > footerEntryTime) {
+                    const footerOpacity = easeInOut(Math.min(1, (pageElapsed - footerEntryTime) / motion.footerReveal));
                     ctx.globalAlpha = footerOpacity;
                     
                     const fHeight = footerHeight;
@@ -865,6 +1010,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
                 if (shouldStop) {
                     try {
+                        if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
+                            recorder.requestData();
+                        }
                         stopped = true;
                         recorder.stop();
                     } catch(e) { console.error("Error stopping recorder", e); }
@@ -878,6 +1026,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             const safetyStop = setTimeout(() => {
                 if (!stopped && recorder.state === 'recording') {
                     try {
+                        if (typeof recorder.requestData === 'function') {
+                            recorder.requestData();
+                        }
                         stopped = true;
                         recorder.stop();
                     } catch (e) {
@@ -895,29 +1046,43 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 const blob = new Blob(chunks, { type: mimeType });
                 if (!blob || !blob.size) {
                     if (window.toast) window.toast('error', 'Generation Error', 'No video data was produced.');
+                    try {
+                        stream.getTracks().forEach(track => track.stop());
+                    } catch (_) { }
                     reject(new Error('No video data generated.'));
                     return;
                 }
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
                 const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-                a.download = `zamra-video-${ratio}-${sectorSlug}-${Date.now()}.${ext}`;
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 100);
-                
-                if (window.toast) window.toast('success', 'Video Generated', `Your ${ratio} video has been downloaded!`);
-                resolve();
+                const filename = `zamra-video-${ratio}-${sectorSlug}-${Date.now()}.${ext}`;
+
+                if (autoDownload) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                    if (window.toast) window.toast('success', 'Video Generated', `Your ${ratio} video has been downloaded!`);
+                }
+
+                try {
+                    stream.getTracks().forEach(track => track.stop());
+                } catch (_) { }
+
+                resolve(returnBlob ? { blob, filename, mimeType } : undefined);
             };
 
             recorder.onerror = (e) => {
                 console.error("Recorder Error:", e);
                 if (window.toast) window.toast('error', 'Generation Error', 'Failed to encode the video stream.');
+                try {
+                    stream.getTracks().forEach(track => track.stop());
+                } catch (_) { }
                 reject(e);
             };
 
