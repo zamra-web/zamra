@@ -77,6 +77,127 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         }
     ];
 
+    const RATIO_PRESETS = {
+        '1x1': {
+            width: 1080,
+            height: 1080,
+            headerHeight: 320,
+            headerGap: 56,
+            footerHeight: 110,
+            footerGap: 20,
+            marginX: 90,
+            rowHeight: 86,
+            rowInset: 10,
+            maxRows: 7,
+            topBarHeight: 16,
+            badge: { w: 220, h: 42, y: 64, textSize: 15 },
+            title: { size: 60, offset: 86 },
+            subtitle: { size: 22, offset: 138 },
+            table: { headSize: 18, headOffset: 20, dateSize: 24, sectorSize: 20, timeSize: 20, fareSize: 24 },
+            logo: { maxW: 96, h: 36 },
+            footer: { logo: 44, titleSize: 22, infoSize: 18 },
+            columns: { sector: 0.28, airline: 0.5, time: 0.72 },
+            motion: {
+                rowsStart: 1300,
+                rowStagger: 700,
+                rowReveal: 650,
+                rowSlide: 18,
+                footerDelay: 600,
+                footerReveal: 700,
+                hold: 1400,
+                parallaxAmp: 4,
+                parallaxSpeed: 2200,
+                topShiftAmp: 0.12,
+                topShiftSpeed: 2200,
+                badgePulseAmp: 0.015,
+                badgePulseSpeed: 1200,
+                headerFade: 900,
+                titleRise: 8,
+                subtitleRise: 10
+            }
+        },
+        '9x16': {
+            width: 1080,
+            height: 1920,
+            headerHeight: 440,
+            headerGap: 70,
+            footerHeight: 120,
+            footerGap: 24,
+            marginX: 70,
+            rowHeight: 92,
+            rowInset: 10,
+            maxRows: 10,
+            topBarHeight: 16,
+            badge: { w: 240, h: 44, y: 76, textSize: 16 },
+            title: { size: 60, offset: 96 },
+            subtitle: { size: 24, offset: 154 },
+            table: { headSize: 19, headOffset: 24, dateSize: 26, sectorSize: 22, timeSize: 22, fareSize: 26 },
+            logo: { maxW: 110, h: 40 },
+            footer: { logo: 48, titleSize: 24, infoSize: 20 },
+            columns: { sector: 0.29, airline: 0.5, time: 0.71 },
+            motion: {
+                rowsStart: 1500,
+                rowStagger: 760,
+                rowReveal: 700,
+                rowSlide: 20,
+                footerDelay: 650,
+                footerReveal: 760,
+                hold: 1600,
+                parallaxAmp: 5,
+                parallaxSpeed: 2400,
+                topShiftAmp: 0.14,
+                topShiftSpeed: 2400,
+                badgePulseAmp: 0.015,
+                badgePulseSpeed: 1300,
+                headerFade: 1000,
+                titleRise: 10,
+                subtitleRise: 12
+            }
+        },
+        '16x9': {
+            width: 1920,
+            height: 1080,
+            headerHeight: 300,
+            headerGap: 52,
+            footerHeight: 96,
+            footerGap: 18,
+            marginX: 200,
+            rowHeight: 78,
+            rowInset: 10,
+            maxRows: 6,
+            topBarHeight: 16,
+            badge: { w: 240, h: 40, y: 48, textSize: 15 },
+            title: { size: 70, offset: 74 },
+            subtitle: { size: 22, offset: 124 },
+            table: { headSize: 18, headOffset: 18, dateSize: 22, sectorSize: 20, timeSize: 20, fareSize: 24 },
+            logo: { maxW: 110, h: 36 },
+            footer: { logo: 42, titleSize: 22, infoSize: 18 },
+            columns: { sector: 0.3, airline: 0.55, time: 0.75 },
+            motion: {
+                rowsStart: 1100,
+                rowStagger: 620,
+                rowReveal: 600,
+                rowSlide: 16,
+                footerDelay: 520,
+                footerReveal: 650,
+                hold: 1300,
+                parallaxAmp: 3,
+                parallaxSpeed: 2000,
+                topShiftAmp: 0.12,
+                topShiftSpeed: 2200,
+                badgePulseAmp: 0.012,
+                badgePulseSpeed: 1100,
+                headerFade: 850,
+                titleRise: 8,
+                subtitleRise: 10
+            }
+        }
+    };
+
+    function getPreset(ratioKey) {
+        return RATIO_PRESETS[ratioKey] || RATIO_PRESETS['1x1'];
+    }
+
     function hashStringSeed(value = '') {
         const str = String(value);
         let hash = 0;
@@ -107,11 +228,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
     return new Promise(async (resolve, reject) => {
         try {
             // 1. Dimensions setup
-            let width, height;
-            if (ratio === '1x1') { width = 1080; height = 1080; }
-            else if (ratio === '9x16') { width = 1080; height = 1920; }
-            else if (ratio === '16x9') { width = 1920; height = 1080; }
-            else { throw new Error('Invalid ratio selected'); }
+            const preset = getPreset(ratio);
+            const { width, height } = preset;
 
             const canvas = document.createElement('canvas');
             canvas.width = width;
@@ -130,6 +248,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 themeSeed = sector?.sectorCode || `${originName}-${destName}`;
             }
             const theme = pickTheme(themeSeed);
+            const motion = preset.motion;
 
             const airlineMap = {};
             airlines.forEach(a => {
@@ -197,6 +316,24 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 sectorSlug = fileSafe(raw) || fileSafe(sectorId) || 'sector';
             }
 
+            const arrow = '→';
+            const maxTitleWidth = width - (preset.marginX * 1.4);
+            let fittedTitleSize = preset.title.size;
+            const measureTitleWidth = (size) => {
+                ctx.font = `900 ${size}px Arial, sans-serif`;
+                if (titleText.includes(arrow)) {
+                    const parts = titleText.split(arrow);
+                    const left = parts[0].trim();
+                    const right = parts[1].trim();
+                    const arrowText = ` ${arrow} `;
+                    return ctx.measureText(left).width + ctx.measureText(arrowText).width + ctx.measureText(right).width;
+                }
+                return ctx.measureText(titleText).width;
+            };
+            while (fittedTitleSize > 42 && measureTitleWidth(fittedTitleSize) > maxTitleWidth) {
+                fittedTitleSize -= 2;
+            }
+
             async function fetchLogoImage(url) {
                 if (!url) return null;
                 try {
@@ -259,15 +396,18 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             recorder.start(100); // Record in 100ms chunks to ensure data availability
 
             // 4. Animation loop
-            const headerHeight = ratio === '9x16' ? 400 : 300;
-            const rowHeight = 90;
-            const footerHeight = 100;
-            const startY = headerHeight + 60;
-            const availableHeight = height - startY - footerHeight - 20;
-            const maxRows = Math.max(1, Math.floor(availableHeight / rowHeight));
+            const headerHeight = preset.headerHeight;
+            const rowHeight = preset.rowHeight;
+            const footerHeight = preset.footerHeight;
+            const startY = headerHeight + preset.headerGap;
+            const availableHeight = height - startY - footerHeight - preset.footerGap;
+            const computedMaxRows = Math.max(1, Math.floor(availableHeight / rowHeight));
+            const maxRows = preset.maxRows ? Math.min(computedMaxRows, preset.maxRows) : computedMaxRows;
             const visibleFares = sortedFares.slice(0, maxRows);
 
-            const totalDuration = 10000 + (visibleFares.length * 1500); // 10s base + 1.5s per fare
+            const rowsStart = motion.rowsStart;
+            const footerEntryTime = rowsStart + (visibleFares.length * motion.rowStagger) + motion.footerDelay;
+            const totalDuration = footerEntryTime + motion.footerReveal + motion.hold;
             const startTime = performance.now();
             let stopped = false;
 
@@ -320,7 +460,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.fillStyle = theme.headerBg;
                 ctx.fillRect(0, 0, width, headerHeight);
                 if (bgImg.complete && bgImg.width > 0) {
-                    const parallax = 6 * Math.sin(elapsed / 1800);
+                    const parallax = motion.parallaxAmp * Math.sin(elapsed / motion.parallaxSpeed);
                     ctx.globalAlpha = 0.22;
                     // Cover logic
                     const scale = Math.max(width / bgImg.width, headerHeight / bgImg.height);
@@ -346,34 +486,36 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.textBaseline = 'middle';
                 
                 // Top Decor
-                const topShift = (Math.sin(elapsed / 1600) + 1) / 2;
-                const topGrad = ctx.createLinearGradient(-width * 0.15 * topShift, 0, width * (1 + 0.15 * topShift), 0);
+                const topShift = (Math.sin(elapsed / motion.topShiftSpeed) + 1) / 2;
+                const topGrad = ctx.createLinearGradient(-width * motion.topShiftAmp * topShift, 0, width * (1 + motion.topShiftAmp * topShift), 0);
                 topGrad.addColorStop(0, theme.topBar[0]);
                 topGrad.addColorStop(0.5, theme.topBar[1]);
                 topGrad.addColorStop(1, theme.topBar[2]);
                 ctx.fillStyle = topGrad;
-                ctx.fillRect(0, 0, width, 16);
+                ctx.fillRect(0, 0, width, preset.topBarHeight);
 
                 // Badge
-                const badgeW = 200, badgeH = 40;
-                const badgeY = 60;
-                const badgePulse = 1 + 0.02 * Math.sin(elapsed / 700);
+                const badgeW = preset.badge.w, badgeH = preset.badge.h;
+                const badgeY = preset.badge.y;
+                const badgePulse = 1 + motion.badgePulseAmp * Math.sin(elapsed / motion.badgePulseSpeed);
+                const badgeWidth = badgeW * badgePulse;
+                const badgeX = (width / 2) - (badgeWidth / 2);
                 ctx.fillStyle = theme.badgeBg;
-                drawRoundedRect((width/2) - (badgeW/2), badgeY, badgeW * badgePulse, badgeH, 20);
+                drawRoundedRect(badgeX, badgeY, badgeWidth, badgeH, 20);
                 ctx.fill();
                 ctx.strokeStyle = theme.badgeBorder;
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 
                 ctx.fillStyle = theme.badgeText;
-                ctx.font = 'bold 16px Arial, sans-serif';
+                ctx.font = `bold ${preset.badge.textSize}px Arial, sans-serif`;
                 ctx.fillText('EXCLUSIVE DEALS', width/2, badgeY + (badgeH/2));
 
                 // Title
-                const titleSize = ratio === '16x9' ? 70 : 56;
+                const titleSize = fittedTitleSize;
                 ctx.font = `900 ${titleSize}px Arial, sans-serif`;
                 ctx.textBaseline = 'middle';
-                const arrow = '→';
+                const headerT = easeOutCubic(Math.min(1, elapsed / motion.headerFade));
                 if (titleText.includes(arrow)) {
                     const parts = titleText.split(arrow);
                     const left = parts[0].trim();
@@ -385,7 +527,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     const rightWidth = ctx.measureText(right).width;
                     const totalWidth = leftWidth + arrowWidth + rightWidth;
                     const startX = (width - totalWidth) / 2;
-                    const titleY = badgeY + 80 - (6 * (1 - easeOutCubic(Math.min(1, elapsed / 800))));
+                    const titleY = badgeY + preset.title.offset - (motion.titleRise * (1 - headerT));
                     ctx.fillStyle = '#ffffff';
                     ctx.fillText(left, startX, titleY);
                     ctx.fillStyle = theme.accent;
@@ -396,51 +538,52 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 } else {
                     ctx.fillStyle = '#ffffff';
                     ctx.textAlign = 'center';
-                    const titleY = badgeY + 80 - (6 * (1 - easeOutCubic(Math.min(1, elapsed / 800))));
+                    const titleY = badgeY + preset.title.offset - (motion.titleRise * (1 - headerT));
                     ctx.fillText(titleText, width/2, titleY);
                 }
                 
                 // Subtitle
+                const subtitleT = easeOutCubic(Math.min(1, Math.max(0, (elapsed - 120) / (motion.headerFade + 200))));
                 ctx.fillStyle = theme.subtitle;
-                ctx.font = '700 24px Arial, sans-serif';
-                const subtitleY = badgeY + 140 - (8 * (1 - easeOutCubic(Math.min(1, elapsed / 1000))));
-                ctx.globalAlpha = Math.min(1, elapsed / 1000);
+                ctx.font = `700 ${preset.subtitle.size}px Arial, sans-serif`;
+                const subtitleY = badgeY + preset.subtitle.offset - (motion.subtitleRise * (1 - subtitleT));
+                ctx.globalAlpha = subtitleT;
                 ctx.fillText('SPECIAL FARES AVAILABLE NOW', width/2, subtitleY);
                 ctx.globalAlpha = 1.0;
 
                 // --- Draw Fares ---
                 // Layout calculations
-                const marginX = ratio === '9x16' ? 40 : (ratio === '1x1' ? 80 : 160);
+                const marginX = preset.marginX;
                 const listWidth = width - (marginX * 2);
 
                 // Draw Table Header
                 ctx.fillStyle = theme.tableHeadText;
-                ctx.font = 'bold 18px Arial, sans-serif';
+                ctx.font = `bold ${preset.table.headSize}px Arial, sans-serif`;
                 ctx.textAlign = 'left';
-                ctx.fillText('DATE', marginX + 20, startY - 20);
+                ctx.fillText('DATE', marginX + 20, startY - preset.table.headOffset);
                 
                 ctx.textAlign = 'center';
-                ctx.fillText('SECTOR', marginX + (listWidth * 0.25), startY - 20);
-                ctx.fillText('AIRLINE', marginX + (listWidth * 0.45), startY - 20);
-                ctx.fillText('TIME', marginX + (listWidth * 0.65), startY - 20);
+                ctx.fillText('SECTOR', marginX + (listWidth * preset.columns.sector), startY - preset.table.headOffset);
+                ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), startY - preset.table.headOffset);
+                ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), startY - preset.table.headOffset);
                 
                 ctx.textAlign = 'right';
-                ctx.fillText('FARE', marginX + listWidth - 20, startY - 20);
+                ctx.fillText('FARE', marginX + listWidth - 20, startY - preset.table.headOffset);
 
                 // Draw rows (animated entrance)
                 for (let i = 0; i < visibleFares.length; i++) {
                     const f = visibleFares[i];
-                    const entryTime = 1000 + (i * 800); // Starts appearing after 1s, staggered by 0.8s
+                    const entryTime = rowsStart + (i * motion.rowStagger);
                     
                     if (elapsed < entryTime) continue; // Not yet visible
                     
                     // Fade in effect
-                    const fadeDuration = 650;
+                    const fadeDuration = motion.rowReveal;
                     const progress = Math.min(1, (elapsed - entryTime) / fadeDuration);
-                    const opacity = easeOutCubic(progress);
+                    const opacity = easeInOut(progress);
                     
                     // Slide up effect
-                    const slideOffset = 26 * (1 - opacity);
+                    const slideOffset = motion.rowSlide * (1 - opacity);
                     const y = startY + (i * rowHeight) + slideOffset;
                     
                     ctx.globalAlpha = opacity;
@@ -448,7 +591,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     // Row Background
                     const rowBg = i % 2 === 0 ? '#ffffff' : theme.rowAlt;
                     ctx.fillStyle = rowBg;
-                    drawRoundedRect(marginX, y, listWidth, rowHeight - 10, 12);
+                    drawRoundedRect(marginX, y, listWidth, rowHeight - preset.rowInset, 12);
                     ctx.fill();
 
                     // Content
@@ -460,45 +603,41 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
                         : f.flightDate;
                     ctx.textAlign = 'left';
-                    ctx.font = '900 26px Arial, sans-serif';
+                    ctx.font = `900 ${preset.table.dateSize}px Arial, sans-serif`;
                     ctx.fillText(dt, marginX + 20, y + (rowHeight/2) - 5);
 
                     // Sector
-                    ctx.font = '700 22px Arial, sans-serif';
+                    ctx.font = `700 ${preset.table.sectorSize}px Arial, sans-serif`;
                     ctx.fillStyle = theme.sectorText;
                     ctx.textAlign = 'center';
                     const sName = sectorMap[f.sectorId] || f.sectorId;
-                    ctx.fillText(sName, marginX + (listWidth * 0.25), y + (rowHeight/2) - 5);
+                    ctx.fillText(sName, marginX + (listWidth * preset.columns.sector), y + (rowHeight/2) - 5);
                     ctx.fillStyle = '#0f172a'; // reset
 
                     // Airline Logo/Text
-                    const centerX = marginX + (listWidth * 0.45);
+                    const centerX = marginX + (listWidth * preset.columns.airline);
                     const airlineObj = getAirline(f.airlineId);
                     const logo = airlineObj ? loadedLogos[airlineObj.id] : null;
                     if (logo && logo.width > 0) {
-                        const logoW = Math.min(100, logo.width);
-                        const logoH = 40;
+                        const logoW = Math.min(preset.logo.maxW, logo.width);
+                        const logoH = preset.logo.h;
                         ctx.drawImage(logo, centerX - (logoW/2), y + (rowHeight/2) - 5 - (logoH/2), logoW, logoH);
                     } else {
-                        ctx.font = '700 20px Arial, sans-serif';
+                        ctx.font = `700 ${Math.max(18, preset.table.sectorSize - 2)}px Arial, sans-serif`;
                         ctx.textAlign = 'center';
                         const aName = airlineObj?.name || f.airlineId || '—';
                         ctx.fillText(aName, centerX, y + (rowHeight/2) - 5);
                     }
 
                     // Time
-                    let timeText = f.flightTime || '—';
-                    if (timeText.includes('-')) {
-                        const parts = timeText.split('-');
-                        timeText = `${parts[0].trim()} - ${parts[1].trim()}`;
-                    }
-                    ctx.font = '800 22px Arial, sans-serif';
+                    let timeText = normalizeFlightTime(f.flightTime) || '—';
+                    ctx.font = `800 ${preset.table.timeSize}px Arial, sans-serif`;
                     ctx.textAlign = 'center';
-                    ctx.fillText(timeText, marginX + (listWidth * 0.65), y + (rowHeight/2) - 5);
+                    ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - 5);
 
                     // Fare Badge
                     const fareText = `₹${(f.finalRate || 0).toLocaleString()}`;
-                    ctx.font = '900 26px Arial, sans-serif';
+                    ctx.font = `900 ${preset.table.fareSize}px Arial, sans-serif`;
                     ctx.textAlign = 'right';
                     
                     const textW = ctx.measureText(fareText).width;
@@ -518,12 +657,11 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
                 // --- Draw Footer ---
                 // Slide up footer at the very end
-                const footerEntryTime = 1000 + (visibleFares.length * 800) + 500;
                 if (elapsed > footerEntryTime) {
-                    const footerOpacity = easeInOut(Math.min(1, (elapsed - footerEntryTime) / 600));
+                    const footerOpacity = easeInOut(Math.min(1, (elapsed - footerEntryTime) / motion.footerReveal));
                     ctx.globalAlpha = footerOpacity;
                     
-                    const fHeight = 100;
+                    const fHeight = footerHeight;
                     const fY = height - fHeight + (20 * (1 - footerOpacity));
                     
                     ctx.fillStyle = theme.footerBg;
@@ -535,17 +673,17 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
                     // Logo
                     if (logoImg.complete && logoImg.width > 0) {
-                        ctx.drawImage(logoImg, marginX, height - (fHeight/2) - 24, 48, 48);
+                        ctx.drawImage(logoImg, marginX, height - (fHeight/2) - 24, preset.footer.logo, preset.footer.logo);
                     }
                     
                     ctx.fillStyle = theme.footerText;
-                    ctx.font = '900 24px Arial, sans-serif';
+                    ctx.font = `900 ${preset.footer.titleSize}px Arial, sans-serif`;
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText('Zamra Travels', marginX + 64, height - (fHeight/2));
+                    ctx.fillText('Zamra Travels', marginX + (preset.footer.logo + 16), height - (fHeight/2));
                     
                     // Contact
-                    ctx.font = '700 20px Arial, sans-serif';
+                    ctx.font = `700 ${preset.footer.infoSize}px Arial, sans-serif`;
                     ctx.textAlign = 'right';
                     ctx.fillStyle = theme.footerText;
                     ctx.fillText('zamratravels.com  |  +91 98466 06739', width - marginX, height - (fHeight/2));

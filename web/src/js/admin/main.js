@@ -667,6 +667,45 @@ function applyPosterTheme(frameEl, theme) {
   });
 }
 
+function wirePosterVideoMenu() {
+  const wrapper = document.querySelector('[data-poster-video-menu]');
+  if (!wrapper || wrapper.dataset.wired) return;
+  wrapper.dataset.wired = '1';
+
+  const toggle = wrapper.querySelector('[data-poster-video-toggle]');
+  const menu = wrapper.querySelector('[data-poster-video-options]');
+  if (!toggle || !menu) return;
+
+  const isOpen = () => !menu.classList.contains('hidden');
+  const closeMenu = () => {
+    menu.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+  const openMenu = () => {
+    menu.classList.remove('hidden');
+    toggle.setAttribute('aria-expanded', 'true');
+  };
+
+  toggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isOpen()) closeMenu();
+    else openMenu();
+  });
+
+  menu.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('button')) closeMenu();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!wrapper.contains(e.target)) closeMenu();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMenu();
+  });
+}
+
 async function renderDashboardTab() {
   const tab = document.getElementById('dashboard-tab');
   if (!tab) return;
@@ -683,6 +722,7 @@ async function renderDashboardTab() {
   const startInput = document.getElementById('poster-start-date');
   const endInput = document.getElementById('poster-end-date');
   getPosterDateRange(startInput, endInput);
+  wirePosterVideoMenu();
 
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');
