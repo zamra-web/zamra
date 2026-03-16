@@ -4,6 +4,7 @@
  * Supports client-side category filter + text search.
  */
 
+import '../shared/vercel-insights.js';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 import { initSiteChrome } from './site-chrome.js';

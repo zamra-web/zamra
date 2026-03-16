@@ -1,4 +1,5 @@
 // Modern Zamra Travels JavaScript
+import '../shared/vercel-insights.js';
 import { getSectors, getFares, getAirlines } from '../admin/db.js';
 import { initSiteChrome } from './site-chrome.js';
 

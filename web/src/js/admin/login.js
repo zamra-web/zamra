@@ -1,4 +1,5 @@
 import '../../styles/admin/style.css';
+import '../shared/vercel-insights.js';
 import { loginWithEmail, onAuthChange } from './auth.js';
 
 // If user is already authenticated, redirect to admin dashboard

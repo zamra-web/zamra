@@ -1,4 +1,5 @@
 // Visa page JavaScript — Premium redesign
+import '../shared/vercel-insights.js';
 import { getVisas, getVisaStampings, getAttestations, getPassportServices } from '../admin/db.js';
 import { initSiteChrome } from './site-chrome.js';
 

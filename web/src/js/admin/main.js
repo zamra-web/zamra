@@ -6,6 +6,7 @@
  */
 
 import '../../styles/admin/style.css';
+import '../shared/vercel-insights.js';
 import { onAuthChange, logoutUser } from './auth.js';
 import {
   getAgents, addAgent, updateAgent, deleteAgent,
