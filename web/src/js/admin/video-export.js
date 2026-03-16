@@ -21,6 +21,50 @@ function pickMimeType({ forceMimeType, candidates } = {}) {
     return '';
 }
 
+function getExpectedAspectRatio(ratioKey) {
+    if (ratioKey === '9x16') return 9 / 16;
+    if (ratioKey === '16x9') return 16 / 9;
+    return 1;
+}
+
+function validateVideoBlob(blob, ratioKey, { timeoutMs = 3000 } = {}) {
+    return new Promise((resolve) => {
+        if (!blob || !blob.size) {
+            resolve(false);
+            return;
+        }
+        const url = URL.createObjectURL(blob);
+        const video = document.createElement('video');
+        let settled = false;
+        const cleanup = (ok) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            URL.revokeObjectURL(url);
+            resolve(ok);
+        };
+        const timer = setTimeout(() => cleanup(false), timeoutMs);
+        video.preload = 'metadata';
+        video.muted = true;
+        video.onloadedmetadata = () => {
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            const duration = video.duration;
+            if (!width || !height || !Number.isFinite(duration) || duration <= 0) {
+                cleanup(false);
+                return;
+            }
+            const expected = getExpectedAspectRatio(ratioKey);
+            const actual = width / height;
+            const tolerance = expected === 1 ? 0.18 : 0.22;
+            cleanup(Math.abs(actual - expected) <= tolerance);
+        };
+        video.onerror = () => cleanup(false);
+        video.src = url;
+        video.load();
+    });
+}
+
 export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
     const ratioKey = normalizeRatioKey(ratio);
     const ratioLabel = ratioKey.replace('x', ':');
@@ -708,7 +752,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
 
             // Start Recorder
-            recorder.start(); // Let the browser decide chunking for more stable output
+            const timeslice = ratioKey === '9x16' ? 1000 : undefined;
+            recorder.start(timeslice); // Portrait exports flush chunks to reduce corruption risk
 
             // 4. Animation loop
             const headerHeight = preset.headerHeight;
@@ -1092,6 +1137,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     if (retryAttempt < 1) {
                         if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed. Retrying at a smaller size…');
                         try {
+                            try {
+                                stream.getTracks().forEach(track => track.stop());
+                            } catch (_) { }
                             const retry = await downloadVideoPoster(
                                 ratioKey,
                                 fares,
@@ -1117,6 +1165,42 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         stream.getTracks().forEach(track => track.stop());
                     } catch (_) { }
                     safeReject(new Error('No video data generated.'));
+                    return;
+                }
+
+                const isValid = await validateVideoBlob(blob, ratioKey);
+                if (!isValid) {
+                    if (retryAttempt < 1) {
+                        if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed validation. Retrying at a smaller size…');
+                        try {
+                            try {
+                                stream.getTracks().forEach(track => track.stop());
+                            } catch (_) { }
+                            const retry = await downloadVideoPoster(
+                                ratioKey,
+                                fares,
+                                sectorId,
+                                sectors,
+                                airlines,
+                                {
+                                    ...options,
+                                    renderScale: Math.min(scale, 0.8),
+                                    forceMimeType: null,
+                                    mimeCandidates: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'],
+                                    retryAttempt: retryAttempt + 1
+                                }
+                            );
+                            safeResolve(retry);
+                            return;
+                        } catch (retryError) {
+                            console.error('Video retry failed:', retryError);
+                        }
+                    }
+                    if (window.toast) window.toast('error', 'Generation Error', 'Video validation failed.');
+                    try {
+                        stream.getTracks().forEach(track => track.stop());
+                    } catch (_) { }
+                    safeReject(new Error('Video validation failed.'));
                     return;
                 }
                 const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';

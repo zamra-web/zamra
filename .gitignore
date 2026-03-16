@@ -1,3 +1,19 @@
-.vercel
 .env*.local
+
+# Dependencies
+node_modules/
+functions/node_modules/
+web/node_modules/
+
+# Build outputs
 web/dist
+
+# Firebase/Vercel caches
+.firebase/
+web/.firebase/
+.vercel/
+web/.vercel/
+firebase-debug.log
+
+# OS junk
+.DS_Store

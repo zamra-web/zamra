@@ -13,6 +13,11 @@ The admin dashboard (`web/admin.html`) is a fully Firebase-integrated, auth-gate
 If reports or database tabs show “missing permissions,” set claims with `scripts/set-admin-claim.cjs`
 (user must sign out/in to refresh tokens).
 
+**Local setup:**
+- `cd web && npm install`
+- `cd functions && npm install`
+- Functions expect **Node.js 22** (use Node 22 locally to avoid engine warnings).
+
 ---
 
 ## Firebase Project
