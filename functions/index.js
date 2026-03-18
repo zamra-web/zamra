@@ -5,6 +5,7 @@
  */
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 
@@ -61,6 +62,18 @@ async function updateDocs(snapshot, updateData) {
     updated += Math.min(BATCH_SIZE, docs.length - i);
   }
   return updated;
+}
+
+/**
+ * Returns midnight UTC for "today - N days".
+ * This matches how flightDate is stored (UTC midnight from YYYY-MM-DD strings).
+ * @param {number} daysAgo
+ */
+function getUtcMidnightNDaysAgo(daysAgo) {
+  const now = new Date();
+  const utcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  utcMidnight.setUTCDate(utcMidnight.getUTCDate() - Number(daysAgo || 0));
+  return utcMidnight;
 }
 
 
@@ -186,7 +199,64 @@ exports.bulkToggleSectorVisibility = onCall({ region: "asia-south1" }, async (re
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 4. generateAgentReport
+// 4. bulkSyncAgentCommission
+//    Updates commission + finalRate across all fares for a specific agent.
+// ══════════════════════════════════════════════════════════════════════════════
+exports.bulkSyncAgentCommission = onCall({ region: "asia-south1" }, async (request) => {
+  requireAdmin(request);
+
+  const { agentId, commission } = request.data || {};
+
+  if (!agentId) {
+    throw new HttpsError("invalid-argument", "agentId is required.");
+  }
+
+  if (commission === undefined || commission === null || commission === "") {
+    throw new HttpsError("invalid-argument", "commission is required.");
+  }
+
+  const normalizedCommission = Number(commission);
+  if (!Number.isFinite(normalizedCommission)) {
+    throw new HttpsError("invalid-argument", "commission must be a valid number.");
+  }
+
+  const snapshot = await db.collection("agent_fares")
+    .where("agentId", "==", agentId)
+    .get();
+
+  if (snapshot.empty) {
+    return { success: true, updated: 0, message: `No fares found for agent ${agentId}.` };
+  }
+
+  const docs = snapshot.docs;
+  let updated = 0;
+
+  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    docs.slice(i, i + BATCH_SIZE).forEach((doc) => {
+      const data = doc.data() || {};
+      const specialRate = Number(data.specialRate) || 0;
+      const finalRate = Math.max(0, specialRate + normalizedCommission);
+      batch.update(doc.ref, {
+        commission: normalizedCommission,
+        finalRate,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+    updated += Math.min(BATCH_SIZE, docs.length - i);
+  }
+
+  return {
+    success: true,
+    updated,
+    message: `Updated ${updated} fare record${updated !== 1 ? "s" : ""} for agent ${agentId}.`,
+  };
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 5. generateAgentReport
 //    Aggregates agent_fares → returns per-agent stats for charts.
 // ══════════════════════════════════════════════════════════════════════════════
 exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) => {
@@ -320,7 +390,7 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 5. ingestFaresFromN8n
+// 6. ingestFaresFromN8n
 //    Accepts parsed 'firebaseData' JSON from n8n webhook and stores it in Firestore.
 // ══════════════════════════════════════════════════════════════════════════════
 const { onRequest } = require("firebase-functions/v2/https");
@@ -411,3 +481,22 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
 
   res.status(200).json({ success: true, saved });
 });
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 7. purgeOldFaresDaily (Scheduled)
+//    Deletes fares older than 2 days (by flightDate, UTC midnight).
+// ══════════════════════════════════════════════════════════════════════════════
+exports.purgeOldFaresDaily = onSchedule(
+  { region: "asia-south1", schedule: "every day 00:15", timeZone: "UTC" },
+  async () => {
+    const cutoff = getUtcMidnightNDaysAgo(2);
+    const snapshot = await db.collection("agent_fares")
+      .where("flightDate", "<", Timestamp.fromDate(cutoff))
+      .get();
+    const deleted = await deleteDocs(snapshot);
+    console.log(
+      `purgeOldFaresDaily: deleted ${deleted} fare record${deleted !== 1 ? "s" : ""} before ${cutoff.toISOString().slice(0, 10)}`
+    );
+  }
+);

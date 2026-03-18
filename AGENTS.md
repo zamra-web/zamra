@@ -55,6 +55,7 @@ cd functions && npm install
 # Frontend is on Vercel: push to Git to trigger an automatic frontend deployment.
 # Backend (Firebase) from zamra/ root:
 npx firebase-tools@latest deploy --only functions,firestore,storage
+# If CLI targets the wrong project, add: --project zamra-web-01
 ```
 
 ---
@@ -74,7 +75,8 @@ zamra/                              # Firebase project root — run firebase CLI
 │
 ├── functions/                      # Cloud Functions (Node.js 22)
 │   ├── index.js                    # bulkDeleteFares, bulkToggleAgentVisibility,
-│   │                               # bulkToggleSectorVisibility, generateAgentReport (callable),
+│   │                               # bulkToggleSectorVisibility, bulkSyncAgentCommission,
+│   │                               # generateAgentReport (callable),
 │   │                               # ingestFaresFromN8n (HTTPS onRequest)
 │   └── package.json                # firebase-admin, firebase-functions
 │

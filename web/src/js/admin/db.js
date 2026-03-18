@@ -50,6 +50,7 @@ export async function addAgent(data) {
 export async function updateAgent(agentId, data) {
   const { id, ...updates } = data;
   const hasCommission = updates.commission !== undefined && updates.commission !== null && updates.commission !== '';
+  let updatedFares = 0;
   if (hasCommission) {
     updates.commission = Number(updates.commission) || 0;
   }
@@ -60,8 +61,16 @@ export async function updateAgent(agentId, data) {
   });
 
   if (hasCommission) {
-    await syncAgentFareCommission(agentId, updates.commission);
+    try {
+      const res = await callSyncAgentCommission(agentId, updates.commission);
+      updatedFares = res?.updated ?? 0;
+    } catch (err) {
+      console.warn('bulkSyncAgentCommission failed; falling back to client sync.', err);
+      updatedFares = await syncAgentFareCommission(agentId, updates.commission);
+    }
   }
+
+  return { updatedFares, commissionSynced: hasCommission };
 }
 
 /** Delete an agent */
@@ -664,6 +673,17 @@ export async function deleteLogo(downloadUrl) {
 export async function callToggleAgentVisibility(agentId, isActive) {
   const fn = httpsCallable(functions, 'bulkToggleAgentVisibility');
   const result = await fn({ agentId, isActive });
+  return result.data;
+}
+
+/**
+ * Sync commission across all fares for an agent via Cloud Function.
+ * @param {string} agentId
+ * @param {number} commission
+ */
+export async function callSyncAgentCommission(agentId, commission) {
+  const fn = httpsCallable(functions, 'bulkSyncAgentCommission');
+  const result = await fn({ agentId, commission });
   return result.data;
 }
 

@@ -1955,12 +1955,94 @@ function openAgentModal(agent) {
     const btn = e.target.querySelector('[type=submit]');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      if (isEdit) { await updateAgent(agent.id, data); toast('success', 'Updated', `Agent "${data.name}" updated.`); }
+      if (isEdit) {
+        const res = await updateAgent(agent.id, data);
+        const updatedFares = res?.updatedFares ?? 0;
+        const suffix = updatedFares ? ` Updated ${updatedFares} existing fare${updatedFares !== 1 ? 's' : ''}.` : '';
+        toast('success', 'Updated', `Agent "${data.name}" updated.${suffix}`);
+        if (res?.commissionSynced) {
+          await refreshAgentCommissionViews(agent.id, data.commission);
+        }
+      }
       else { await addAgent(data); toast('success', 'Added', `Agent "${data.name}" added.`); }
       document.getElementById('admin-modal').close();
       await renderAgentsTab();
     } catch (err) { toast('error', 'Save Failed', err.message); btn.disabled = false; btn.textContent = isEdit ? 'Save Changes' : 'Add Agent'; }
   });
+}
+
+function isTabActive(tabId) {
+  return document.getElementById(tabId)?.classList.contains('active');
+}
+
+function syncCommissionToDatabaseCache(agentId, commission) {
+  if (!_databaseFares?.length || !agentId) return 0;
+  const normalized = Math.max(0, toSafeNumber(commission, 0));
+  let updated = 0;
+
+  _databaseFares = _databaseFares.map((fare) => {
+    if (fare.agentId !== agentId) return fare;
+    updated += 1;
+    const specialRate = toSafeNumber(fare.specialRate, 0);
+    const finalRate = getCalculatedFinalRate(specialRate, normalized);
+    return { ...fare, commission: normalized, finalRate };
+  });
+
+  Object.entries(_databaseDrafts).forEach(([fareId, draft]) => {
+    const baseFare = _databaseFares.find(f => f.id === fareId);
+    const draftAgentId = draft.agentId !== undefined ? draft.agentId : baseFare?.agentId;
+    if (draftAgentId !== agentId) return;
+    draft.commission = normalized;
+    if (draft.finalRate !== undefined) {
+      const draftSpecialRate = draft.specialRate !== undefined
+        ? toSafeNumber(draft.specialRate, 0)
+        : toSafeNumber(baseFare?.specialRate, 0);
+      draft.finalRate = getCalculatedFinalRate(draftSpecialRate, normalized);
+    }
+  });
+
+  if (updated && isTabActive('database-tab')) {
+    renderDatabaseTable();
+  }
+
+  return updated;
+}
+
+async function refreshReportsAfterCommissionChange() {
+  const tab = document.getElementById('reports-tab');
+  if (!tab || tab.dataset.wired !== '1' || !_lastReportSummary) return false;
+
+  const sectorSel = document.getElementById('reports-sector-sel');
+  const agentSel = document.getElementById('reports-agent-sel');
+  const startInput = document.getElementById('reports-start-date');
+  const endInput = document.getElementById('reports-end-date');
+
+  const sectorId = sectorSel?.value || 'all';
+  const agentId = agentSel?.value || 'all';
+  const startDate = startInput?.value || null;
+  const endDate = endInput?.value || null;
+
+  try {
+    const [report, fares] = await Promise.all([
+      callGenerateAgentReport(startDate, endDate, sectorId, agentId),
+      getFares({ sectorId, agentId, startDate, endDate, includeHidden: true })
+    ]);
+    _reportFares = fares;
+    renderReportCharts(report, tab, { silent: true });
+    renderReportFaresTable(_reportFares);
+    return true;
+  } catch (e) {
+    console.warn('Report refresh failed after commission update:', e);
+    if (isTabActive('reports-tab')) {
+      toast('error', 'Report Refresh Failed', e.message);
+    }
+    return false;
+  }
+}
+
+async function refreshAgentCommissionViews(agentId, commission) {
+  syncCommissionToDatabaseCache(agentId, commission);
+  await refreshReportsAfterCommissionChange();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

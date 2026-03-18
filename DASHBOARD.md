@@ -54,7 +54,7 @@ zamra/                          # Firebase project root
 ├── .firebaserc                 # Links CLI to zamra-web-01 project
 │
 └── functions/                  # Cloud Functions (Node.js 22, 2nd Gen)
-    ├── index.js                # 4 callable functions + 1 onRequest ingest endpoint
+    ├── index.js                # 4 callable functions + 1 scheduled cleanup + 1 onRequest ingest endpoint
     ├── .eslintrc.js             # Functions lint config
     └── package.json            # firebase-admin, firebase-functions deps
 ```
@@ -387,7 +387,8 @@ web/
 
 4 functions are **HTTPS Callable**, deployed to `asia-south1`, running on **Node.js 22 (2nd Gen)**.  
 They require `admin: true` custom claim — enforced server-side via `requireAdmin()` helper.  
-`ingestFaresFromN8n` is an **HTTPS onRequest** endpoint secured via Bearer token (used by n8n).
+`ingestFaresFromN8n` is an **HTTPS onRequest** endpoint secured via Bearer token (used by n8n).  
+`purgeOldFaresDaily` is a **scheduled** function that auto-cleans old fares.
 
 | Function | What it does |
 |---|---|
@@ -396,6 +397,7 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
 | `generateAgentReport` | Aggregates fares with fully optional filters (sector, agent, date range). **All filters are optional** — passing no filters returns stats across the entire dataset. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
 | `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, and **`agents`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. Batch-writes to `agent_fares`. |
+| `purgeOldFaresDaily` | Scheduled cleanup. Deletes `agent_fares` with `flightDate` earlier than **today − 2 days** (UTC midnight). Keeps the most recent two days of fares plus today. |
 
 ---
 
@@ -488,6 +490,7 @@ node scripts/set-admin-claim.cjs --uid USER_UID
 npx firebase-tools@latest deploy --only firestore
 npx firebase-tools@latest deploy --only storage
 npx firebase-tools@latest deploy --only functions
+# If CLI targets the wrong project, add: --project zamra-web-01
 ```
 
 ---
