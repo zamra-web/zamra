@@ -3,6 +3,8 @@ import '../shared/vercel-insights.js';
 import { getSectors, getFares, getAirlines } from '../admin/db.js';
 import { initSiteChrome } from './site-chrome.js';
 
+const ENQUIRY_WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/enquiry';
+
 document.addEventListener('DOMContentLoaded', () => {
 
   initSiteChrome({ enableSmoothScroll: true });
@@ -340,6 +342,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize remaining components
   setupPartnersSlider();
+
+  // Enquiry Form Submission
+  const initEnquiryForm = () => {
+    const form = document.getElementById('enquiry-form');
+    if (!form) return;
+
+    const statusEl = document.getElementById('enquiry-status');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const defaultBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+
+    const setStatus = (state, message) => {
+      if (!statusEl) return;
+      statusEl.classList.remove('hidden', 'text-emerald-600', 'text-red-600', 'text-primary', 'border-emerald-200', 'border-red-200', 'border-primary/30', 'bg-emerald-50', 'bg-red-50', 'bg-primary/5');
+
+      if (state === 'success') {
+        statusEl.classList.add('text-emerald-600', 'border-emerald-200', 'bg-emerald-50');
+        statusEl.innerHTML = `<i class="bi bi-check-circle-fill mr-2"></i>${message}`;
+      } else if (state === 'error') {
+        statusEl.classList.add('text-red-600', 'border-red-200', 'bg-red-50');
+        statusEl.innerHTML = `<i class="bi bi-x-circle-fill mr-2"></i>${message}`;
+      } else {
+        statusEl.classList.add('text-primary', 'border-primary/30', 'bg-primary/5');
+        statusEl.innerHTML = `<span class="inline-flex items-center gap-2"><span class="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span>${message}</span>`;
+      }
+
+      statusEl.classList.remove('hidden');
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!form.reportValidity()) return;
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span class="inline-flex items-center gap-2"><span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>Sending...</span>`;
+      }
+
+      setStatus('processing', 'Sending your enquiry...');
+
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.source = 'zamra-web';
+      payload.submitted_at = new Date().toISOString();
+      payload.page = window.location.href;
+
+      try {
+        const resp = await fetch(ENQUIRY_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!resp.ok) {
+          throw new Error('Webhook rejected the enquiry');
+        }
+
+        setStatus('success', 'Thanks! Your enquiry has been sent. We will contact you shortly.');
+        form.reset();
+      } catch (err) {
+        setStatus('error', 'Something went wrong. Please try again or contact us on WhatsApp.');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = defaultBtnHtml;
+        }
+      }
+    });
+  };
+
+  initEnquiryForm();
 
   // 5. Live Search Button Event Listener
   const liveSearchBtn = document.getElementById('live-search-btn');

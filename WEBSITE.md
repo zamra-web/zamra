@@ -111,6 +111,10 @@ web/
 - Reads `services` collection from Firestore
 - Displays travel services offered by Zamra
 
+### ✉️ Enquiry Form
+- The homepage enquiry form posts submissions to the n8n webhook at `https://n8n.srv1491832.hstgr.cloud/webhook/enquiry`
+- Frontend shows inline processing, success, and error states after submission
+
 ### 📱 Mobile Optimisation
 - Fully responsive via Tailwind `md:` and `max-sm:` breakpoints
 - Mobile hamburger nav uses vanilla CSS `@layer components` in `style.css`
