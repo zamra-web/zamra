@@ -3756,13 +3756,12 @@ function openDatabaseAddFareModal() {
 // ══════════════════════════════════════════════════════════════════════════════
 // AGENT SHEETS TAB — Submit rate data to Firestore (+ legacy n8n webhook)
 // ══════════════════════════════════════════════════════════════════════════════
-const WEBHOOK = 'https://n8n.srv1046139.hstgr.cloud/webhook/zamra';
+const WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/zamra-rates';
 const MONTHS = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
 const AIR_RX = /\b(IX|6E|G9|SV|WY|XY|QP|FZ|OV|AI|J9|SG)\b/;
 
 let selAgent = null;
 let rateHistory = JSON.parse(localStorage.getItem('zt_hist') || '[]');
-let totalEntries = rateHistory.reduce((a, h) => a + (h.rows || 0), 0);
 
 function initAgentSheets() {
   // Agent chips will be built after global data is loaded (called from onAuthChange)
@@ -3787,7 +3786,7 @@ function initAgentSheets() {
   });
 
   document.getElementById('clearBtn')?.addEventListener('click', () => {
-    rateHistory = []; totalEntries = 0;
+    rateHistory = [];
     saveHistory(); renderHistory(); updateStats();
   });
 
@@ -3930,7 +3929,7 @@ async function handleSheetSubmit() {
   const btn = document.getElementById('submitBtn');
   const orig = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = `<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Sending to AI pipeline...`;
+  btn.innerHTML = `<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Processing in n8n...`;
 
   const bar = document.getElementById('progBar');
   const fill = document.getElementById('progFill');
@@ -3943,7 +3942,7 @@ async function handleSheetSubmit() {
   const hEntry = {
     id: Date.now(), agent: selAgent,
     time: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
-    rows: parsedRows.length, status: 'pen',
+    rows: parsedRows.length, saved: null, status: 'pen',
   };
   rateHistory.unshift(hEntry);
   if (rateHistory.length > 15) rateHistory.pop();
@@ -3953,22 +3952,44 @@ async function handleSheetSubmit() {
     const n8nResp = await fetch(WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: selAgent, raw_text: ta.value.trim(), timestamp: new Date().toISOString(), source: 'zamra-portal' }),
+      body: JSON.stringify({
+        agent_id: selAgent,
+        raw_text: ta.value.trim(),
+        parsed_rows: parsedRows,
+        parsed_count: parsedRows.length,
+        timestamp: new Date().toISOString(),
+        source: 'zamra-portal',
+      }),
     });
+
+    let n8nPayload = null;
+    try {
+      n8nPayload = await n8nResp.json();
+    } catch {
+      n8nPayload = null;
+    }
+    const n8nResult = Array.isArray(n8nPayload) ? n8nPayload[0] : n8nPayload;
+    const n8nSuccess = n8nResult?.success === true;
+    const savedCount = Number.isFinite(Number(n8nResult?.saved)) ? Number(n8nResult.saved) : null;
 
     clearInterval(iv);
     if (fill) fill.style.width = '100%';
 
-    if (n8nResp.ok) {
-      hEntry.status = 'ok';
-      // Use estimated rows just for UI stat
-      totalEntries += parsedRows.length;
-      saveHistory(); renderHistory(); updateStats();
-      toast('success', 'Submitted', 'Rates sent to the AI parser. Firestore will update in a moment.');
-      setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
-    } else {
+    if (!n8nResp.ok) {
       throw new Error('N8N webhook rejected payload');
     }
+    if (!n8nSuccess) {
+      throw new Error('N8N workflow reported failure');
+    }
+    if (savedCount === null) {
+      throw new Error('N8N response missing saved count');
+    }
+
+    hEntry.status = 'ok';
+    hEntry.saved = savedCount;
+    saveHistory(); renderHistory(); updateStats();
+    toast('success', 'Saved', `${savedCount} row${savedCount === 1 ? '' : 's'} added to Firestore.`);
+    setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
   } catch (err) {
     clearInterval(iv);
     if (fill) fill.style.width = '100%';
@@ -3984,7 +4005,10 @@ function updateStats() {
   const ss = document.getElementById('statSubs');
   if (ss) ss.textContent = rateHistory.length;
   const se = document.getElementById('statEntries');
-  if (se) se.textContent = totalEntries;
+  if (se) {
+    const totalSaved = rateHistory.reduce((sum, h) => sum + (Number.isFinite(Number(h.saved)) ? Number(h.saved) : 0), 0);
+    se.textContent = totalSaved;
+  }
 }
 
 function saveHistory() { localStorage.setItem('zt_hist', JSON.stringify(rateHistory)); }
@@ -4000,11 +4024,27 @@ function renderHistory() {
   }
   wrap.innerHTML = rateHistory.map(h => {
     const agentName = _agents.find(a => a.id === h.agent)?.name || `Agent ${h.agent}`;
+    const savedCount = Number.isFinite(Number(h.saved)) ? Number(h.saved) : null;
+    const countValue = (h.status === 'ok' && savedCount !== null) ? savedCount : (h.rows || 0);
+    const countLabel = (h.status === 'ok' && savedCount !== null) ? 'saved' : 'entries';
+    const statusText = h.status === 'ok'
+      ? `Saved ${savedCount ?? countValue}`
+      : h.status === 'err'
+        ? 'Failed'
+        : 'Processing';
+    const statusClass = h.status === 'ok'
+      ? 'text-emerald-600'
+      : h.status === 'err'
+        ? 'text-red-500'
+        : 'text-amber-600';
     return `<div class="flex items-center gap-4 bg-white p-3 rounded-lg border border-border/50 shadow-sm mb-2 transition-transform hover:-translate-y-0.5">
       <div class="w-10 h-10 rounded-full bg-primary-light text-primary font-bold flex items-center justify-center shrink-0 text-xs text-center">${agentName.split(' ')[0].slice(0, 3)}</div>
       <div class="flex-1"><div class="text-sm font-bold text-navy">${agentName}</div><div class="text-[11px] font-semibold text-text-muted mt-0.5">${h.time}</div></div>
-      <div class="text-right"><div class="text-[15px] font-black tracking-tight text-navy">${h.rows}</div><div class="text-[10px] font-bold uppercase text-text-muted">entries</div></div>
-      <div class="w-2.5 h-2.5 rounded-full ${h.status === 'ok' ? 'bg-green-500' : h.status === 'err' ? 'bg-red-500' : 'bg-yellow-400'}"></div>
+      <div class="text-right"><div class="text-[15px] font-black tracking-tight text-navy">${countValue}</div><div class="text-[10px] font-bold uppercase text-text-muted">${countLabel}</div></div>
+      <div class="flex items-center gap-2">
+        <div class="w-2.5 h-2.5 rounded-full ${h.status === 'ok' ? 'bg-green-500' : h.status === 'err' ? 'bg-red-500' : 'bg-yellow-400'}"></div>
+        <div class="text-[10px] font-bold uppercase tracking-[0.08em] ${statusClass}">${statusText}</div>
+      </div>
     </div>`;
   }).join('');
 }

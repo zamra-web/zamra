@@ -177,7 +177,7 @@ web/
 - **Agent selector** — chips populated from live Firestore `agents` list (manual override supported)
 - **Paste raw rate text** — WhatsApp, email, or plain-text fare dumps
 - **Live preview** — lightweight client-side parse shows detected entries before submit
-- **Submit** — Sends raw text payload securely to the **n8n AI webhook** at `https://n8n.srv1046139.hstgr.cloud/webhook/zamra`. The frontend no longer parses and saves this locally.
+- **Submit** — Sends raw text payload (plus lightweight parsed preview rows) securely to the **n8n AI webhook** at `https://n8n.srv1491832.hstgr.cloud/webhook/zamra-rates`. The UI stays in “processing” state until the workflow completes, then shows success/failure + the `saved` count returned by the final node.
 - **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
 - **Session cards** — local browser stats (submissions + entries) and recent submissions list stored in `localStorage` (last 15 sessions)
 - **Staggered reveal** — cards animate in on tab activation for a premium feel (respects `prefers-reduced-motion`)
