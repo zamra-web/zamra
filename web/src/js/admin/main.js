@@ -1499,12 +1499,35 @@ function normalizeCanvasColor(value) {
     return val;
   }
   try {
+    // Prefer CSSColorValue if available (modern browsers)
+    if (typeof CSSColorValue !== 'undefined' && typeof CSSColorValue.parse === 'function') {
+      try {
+        const parsed = CSSColorValue.parse(val);
+        const out = parsed?.toString?.();
+        if (out && !COLOR_FUNC_RE.test(out)) return out;
+      } catch (_) { }
+    }
+
+    // Use a temporary element to resolve computed color to rgb()
+    const doc = document;
+    if (doc?.body) {
+      const tmp = normalizeCanvasColor._el || (normalizeCanvasColor._el = doc.createElement('span'));
+      tmp.style.color = '#000';
+      tmp.style.color = val;
+      doc.body.appendChild(tmp);
+      const computed = doc.defaultView?.getComputedStyle(tmp)?.color;
+      tmp.remove();
+      if (computed && !COLOR_FUNC_RE.test(computed)) return computed;
+    }
+
+    // Fallback to canvas normalization
     const ctx = normalizeCanvasColor._ctx || (normalizeCanvasColor._ctx = document.createElement('canvas').getContext('2d'));
     const baseline = ctx.fillStyle;
     ctx.fillStyle = '#000';
     const marker = ctx.fillStyle;
     ctx.fillStyle = val;
     const out = ctx.fillStyle;
+    if (out && !COLOR_FUNC_RE.test(out)) return out;
     if (out === marker && val !== marker) {
       ctx.fillStyle = baseline;
       return val;
@@ -1541,7 +1564,7 @@ function sanitizeForCanvas(el, cs) {
 function sanitizeUnsupportedColorFunctions(root) {
   if (!root) return;
   const doc = root.ownerDocument || document;
-  const elements = root.querySelectorAll('*');
+  const elements = [root, ...root.querySelectorAll('*')];
   elements.forEach((el) => {
     const cs = doc.defaultView?.getComputedStyle(el);
     if (!cs) return;
@@ -1576,6 +1599,26 @@ function sanitizeUnsupportedColorFunctions(root) {
       try { el.style.setProperty(prop, 'initial'); } catch (_) { }
     }
   });
+}
+
+function injectCanvasSafeStyles(doc, scopeSelector) {
+  if (!doc) return;
+  const style = doc.createElement('style');
+  const scope = scopeSelector ? `${scopeSelector}, ${scopeSelector} *` : '*';
+  style.textContent = `
+    ${scope} {
+      box-shadow: none !important;
+      text-shadow: none !important;
+      filter: none !important;
+    }
+    ${scope}::before,
+    ${scope}::after {
+      content: none !important;
+      box-shadow: none !important;
+      filter: none !important;
+    }
+  `;
+  doc.head.appendChild(style);
 }
 
 /**
@@ -2942,6 +2985,8 @@ async function downloadReportPDF() {
       backgroundColor: '#ffffff',
       logging: false,
       onclone: (doc) => {
+        injectCanvasSafeStyles(doc, '#report-fares-card');
+        sanitizeUnsupportedColorFunctions(doc.body);
         const clonedCard = doc.getElementById('report-fares-card');
         if (!clonedCard) return;
 
@@ -4428,10 +4473,18 @@ async function downloadETicketPDF() {
       backgroundColor: '#ffffff',
       logging: false,
       onclone: (doc) => {
+        injectCanvasSafeStyles(doc, '#eticket-print-area');
+        sanitizeUnsupportedColorFunctions(doc.body);
         const target = printArea.id ? doc.getElementById(printArea.id) : null;
         if (target) {
           sanitizeUnsupportedColorFunctions(target);
           inlineColorsForCanvas(target);
+          const statusPill = target.querySelector('#t-status-pill');
+          if (statusPill) {
+            statusPill.style.backgroundColor = '#d1fae5';
+            statusPill.style.color = '#047857';
+            statusPill.style.borderColor = '#a7f3d0';
+          }
         }
       }
     });
@@ -4841,7 +4894,7 @@ async function generateETicket(formData) {
           <div class="text-[13px] mt-1"><span class="font-bold">${escapeHtml(arrTime || '—')}</span> <span class="text-slate-500 ml-1 text-[11px]">${escapeHtml(formattedDate || '—')}</span></div>
         </td>
         <td class="p-2.5 border-l border-t border-slate-200 align-middle text-center">
-          <span class="inline-flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold px-2.5 py-1">Confirmed</span>
+          <span id="t-status-pill" class="inline-flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold px-2.5 py-1">Confirmed</span>
         </td>
       </tr>
     `;

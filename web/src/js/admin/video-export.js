@@ -335,6 +335,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             rowHeight: 86,
             rowInset: 10,
             maxRows: 15,
+            minRowHeight: 48,
             topBarHeight: 16,
             badge: { w: 220, h: 42, y: 64, textSize: 15 },
             title: { size: 56, offset: 82 },
@@ -374,6 +375,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             rowHeight: 92,
             rowInset: 10,
             maxRows: 15,
+            minRowHeight: 54,
             topBarHeight: 16,
             badge: { w: 240, h: 44, y: 76, textSize: 16 },
             title: { size: 58, offset: 92 },
@@ -413,6 +415,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             rowHeight: 78,
             rowInset: 10,
             maxRows: 15,
+            minRowHeight: 50,
             topBarHeight: 16,
             badge: { w: 240, h: 40, y: 48, textSize: 15 },
             title: { size: 64, offset: 70 },
@@ -796,13 +799,20 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             const startY = headerHeight + preset.headerGap;
             const availableHeight = height - startY - footerHeight - preset.footerGap;
             const desiredRows = Math.min(sortedFares.length || 1, preset.maxRows || VIDEO_MAX_ROWS);
-            const rawRowHeight = desiredRows ? Math.floor(availableHeight / desiredRows) : preset.rowHeight;
+            const minRowHeight = preset.minRowHeight || 44;
+            let rowsPerPage = Math.max(1, desiredRows);
+            let rawRowHeight = Math.floor(availableHeight / rowsPerPage);
+            if (rawRowHeight < minRowHeight) {
+                rowsPerPage = Math.max(1, Math.floor(availableHeight / minRowHeight));
+                rowsPerPage = Math.min(rowsPerPage, desiredRows);
+                rawRowHeight = Math.floor(availableHeight / rowsPerPage);
+            }
             const rowHeight = Math.min(preset.rowHeight, rawRowHeight);
             const rowScale = Math.min(1, rowHeight / preset.rowHeight);
             const rowInset = Math.max(6, Math.round(preset.rowInset * rowScale));
             const cornerRadius = Math.max(8, Math.round(12 * rowScale));
-            const maxRows = Math.max(1, Math.min(desiredRows, Math.floor(availableHeight / rowHeight)));
-            const rowsPerPage = maxRows;
+            const maxRows = Math.max(1, Math.min(rowsPerPage, Math.floor(availableHeight / rowHeight)));
+            rowsPerPage = maxRows;
             const pages = [];
             for (let i = 0; i < sortedFares.length; i += rowsPerPage) {
                 pages.push(sortedFares.slice(i, i + rowsPerPage));
