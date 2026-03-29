@@ -1489,6 +1489,95 @@ async function renderPoster(fares, sectorId) {
   container.classList.add('flex');
 }
 
+const COLOR_FUNC_RE = /(oklch|oklab|lab|lch|color-mix|color\()/i;
+
+function normalizeCanvasColor(value) {
+  if (!value) return value;
+  const val = value.trim();
+  if (!val) return val;
+  if (val.startsWith('rgb') || val.startsWith('#') || val === 'transparent' || val === 'initial' || val === 'inherit') {
+    return val;
+  }
+  try {
+    const ctx = normalizeCanvasColor._ctx || (normalizeCanvasColor._ctx = document.createElement('canvas').getContext('2d'));
+    const baseline = ctx.fillStyle;
+    ctx.fillStyle = '#000';
+    const marker = ctx.fillStyle;
+    ctx.fillStyle = val;
+    const out = ctx.fillStyle;
+    if (out === marker && val !== marker) {
+      ctx.fillStyle = baseline;
+      return val;
+    }
+    return out || val;
+  } catch (_) {
+    return val;
+  }
+}
+
+function sanitizeForCanvas(el, cs) {
+  const bgImg = cs.getPropertyValue('background-image');
+  if (bgImg && bgImg !== 'none' && COLOR_FUNC_RE.test(bgImg)) {
+    el.style.backgroundImage = 'none';
+    const bgc = normalizeCanvasColor(cs.getPropertyValue('background-color'));
+    if (!bgc || bgc === 'transparent' || bgc === 'rgba(0, 0, 0, 0)') {
+      el.style.backgroundColor = '#ffffff';
+    } else {
+      el.style.backgroundColor = bgc;
+    }
+  }
+
+  const boxShadow = cs.getPropertyValue('box-shadow');
+  if (boxShadow && boxShadow !== 'none' && COLOR_FUNC_RE.test(boxShadow)) {
+    el.style.boxShadow = 'none';
+  }
+
+  const textShadow = cs.getPropertyValue('text-shadow');
+  if (textShadow && textShadow !== 'none' && COLOR_FUNC_RE.test(textShadow)) {
+    el.style.textShadow = 'none';
+  }
+}
+
+function sanitizeUnsupportedColorFunctions(root) {
+  if (!root) return;
+  const doc = root.ownerDocument || document;
+  const elements = root.querySelectorAll('*');
+  elements.forEach((el) => {
+    const cs = doc.defaultView?.getComputedStyle(el);
+    if (!cs) return;
+    for (let i = 0; i < cs.length; i++) {
+      const prop = cs[i];
+      const val = cs.getPropertyValue(prop);
+      if (!val || !COLOR_FUNC_RE.test(val)) continue;
+
+      if (prop.includes('color')) {
+        const rgb = normalizeCanvasColor(val);
+        el.style.setProperty(prop, rgb && !COLOR_FUNC_RE.test(rgb) ? rgb : '#000000');
+        continue;
+      }
+
+      if (prop === 'background-image' || prop === 'background') {
+        el.style.backgroundImage = 'none';
+        const bgc = normalizeCanvasColor(cs.getPropertyValue('background-color'));
+        el.style.backgroundColor = bgc && !COLOR_FUNC_RE.test(bgc) ? bgc : '#ffffff';
+        continue;
+      }
+
+      if (prop.includes('shadow') || prop === 'filter') {
+        el.style.setProperty(prop, 'none');
+        continue;
+      }
+
+      if (prop.includes('border-image')) {
+        el.style.setProperty(prop, 'none');
+        continue;
+      }
+
+      try { el.style.setProperty(prop, 'initial'); } catch (_) { }
+    }
+  });
+}
+
 /**
  * Recursively inline computed CSS color values onto an element tree so that
  * html2canvas (which cannot parse oklch()) sees plain rgb() values instead.
@@ -1503,11 +1592,17 @@ function inlineColorsForCanvas(el) {
   ];
   for (const prop of props) {
     const val = cs.getPropertyValue(prop);
-    // Only override if the value isn't already a plain rgb/rgba/hex value
-    if (val && !val.startsWith('rgb') && !val.startsWith('#') && val !== 'transparent' && val !== 'initial') {
-      try { el.style[prop] = val; } catch (_) { }
+    if (!val) continue;
+    const normalized = normalizeCanvasColor(val);
+    if (normalized && normalized !== val) {
+      try { el.style[prop] = normalized; } catch (_) { }
+    } else if (!val.startsWith('rgb') && !val.startsWith('#') && val !== 'transparent' && val !== 'initial') {
+      try { el.style[prop] = normalized || val; } catch (_) { }
     }
   }
+
+  sanitizeForCanvas(el, cs);
+
   // Recursively handle children
   for (const child of el.children) inlineColorsForCanvas(child);
 }
@@ -2868,6 +2963,7 @@ async function downloadReportPDF() {
           results.style.width = `${tableWrap.scrollWidth}px`;
         }
 
+        sanitizeUnsupportedColorFunctions(clonedCard);
         inlineColorsForCanvas(clonedCard);
       }
     });
@@ -4333,7 +4429,10 @@ async function downloadETicketPDF() {
       logging: false,
       onclone: (doc) => {
         const target = printArea.id ? doc.getElementById(printArea.id) : null;
-        if (target) inlineColorsForCanvas(target);
+        if (target) {
+          sanitizeUnsupportedColorFunctions(target);
+          inlineColorsForCanvas(target);
+        }
       }
     });
 

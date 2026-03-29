@@ -327,22 +327,23 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         '1x1': {
             width: 1080,
             height: 1080,
-            headerHeight: 320,
-            headerGap: 56,
-            footerHeight: 110,
-            footerGap: 20,
+            headerHeight: 280,
+            headerGap: 44,
+            footerHeight: 100,
+            footerGap: 14,
             marginX: 90,
             rowHeight: 86,
             rowInset: 10,
             maxRows: 15,
             topBarHeight: 16,
             badge: { w: 220, h: 42, y: 64, textSize: 15 },
-            title: { size: 60, offset: 86 },
-            subtitle: { size: 22, offset: 138 },
+            title: { size: 56, offset: 82 },
+            subtitle: { size: 21, offset: 132 },
             table: { headSize: 18, headOffset: 20, dateSize: 24, sectorSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 96, h: 36 },
             footer: { logo: 44, titleSize: 22, infoSize: 18 },
             columns: { sector: 0.28, airline: 0.5, time: 0.72 },
+            minDuration: 9000,
             motion: {
                 rowsStart: 1300,
                 rowStagger: 700,
@@ -350,7 +351,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 rowSlide: 18,
                 footerDelay: 600,
                 footerReveal: 700,
-                hold: 1400,
+                hold: 2000,
                 parallaxAmp: 4,
                 parallaxSpeed: 2200,
                 topShiftAmp: 0.12,
@@ -365,22 +366,23 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         '9x16': {
             width: 1080,
             height: 1920,
-            headerHeight: 440,
-            headerGap: 70,
-            footerHeight: 120,
-            footerGap: 24,
+            headerHeight: 400,
+            headerGap: 60,
+            footerHeight: 110,
+            footerGap: 18,
             marginX: 70,
             rowHeight: 92,
             rowInset: 10,
             maxRows: 15,
             topBarHeight: 16,
             badge: { w: 240, h: 44, y: 76, textSize: 16 },
-            title: { size: 60, offset: 96 },
-            subtitle: { size: 24, offset: 154 },
+            title: { size: 58, offset: 92 },
+            subtitle: { size: 22, offset: 148 },
             table: { headSize: 19, headOffset: 24, dateSize: 26, sectorSize: 22, timeSize: 22, fareSize: 26 },
             logo: { maxW: 110, h: 40 },
             footer: { logo: 48, titleSize: 24, infoSize: 20 },
             columns: { sector: 0.29, airline: 0.5, time: 0.71 },
+            minDuration: 10000,
             motion: {
                 rowsStart: 1500,
                 rowStagger: 760,
@@ -388,7 +390,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 rowSlide: 20,
                 footerDelay: 650,
                 footerReveal: 760,
-                hold: 1600,
+                hold: 2200,
                 parallaxAmp: 5,
                 parallaxSpeed: 2400,
                 topShiftAmp: 0.14,
@@ -403,22 +405,23 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         '16x9': {
             width: 1920,
             height: 1080,
-            headerHeight: 300,
-            headerGap: 52,
-            footerHeight: 96,
-            footerGap: 18,
+            headerHeight: 260,
+            headerGap: 44,
+            footerHeight: 88,
+            footerGap: 14,
             marginX: 200,
             rowHeight: 78,
             rowInset: 10,
             maxRows: 15,
             topBarHeight: 16,
             badge: { w: 240, h: 40, y: 48, textSize: 15 },
-            title: { size: 70, offset: 74 },
-            subtitle: { size: 22, offset: 124 },
+            title: { size: 64, offset: 70 },
+            subtitle: { size: 20, offset: 118 },
             table: { headSize: 18, headOffset: 18, dateSize: 22, sectorSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 110, h: 36 },
             footer: { logo: 42, titleSize: 22, infoSize: 18 },
             columns: { sector: 0.3, airline: 0.55, time: 0.75 },
+            minDuration: 8000,
             motion: {
                 rowsStart: 1100,
                 rowStagger: 620,
@@ -426,7 +429,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 rowSlide: 16,
                 footerDelay: 520,
                 footerReveal: 650,
-                hold: 1300,
+                hold: 1800,
                 parallaxAmp: 3,
                 parallaxSpeed: 2000,
                 topShiftAmp: 0.12,
@@ -829,7 +832,10 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             pages.forEach((page) => {
                 const rowCount = Math.max(1, page.length);
                 const footerEntryTime = rowsStart + (rowCount * motion.rowStagger) + motion.footerDelay;
-                const duration = footerEntryTime + motion.footerReveal + motion.hold;
+                const duration = Math.max(
+                    footerEntryTime + motion.footerReveal + motion.hold,
+                    preset.minDuration || 0
+                );
                 pageMeta.push({
                     page,
                     rowCount,
@@ -839,7 +845,10 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 });
                 totalDuration += duration;
             });
-            const startTime = performance.now();
+            const fps = 30;
+            const frameDuration = 1000 / fps;
+            let elapsed = 0;
+            let lastTick = performance.now();
 
             const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
             const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -860,7 +869,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             function drawFrame(now) {
                 if (stopped) return;
-                let elapsed = now - startTime;
+                const delta = Math.min(Math.max(0, now - lastTick), frameDuration);
+                lastTick = now;
+                elapsed += delta;
                 let shouldStop = false;
 
                 if (elapsed > totalDuration) {
