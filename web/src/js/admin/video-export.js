@@ -62,6 +62,27 @@ function attachSilentAudioTrack(stream) {
 }
 
 let ffmpegLoadPromise = null;
+let ffmpegCorePath = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js';
+const FFMPEG_SCRIPT_URLS = [
+    'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js',
+    'https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js'
+];
+const FFMPEG_CORE_URLS = [
+    'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js',
+    'https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js'
+];
+
+function loadScriptFrom(url) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.async = true;
+        script.onload = () => resolve(url);
+        script.onerror = () => reject(new Error(`Failed to load ${url}`));
+        document.head.appendChild(script);
+    });
+}
+
 async function loadFfmpeg() {
     if (ffmpegLoadPromise) return ffmpegLoadPromise;
     ffmpegLoadPromise = new Promise((resolve, reject) => {
@@ -81,12 +102,17 @@ async function loadFfmpeg() {
             ready();
             return;
         }
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js';
-        script.async = true;
-        script.onload = ready;
-        script.onerror = () => reject(new Error('Unable to load FFmpeg.'));
-        document.head.appendChild(script);
+        (async () => {
+            for (let i = 0; i < FFMPEG_SCRIPT_URLS.length; i += 1) {
+                try {
+                    await loadScriptFrom(FFMPEG_SCRIPT_URLS[i]);
+                    ffmpegCorePath = FFMPEG_CORE_URLS[i] || ffmpegCorePath;
+                    ready();
+                    return;
+                } catch (_) { }
+            }
+            reject(new Error('Unable to load FFmpeg.'));
+        })();
     });
     return ffmpegLoadPromise;
 }
@@ -97,7 +123,7 @@ async function transcodeToMp4(blob, inputMime) {
     if (!ffmpegClient) {
         const ffmpeg = api.createFFmpeg({
             log: false,
-            corePath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js'
+            corePath: ffmpegCorePath
         });
         await ffmpeg.load();
         ffmpegClient = { ffmpeg, fetchFile: api.fetchFile };
