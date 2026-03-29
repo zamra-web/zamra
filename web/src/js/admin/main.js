@@ -1160,7 +1160,7 @@ async function handleVideoPoster(ratio) {
             sid,
             _sectors,
             _airlines,
-            { autoDownload: true, returnBlob: true }
+            { autoDownload: true, returnBlob: true, requireMp4: true }
           );
           if (result?.blob) downloads.push(result);
           ok += 1;
@@ -1214,7 +1214,7 @@ async function handleVideoPoster(ratio) {
 
     const singleLabel = _sectors.find(s => s.id === sectorId)?.sectorCode || sectorId;
     setProgress(`Rendering 1/1 · ${singleLabel}`);
-    await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines);
+    await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines, { requireMp4: true });
   } catch (e) {
     console.error('Video generation failed', e);
     toast('error', 'Generation Failed', e.message || 'Video generation failed.');

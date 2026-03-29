@@ -1,5 +1,15 @@
 let lastVideoThemeHue = null;
 const VIDEO_MAX_ROWS = 15;
+const MP4_MIME_CANDIDATES = [
+    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+    'video/mp4;codecs="avc1.42E01E"',
+    'video/mp4'
+];
+const WEBM_MIME_CANDIDATES = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm'
+];
 
 function normalizeRatioKey(value) {
     const cleaned = String(value || '')
@@ -15,11 +25,38 @@ function pickMimeType({ forceMimeType, candidates } = {}) {
     if (forceMimeType && MediaRecorder.isTypeSupported(forceMimeType)) return forceMimeType;
     const fallback = candidates && candidates.length
         ? candidates
-        : ['video/mp4', 'video/webm; codecs=h264', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        : [...MP4_MIME_CANDIDATES, ...WEBM_MIME_CANDIDATES];
     for (const type of fallback) {
         if (MediaRecorder.isTypeSupported(type)) return type;
     }
     return '';
+}
+
+function getMimeCandidates(requireMp4) {
+    return requireMp4 ? MP4_MIME_CANDIDATES : [...MP4_MIME_CANDIDATES, ...WEBM_MIME_CANDIDATES];
+}
+
+function attachSilentAudioTrack(stream) {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return null;
+        const audioCtx = new AudioCtx();
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(() => {});
+        }
+        const oscillator = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0;
+        oscillator.connect(gain);
+        const dest = audioCtx.createMediaStreamDestination();
+        gain.connect(dest);
+        oscillator.start();
+        const audioTrack = dest.stream.getAudioTracks()[0];
+        if (audioTrack) stream.addTrack(audioTrack);
+        return { audioCtx, oscillator, audioTrack };
+    } catch {
+        return null;
+    }
 }
 
 function getExpectedAspectRatio(ratioKey) {
@@ -584,7 +621,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 renderScale,
                 forceMimeType,
                 mimeCandidates,
-                retryAttempt = 0
+                retryAttempt = 0,
+                requireMp4 = false
             } = options || {};
             const { width, height } = preset;
 
@@ -750,10 +788,17 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             // 3. Start Recording
             const stream = canvas.captureStream(30); // 30 FPS
+            const audioState = attachSilentAudioTrack(stream);
             
-            const mimeType = pickMimeType({ forceMimeType, candidates: mimeCandidates });
+            const mimeType = pickMimeType({
+                forceMimeType,
+                candidates: mimeCandidates || getMimeCandidates(requireMp4)
+            });
             if (!mimeType) {
                 throw new Error('No supported video mime type available for this browser.');
+            }
+            if (requireMp4 && !mimeType.includes('mp4')) {
+                throw new Error('MP4 export is not supported in this browser. Try Safari or Edge for WhatsApp-ready videos.');
             }
             
             const recorder = new MediaRecorder(stream, { mimeType });
@@ -772,6 +817,11 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 reject(error);
             };
             recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+            const cleanupAudio = () => {
+                try { audioState?.oscillator?.stop(); } catch (_) { }
+                try { audioState?.audioTrack?.stop(); } catch (_) { }
+                try { audioState?.audioCtx?.close(); } catch (_) { }
+            };
             const stopRecorder = () => {
                 if (stopped) return;
                 stopped = true;
@@ -1171,6 +1221,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             recorder.onstop = async () => {
                 clearTimeout(safetyStop);
                 if (stopTimer) clearTimeout(stopTimer);
+                cleanupAudio();
                 const blob = new Blob(chunks, { type: mimeType });
                 if (!blob || !blob.size) {
                     if (retryAttempt < 1) {
@@ -1179,20 +1230,14 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                             try {
                                 stream.getTracks().forEach(track => track.stop());
                             } catch (_) { }
-                            const retry = await downloadVideoPoster(
-                                ratioKey,
-                                fares,
-                                sectorId,
-                                sectors,
-                                airlines,
-                                {
-                                    ...options,
-                                    renderScale: Math.min(scale, 0.8),
-                                    forceMimeType: null,
-                                    mimeCandidates: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'],
-                                    retryAttempt: retryAttempt + 1
-                                }
-                            );
+                            const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
+                                ...options,
+                                renderScale: Math.min(scale, 0.8),
+                                forceMimeType: null,
+                                mimeCandidates: getMimeCandidates(requireMp4),
+                                retryAttempt: retryAttempt + 1,
+                                requireMp4
+                            });
                             safeResolve(retry);
                             return;
                         } catch (retryError) {
@@ -1215,20 +1260,14 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                             try {
                                 stream.getTracks().forEach(track => track.stop());
                             } catch (_) { }
-                            const retry = await downloadVideoPoster(
-                                ratioKey,
-                                fares,
-                                sectorId,
-                                sectors,
-                                airlines,
-                                {
-                                    ...options,
-                                    renderScale: Math.min(scale, 0.8),
-                                    forceMimeType: null,
-                                    mimeCandidates: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'],
-                                    retryAttempt: retryAttempt + 1
-                                }
-                            );
+                            const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
+                                ...options,
+                                renderScale: Math.min(scale, 0.8),
+                                forceMimeType: null,
+                                mimeCandidates: getMimeCandidates(requireMp4),
+                                retryAttempt: retryAttempt + 1,
+                                requireMp4
+                            });
                             safeResolve(retry);
                             return;
                         } catch (retryError) {
@@ -1263,29 +1302,25 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 try {
                     stream.getTracks().forEach(track => track.stop());
                 } catch (_) { }
+                cleanupAudio();
 
                 safeResolve(returnBlob ? { blob, filename, mimeType } : undefined);
             };
 
             recorder.onerror = async (e) => {
                 console.error("Recorder Error:", e);
+                cleanupAudio();
                 if (retryAttempt < 1) {
                     if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed. Retrying at a smaller size…');
                     try {
-                        const retry = await downloadVideoPoster(
-                            ratioKey,
-                            fares,
-                            sectorId,
-                            sectors,
-                            airlines,
-                            {
-                                ...options,
-                                renderScale: Math.min(scale, 0.8),
-                                forceMimeType: null,
-                                mimeCandidates: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'],
-                                retryAttempt: retryAttempt + 1
-                            }
-                        );
+                        const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
+                            ...options,
+                            renderScale: Math.min(scale, 0.8),
+                            forceMimeType: null,
+                            mimeCandidates: getMimeCandidates(requireMp4),
+                            retryAttempt: retryAttempt + 1,
+                            requireMp4
+                        });
                         safeResolve(retry);
                         return;
                     } catch (retryError) {
