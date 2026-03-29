@@ -98,7 +98,7 @@ web/
   - **All Sectors** renders **one poster per sector** (instead of mixing sectors into a single table)
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
   - **Consistent size** — posters use a fixed height and pad empty rows so the layout never shrinks
-  - **Auto-page** — sectors with more than 10 fares split into multiple posters (page per chunk)
+  - **Auto-page** — sectors with more than 15 fares split into multiple posters (page per chunk)
   - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown — airline + time are normalized so duplicates across agents collapse reliably
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Dynamic brand themes** — each generation creates a brand‑safe palette on the fly (effectively infinite variety) so posters feel fresh when shared
@@ -155,9 +155,11 @@ web/
   - **Hide/Show** button is green when fare is hidden; slate when live
   - **Del** button beside each row
   - Fully sortable (click column headers), paginated, and filterable. Rate and fare fields are read-only in Reports.
+  - **Entries limit control** — Show 10/25/50/100/All results per page.
   - Columns: **Date · Time · Sector · Airline · Agent · SP Rate · Rate · Comm · Bag · Ex.Bag · Status · Actions**
   - Inline per-row **Delete** and **Hide/Show** — update `_reportFares` in place without re-fetching
 - **Export CSV** — greyed out until data is loaded; unlocked automatically after a successful report fetch. Downloads full filtered set (not just current page). All IDs resolved to human-readable names. UTF-8 BOM prefix for correct Excel rendering.
+- **Export PDF** — one-click PDF download of the report results table (multi-page when needed).
 
 > **Implementation note:** `renderReportCharts()` populates the stat cards and both charts, then wires the CSV button via `cloneNode` to avoid duplicate listeners. `renderReportFaresTable()` injects only the `<table>` + pagination footer into `#report-fares-results` — it does **not** wrap in its own card (the outer HTML card in `admin.html` already wraps it).
 
@@ -190,6 +192,7 @@ web/
 - **Dynamic Passenger Rows** — allows adding multiple passengers and specifying check-in/carry-on baggage per passenger.
 - **Automated Formatting** — precisely structured classic ticket layout with travel details, pax details, passenger flight segments, dynamic baggage mapping, explicit top-level passenger counts, tightened airline PNR spacing, and appended travel rules.
 - **Print / PDF Export** — specifically engineered with strict CSS `@media print` overrides (removing borders, shadows, and rounded corners) to guarantee a clean, borderless A4-native document generation via the browser's native print dialog.
+- **Download PDF** — one-click PDF download using html2canvas + jsPDF for quick saves, while the Print button remains the crisp, vector-quality option.
 
 ### 9. 🛂 Visas Tab
 - **Comprehensive Visa Services Management** — Full CRUD management for four distinct service types via isolated inner tabs:

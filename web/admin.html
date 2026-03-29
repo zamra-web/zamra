@@ -1022,7 +1022,7 @@ Example:
             </div>
 
             <!-- ── Fares Table ─────────────────────────────────────────── -->
-            <div class="admin-panel overflow-hidden">
+            <div id="report-fares-card" class="admin-panel overflow-hidden">
                 <div class="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-50 to-white">
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shadow">
@@ -1033,10 +1033,30 @@ Example:
                             <p id="report-total-fares" class="text-[12px] text-text-muted mt-0.5"></p>
                         </div>
                     </div>
-                    <button id="download-report-csv"
-                        class="admin-btn admin-btn-secondary opacity-50 pointer-events-none">
-                        <i class="bi bi-file-earmark-spreadsheet-fill text-green-500"></i> Export CSV
-                    </button>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button id="download-report-csv"
+                            class="admin-btn admin-btn-secondary opacity-50 pointer-events-none">
+                            <i class="bi bi-file-earmark-spreadsheet-fill text-green-500"></i> Export CSV
+                        </button>
+                        <button id="download-report-pdf"
+                            class="admin-btn admin-btn-danger opacity-50 pointer-events-none">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> Export PDF
+                        </button>
+                    </div>
+                </div>
+                <div id="report-fares-toolbar" class="px-6 py-4 border-b border-slate-100 bg-white">
+                    <div class="admin-toolbar-row">
+                        <div class="admin-toolbar-group">
+                            <i class="bi bi-funnel"></i>
+                            Show <select id="report-fares-limit" class="mx-1.5 admin-control admin-control-sm">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="999999">All</option>
+                            </select> entries
+                        </div>
+                    </div>
                 </div>
                 <div id="report-fares-results" class="admin-empty-state">
                     <div class="admin-empty-state-card">
@@ -1257,9 +1277,14 @@ Example:
                             <p class="text-[11px] uppercase tracking-[0.12em] text-slate-300">Preview Ready</p>
                             <p class="text-sm font-semibold">Review ticket details, then print or save as PDF.</p>
                         </div>
-                        <button id="et-print-btn" class="admin-btn admin-btn-secondary px-6 !text-slate-900">
-                            <i class="bi bi-printer-fill"></i> Print / Save as PDF
-                        </button>
+                        <div class="flex flex-wrap gap-3">
+                            <button id="et-print-btn" class="admin-btn admin-btn-secondary px-6 !text-slate-900">
+                                <i class="bi bi-printer-fill"></i> Print / Save as PDF
+                            </button>
+                            <button id="et-download-btn" class="admin-btn admin-btn-primary px-6">
+                                <i class="bi bi-file-earmark-pdf"></i> Download PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
 

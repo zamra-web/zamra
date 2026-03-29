@@ -1,4 +1,5 @@
 let lastVideoThemeHue = null;
+const VIDEO_MAX_ROWS = 15;
 
 function normalizeRatioKey(value) {
     const cleaned = String(value || '')
@@ -333,7 +334,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             marginX: 90,
             rowHeight: 86,
             rowInset: 10,
-            maxRows: 7,
+            maxRows: 15,
             topBarHeight: 16,
             badge: { w: 220, h: 42, y: 64, textSize: 15 },
             title: { size: 60, offset: 86 },
@@ -371,7 +372,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             marginX: 70,
             rowHeight: 92,
             rowInset: 10,
-            maxRows: 10,
+            maxRows: 15,
             topBarHeight: 16,
             badge: { w: 240, h: 44, y: 76, textSize: 16 },
             title: { size: 60, offset: 96 },
@@ -409,7 +410,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             marginX: 200,
             rowHeight: 78,
             rowInset: 10,
-            maxRows: 6,
+            maxRows: 15,
             topBarHeight: 16,
             badge: { w: 240, h: 40, y: 48, textSize: 15 },
             title: { size: 70, offset: 74 },
@@ -582,13 +583,26 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             const { width, height } = preset;
 
             const canvas = document.createElement('canvas');
-            const scale = clamp(renderScale ?? 1, 0.5, 1);
-            canvas.width = Math.round(width * scale);
-            canvas.height = Math.round(height * scale);
+            const targetScale = clamp(renderScale ?? 1, 0.5, 1);
+            const rawWidth = Math.round(width * targetScale);
+            const rawHeight = Math.round(height * targetScale);
+            let canvasWidth = rawWidth - (rawWidth % 2);
+            let canvasHeight = rawHeight - (rawHeight % 2);
+            canvasWidth = Math.max(2, canvasWidth);
+            canvasHeight = Math.max(2, canvasHeight);
+            let scale = Math.min(canvasWidth / width, canvasHeight / height);
+            canvasWidth = Math.max(2, Math.round(width * scale));
+            canvasHeight = Math.max(2, Math.round(height * scale));
+            if (canvasWidth % 2 !== 0) canvasWidth -= 1;
+            if (canvasHeight % 2 !== 0) canvasHeight -= 1;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
             const ctx = canvas.getContext('2d');
             ctx.imageSmoothingEnabled = true;
-            if (scale !== 1) {
-                ctx.setTransform(scale, 0, 0, scale, 0, 0);
+            const finalScale = canvas.width / width;
+            scale = finalScale;
+            if (finalScale !== 1) {
+                ctx.setTransform(finalScale, 0, 0, finalScale, 0, 0);
             }
 
             // 2. Pre-load assets
@@ -739,6 +753,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             const recorder = new MediaRecorder(stream, { mimeType });
             const chunks = [];
             let settled = false;
+            let stopped = false;
+            let stopTimer = null;
             const safeResolve = (value) => {
                 if (settled) return;
                 settled = true;
@@ -750,17 +766,33 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 reject(error);
             };
             recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+            const stopRecorder = () => {
+                if (stopped) return;
+                stopped = true;
+                try {
+                    if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
+                        recorder.requestData();
+                    }
+                } catch (_) { }
+                stopTimer = setTimeout(() => {
+                    try {
+                        if (recorder.state === 'recording') recorder.stop();
+                    } catch (err) {
+                        console.error('Error stopping recorder', err);
+                    }
+                }, 120);
+            };
 
             // Start Recorder
-            const timeslice = ratioKey === '9x16' ? 1000 : undefined;
-            recorder.start(timeslice); // Portrait exports flush chunks to reduce corruption risk
+            const timeslice = 1000;
+            recorder.start(timeslice); // Flush chunks regularly to reduce corruption risk
 
             // 4. Animation loop
             const headerHeight = preset.headerHeight;
             const footerHeight = preset.footerHeight;
             const startY = headerHeight + preset.headerGap;
             const availableHeight = height - startY - footerHeight - preset.footerGap;
-            const desiredRows = Math.min(sortedFares.length || 1, 10);
+            const desiredRows = Math.min(sortedFares.length || 1, preset.maxRows || VIDEO_MAX_ROWS);
             const rawRowHeight = desiredRows ? Math.floor(availableHeight / desiredRows) : preset.rowHeight;
             const rowHeight = Math.min(preset.rowHeight, rawRowHeight);
             const rowScale = Math.min(1, rowHeight / preset.rowHeight);
@@ -808,7 +840,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 totalDuration += duration;
             });
             const startTime = performance.now();
-            let stopped = false;
 
             const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
             const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -1098,13 +1129,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 }
 
                 if (shouldStop) {
-                    try {
-                        if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
-                            recorder.requestData();
-                        }
-                        stopped = true;
-                        recorder.stop();
-                    } catch(e) { console.error("Error stopping recorder", e); }
+                    stopRecorder();
                     return;
                 }
 
@@ -1114,15 +1139,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             const safetyStop = setTimeout(() => {
                 if (!stopped && recorder.state === 'recording') {
-                    try {
-                        if (typeof recorder.requestData === 'function') {
-                            recorder.requestData();
-                        }
-                        stopped = true;
-                        recorder.stop();
-                    } catch (e) {
-                        console.error('Safety stop error:', e);
-                    }
+                    stopRecorder();
                 }
             }, totalDuration + 1500);
 
@@ -1132,6 +1149,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             // 5. Handle recording completion
             recorder.onstop = async () => {
                 clearTimeout(safetyStop);
+                if (stopTimer) clearTimeout(stopTimer);
                 const blob = new Blob(chunks, { type: mimeType });
                 if (!blob || !blob.size) {
                     if (retryAttempt < 1) {

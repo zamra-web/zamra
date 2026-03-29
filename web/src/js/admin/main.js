@@ -529,7 +529,7 @@ function openModal(title, bodyHtml, wide = false) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD TAB — Poster Generator
 // ══════════════════════════════════════════════════════════════════════════════
-const POSTER_MAX_ROWS = 10;
+const POSTER_MAX_ROWS = 15;
 const POSTER_THEMES = [
   {
     id: 'classic',
@@ -1359,31 +1359,31 @@ async function renderPoster(fares, sectorId) {
 
       // Airline cell: logo if available; airline name as fallback
       const airlineCell = logoSrc
-        ? `<img src="${logoSrc}" style="height:26px;max-width:90px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
-        : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:13px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
+        ? `<img src="${logoSrc}" style="height:22px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
+        : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:12px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
 
       // Sector cell
-      const sectorCell = `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:4px 8px;border-radius:6px;font-size:12px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
+      const sectorCell = `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:3px 7px;border-radius:6px;font-size:11px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
 
       // Time cell: parse "HH:MM - HH:MM" or "HH:MM" from flightTime
-      let timeCell = '<span style="color:#94a3b8;font-size:13px;">—</span>';
+      let timeCell = '<span style="color:#94a3b8;font-size:12px;">—</span>';
       if (f.flightTime) {
         const parts = f.flightTime.split('-').map(s => s.trim());
         if (parts.length >= 2) {
-          timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
+          timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
         } else {
-          timeCell = `<span style="font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
+          timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
         }
       }
 
       rows.push(`
         <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
-          <td style="padding:10px 8px;font-weight:700;color:#0f172a;font-size:13px;white-space:nowrap;">${dt}</td>
-          <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
-          <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
-          <td style="padding:10px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
-          <td style="padding:10px 8px;text-align:right;vertical-align:middle;">
-            <div style="display:inline-block;color:${fareText};font-weight:900;font-size:15px;">
+          <td style="padding:6px 8px;font-weight:700;color:#0f172a;font-size:12px;white-space:nowrap;">${dt}</td>
+          <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
+          <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
+          <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
+          <td style="padding:6px 8px;text-align:right;vertical-align:middle;">
+            <div style="display:inline-block;color:${fareText};font-weight:900;font-size:14px;">
               &#8377;${(f.finalRate || 0).toLocaleString()}
             </div>
           </td>
@@ -1394,11 +1394,11 @@ async function renderPoster(fares, sectorId) {
       const rowBg = i % 2 === 0 ? '#ffffff' : rowAlt;
       rows.push(`
         <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
-          <td style="padding:10px 8px;">&nbsp;</td>
-          <td style="padding:10px 8px;">&nbsp;</td>
-          <td style="padding:10px 8px;">&nbsp;</td>
-          <td style="padding:10px 8px;">&nbsp;</td>
-          <td style="padding:10px 8px;">&nbsp;</td>
+          <td style="padding:6px 8px;">&nbsp;</td>
+          <td style="padding:6px 8px;">&nbsp;</td>
+          <td style="padding:6px 8px;">&nbsp;</td>
+          <td style="padding:6px 8px;">&nbsp;</td>
+          <td style="padding:6px 8px;">&nbsp;</td>
         </tr>`);
     }
 
@@ -2351,6 +2351,7 @@ async function renderReportsTab() {
   const fetchBtn = document.getElementById('generate-report-btn');
   const startInput = document.getElementById('reports-start-date');
   const endInput = document.getElementById('reports-end-date');
+  const limitSel = document.getElementById('report-fares-limit');
 
   if (fetchBtn && !fetchBtn.dataset.wired) {
     fetchBtn.dataset.wired = '1';
@@ -2380,6 +2381,18 @@ async function renderReportsTab() {
       finally {
         fetchBtn.disabled = false;
         fetchBtn.innerHTML = '<i class="bi bi-lightning-fill text-[13px]"></i> Generate Report';
+      }
+    });
+  }
+
+  if (limitSel && !limitSel.dataset.wired) {
+    limitSel.dataset.wired = '1';
+    limitSel.value = String(tableLimit.reportFares);
+    limitSel.addEventListener('change', (e) => {
+      tableLimit.reportFares = parseInt(e.target.value, 10);
+      tablePage.reportFares = 1;
+      if (_reportFares && _reportFares.length) {
+        renderReportFaresTable(_reportFares);
       }
     });
   }
@@ -2437,6 +2450,19 @@ function renderReportCharts(report, tab, opts = {}) {
     const newBtn = csvBtn.cloneNode(true);
     csvBtn.parentNode.replaceChild(newBtn, csvBtn);
     newBtn.addEventListener('click', () => downloadReportCSV(_reportFares));
+    if (_reportFares && _reportFares.length) {
+      newBtn.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+      newBtn.classList.add('opacity-50', 'pointer-events-none');
+    }
+  }
+
+  // ── Wire PDF export button ───────────────────────────────────────────────────
+  const pdfBtn = document.getElementById('download-report-pdf');
+  if (pdfBtn) {
+    const newBtn = pdfBtn.cloneNode(true);
+    pdfBtn.parentNode.replaceChild(newBtn, pdfBtn);
+    newBtn.addEventListener('click', () => downloadReportPDF());
     if (_reportFares && _reportFares.length) {
       newBtn.classList.remove('opacity-50', 'pointer-events-none');
     } else {
@@ -2790,6 +2816,109 @@ function downloadReportCSV(fares) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
   toast('success', 'CSV Downloaded', `${fares.length} fares exported.`);
+}
+
+async function downloadReportPDF() {
+  if (!_reportFares || !_reportFares.length) {
+    toast('warning', 'No Data', 'No fares to export. Apply filters and fetch first.');
+    return;
+  }
+
+  const card = document.getElementById('report-fares-card');
+  if (!card) {
+    toast('error', 'Export Failed', 'Report results not found.');
+    return;
+  }
+
+  const btn = document.getElementById('download-report-pdf');
+  if (btn) btn.disabled = true;
+
+  try {
+    if (typeof html2canvas !== 'function') {
+      throw new Error('html2canvas library not loaded.');
+    }
+
+    toast('info', 'Generating PDF', 'Please wait while we render your report...');
+
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      onclone: (doc) => {
+        const clonedCard = doc.getElementById('report-fares-card');
+        if (!clonedCard) return;
+
+        // Hide action buttons inside the export
+        clonedCard.querySelectorAll('#download-report-csv, #download-report-pdf').forEach(el => {
+          el.style.display = 'none';
+        });
+        const toolbar = clonedCard.querySelector('#report-fares-toolbar');
+        if (toolbar) toolbar.style.display = 'none';
+
+        // Ensure wide tables are fully visible in export
+        const tableWrap = clonedCard.querySelector('.admin-table-container');
+        if (tableWrap) {
+          tableWrap.style.overflow = 'visible';
+          tableWrap.style.width = `${tableWrap.scrollWidth}px`;
+        }
+        const results = clonedCard.querySelector('#report-fares-results');
+        if (results && tableWrap) {
+          results.style.width = `${tableWrap.scrollWidth}px`;
+        }
+
+        inlineColorsForCanvas(clonedCard);
+      }
+    });
+
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF)
+      || window.jsPDF
+      || window.jspdf;
+    if (!jsPDFCtor) throw new Error('jsPDF library not loaded.');
+
+    const isLandscape = canvas.width > canvas.height;
+    const pdf = new jsPDFCtor({ orientation: isLandscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth
+      ? pdf.internal.pageSize.getWidth()
+      : pdf.internal.pageSize.width;
+    const pageHeight = pdf.internal.pageSize.getHeight
+      ? pdf.internal.pageSize.getHeight()
+      : pdf.internal.pageSize.height;
+
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const pageHeightPx = Math.max(1, Math.floor((canvas.width * pageHeight) / pageWidth));
+
+    let renderedHeight = 0;
+    let pageIndex = 0;
+
+    while (renderedHeight < canvas.height) {
+      const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedHeight);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceHeight;
+      const ctx = pageCanvas.getContext('2d');
+      ctx.drawImage(canvas, 0, -renderedHeight);
+
+      const pageData = pageCanvas.toDataURL('image/jpeg', 0.95);
+      if (pageIndex > 0) pdf.addPage();
+      const pageImgHeight = (sliceHeight * imgWidth) / pageCanvas.width;
+      pdf.addImage(pageData, 'JPEG', 0, 0, imgWidth, pageImgHeight);
+
+      renderedHeight += sliceHeight;
+      pageIndex += 1;
+    }
+
+    const fileName = `zamra-report-${new Date().toISOString().split('T')[0]}.pdf`;
+    pdf.save(fileName);
+    toast('success', 'Downloaded!', 'Report PDF saved successfully.');
+  } catch (err) {
+    console.error('Report PDF export failed:', err);
+    toast('error', 'Download Failed', err?.message || 'Unable to generate the PDF.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 
@@ -4169,6 +4298,97 @@ function resetETicketPrintFit() {
   printArea.style.removeProperty('--eticket-print-scale');
 }
 
+async function downloadETicketPDF() {
+  const wrapper = document.getElementById('eticket-output-wrapper');
+  const printArea = document.getElementById('eticket-print-area');
+  if (!wrapper || !printArea) return;
+  if (wrapper.classList.contains('hidden')) {
+    toast('info', 'No Preview Yet', 'Generate an e-ticket first, then download the PDF.');
+    return;
+  }
+
+  const btn = document.getElementById('et-download-btn');
+  if (btn) btn.disabled = true;
+
+  try {
+    resetETicketPrintFit();
+
+    if (typeof html2canvas !== 'function') {
+      throw new Error('html2canvas library not loaded.');
+    }
+
+    toast('info', 'Generating PDF', 'Please wait while we render your ticket...');
+
+    await Promise.all(
+      Array.from(printArea.querySelectorAll('img')).map(img =>
+        img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
+      )
+    );
+
+    const canvas = await html2canvas(printArea, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      onclone: (doc) => {
+        const target = printArea.id ? doc.getElementById(printArea.id) : null;
+        if (target) inlineColorsForCanvas(target);
+      }
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF)
+      || window.jsPDF
+      || window.jspdf;
+    if (!jsPDFCtor) throw new Error('jsPDF library not loaded.');
+
+    const pdf = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth
+      ? pdf.internal.pageSize.getWidth()
+      : pdf.internal.pageSize.width;
+    const pageHeight = pdf.internal.pageSize.getHeight
+      ? pdf.internal.pageSize.getHeight()
+      : pdf.internal.pageSize.height;
+
+    let imgWidth = pageWidth;
+    let imgHeight = (canvas.height / canvas.width) * imgWidth;
+    let x = 0;
+    let y = 0;
+
+    if (imgHeight > pageHeight) {
+      const scale = pageHeight / imgHeight;
+      imgWidth *= scale;
+      imgHeight *= scale;
+      x = (pageWidth - imgWidth) / 2;
+      y = 0;
+    } else {
+      y = (pageHeight - imgHeight) / 2;
+    }
+
+    pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+
+    const fileSafe = (s) =>
+      String(s || '')
+        .trim()
+        .replace(/[^a-z0-9]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase();
+    const pnrText = document.getElementById('t-pnr')?.textContent || 'ticket';
+    const ts = Date.now();
+    const fileName = `zamra-eticket-${fileSafe(pnrText) || 'ticket'}-${ts}.pdf`;
+
+    pdf.save(fileName);
+    toast('success', 'Downloaded!', 'E-ticket PDF saved successfully.');
+  } catch (err) {
+    console.error('E-ticket PDF export failed:', err);
+    toast('error', 'Download Failed', err?.message || 'Unable to generate the PDF. Try Print / Save as PDF.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function renderETicketTab() {
   const tab = document.getElementById('eticket-tab');
   if (!tab) return;
@@ -4305,6 +4525,11 @@ async function renderETicketTab() {
     document.getElementById('et-print-btn')?.addEventListener('click', () => {
       applyETicketPrintFit();
       requestAnimationFrame(() => window.print());
+    });
+
+    // Wire Download PDF Button
+    document.getElementById('et-download-btn')?.addEventListener('click', () => {
+      downloadETicketPDF();
     });
 
     window.addEventListener('beforeprint', applyETicketPrintFit);
