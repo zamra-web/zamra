@@ -1315,34 +1315,36 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     return;
                 }
 
-                const isValid = await validateVideoBlob(blob, ratioKey);
-                if (!isValid) {
-                    if (retryAttempt < 1) {
-                        if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed validation. Retrying at a smaller size…');
-                        try {
+                if (!requireMp4) {
+                    const isValid = await validateVideoBlob(blob, ratioKey);
+                    if (!isValid) {
+                        if (retryAttempt < 1) {
+                            if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed validation. Retrying at a smaller size…');
                             try {
-                                stream.getTracks().forEach(track => track.stop());
-                            } catch (_) { }
-                            const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
-                                ...options,
-                                renderScale: Math.min(scale, 0.8),
-                                forceMimeType: null,
-                                mimeCandidates: getMimeCandidates(requireMp4),
-                                retryAttempt: retryAttempt + 1,
-                                requireMp4
-                            });
-                            safeResolve(retry);
-                            return;
-                        } catch (retryError) {
-                            console.error('Video retry failed:', retryError);
+                                try {
+                                    stream.getTracks().forEach(track => track.stop());
+                                } catch (_) { }
+                                const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
+                                    ...options,
+                                    renderScale: Math.min(scale, 0.8),
+                                    forceMimeType: null,
+                                    mimeCandidates: getMimeCandidates(requireMp4),
+                                    retryAttempt: retryAttempt + 1,
+                                    requireMp4
+                                });
+                                safeResolve(retry);
+                                return;
+                            } catch (retryError) {
+                                console.error('Video retry failed:', retryError);
+                            }
                         }
+                        if (window.toast) window.toast('error', 'Generation Error', 'Video validation failed.');
+                        try {
+                            stream.getTracks().forEach(track => track.stop());
+                        } catch (_) { }
+                        safeReject(new Error('Video validation failed.'));
+                        return;
                     }
-                    if (window.toast) window.toast('error', 'Generation Error', 'Video validation failed.');
-                    try {
-                        stream.getTracks().forEach(track => track.stop());
-                    } catch (_) { }
-                    safeReject(new Error('Video validation failed.'));
-                    return;
                 }
                 let finalBlob = blob;
                 let finalMimeType = mimeType;
