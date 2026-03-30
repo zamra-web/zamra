@@ -32,10 +32,8 @@ function pickMimeType({ forceMimeType, candidates } = {}) {
     return '';
 }
 
-function getMimeCandidates(requireMp4) {
-    return requireMp4
-        ? [...WEBM_MIME_CANDIDATES, ...MP4_MIME_CANDIDATES]
-        : [...MP4_MIME_CANDIDATES, ...WEBM_MIME_CANDIDATES];
+function getMimeCandidates() {
+    return [...MP4_MIME_CANDIDATES, ...WEBM_MIME_CANDIDATES];
 }
 
 function attachSilentAudioTrack(stream) {
@@ -62,14 +60,14 @@ function attachSilentAudioTrack(stream) {
 }
 
 let ffmpegLoadPromise = null;
-let ffmpegCorePath = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js';
+let ffmpegCorePath = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js';
 const FFMPEG_SCRIPT_URLS = [
-    'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js',
-    'https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js'
+    'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js',
+    'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js'
 ];
 const FFMPEG_CORE_URLS = [
-    'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js',
-    'https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js'
+    'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js',
+    'https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js'
 ];
 
 function loadScriptFrom(url) {
@@ -85,36 +83,27 @@ function loadScriptFrom(url) {
 
 async function loadFfmpeg() {
     if (ffmpegLoadPromise) return ffmpegLoadPromise;
-    ffmpegLoadPromise = new Promise((resolve, reject) => {
-        const ready = () => {
-            try {
-                const api = window.FFmpeg;
-                if (!api?.createFFmpeg || !api?.fetchFile) {
-                    reject(new Error('FFmpeg library failed to load.'));
-                    return;
-                }
-                resolve(api);
-            } catch (err) {
-                reject(err);
-            }
-        };
-        if (window.FFmpeg?.createFFmpeg) {
-            ready();
-            return;
+    ffmpegLoadPromise = (async () => {
+        if (window.FFmpeg?.createFFmpeg && window.FFmpeg?.fetchFile) {
+            return window.FFmpeg;
         }
-        (async () => {
-            for (let i = 0; i < FFMPEG_SCRIPT_URLS.length; i += 1) {
-                try {
-                    await loadScriptFrom(FFMPEG_SCRIPT_URLS[i]);
-                    ffmpegCorePath = FFMPEG_CORE_URLS[i] || ffmpegCorePath;
-                    ready();
-                    return;
-                } catch (_) { }
-            }
-            reject(new Error('Unable to load FFmpeg.'));
-        })();
-    });
-    return ffmpegLoadPromise;
+        for (let i = 0; i < FFMPEG_SCRIPT_URLS.length; i += 1) {
+            try {
+                await loadScriptFrom(FFMPEG_SCRIPT_URLS[i]);
+                ffmpegCorePath = FFMPEG_CORE_URLS[i] || ffmpegCorePath;
+                const api = window.FFmpeg;
+                if (api?.createFFmpeg && api?.fetchFile) return api;
+            } catch (_) { }
+        }
+        throw new Error('Unable to load FFmpeg.');
+    })();
+    try {
+        return await ffmpegLoadPromise;
+    } catch (err) {
+        ffmpegLoadPromise = null;
+        ffmpegClient = null;
+        throw err;
+    }
 }
 
 let ffmpegClient = null;
@@ -132,23 +121,28 @@ async function transcodeToMp4(blob, inputMime) {
     const inputExt = inputMime?.includes('webm') ? 'webm' : 'mp4';
     const inputName = `input.${inputExt}`;
     const outputName = 'output.mp4';
-    ffmpeg.FS('writeFile', inputName, await fetchFile(blob));
-    await ffmpeg.run(
-        '-i', inputName,
-        '-c:v', 'libx264',
-        '-profile:v', 'baseline',
-        '-level', '4.0',
-        '-pix_fmt', 'yuv420p',
-        '-r', '30',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-movflags', '+faststart',
-        outputName
-    );
-    const data = ffmpeg.FS('readFile', outputName);
-    try { ffmpeg.FS('unlink', inputName); } catch (_) { }
-    try { ffmpeg.FS('unlink', outputName); } catch (_) { }
-    return new Blob([data], { type: 'video/mp4' });
+    try {
+        ffmpeg.FS('writeFile', inputName, await fetchFile(blob));
+        await ffmpeg.run(
+            '-i', inputName,
+            '-c:v', 'libx264',
+            '-profile:v', 'baseline',
+            '-level', '4.0',
+            '-pix_fmt', 'yuv420p',
+            '-r', '30',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-movflags', '+faststart',
+            outputName
+        );
+        const data = ffmpeg.FS('readFile', outputName);
+        try { ffmpeg.FS('unlink', inputName); } catch (_) { }
+        try { ffmpeg.FS('unlink', outputName); } catch (_) { }
+        return new Blob([data], { type: 'video/mp4' });
+    } catch (err) {
+        ffmpegClient = null;
+        throw err;
+    }
 }
 
 function getExpectedAspectRatio(ratioKey) {
@@ -157,7 +151,7 @@ function getExpectedAspectRatio(ratioKey) {
     return 1;
 }
 
-function validateVideoBlob(blob, ratioKey, { timeoutMs = 3000 } = {}) {
+function validateVideoBlob(blob, ratioKey, { timeoutMs = 8000 } = {}) {
     return new Promise((resolve) => {
         if (!blob || !blob.size) {
             resolve(false);
@@ -884,7 +878,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             
             const mimeType = pickMimeType({
                 forceMimeType,
-                candidates: mimeCandidates || getMimeCandidates(requireMp4)
+                candidates: mimeCandidates || getMimeCandidates()
             });
             if (!mimeType) {
                 throw new Error('No supported video mime type available for this browser.');
@@ -894,7 +888,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             const chunks = [];
             let settled = false;
             let stopped = false;
-            let stopTimer = null;
             const safeResolve = (value) => {
                 if (settled) return;
                 settled = true;
@@ -915,17 +908,10 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 if (stopped) return;
                 stopped = true;
                 try {
-                    if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
-                        recorder.requestData();
-                    }
-                } catch (_) { }
-                stopTimer = setTimeout(() => {
-                    try {
-                        if (recorder.state === 'recording') recorder.stop();
-                    } catch (err) {
-                        console.error('Error stopping recorder', err);
-                    }
-                }, 120);
+                    if (recorder.state === 'recording') recorder.stop();
+                } catch (err) {
+                    console.error('Error stopping recorder', err);
+                }
             };
 
             // Start Recorder
@@ -1309,7 +1295,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             // 5. Handle recording completion
             recorder.onstop = async () => {
                 clearTimeout(safetyStop);
-                if (stopTimer) clearTimeout(stopTimer);
                 cleanupAudio();
                 const blob = new Blob(chunks, { type: mimeType });
                 if (!blob || !blob.size) {
@@ -1323,7 +1308,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                                 ...options,
                                 renderScale: Math.min(scale, 0.8),
                                 forceMimeType: null,
-                                mimeCandidates: getMimeCandidates(requireMp4),
+                                mimeCandidates: getMimeCandidates(),
                                 retryAttempt: retryAttempt + 1,
                                 requireMp4
                             });
@@ -1354,7 +1339,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                                     ...options,
                                     renderScale: Math.min(scale, 0.8),
                                     forceMimeType: null,
-                                    mimeCandidates: getMimeCandidates(requireMp4),
+                                    mimeCandidates: getMimeCandidates(),
                                     retryAttempt: retryAttempt + 1,
                                     requireMp4
                                 });
@@ -1375,21 +1360,17 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 let finalBlob = blob;
                 let finalMimeType = mimeType;
                 if (requireMp4) {
-                    try {
-                        if (window.toast) window.toast('info', 'Video Processing', 'Optimizing for WhatsApp…');
-                        finalBlob = await transcodeToMp4(blob, mimeType);
+                    if (mimeType.includes('mp4')) {
                         finalMimeType = 'video/mp4';
-                    } catch (err) {
-                        console.error('MP4 optimization failed:', err);
-                        if (window.toast) window.toast('error', 'Video Processing', 'MP4 optimization failed. Please try Safari or Edge.');
-                        safeReject(err);
-                        return;
-                    }
-                    const mp4Valid = await validateVideoBlob(finalBlob, ratioKey);
-                    if (!mp4Valid) {
-                        if (window.toast) window.toast('error', 'Video Processing', 'MP4 validation failed.');
-                        safeReject(new Error('MP4 validation failed.'));
-                        return;
+                    } else {
+                        try {
+                            if (window.toast) window.toast('info', 'Video Processing', 'Optimizing for WhatsApp…');
+                            finalBlob = await transcodeToMp4(blob, mimeType);
+                            finalMimeType = 'video/mp4';
+                        } catch (err) {
+                            console.error('MP4 optimization failed:', err);
+                            if (window.toast) window.toast('warning', 'Video Processing', 'Could not convert to MP4. Downloading in original format.');
+                        }
                     }
                 }
 
@@ -1429,7 +1410,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                             ...options,
                             renderScale: Math.min(scale, 0.8),
                             forceMimeType: null,
-                            mimeCandidates: getMimeCandidates(requireMp4),
+                            mimeCandidates: getMimeCandidates(),
                             retryAttempt: retryAttempt + 1,
                             requireMp4
                         });
