@@ -145,6 +145,17 @@ async function transcodeToMp4(blob, inputMime) {
     }
 }
 
+let mp4MuxerModule = null;
+async function loadMp4Muxer() {
+    if (mp4MuxerModule) return mp4MuxerModule;
+    mp4MuxerModule = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5/build/mp4-muxer.mjs');
+    return mp4MuxerModule;
+}
+
+function canUseWebCodecs() {
+    return typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined';
+}
+
 function getExpectedAspectRatio(ratioKey) {
     if (ratioKey === '9x16') return 9 / 16;
     if (ratioKey === '16x9') return 16 / 9;
@@ -1002,21 +1013,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.closePath();
             }
 
-            function drawFrame(now) {
-                if (stopped) return;
-                const delta = Math.min(Math.max(0, now - lastTick), frameDuration);
-                lastTick = now;
-                elapsed += delta;
-                let shouldStop = false;
-
-                if (elapsed > totalDuration) {
-                    // Clamp to final frame so footer and end-state always render.
-                    elapsed = totalDuration;
-                    shouldStop = true;
-                }
-
-                const activePage = pageMeta.find(meta => elapsed <= meta.end) || pageMeta[pageMeta.length - 1];
-                const pageElapsed = elapsed - (activePage?.start || 0);
+            function renderFrame(elapsedMs) {
+                const activePage = pageMeta.find(meta => elapsedMs <= meta.end) || pageMeta[pageMeta.length - 1];
+                const pageElapsed = elapsedMs - (activePage?.start || 0);
                 const visibleFares = activePage?.page || [];
                 const footerEntryTime = activePage?.footerEntryTime || 0;
                 const rowCount = activePage?.rowCount || 1;
@@ -1274,12 +1273,26 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.globalAlpha = 1.0;
                 }
 
+            }
+
+            function drawFrame(now) {
+                if (stopped) return;
+                const delta = Math.min(Math.max(0, now - lastTick), frameDuration);
+                lastTick = now;
+                elapsed += delta;
+                let shouldStop = false;
+
+                if (elapsed > totalDuration) {
+                    elapsed = totalDuration;
+                    shouldStop = true;
+                }
+
+                renderFrame(elapsed);
+
                 if (shouldStop) {
                     stopRecorder();
                     return;
                 }
-
-                // Next frame
                 requestAnimationFrame(drawFrame);
             }
 
@@ -1363,13 +1376,58 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     if (mimeType.includes('mp4')) {
                         finalMimeType = 'video/mp4';
                     } else {
-                        try {
-                            if (window.toast) window.toast('info', 'Video Processing', 'Optimizing for WhatsApp…');
-                            finalBlob = await transcodeToMp4(blob, mimeType);
-                            finalMimeType = 'video/mp4';
-                        } catch (err) {
-                            console.error('MP4 optimization failed:', err);
-                            if (window.toast) window.toast('warning', 'Video Processing', 'Could not convert to MP4. Downloading in original format.');
+                        let converted = false;
+                        if (canUseWebCodecs()) {
+                            try {
+                                if (window.toast) window.toast('info', 'Video Processing', 'Optimizing for WhatsApp…');
+                                const mp4Mod = await loadMp4Muxer();
+                                const target = new mp4Mod.ArrayBufferTarget();
+                                const muxer = new mp4Mod.Muxer({
+                                    target,
+                                    video: { codec: 'avc', width: canvasWidth, height: canvasHeight },
+                                    fastStart: 'in-memory',
+                                });
+                                const encoder = new VideoEncoder({
+                                    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                                    error: (e) => console.error('VideoEncoder error:', e),
+                                });
+                                encoder.configure({
+                                    codec: 'avc1.420028',
+                                    width: canvasWidth,
+                                    height: canvasHeight,
+                                    bitrate: 4_000_000,
+                                    framerate: fps,
+                                });
+                                const totalFrames = Math.ceil((totalDuration / 1000) * fps);
+                                for (let i = 0; i <= totalFrames; i++) {
+                                    const t = Math.min(i * frameDuration, totalDuration);
+                                    renderFrame(t);
+                                    const vf = new VideoFrame(canvas, { timestamp: Math.round(t * 1000) });
+                                    encoder.encode(vf, { keyFrame: i % 90 === 0 });
+                                    vf.close();
+                                    while (encoder.encodeQueueSize > 10) {
+                                        await new Promise(r => setTimeout(r, 1));
+                                    }
+                                }
+                                await encoder.flush();
+                                encoder.close();
+                                muxer.finalize();
+                                finalBlob = new Blob([target.buffer], { type: 'video/mp4' });
+                                finalMimeType = 'video/mp4';
+                                converted = true;
+                            } catch (wcErr) {
+                                console.warn('WebCodecs MP4 encoding failed:', wcErr);
+                            }
+                        }
+                        if (!converted) {
+                            try {
+                                if (!canUseWebCodecs() && window.toast) window.toast('info', 'Video Processing', 'Converting to MP4…');
+                                finalBlob = await transcodeToMp4(blob, mimeType);
+                                finalMimeType = 'video/mp4';
+                            } catch (err) {
+                                console.error('MP4 optimization failed:', err);
+                                if (window.toast) window.toast('warning', 'Video Processing', 'Could not convert to MP4. Downloading in original format.');
+                            }
                         }
                     }
                 }
