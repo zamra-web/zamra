@@ -1,5 +1,7 @@
+import { getPosterRateDisplay } from './poster-rate-display.js';
+
 let lastVideoThemeHue = null;
-const VIDEO_MAX_ROWS = 15;
+const VIDEO_MAX_ROWS = 12;
 const MP4_MIME_CANDIDATES = [
     'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
     'video/mp4;codecs="avc1.42E01E"',
@@ -468,7 +470,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             marginX: 90,
             rowHeight: 86,
             rowInset: 10,
-            maxRows: 15,
+            maxRows: VIDEO_MAX_ROWS,
             minRowHeight: 48,
             topBarHeight: 16,
             badge: { w: 220, h: 42, y: 64, textSize: 15 },
@@ -508,7 +510,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             marginX: 70,
             rowHeight: 92,
             rowInset: 10,
-            maxRows: 15,
+            maxRows: VIDEO_MAX_ROWS,
             minRowHeight: 54,
             topBarHeight: 16,
             badge: { w: 240, h: 44, y: 76, textSize: 16 },
@@ -548,7 +550,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             marginX: 200,
             rowHeight: 78,
             rowInset: 10,
-            maxRows: 15,
+            maxRows: VIDEO_MAX_ROWS,
             minRowHeight: 50,
             topBarHeight: 16,
             badge: { w: 240, h: 40, y: 48, textSize: 15 },
@@ -1218,7 +1220,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - rowTextOffset);
 
                     // Fare Badge
-                    const fareText = `₹${(f.finalRate || 0).toLocaleString()}`;
+                    const posterRate = getPosterRateDisplay(f.finalRate);
+                    const fareText = posterRate.displayLabel;
                     ctx.font = `900 ${tableSizes.fareSize}px Arial, sans-serif`;
                     ctx.textAlign = 'right';
                     

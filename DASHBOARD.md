@@ -98,7 +98,7 @@ web/
   - **All Sectors** renders **one poster per sector** (instead of mixing sectors into a single table)
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
   - **Consistent size** — posters use a fixed height and pad empty rows so the layout never shrinks
-  - **Auto-page** — sectors with more than 15 fares split into multiple posters (page per chunk)
+  - **Auto-page** — sectors with more than 12 fares split into multiple posters (page per chunk)
   - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown — airline + time are normalized so duplicates across agents collapse reliably
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Dynamic brand themes** — each generation creates a brand‑safe palette on the fly (effectively infinite variety) so posters feel fresh when shared

@@ -24,6 +24,7 @@ import {
 } from './db.js';
 
 import { downloadVideoPoster } from './video-export.js';
+import { getPosterRateDisplay } from './poster-rate-display.js';
 
 // ── Global State ──────────────────────────────────────────────────────────────
 let _agents = [];
@@ -529,7 +530,7 @@ function openModal(title, bodyHtml, wide = false) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD TAB — Poster Generator
 // ══════════════════════════════════════════════════════════════════════════════
-const POSTER_MAX_ROWS = 15;
+const POSTER_MAX_ROWS = 12;
 const POSTER_THEMES = [
   {
     id: 'classic',
@@ -1376,6 +1377,8 @@ async function renderPoster(fares, sectorId) {
         }
       }
 
+      const posterRate = getPosterRateDisplay(f.finalRate);
+
       rows.push(`
         <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
           <td style="padding:6px 8px;font-weight:700;color:#0f172a;font-size:12px;white-space:nowrap;">${dt}</td>
@@ -1383,8 +1386,12 @@ async function renderPoster(fares, sectorId) {
           <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
           <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
           <td style="padding:6px 8px;text-align:right;vertical-align:middle;">
-            <div style="display:inline-block;color:${fareText};font-weight:900;font-size:14px;">
-              &#8377;${(f.finalRate || 0).toLocaleString()}
+            <div
+              data-rate-mode="${posterRate.isMasked ? 'masked' : 'live'}"
+              data-actual-rate="${escapeHtml(posterRate.actualLabel)}"
+              style="display:inline-block;color:${fareText};font-weight:900;font-size:14px;white-space:nowrap;"
+            >
+              ${escapeHtml(posterRate.displayLabel)}
             </div>
           </td>
         </tr>`);
