@@ -1220,7 +1220,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - rowTextOffset);
 
                     // Fare Badge
-                    const posterRate = getPosterRateDisplay(f.finalRate);
+                    const posterRate = getPosterRateDisplay(f.finalRate, f.flightDate);
                     const fareText = posterRate.displayLabel;
                     ctx.font = `900 ${tableSizes.fareSize}px Arial, sans-serif`;
                     ctx.textAlign = 'right';

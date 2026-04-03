@@ -1377,7 +1377,7 @@ async function renderPoster(fares, sectorId) {
         }
       }
 
-      const posterRate = getPosterRateDisplay(f.finalRate);
+      const posterRate = getPosterRateDisplay(f.finalRate, f.flightDate);
 
       rows.push(`
         <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
