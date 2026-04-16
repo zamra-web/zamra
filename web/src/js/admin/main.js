@@ -22,6 +22,7 @@ import {
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
   uploadAndQueueForSocial,
+  callSyncBufferChannels,
 } from './db.js';
 
 import { downloadVideoPoster } from './video-export.js';
@@ -1120,7 +1121,7 @@ async function queuePosterForSocial() {
           mediaType: 'image',
           ratio: null,
           caption,
-          platforms: ['instagram', 'whatsapp'],
+          platforms: ['instagram', 'facebook'],
         });
         ok++;
       } finally {
@@ -1214,7 +1215,7 @@ async function queueVideoForSocial(ratio) {
               mediaType: 'video',
               ratio,
               caption,
-              platforms: ['instagram', 'whatsapp'],
+              platforms: ['instagram', 'facebook', 'youtube'],
             });
             ok++;
           }
@@ -1242,7 +1243,7 @@ async function queueVideoForSocial(ratio) {
           mediaType: 'video',
           ratio,
           caption,
-          platforms: ['instagram', 'whatsapp'],
+          platforms: ['instagram', 'facebook', 'youtube'],
         });
         toast('success', 'Queued for Social', `${ratioLabel} video for ${sectorLabel} added to the posting queue.`);
       }
@@ -1322,6 +1323,25 @@ async function renderDashboardTab() {
     document.getElementById('poster-queue-social-vid-1x1')?.addEventListener('click', () => queueVideoForSocial('1x1'));
     document.getElementById('poster-queue-social-vid-9x16')?.addEventListener('click', () => queueVideoForSocial('9x16'));
     document.getElementById('poster-queue-social-vid-16x9')?.addEventListener('click', () => queueVideoForSocial('16x9'));
+    document.getElementById('poster-sync-buffer')?.addEventListener('click', () => syncBufferChannelsUI());
+  }
+}
+
+/* syncBufferChannelsUI — Prompts for the Buffer organizationId on the first run,
+   then calls the syncBufferChannels Cloud Function to cache channel IDs in
+   Firestore. Subsequent runs can leave the prompt blank to reuse the cached org. */
+async function syncBufferChannelsUI() {
+  try {
+    const organizationId = prompt(
+      'Buffer organizationId (leave blank to reuse cached):',
+      '',
+    );
+    const res = await callSyncBufferChannels(organizationId || undefined);
+    const services = Object.keys(res?.channels || {}).join(', ') || 'none';
+    toast('success', 'Buffer Synced', `Cached ${services} (${res?.rawCount || 0} total channels).`);
+  } catch (e) {
+    console.error('Buffer sync failed:', e);
+    toast('error', 'Sync Failed', e.message || 'Unknown error');
   }
 }
 

@@ -570,3 +570,20 @@ exports.purgeOldFaresDaily = onSchedule(
     );
   }
 );
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Buffer social auto-post
+//   - syncBufferChannels (callable): caches Buffer channel IDs to config/buffer
+//   - postSocialQueueToBuffer (firestore trigger): fans out social_queue items
+//     to Instagram/Facebook/YouTube via Buffer's GraphQL API.
+//   Secrets: BUFFER_API_KEY (personal API key from publish.buffer.com/settings/api)
+// ══════════════════════════════════════════════════════════════════════════════
+const { defineSecret } = require("firebase-functions/params");
+const BUFFER_API_KEY = defineSecret("BUFFER_API_KEY");
+
+exports.syncBufferChannels =
+  require("./admin/syncBufferChannels").build(requireAdmin, BUFFER_API_KEY);
+
+exports.postSocialQueueToBuffer =
+  require("./triggers/postToBuffer").build(BUFFER_API_KEY);

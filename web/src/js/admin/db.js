@@ -704,8 +704,9 @@ export async function callToggleSectorVisibility(sectorId, isHidden) {
 
 /**
  * Upload a poster or video blob to Firebase Storage, then enqueue it in
- * the `social_queue` Firestore collection for n8n to pick up and post to
- * Instagram / WhatsApp.
+ * the `social_queue` Firestore collection. The postSocialQueueToBuffer Cloud
+ * Function picks it up and publishes via Buffer to Instagram / Facebook /
+ * YouTube (YouTube only for videos).
  *
  * @param {Blob}   blob     — The JPEG image or MP4 video blob
  * @param {string} filename — Destination filename (e.g. 'ccj-jed-1x1-1234567890.mp4')
@@ -729,11 +730,24 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
     filename,
     caption: meta.caption || '',
     status: 'pending',
-    platforms: meta.platforms || ['instagram', 'whatsapp'],
+    platforms: meta.platforms || ['instagram', 'facebook', 'youtube'],
     createdAt: serverTimestamp(),
   });
 
   return { mediaUrl, queueId: docRef.id };
+}
+
+
+/**
+ * Sync Buffer channels: fetches connected IG/FB/YT channels from Buffer and
+ * caches their IDs to Firestore `config/buffer`. Run once after connecting
+ * accounts in Buffer, and again if channels change.
+ * @param {string} organizationId  — Buffer org ID (required on first run)
+ */
+export async function callSyncBufferChannels(organizationId) {
+  const fn = httpsCallable(functions, 'syncBufferChannels');
+  const result = await fn({ organizationId });
+  return result.data;
 }
 
 
