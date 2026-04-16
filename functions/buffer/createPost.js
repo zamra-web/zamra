@@ -2,6 +2,11 @@
  * Creates a Buffer post on a single channel.
  * Buffer's createPost mutation accepts only one channelId per call, so we fan out
  * from the Firestore trigger.
+ *
+ * Each platform requires its own `metadata` shape:
+ *   - instagram: { type: post|reel, shouldShareToFeed: true }
+ *   - facebook:  { type: post }
+ *   - youtube:   { title, categoryId }
  */
 
 const { bufferQuery } = require("./client");
@@ -11,6 +16,7 @@ const CREATE_POST_MUTATION = `
     $channelId: ChannelId!
     $text: String!
     $assets: AssetsInput
+    $metadata: PostInputMetaData
   ) {
     createPost(input: {
       channelId: $channelId
@@ -18,6 +24,7 @@ const CREATE_POST_MUTATION = `
       schedulingType: automatic
       mode: addToQueue
       assets: $assets
+      metadata: $metadata
     }) {
       ... on PostActionSuccess {
         post { id }
@@ -29,10 +36,9 @@ const CREATE_POST_MUTATION = `
   }
 `;
 
-/**
- * Build the assets input based on mediaType.
- * Buffer references media by URL — no direct upload needed.
- */
+// YouTube category 22 = "People & Blogs" (widely accepted, safe default).
+const YOUTUBE_DEFAULT_CATEGORY = "22";
+
 function buildAssets({ mediaType, mediaUrl }) {
   if (!mediaUrl) return null;
   if (mediaType === "video") {
@@ -42,22 +48,59 @@ function buildAssets({ mediaType, mediaUrl }) {
 }
 
 /**
+ * Build per-platform metadata. `ratio` is the video aspect ("1x1", "9x16",
+ * "16x9"); null for images.
+ */
+function buildMetadata({ platform, mediaType, ratio, text }) {
+  if (platform === "instagram") {
+    // All IG videos publish as Reels; images as feed posts.
+    const type = mediaType === "video" ? "reel" : "post";
+    return { instagram: { type, shouldShareToFeed: true } };
+  }
+  if (platform === "facebook") {
+    return { facebook: { type: "post" } };
+  }
+  if (platform === "youtube") {
+    // YouTube requires title + categoryId. Fall back to a sensible title.
+    const title = (text || "").trim().slice(0, 100) || "Zamra Travels";
+    return {
+      youtube: {
+        title,
+        categoryId: YOUTUBE_DEFAULT_CATEGORY,
+      },
+    };
+  }
+  return null;
+}
+
+/**
  * Create a post on a single Buffer channel.
  * Retries once on 429 after the server-indicated delay.
  *
  * @param {object} params
  * @param {string} params.apiKey
  * @param {string} params.channelId
+ * @param {string} params.platform    — 'instagram' | 'facebook' | 'youtube'
  * @param {string} params.text
  * @param {string} params.mediaUrl
  * @param {'image'|'video'} params.mediaType
+ * @param {string|null} [params.ratio]
  * @returns {Promise<{ ok: boolean, postId?: string, error?: string }>}
  */
-async function createPostOnChannel({ apiKey, channelId, text, mediaUrl, mediaType }) {
+async function createPostOnChannel({
+  apiKey,
+  channelId,
+  platform,
+  text,
+  mediaUrl,
+  mediaType,
+  ratio = null,
+}) {
   const variables = {
     channelId,
     text: text || "",
     assets: buildAssets({ mediaType, mediaUrl }),
+    metadata: buildMetadata({ platform, mediaType, ratio, text }),
   };
 
   try {

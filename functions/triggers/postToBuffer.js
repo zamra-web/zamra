@@ -40,6 +40,7 @@ function build(bufferApiKeySecret) {
       const mediaType = doc.mediaType === "video" ? "video" : "image";
       const mediaUrl = doc.mediaUrl;
       const caption = doc.caption || "";
+      const ratio = doc.ratio || null;
       const requestedPlatforms = Array.isArray(doc.platforms) ? doc.platforms : [];
 
       if (!mediaUrl) {
@@ -99,9 +100,11 @@ function build(bufferApiKeySecret) {
         const result = await createPostOnChannel({
           apiKey,
           channelId: target.channelId,
+          platform: target.platform,
           text: caption,
           mediaUrl,
           mediaType,
+          ratio,
         });
         if (result.ok) {
           bufferPostIds[target.platform] = result.postId;
