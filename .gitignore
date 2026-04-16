@@ -13,7 +13,10 @@ web/dist
 web/.firebase/
 .vercel/
 web/.vercel/
-firebase-debug.log
+firebase-debug*.log
+
+# Claude Code internal state
+.claude/
 
 # OS junk
 .DS_Store
