@@ -698,6 +698,45 @@ export async function callToggleSectorVisibility(sectorId, isHidden) {
   return result.data;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SOCIAL QUEUE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Upload a poster or video blob to Firebase Storage, then enqueue it in
+ * the `social_queue` Firestore collection for n8n to pick up and post to
+ * Instagram / WhatsApp.
+ *
+ * @param {Blob}   blob     — The JPEG image or MP4 video blob
+ * @param {string} filename — Destination filename (e.g. 'ccj-jed-1x1-1234567890.mp4')
+ * @param {{ sectorId: string, sectorCode: string, mediaType: 'image'|'video',
+ *            ratio: string|null, caption: string, platforms: string[] }} meta
+ * @returns {Promise<{ mediaUrl: string, queueId: string }>}
+ */
+export async function uploadAndQueueForSocial(blob, filename, meta) {
+  const fileRef = ref(storage, `generated_posters/${filename}`);
+  await uploadBytes(fileRef, blob, {
+    contentType: blob.type || (meta.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+  });
+  const mediaUrl = await getDownloadURL(fileRef);
+
+  const docRef = await addDoc(collection(db, 'social_queue'), {
+    sectorId: meta.sectorId || '',
+    sectorCode: meta.sectorCode || '',
+    mediaType: meta.mediaType || 'image',
+    ratio: meta.ratio || null,
+    mediaUrl,
+    filename,
+    caption: meta.caption || '',
+    status: 'pending',
+    platforms: meta.platforms || ['instagram', 'whatsapp'],
+    createdAt: serverTimestamp(),
+  });
+
+  return { mediaUrl, queueId: docRef.id };
+}
+
+
 /**
  * Generate an aggregated agent report.
  * @param {string|null} startDate  — optional 'YYYY-MM-DD'

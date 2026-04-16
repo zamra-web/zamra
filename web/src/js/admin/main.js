@@ -21,6 +21,7 @@ import {
   getHajjUmrahPackages, addHajjUmrahPackage, updateHajjUmrahPackage, deleteHajjUmrahPackage,
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
+  uploadAndQueueForSocial,
 } from './db.js';
 
 import { downloadVideoPoster } from './video-export.js';
@@ -1022,6 +1023,239 @@ function wirePosterVideoMenu() {
   });
 }
 
+function wirePosterSocialMenu() {
+  const wrapper = document.querySelector('[data-poster-social-menu]');
+  if (!wrapper || wrapper.dataset.wired) return;
+  wrapper.dataset.wired = '1';
+
+  const toggle = wrapper.querySelector('[data-poster-social-toggle]');
+  const menu = wrapper.querySelector('[data-poster-social-options]');
+  if (!toggle || !menu) return;
+
+  const isOpen = () => !menu.classList.contains('hidden');
+  const closeMenu = () => {
+    menu.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+  const openMenu = () => {
+    menu.classList.remove('hidden');
+    toggle.setAttribute('aria-expanded', 'true');
+  };
+
+  toggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isOpen()) closeMenu();
+    else openMenu();
+  });
+
+  menu.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('button')) closeMenu();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!wrapper.contains(e.target)) closeMenu();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMenu();
+  });
+}
+
+/** Renders every visible poster frame to a JPEG blob and uploads it to
+ *  Firebase Storage, then writes a pending doc to the social_queue collection. */
+async function queuePosterForSocial() {
+  const stack = document.getElementById('poster-render-stack');
+  const frames = stack ? Array.from(stack.querySelectorAll('[data-poster-frame="1"]')) : [];
+  if (!frames.length) {
+    toast('warning', 'No Poster', 'Generate a poster first before queuing it.');
+    return;
+  }
+
+  const btn = document.getElementById('poster-queue-social-img');
+  if (btn) { btn.disabled = true; btn.textContent = 'Queuing…'; }
+
+  const fileSafe = (s) => String(s || '').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+
+  let ok = 0;
+  try {
+    for (const posterEl of frames) {
+      const origTransform = posterEl.style.transform;
+      posterEl.style.transform = 'none';
+      try {
+        await Promise.all(
+          Array.from(posterEl.querySelectorAll('img')).map(img =>
+            img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
+          )
+        );
+
+        const canvas = await html2canvas(posterEl, {
+          scale: 2,
+          useCORS: false,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          onclone: (doc) => {
+            const target = posterEl.id ? doc.getElementById(posterEl.id) : null;
+            if (target) inlineColorsForCanvas(target);
+          }
+        });
+
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+        const sidRaw = posterEl.dataset.sectorId || '';
+        const sectorCode = posterEl.dataset.sectorCode || sidRaw;
+        const sector = _sectors.find(s => s.id === sidRaw);
+        const caption = sector
+          ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
+          : 'Special fares available now! Book at zamratravels.com';
+
+        const page = Number(posterEl.dataset.posterPage || 1);
+        const pageCount = Number(posterEl.dataset.posterPageCount || 1);
+        const pageSuffix = pageCount > 1 ? `-p${page}` : '';
+        const filename = `${fileSafe(sectorCode) || 'poster'}${pageSuffix}-${Date.now()}.jpg`;
+
+        await uploadAndQueueForSocial(blob, filename, {
+          sectorId: sidRaw,
+          sectorCode,
+          mediaType: 'image',
+          ratio: null,
+          caption,
+          platforms: ['instagram', 'whatsapp'],
+        });
+        ok++;
+      } finally {
+        posterEl.style.transform = origTransform;
+      }
+    }
+    toast('success', 'Queued for Social', `${ok} image${ok > 1 ? 's' : ''} added to the posting queue.`);
+  } catch (e) {
+    console.error('Social queue failed:', e);
+    toast('error', 'Queue Failed', e.message || 'Failed to upload poster.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Queue Image'; }
+  }
+}
+
+/** Generates a video for the current sector/date selection and uploads it to
+ *  Firebase Storage as a pending social_queue item. */
+async function queueVideoForSocial(ratio) {
+  const sectorSel = document.getElementById('poster-sector-sel');
+  const startInput = document.getElementById('poster-start-date');
+  const endInput = document.getElementById('poster-end-date');
+  const sectorId = sectorSel?.value;
+  const { startDate, endDate } = getPosterDateRange(startInput, endInput);
+
+  if (!sectorId) {
+    toast('warning', 'Validation Error', 'Please select a sector before queuing a video.');
+    return;
+  }
+
+  if (isVideoPosterGenerating) {
+    toast('warning', 'Video Generation', 'A video export is already running. Please wait…');
+    return;
+  }
+
+  const ratioLabel = ratio.replace('x', ':');
+  const progressEl = document.getElementById('poster-video-progress');
+  const setProgress = (msg) => {
+    if (!progressEl) return;
+    if (msg) { progressEl.textContent = msg; progressEl.classList.remove('hidden'); }
+    else { progressEl.classList.add('hidden'); }
+  };
+
+  const fileSafe = (s) => String(s || '').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+
+  isVideoPosterGenerating = true;
+  setProgress(`Generating ${ratioLabel} video…`);
+
+  try {
+    const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
+    if (!fares || !fares.length) {
+      toast('warning', 'No Fares', 'No live fares found for the selected sector and dates.');
+      return;
+    }
+
+    if (sectorId === 'all') {
+      const faresBySector = new Map();
+      fares.forEach(f => {
+        const sid = f.sectorId || 'unknown';
+        if (!faresBySector.has(sid)) faresBySector.set(sid, []);
+        faresBySector.get(sid).push(f);
+      });
+
+      const order = new Map(_sectors.map((s, idx) => [s.id, idx]));
+      const sectorIds = Array.from(faresBySector.keys()).sort((a, b) => {
+        const oa = order.get(a) ?? 1e9;
+        const ob = order.get(b) ?? 1e9;
+        return oa !== ob ? oa - ob : String(a).localeCompare(String(b));
+      });
+
+      toast('info', 'Queue Videos', `Generating ${sectorIds.length} videos for the queue…`);
+      let ok = 0;
+      for (let idx = 0; idx < sectorIds.length; idx++) {
+        const sid = sectorIds[idx];
+        const sectorFares = faresBySector.get(sid) || [];
+        if (!sectorFares.length) continue;
+        const sector = _sectors.find(s => s.id === sid);
+        const sectorLabel = sector?.sectorCode || sid;
+        setProgress(`Rendering ${idx + 1}/${sectorIds.length} · ${sectorLabel}`);
+        try {
+          const result = await downloadVideoPoster(ratio, sectorFares, sid, _sectors, _airlines, {
+            autoDownload: false, returnBlob: true, requireMp4: true,
+          });
+          if (result?.blob) {
+            const filename = `${fileSafe(sectorLabel)}-${ratio}-${Date.now()}.mp4`;
+            const caption = sector
+              ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
+              : 'Special fares available now! Book at zamratravels.com';
+            await uploadAndQueueForSocial(result.blob, filename, {
+              sectorId: sid,
+              sectorCode: sectorLabel,
+              mediaType: 'video',
+              ratio,
+              caption,
+              platforms: ['instagram', 'whatsapp'],
+            });
+            ok++;
+          }
+        } catch (e) {
+          console.error('Video queue failed for sector', sid, e);
+        }
+        await new Promise(res => setTimeout(res, 250));
+      }
+      if (ok) toast('success', 'Queued for Social', `${ok} video${ok > 1 ? 's' : ''} added to the posting queue.`);
+    } else {
+      const sector = _sectors.find(s => s.id === sectorId);
+      const sectorLabel = sector?.sectorCode || sectorId;
+      setProgress(`Rendering ${ratioLabel} video…`);
+      const result = await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines, {
+        autoDownload: false, returnBlob: true, requireMp4: true,
+      });
+      if (result?.blob) {
+        const filename = `${fileSafe(sectorLabel)}-${ratio}-${Date.now()}.mp4`;
+        const caption = sector
+          ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
+          : 'Special fares available now! Book at zamratravels.com';
+        await uploadAndQueueForSocial(result.blob, filename, {
+          sectorId,
+          sectorCode: sectorLabel,
+          mediaType: 'video',
+          ratio,
+          caption,
+          platforms: ['instagram', 'whatsapp'],
+        });
+        toast('success', 'Queued for Social', `${ratioLabel} video for ${sectorLabel} added to the posting queue.`);
+      }
+    }
+  } catch (e) {
+    console.error('Video queue failed:', e);
+    toast('error', 'Queue Failed', e.message || 'Failed to generate or upload video.');
+  } finally {
+    isVideoPosterGenerating = false;
+    setProgress(null);
+  }
+}
+
 async function renderDashboardTab() {
   const tab = document.getElementById('dashboard-tab');
   if (!tab) return;
@@ -1039,6 +1273,7 @@ async function renderDashboardTab() {
   const endInput = document.getElementById('poster-end-date');
   getPosterDateRange(startInput, endInput);
   wirePosterVideoMenu();
+  wirePosterSocialMenu();
 
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');
@@ -1081,6 +1316,12 @@ async function renderDashboardTab() {
     document.getElementById('poster-download-vid-1x1')?.addEventListener('click', () => handleVideoPoster('1x1'));
     document.getElementById('poster-download-vid-9x16')?.addEventListener('click', () => handleVideoPoster('9x16'));
     document.getElementById('poster-download-vid-16x9')?.addEventListener('click', () => handleVideoPoster('16x9'));
+
+    // Wire up social queue buttons
+    document.getElementById('poster-queue-social-img')?.addEventListener('click', () => queuePosterForSocial());
+    document.getElementById('poster-queue-social-vid-1x1')?.addEventListener('click', () => queueVideoForSocial('1x1'));
+    document.getElementById('poster-queue-social-vid-9x16')?.addEventListener('click', () => queueVideoForSocial('9x16'));
+    document.getElementById('poster-queue-social-vid-16x9')?.addEventListener('click', () => queueVideoForSocial('16x9'));
   }
 }
 

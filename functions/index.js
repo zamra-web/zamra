@@ -484,7 +484,77 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 7. purgeOldFaresDaily (Scheduled)
+// 7. getSocialQueue
+//    Returns pending items from social_queue for n8n to process and post.
+//    GET  /getSocialQueue?sectorId=X&mediaType=image&limit=50
+// ══════════════════════════════════════════════════════════════════════════════
+const N8N_SOCIAL_TOKEN = "ZamraSocialQueue2024";
+
+exports.getSocialQueue = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
+  if (req.method !== "GET") return res.status(405).send("Method Not Allowed");
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== `Bearer ${N8N_SOCIAL_TOKEN}`) {
+    return res.status(401).send("Unauthorized");
+  }
+
+  const { sectorId, mediaType, limit: limitParam } = req.query;
+  let query = db.collection("social_queue").where("status", "==", "pending");
+  if (sectorId) query = query.where("sectorId", "==", sectorId);
+  if (mediaType) query = query.where("mediaType", "==", mediaType);
+  query = query.orderBy("createdAt", "asc").limit(Number(limitParam) || 50);
+
+  const snap = await query.get();
+  const items = snap.docs.map(d => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || null,
+  }));
+
+  res.status(200).json({ success: true, count: items.length, items });
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 8. markSocialPosted
+//    Called by n8n after posting to update a social_queue item's status.
+//    POST /markSocialPosted  { id, status, platforms?, postedAt? }
+// ══════════════════════════════════════════════════════════════════════════════
+exports.markSocialPosted = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== `Bearer ${N8N_SOCIAL_TOKEN}`) {
+    return res.status(401).send("Unauthorized");
+  }
+
+  const { id, status, platforms, postedAt } = req.body || {};
+  if (!id || !status) {
+    return res.status(400).json({ error: "id and status are required." });
+  }
+
+  const validStatuses = ["posted", "failed", "skipped"];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${validStatuses.join(", ")}` });
+  }
+
+  const docRef = db.collection("social_queue").doc(id);
+  const snap = await docRef.get();
+  if (!snap.exists) return res.status(404).json({ error: "Queue item not found." });
+
+  await docRef.update({
+    status,
+    postedAt: postedAt ? new Date(postedAt) : FieldValue.serverTimestamp(),
+    postedToPlatforms: platforms || [],
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  res.status(200).json({ success: true, id, status });
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 9. purgeOldFaresDaily (Scheduled)
 //    Deletes fares older than 2 days (by flightDate, UTC midnight).
 // ══════════════════════════════════════════════════════════════════════════════
 exports.purgeOldFaresDaily = onSchedule(

@@ -90,5 +90,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── social_queue ──────────────────────────────────────────────────────────
+    // Items queued for posting to Instagram / WhatsApp via n8n
+    match /social_queue/{itemId} {
+      allow read, write: if isAdmin();
+    }
+
   }
 }
