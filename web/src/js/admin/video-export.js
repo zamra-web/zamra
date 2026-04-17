@@ -479,7 +479,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             table: { headSize: 18, headOffset: 20, dateSize: 24, sectorSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 96, h: 36 },
             footer: { logo: 44, titleSize: 22, infoSize: 18 },
-            columns: { sector: 0.28, airline: 0.5, time: 0.72 },
+            columns: { sector: 0.22, airline: 0.42, time: 0.6 },
             minDuration: 9000,
             motion: {
                 rowsStart: 1300,
@@ -519,7 +519,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             table: { headSize: 19, headOffset: 24, dateSize: 26, sectorSize: 22, timeSize: 22, fareSize: 26 },
             logo: { maxW: 110, h: 40 },
             footer: { logo: 48, titleSize: 24, infoSize: 20 },
-            columns: { sector: 0.29, airline: 0.5, time: 0.71 },
+            columns: { sector: 0.22, airline: 0.42, time: 0.6 },
             minDuration: 10000,
             motion: {
                 rowsStart: 1500,
@@ -559,7 +559,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             table: { headSize: 18, headOffset: 18, dateSize: 22, sectorSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 110, h: 36 },
             footer: { logo: 42, titleSize: 22, infoSize: 18 },
-            columns: { sector: 0.3, airline: 0.55, time: 0.75 },
+            columns: { sector: 0.22, airline: 0.42, time: 0.6 },
             minDuration: 8000,
             motion: {
                 rowsStart: 1100,
