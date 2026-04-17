@@ -591,6 +591,29 @@ exports.postSocialQueueToBuffer =
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// autoPostDaily (Scheduled, 10:00 Asia/Kolkata)
+//   Renders a simplified daily poster for each sector in
+//   `posting_schedule/daily` and enqueues it via social_queue. The existing
+//   postSocialQueueToBuffer trigger publishes to Buffer. Requires 2GiB mem
+//   because it bundles headless Chromium (via @sparticuz/chromium) to render.
+//
+//   Also exports `runDailyPostNow` — an admin-only callable that runs the
+//   same logic on demand, for testing without waiting for the cron.
+// ══════════════════════════════════════════════════════════════════════════════
+exports.autoPostDaily = require("./scheduled/autoPostDaily").build();
+
+exports.runDailyPostNow = onCall(
+  { region: "asia-south1", memory: "2GiB", timeoutSeconds: 540 },
+  async (request) => {
+    requireAdmin(request);
+    const { runDailyPost } = require("./scheduled/autoPostDaily");
+    await runDailyPost();
+    return { ok: true };
+  },
+);
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 10. purgeProcessedSocialQueue (Scheduled, every 5 min)
 //    Deletes social_queue docs and their Storage files 10+ minutes after
 //    processing, so generated posters don't accumulate forever. Only touches
