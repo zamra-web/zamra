@@ -481,6 +481,20 @@ html[data-theme="dark"] {
         border-color: #0c4a8a;
     }
 
+    .admin-btn-social {
+        color: #047857;
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border-color: #86efac;
+        box-shadow: 0 10px 18px -16px rgba(5, 150, 105, 0.55);
+    }
+
+    .admin-btn-social:hover {
+        color: #065f46;
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        border-color: #4ade80;
+        box-shadow: 0 18px 30px -22px rgba(5, 150, 105, 0.6);
+    }
+
     .admin-btn-ghost {
         color: var(--text-mid);
         background: #f8fafc;
@@ -1315,6 +1329,19 @@ html[data-theme="dark"] .admin-btn-soft:hover {
     background: linear-gradient(135deg, #1e67c2 0%, #0c4a8a 100%);
     border-color: #0c4a8a;
     color: #ffffff;
+}
+
+html[data-theme="dark"] .admin-btn-social {
+    background: rgba(16, 185, 129, 0.16);
+    border-color: rgba(74, 222, 128, 0.4);
+    color: #a7f3d0;
+}
+
+html[data-theme="dark"] .admin-btn-social:hover {
+    background: rgba(16, 185, 129, 0.24);
+    border-color: rgba(110, 231, 183, 0.56);
+    color: #ecfdf5;
+    box-shadow: 0 18px 28px -22px rgba(16, 185, 129, 0.45);
 }
 
 html[data-theme="dark"] .admin-pagination-wrap {
