@@ -8,6 +8,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
+const { getStorage } = require("firebase-admin/storage");
 
 initializeApp();
 const db = getFirestore();
@@ -587,3 +588,90 @@ exports.syncBufferChannels =
 
 exports.postSocialQueueToBuffer =
   require("./triggers/postToBuffer").build(BUFFER_API_KEY);
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 10. purgeProcessedSocialQueue (Scheduled, every 5 min)
+//    Deletes social_queue docs and their Storage files 10+ minutes after
+//    processing, so generated posters don't accumulate forever. Only touches
+//    terminal statuses — anything still "pending" is left alone for debugging.
+// ══════════════════════════════════════════════════════════════════════════════
+const TERMINAL_STATUSES = ["queued", "posted", "failed", "skipped"];
+const PURGE_AGE_MS = 10 * 60 * 1000;
+
+/**
+ * Extracts `generated_posters/<file>` from a Firebase Storage download URL.
+ * URLs look like: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<url-encoded-path>?alt=media&token=...
+ */
+function pathFromStorageUrl(url) {
+  if (typeof url !== "string" || !url) return null;
+  const marker = "/o/";
+  const i = url.indexOf(marker);
+  if (i === -1) return null;
+  const tail = url.slice(i + marker.length).split("?")[0];
+  try {
+    return decodeURIComponent(tail);
+  } catch {
+    return null;
+  }
+}
+
+async function deleteStorageFiles(paths) {
+  const bucket = getStorage().bucket();
+  const unique = [...new Set(paths.filter(Boolean))];
+  await Promise.all(unique.map(async (p) => {
+    try {
+      await bucket.file(p).delete({ ignoreNotFound: true });
+    } catch (e) {
+      console.warn(`purgeProcessedSocialQueue: failed to delete ${p}: ${e.message}`);
+    }
+  }));
+}
+
+exports.purgeProcessedSocialQueue = onSchedule(
+  { region: "asia-south1", schedule: "every 5 minutes", timeZone: "UTC" },
+  async () => {
+    const cutoff = Date.now() - PURGE_AGE_MS;
+    const snap = await db.collection("social_queue")
+      .where("status", "in", TERMINAL_STATUSES)
+      .get();
+
+    let deletedDocs = 0;
+    let deletedFiles = 0;
+
+    for (const doc of snap.docs) {
+      const data = doc.data() || {};
+      const stamp = data.processedAt || data.postedAt || data.createdAt;
+      const ms = stamp && typeof stamp.toMillis === "function" ? stamp.toMillis() : 0;
+      if (!ms || ms > cutoff) continue;
+
+      const paths = [];
+      if (Array.isArray(data.filenames) && data.filenames.length) {
+        data.filenames.forEach((f) => paths.push(`generated_posters/${f}`));
+      } else if (data.filename) {
+        paths.push(`generated_posters/${data.filename}`);
+      } else if (Array.isArray(data.mediaUrls)) {
+        data.mediaUrls.forEach((u) => {
+          const p = pathFromStorageUrl(u);
+          if (p) paths.push(p);
+        });
+      } else if (data.mediaUrl) {
+        const p = pathFromStorageUrl(data.mediaUrl);
+        if (p) paths.push(p);
+      }
+      if (data.storyMediaUrl) {
+        const p = pathFromStorageUrl(data.storyMediaUrl);
+        if (p) paths.push(p);
+      }
+
+      await deleteStorageFiles(paths);
+      deletedFiles += paths.length;
+      await doc.ref.delete();
+      deletedDocs += 1;
+    }
+
+    console.log(
+      `purgeProcessedSocialQueue: deleted ${deletedDocs} doc(s), ${deletedFiles} file(s)`
+    );
+  }
+);

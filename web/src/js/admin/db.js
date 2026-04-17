@@ -721,10 +721,21 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
   });
   const mediaUrl = await getDownloadURL(fileRef);
 
+  const mediaType = meta.mediaType || 'image';
+
+  let storyMediaUrl = null;
+  if (mediaType === 'image' && meta.storyItem && meta.storyItem.blob) {
+    const storyRef = ref(storage, `generated_posters/${meta.storyItem.filename}`);
+    await uploadBytes(storyRef, meta.storyItem.blob, {
+      contentType: meta.storyItem.blob.type || 'image/jpeg',
+    });
+    storyMediaUrl = await getDownloadURL(storyRef);
+  }
+
   const docRef = await addDoc(collection(db, 'social_queue'), {
     sectorId: meta.sectorId || '',
     sectorCode: meta.sectorCode || '',
-    mediaType: meta.mediaType || 'image',
+    mediaType,
     ratio: meta.ratio || null,
     mediaUrl,
     mediaUrls: [mediaUrl],
@@ -732,10 +743,12 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
     caption: meta.caption || '',
     status: 'pending',
     platforms: meta.platforms || ['instagram', 'facebook', 'youtube'],
+    includeStories: mediaType === 'image' ? (meta.includeStories !== false) : false,
+    storyMediaUrl,
     createdAt: serverTimestamp(),
   });
 
-  return { mediaUrl, queueId: docRef.id };
+  return { mediaUrl, storyMediaUrl, queueId: docRef.id };
 }
 
 
@@ -762,6 +775,15 @@ export async function uploadAndQueueCarousel(items, meta) {
     filenames.push(filename);
   }
 
+  let storyMediaUrl = null;
+  if (meta.storyItem && meta.storyItem.blob) {
+    const storyRef = ref(storage, `generated_posters/${meta.storyItem.filename}`);
+    await uploadBytes(storyRef, meta.storyItem.blob, {
+      contentType: meta.storyItem.blob.type || 'image/jpeg',
+    });
+    storyMediaUrl = await getDownloadURL(storyRef);
+  }
+
   const docRef = await addDoc(collection(db, 'social_queue'), {
     sectorId: meta.sectorId || '',
     sectorCode: meta.sectorCode || '',
@@ -774,10 +796,12 @@ export async function uploadAndQueueCarousel(items, meta) {
     caption: meta.caption || '',
     status: 'pending',
     platforms: meta.platforms || ['instagram', 'facebook'],
+    includeStories: meta.includeStories !== false,
+    storyMediaUrl,
     createdAt: serverTimestamp(),
   });
 
-  return { mediaUrls, queueId: docRef.id };
+  return { mediaUrls, storyMediaUrl, queueId: docRef.id };
 }
 
 

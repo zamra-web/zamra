@@ -19,6 +19,7 @@ const { readCachedChannels } = require("../buffer/channels");
 const { createPostOnChannel } = require("../buffer/createPost");
 
 const ELIGIBLE_PLATFORMS = ["instagram", "facebook", "youtube"];
+const STORY_PLATFORMS = ["instagram", "facebook"];
 
 function build(bufferApiKeySecret) {
   return onDocumentCreated(
@@ -44,6 +45,8 @@ function build(bufferApiKeySecret) {
       const caption = doc.caption || "";
       const ratio = doc.ratio || null;
       const requestedPlatforms = Array.isArray(doc.platforms) ? doc.platforms : [];
+      const includeStories = doc.includeStories === true && mediaType === "image";
+      const storyMediaUrl = typeof doc.storyMediaUrl === "string" && doc.storyMediaUrl ? doc.storyMediaUrl : null;
 
       if (mediaUrls.length === 0) {
         await snap.ref.update({
@@ -114,6 +117,31 @@ function build(bufferApiKeySecret) {
         } else {
           errors.push({ platform: target.platform, message: result.error });
           console.error(`[postToBuffer] ${snap.id} → ${target.platform}: ${result.error}`);
+        }
+
+        if (includeStories && STORY_PLATFORMS.includes(target.platform)) {
+          // Stories don't support carousels — post only one image.
+          // Prefer the 9:16 story render when the producer uploaded one;
+          // otherwise fall back to the first feed image.
+          const storyUrl = storyMediaUrl || mediaUrls[0];
+          const storyResult = await createPostOnChannel({
+            apiKey,
+            channelId: target.channelId,
+            platform: target.platform,
+            text: caption,
+            mediaUrls: [storyUrl],
+            mediaType,
+            ratio: storyMediaUrl ? "9x16" : ratio,
+            postType: "story",
+          });
+          const storyKey = `${target.platform}_story`;
+          if (storyResult.ok) {
+            bufferPostIds[storyKey] = storyResult.postId;
+            console.log(`[postToBuffer] ${snap.id} → ${storyKey}: ok postId=${storyResult.postId}`);
+          } else {
+            errors.push({ platform: storyKey, message: storyResult.error });
+            console.error(`[postToBuffer] ${snap.id} → ${storyKey}: ${storyResult.error}`);
+          }
         }
       }
 

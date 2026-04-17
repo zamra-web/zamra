@@ -50,15 +50,21 @@ function buildAssets({ mediaType, mediaUrls }) {
 
 /**
  * Build per-platform metadata. `ratio` is the video aspect ("1x1", "9x16",
- * "16x9"); null for images.
+ * "16x9"); null for images. `postType` is "feed" (default) or "story".
  */
-function buildMetadata({ platform, mediaType, ratio, text }) {
+function buildMetadata({ platform, mediaType, ratio, text, postType }) {
   if (platform === "instagram") {
+    if (postType === "story") {
+      return { instagram: { type: "story" } };
+    }
     // All IG videos publish as Reels; images as feed posts.
     const type = mediaType === "video" ? "reel" : "post";
     return { instagram: { type, shouldShareToFeed: true } };
   }
   if (platform === "facebook") {
+    if (postType === "story") {
+      return { facebook: { type: "story" } };
+    }
     return { facebook: { type: "post" } };
   }
   if (platform === "youtube") {
@@ -87,6 +93,7 @@ function buildMetadata({ platform, mediaType, ratio, text }) {
  * @param {string[]} params.mediaUrls — one or more media URLs
  * @param {'image'|'video'} params.mediaType
  * @param {string|null} [params.ratio]
+ * @param {'feed'|'story'} [params.postType='feed']
  * @returns {Promise<{ ok: boolean, postId?: string, error?: string }>}
  */
 async function createPostOnChannel({
@@ -97,12 +104,13 @@ async function createPostOnChannel({
   mediaUrls,
   mediaType,
   ratio = null,
+  postType = "feed",
 }) {
   const variables = {
     channelId,
     text: text || "",
     assets: buildAssets({ mediaType, mediaUrls }),
-    metadata: buildMetadata({ platform, mediaType, ratio, text }),
+    metadata: buildMetadata({ platform, mediaType, ratio, text, postType }),
   };
 
   try {
