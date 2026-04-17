@@ -727,6 +727,7 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
     mediaType: meta.mediaType || 'image',
     ratio: meta.ratio || null,
     mediaUrl,
+    mediaUrls: [mediaUrl],
     filename,
     caption: meta.caption || '',
     status: 'pending',
@@ -735,6 +736,48 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
   });
 
   return { mediaUrl, queueId: docRef.id };
+}
+
+
+/**
+ * Upload multiple image blobs and enqueue them as a single carousel post.
+ * Produces ONE `social_queue` doc with `mediaUrls` (array) so the Buffer trigger
+ * publishes a single multi-image post (Instagram/Facebook carousel).
+ *
+ * @param {Array<{ blob: Blob, filename: string }>} items — 1..10 images
+ * @param {{ sectorId: string, sectorCode: string, caption: string, platforms: string[] }} meta
+ * @returns {Promise<{ mediaUrls: string[], queueId: string }>}
+ */
+export async function uploadAndQueueCarousel(items, meta) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('uploadAndQueueCarousel: items is empty');
+  }
+
+  const mediaUrls = [];
+  const filenames = [];
+  for (const { blob, filename } of items) {
+    const fileRef = ref(storage, `generated_posters/${filename}`);
+    await uploadBytes(fileRef, blob, { contentType: blob.type || 'image/jpeg' });
+    mediaUrls.push(await getDownloadURL(fileRef));
+    filenames.push(filename);
+  }
+
+  const docRef = await addDoc(collection(db, 'social_queue'), {
+    sectorId: meta.sectorId || '',
+    sectorCode: meta.sectorCode || '',
+    mediaType: 'image',
+    ratio: null,
+    mediaUrl: mediaUrls[0],
+    mediaUrls,
+    filename: filenames[0],
+    filenames,
+    caption: meta.caption || '',
+    status: 'pending',
+    platforms: meta.platforms || ['instagram', 'facebook'],
+    createdAt: serverTimestamp(),
+  });
+
+  return { mediaUrls, queueId: docRef.id };
 }
 
 

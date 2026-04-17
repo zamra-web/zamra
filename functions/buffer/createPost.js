@@ -22,7 +22,7 @@ const CREATE_POST_MUTATION = `
       channelId: $channelId
       text: $text
       schedulingType: automatic
-      mode: addToQueue
+      mode: shareNow
       assets: $assets
       metadata: $metadata
     }) {
@@ -39,12 +39,13 @@ const CREATE_POST_MUTATION = `
 // YouTube category 22 = "People & Blogs" (widely accepted, safe default).
 const YOUTUBE_DEFAULT_CATEGORY = "22";
 
-function buildAssets({ mediaType, mediaUrl }) {
-  if (!mediaUrl) return null;
+function buildAssets({ mediaType, mediaUrls }) {
+  const urls = Array.isArray(mediaUrls) ? mediaUrls.filter(Boolean) : [];
+  if (urls.length === 0) return null;
   if (mediaType === "video") {
-    return { videos: [{ url: mediaUrl }] };
+    return { videos: urls.map((url) => ({ url })) };
   }
-  return { images: [{ url: mediaUrl }] };
+  return { images: urls.map((url) => ({ url })) };
 }
 
 /**
@@ -76,13 +77,14 @@ function buildMetadata({ platform, mediaType, ratio, text }) {
 /**
  * Create a post on a single Buffer channel.
  * Retries once on 429 after the server-indicated delay.
+ * When mediaUrls has more than one image, it's posted as a carousel (IG/FB).
  *
  * @param {object} params
  * @param {string} params.apiKey
  * @param {string} params.channelId
  * @param {string} params.platform    — 'instagram' | 'facebook' | 'youtube'
  * @param {string} params.text
- * @param {string} params.mediaUrl
+ * @param {string[]} params.mediaUrls — one or more media URLs
  * @param {'image'|'video'} params.mediaType
  * @param {string|null} [params.ratio]
  * @returns {Promise<{ ok: boolean, postId?: string, error?: string }>}
@@ -92,14 +94,14 @@ async function createPostOnChannel({
   channelId,
   platform,
   text,
-  mediaUrl,
+  mediaUrls,
   mediaType,
   ratio = null,
 }) {
   const variables = {
     channelId,
     text: text || "",
-    assets: buildAssets({ mediaType, mediaUrl }),
+    assets: buildAssets({ mediaType, mediaUrls }),
     metadata: buildMetadata({ platform, mediaType, ratio, text }),
   };
 

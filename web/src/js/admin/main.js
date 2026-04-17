@@ -21,7 +21,7 @@ import {
   getHajjUmrahPackages, addHajjUmrahPackage, updateHajjUmrahPackage, deleteHajjUmrahPackage,
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
-  uploadAndQueueForSocial,
+  uploadAndQueueForSocial, uploadAndQueueCarousel,
   callSyncBufferChannels,
 } from './db.js';
 
@@ -1063,8 +1063,9 @@ function wirePosterSocialMenu() {
   });
 }
 
-/** Renders every visible poster frame to a JPEG blob and uploads it to
- *  Firebase Storage, then writes a pending doc to the social_queue collection. */
+/** Renders every visible poster frame to a JPEG blob and queues it for Buffer.
+ *  Multi-page sectors are uploaded as a single carousel post (one queue doc
+ *  with `mediaUrls` containing all page URLs). */
 async function queuePosterForSocial() {
   const stack = document.getElementById('poster-render-stack');
   const frames = stack ? Array.from(stack.querySelectorAll('[data-poster-frame="1"]')) : [];
@@ -1078,57 +1079,79 @@ async function queuePosterForSocial() {
 
   const fileSafe = (s) => String(s || '').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
 
-  let ok = 0;
-  try {
-    for (const posterEl of frames) {
-      const origTransform = posterEl.style.transform;
-      posterEl.style.transform = 'none';
-      try {
-        await Promise.all(
-          Array.from(posterEl.querySelectorAll('img')).map(img =>
-            img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
-          )
-        );
+  // Group frames by sector so multi-page sectors become one carousel.
+  const groups = new Map();
+  for (const frame of frames) {
+    const sid = frame.dataset.sectorId || '';
+    if (!groups.has(sid)) groups.set(sid, []);
+    groups.get(sid).push(frame);
+  }
+  // Preserve page order within each sector group.
+  for (const list of groups.values()) {
+    list.sort((a, b) => Number(a.dataset.posterPage || 1) - Number(b.dataset.posterPage || 1));
+  }
 
-        const canvas = await html2canvas(posterEl, {
-          scale: 2,
-          useCORS: false,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          onclone: (doc) => {
-            const target = posterEl.id ? doc.getElementById(posterEl.id) : null;
-            if (target) inlineColorsForCanvas(target);
-          }
-        });
-
-        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-        const sidRaw = posterEl.dataset.sectorId || '';
-        const sectorCode = posterEl.dataset.sectorCode || sidRaw;
-        const sector = _sectors.find(s => s.id === sidRaw);
-        const caption = sector
-          ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
-          : 'Special fares available now! Book at zamratravels.com';
-
-        const page = Number(posterEl.dataset.posterPage || 1);
-        const pageCount = Number(posterEl.dataset.posterPageCount || 1);
-        const pageSuffix = pageCount > 1 ? `-p${page}` : '';
-        const filename = `${fileSafe(sectorCode) || 'poster'}${pageSuffix}-${Date.now()}.jpg`;
-
-        await uploadAndQueueForSocial(blob, filename, {
-          sectorId: sidRaw,
-          sectorCode,
-          mediaType: 'image',
-          ratio: null,
-          caption,
-          platforms: ['instagram', 'facebook'],
-        });
-        ok++;
-      } finally {
-        posterEl.style.transform = origTransform;
-      }
+  const renderFrame = async (posterEl) => {
+    const origTransform = posterEl.style.transform;
+    posterEl.style.transform = 'none';
+    try {
+      await Promise.all(
+        Array.from(posterEl.querySelectorAll('img')).map(img =>
+          img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
+        )
+      );
+      const canvas = await html2canvas(posterEl, {
+        scale: 2,
+        useCORS: false,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (doc) => {
+          const target = posterEl.id ? doc.getElementById(posterEl.id) : null;
+          if (target) inlineColorsForCanvas(target);
+        },
+      });
+      return await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    } finally {
+      posterEl.style.transform = origTransform;
     }
-    toast('success', 'Queued for Social', `${ok} image${ok > 1 ? 's' : ''} added to the posting queue.`);
+  };
+
+  let carousels = 0;
+  let totalImages = 0;
+  try {
+    for (const [sidRaw, group] of groups) {
+      const first = group[0];
+      const sectorCode = first.dataset.sectorCode || sidRaw;
+      const sector = _sectors.find(s => s.id === sidRaw);
+      const caption = sector
+        ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
+        : 'Special fares available now! Book at zamratravels.com';
+
+      const items = [];
+      for (const frame of group) {
+        const blob = await renderFrame(frame);
+        if (!blob) continue;
+        const page = Number(frame.dataset.posterPage || 1);
+        const pageSuffix = group.length > 1 ? `-p${page}` : '';
+        const filename = `${fileSafe(sectorCode) || 'poster'}${pageSuffix}-${Date.now()}.jpg`;
+        items.push({ blob, filename });
+      }
+      if (!items.length) continue;
+
+      await uploadAndQueueCarousel(items, {
+        sectorId: sidRaw,
+        sectorCode,
+        caption,
+        platforms: ['instagram', 'facebook'],
+      });
+      carousels++;
+      totalImages += items.length;
+    }
+
+    const carouselLabel = carousels === 1 ? 'carousel' : 'carousels';
+    const imgLabel = totalImages === 1 ? 'image' : 'images';
+    toast('success', 'Queued for Social', `${carousels} ${carouselLabel} (${totalImages} ${imgLabel}) sent to Buffer.`);
   } catch (e) {
     console.error('Social queue failed:', e);
     toast('error', 'Queue Failed', e.message || 'Failed to upload poster.');

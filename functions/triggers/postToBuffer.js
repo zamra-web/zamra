@@ -38,15 +38,17 @@ function build(bufferApiKeySecret) {
       }
 
       const mediaType = doc.mediaType === "video" ? "video" : "image";
-      const mediaUrl = doc.mediaUrl;
+      const mediaUrls = Array.isArray(doc.mediaUrls) && doc.mediaUrls.length
+        ? doc.mediaUrls.filter(Boolean)
+        : (doc.mediaUrl ? [doc.mediaUrl] : []);
       const caption = doc.caption || "";
       const ratio = doc.ratio || null;
       const requestedPlatforms = Array.isArray(doc.platforms) ? doc.platforms : [];
 
-      if (!mediaUrl) {
+      if (mediaUrls.length === 0) {
         await snap.ref.update({
           status: "failed",
-          errors: [{ platform: null, message: "mediaUrl missing on queue doc" }],
+          errors: [{ platform: null, message: "mediaUrl(s) missing on queue doc" }],
           processedAt: FieldValue.serverTimestamp(),
         });
         return;
@@ -102,7 +104,7 @@ function build(bufferApiKeySecret) {
           channelId: target.channelId,
           platform: target.platform,
           text: caption,
-          mediaUrl,
+          mediaUrls,
           mediaType,
           ratio,
         });
