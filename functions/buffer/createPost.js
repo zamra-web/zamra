@@ -52,7 +52,7 @@ function buildAssets({ mediaType, mediaUrls }) {
  * Build per-platform metadata. `ratio` is the video aspect ("1x1", "9x16",
  * "16x9"); null for images. `postType` is "feed" (default) or "story".
  */
-function buildMetadata({ platform, mediaType, ratio, text, postType }) {
+function buildMetadata({ platform, mediaType, text, postType, youtubeTitle }) {
   if (platform === "instagram") {
     if (postType === "story") {
       return { instagram: { type: "story" } };
@@ -69,7 +69,7 @@ function buildMetadata({ platform, mediaType, ratio, text, postType }) {
   }
   if (platform === "youtube") {
     // YouTube requires title + categoryId. Fall back to a sensible title.
-    const title = (text || "").trim().slice(0, 100) || "Zamra Travels";
+    const title = (youtubeTitle || text || "").trim().slice(0, 100) || "Zamra Travels";
     return {
       youtube: {
         title,
@@ -92,8 +92,8 @@ function buildMetadata({ platform, mediaType, ratio, text, postType }) {
  * @param {string} params.text
  * @param {string[]} params.mediaUrls — one or more media URLs
  * @param {'image'|'video'} params.mediaType
- * @param {string|null} [params.ratio]
  * @param {'feed'|'story'} [params.postType='feed']
+ * @param {string} [params.youtubeTitle]
  * @returns {Promise<{ ok: boolean, postId?: string, error?: string }>}
  */
 async function createPostOnChannel({
@@ -103,14 +103,14 @@ async function createPostOnChannel({
   text,
   mediaUrls,
   mediaType,
-  ratio = null,
   postType = "feed",
+  youtubeTitle = "",
 }) {
   const variables = {
     channelId,
     text: text || "",
     assets: buildAssets({ mediaType, mediaUrls }),
-    metadata: buildMetadata({ platform, mediaType, ratio, text, postType }),
+    metadata: buildMetadata({ platform, mediaType, text, postType, youtubeTitle }),
   };
 
   try {

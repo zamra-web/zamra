@@ -711,7 +711,8 @@ export async function callToggleSectorVisibility(sectorId, isHidden) {
  * @param {Blob}   blob     — The JPEG image or MP4 video blob
  * @param {string} filename — Destination filename (e.g. 'ccj-jed-1x1-1234567890.mp4')
  * @param {{ sectorId: string, sectorCode: string, mediaType: 'image'|'video',
- *            ratio: string|null, caption: string, platforms: string[] }} meta
+ *            ratio: string|null, caption: string, platforms: string[],
+ *            marketKey?: string, youtubeTitle?: string }} meta
  * @returns {Promise<{ mediaUrl: string, queueId: string }>}
  */
 export async function uploadAndQueueForSocial(blob, filename, meta) {
@@ -735,12 +736,14 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
   const docRef = await addDoc(collection(db, 'social_queue'), {
     sectorId: meta.sectorId || '',
     sectorCode: meta.sectorCode || '',
+    marketKey: meta.marketKey || '',
     mediaType,
     ratio: meta.ratio || null,
     mediaUrl,
     mediaUrls: [mediaUrl],
     filename,
     caption: meta.caption || '',
+    youtubeTitle: meta.youtubeTitle || '',
     status: 'pending',
     platforms: meta.platforms || ['instagram', 'facebook', 'youtube'],
     includeStories: mediaType === 'image' ? (meta.includeStories !== false) : false,
@@ -758,7 +761,8 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
  * publishes a single multi-image post (Instagram/Facebook carousel).
  *
  * @param {Array<{ blob: Blob, filename: string }>} items — 1..10 images
- * @param {{ sectorId: string, sectorCode: string, caption: string, platforms: string[] }} meta
+ * @param {{ sectorId: string, sectorCode: string, caption: string,
+ *            platforms: string[], marketKey?: string }} meta
  * @returns {Promise<{ mediaUrls: string[], queueId: string }>}
  */
 export async function uploadAndQueueCarousel(items, meta) {
@@ -787,6 +791,7 @@ export async function uploadAndQueueCarousel(items, meta) {
   const docRef = await addDoc(collection(db, 'social_queue'), {
     sectorId: meta.sectorId || '',
     sectorCode: meta.sectorCode || '',
+    marketKey: meta.marketKey || '',
     mediaType: 'image',
     ratio: null,
     mediaUrl: mediaUrls[0],
@@ -802,19 +807,6 @@ export async function uploadAndQueueCarousel(items, meta) {
   });
 
   return { mediaUrls, storyMediaUrl, queueId: docRef.id };
-}
-
-
-/**
- * Sync Buffer channels: fetches connected IG/FB/YT channels from Buffer and
- * caches their IDs to Firestore `config/buffer`. Run once after connecting
- * accounts in Buffer, and again if channels change.
- * @param {string} organizationId  — Buffer org ID (required on first run)
- */
-export async function callSyncBufferChannels(organizationId) {
-  const fn = httpsCallable(functions, 'syncBufferChannels');
-  const result = await fn({ organizationId });
-  return result.data;
 }
 
 

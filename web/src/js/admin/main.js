@@ -22,11 +22,15 @@ import {
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
   uploadAndQueueForSocial, uploadAndQueueCarousel,
-  callSyncBufferChannels,
 } from './db.js';
 
 import { downloadVideoPoster } from './video-export.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
+import {
+  getPosterSocialMarket,
+  listPosterSocialMarkets,
+  resolveSectorMarketKey,
+} from './social-markets.js';
 
 // ── Global State ──────────────────────────────────────────────────────────────
 let _agents = [];
@@ -48,6 +52,10 @@ let _databaseEditing = new Set();
 // ── Theme Toggle ─────────────────────────────────────────────────────────────
 const THEME_STORAGE_KEY = 'zamra-admin-theme';
 let _activeTheme = 'light';
+const POSTER_SOCIAL_TIME_ZONE = 'Asia/Kolkata';
+const POSTER_SOCIAL_SITE = 'zamratravels.com';
+const POSTER_SOCIAL_CONTACT = '9846606739';
+const POSTER_SOCIAL_MARKET_LABEL = 'Zamra Travels';
 
 function getStoredTheme() {
   try { return localStorage.getItem(THEME_STORAGE_KEY); } catch { return null; }
@@ -116,6 +124,77 @@ function normalizeSectorRecord(sector = {}) {
 
 function normalizeSectors(list = []) {
   return list.map((sector) => normalizeSectorRecord(sector));
+}
+
+function formatPosterSocialDate(date = new Date()) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: POSTER_SOCIAL_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date).replaceAll('/', '.');
+}
+
+function buildPosterSocialRouteLabel(sector) {
+  const from = String(sector?.sectorFrom || '').trim().toUpperCase();
+  const to = String(sector?.sectorTo || '').trim().toUpperCase();
+  if (from && to) return `${from} → ${to}`;
+  if (from) return from;
+  if (to) return to;
+  return 'SPECIAL FARES';
+}
+
+function uniquePosterHashtags(...groups) {
+  return [...new Set(groups.flat().filter(Boolean))];
+}
+
+function getPosterSocialHashtags(marketKey, type = 'image') {
+  const market = getPosterSocialMarket(marketKey);
+  const base = market?.hashtags || ['#TravelDeals', '#ZamraTravels'];
+  if (type === 'story') return uniquePosterHashtags(base.slice(0, 3));
+  if (type === 'video9x16') return uniquePosterHashtags(base, ['#Reels', '#Shorts', '#FlightDeals']);
+  if (type === 'video16x9') return uniquePosterHashtags(base, ['#YouTubeTravel', '#FlightDeals', '#TravelUpdates']);
+  return uniquePosterHashtags(base, ['#FlightDeals', '#BookNow']);
+}
+
+function formatPosterSocialCaption(sector, marketKey, type = 'image', date = new Date()) {
+  const routeLabel = buildPosterSocialRouteLabel(sector);
+  const market = getPosterSocialMarket(marketKey);
+  const marketLabel = market?.label || POSTER_SOCIAL_MARKET_LABEL;
+  const hashtags = getPosterSocialHashtags(marketKey, type).join(' ');
+
+  if (type === 'video16x9') {
+    return [
+      `${routeLabel} flight deals from ${marketLabel}.`,
+      `Fresh fares for ${formatPosterSocialDate(date)} from ${POSTER_SOCIAL_MARKET_LABEL}.`,
+      `Book now at ${POSTER_SOCIAL_SITE} or call ${POSTER_SOCIAL_CONTACT}.`,
+      hashtags,
+    ].join('\n\n');
+  }
+
+  const lines = [
+    `TODAY (${formatPosterSocialDate(date)})`,
+    `${routeLabel} special fares live now!`,
+    `Book now at ${POSTER_SOCIAL_SITE}`,
+    `Contact: ${POSTER_SOCIAL_CONTACT}`,
+  ];
+
+  if (type === 'video9x16') {
+    lines.splice(2, 0, `${marketLabel} reels + shorts ready to publish.`);
+  }
+
+  lines.push(hashtags);
+  return lines.join('\n');
+}
+
+function formatPosterSocialYouTubeTitle(sector, marketKey, type = 'video9x16') {
+  const routeLabel = buildPosterSocialRouteLabel(sector).replace(/\s*→\s*/g, ' to ');
+  const market = getPosterSocialMarket(marketKey);
+  const marketLabel = market?.label || POSTER_SOCIAL_MARKET_LABEL;
+  if (type === 'video16x9') {
+    return `${routeLabel} flight deals | ${marketLabel} | ${POSTER_SOCIAL_MARKET_LABEL}`;
+  }
+  return `${routeLabel} Shorts | ${marketLabel} | ${POSTER_SOCIAL_MARKET_LABEL}`;
 }
 
 function escapeHtml(value = '') {
@@ -934,6 +1013,7 @@ function buildPosterThemeOrder(count) {
 }
 
 let isVideoPosterGenerating = false;
+let isMarketSocialQueueGenerating = false;
 
 function applyPosterTheme(frameEl, theme) {
   if (!frameEl || !theme) return;
@@ -983,6 +1063,725 @@ function applyPosterTheme(frameEl, theme) {
   frameEl.querySelectorAll('[data-poster-footer-accent]').forEach(el => {
     el.style.color = theme.footerAccent;
   });
+}
+
+function fileSafeSlug(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+}
+
+function buildPosterAirlineHelpers() {
+  const airlineMap = {};
+  _airlines.forEach((airline) => {
+    if (airline.id) airlineMap[airline.id.trim().toLowerCase()] = airline;
+    if (airline.code) airlineMap[airline.code.trim().toLowerCase()] = airline;
+    if (airline.name) airlineMap[airline.name.trim().toLowerCase()] = airline;
+  });
+
+  const getAirline = (rawId) => {
+    if (!rawId) return null;
+    return airlineMap[String(rawId).trim().toLowerCase()] || null;
+  };
+
+  const toAirlineKey = (rawId) => {
+    const airline = getAirline(rawId);
+    if (airline?.id) return airline.id;
+    return String(rawId || '').trim().toLowerCase();
+  };
+
+  return { getAirline, toAirlineKey };
+}
+
+function dedupeAndSortPosterFares(fares, toAirlineKey) {
+  const groupedFaresMap = new Map();
+  fares.forEach((fare) => {
+    const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
+    const airlineKey = toAirlineKey(fare.airlineId);
+    const timeKey = normalizeFlightTime(fare.flightTime).replace(/\s+/g, '');
+    const key = `${fare.sectorId}_${airlineKey}_${dtTime}_${timeKey}`;
+    if (!groupedFaresMap.has(key) || Number(fare.finalRate) < Number(groupedFaresMap.get(key).finalRate)) {
+      groupedFaresMap.set(key, fare);
+    }
+  });
+
+  return Array.from(groupedFaresMap.values()).sort((a, b) => {
+    let valA = a.flightDate;
+    let valB = b.flightDate;
+    if (valA instanceof Date) valA = valA.getTime();
+    if (valB instanceof Date) valB = valB.getTime();
+    return valA - valB;
+  });
+}
+
+async function buildPosterLogoBlobMap(sortedFares, getAirline) {
+  async function fetchLogoBlob(url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    } catch {
+      return null;
+    }
+  }
+
+  const uniqueAirlines = [...new Set(sortedFares.map((fare) => fare.airlineId))]
+    .map((id) => getAirline(id))
+    .filter((airline) => airline && airline.logoUrl);
+
+  const blobUrlMap = {};
+  await Promise.all(uniqueAirlines.map(async (airline) => {
+    const blobUrl = await fetchLogoBlob(airline.logoUrl);
+    if (blobUrl) blobUrlMap[airline.id] = blobUrl;
+  }));
+  return blobUrlMap;
+}
+
+function releasePosterLogoBlobMap(blobUrlMap = {}) {
+  Object.values(blobUrlMap).forEach((url) => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+}
+
+function chunkPosterFares(list, size) {
+  const chunks = [];
+  for (let i = 0; i < list.length; i += size) {
+    chunks.push(list.slice(i, i + size));
+  }
+  return chunks;
+}
+
+async function populatePosterRenderStack(fares, sectorId, stack, templateFrame) {
+  if (!stack || !templateFrame) return [];
+
+  if (stack.__posterLogoBlobMap) {
+    releasePosterLogoBlobMap(stack.__posterLogoBlobMap);
+  }
+  stack.querySelectorAll('[data-poster-clone="1"]').forEach((el) => el.remove());
+
+  const { getAirline, toAirlineKey } = buildPosterAirlineHelpers();
+  const sortedFares = dedupeAndSortPosterFares(fares, toAirlineKey);
+  const blobUrlMap = await buildPosterLogoBlobMap(sortedFares, getAirline);
+  stack.__posterLogoBlobMap = blobUrlMap;
+
+  const sectorMap = {};
+  _sectors.forEach((sector) => {
+    sectorMap[sector.id] = sector.sectorCode;
+  });
+
+    const renderIntoFrame = (frameEl, frameFares, frameSectorId, theme) => {
+      const titleEl = frameEl.querySelector('[data-poster-title]') || frameEl.querySelector('#poster-sector-title');
+      const tbody = frameEl.querySelector('[data-poster-tbody]') || frameEl.querySelector('#poster-fares-tbody');
+      if (!titleEl || !tbody) return;
+
+      applyPosterTheme(frameEl, theme);
+
+      const sector = _sectors.find((item) => item.id === frameSectorId);
+      let originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
+      let destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
+      if (!sector) {
+        const raw = sectorMap[frameSectorId] || frameSectorId;
+        const m = String(raw).match(/^\s*([A-Za-z0-9]+)\s*[-→>]\s*([A-Za-z0-9]+)\s*$/);
+        if (m) {
+          originName = m[1].toUpperCase();
+          destName = m[2].toUpperCase();
+        } else {
+          originName = String(raw).toUpperCase();
+          destName = '';
+        }
+      }
+      const accent = theme?.accent || '#60a5fa';
+      titleEl.innerHTML = destName
+        ? `${originName} <span style="color:${accent};font-weight:900;">&#8594;</span> ${destName}`
+        : `${originName}`;
+
+      const rows = [];
+      const rowAlt = theme?.rowAlt || '#f8fafc';
+      const rowBorder = theme?.tableBorder || '#f1f5f9';
+      const sectorChipBg = theme?.sectorChipBg || 'rgba(37,99,235,0.1)';
+      const sectorChipText = theme?.sectorChipText || '#2563eb';
+      const fareText = theme?.fareText || '#0f172a';
+
+      frameFares.forEach((fare, index) => {
+        const dt = fare.flightDate instanceof Date
+          ? fare.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
+          : fare.flightDate;
+
+        const airline = getAirline(fare.airlineId);
+        const rowBg = index % 2 === 0 ? '#ffffff' : rowAlt;
+        const logoSrc = airline ? blobUrlMap[airline.id] : null;
+
+        const airlineCell = logoSrc
+          ? `<img src="${logoSrc}" style="height:22px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
+          : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:12px;white-space:nowrap;">${airline?.name || fare.airlineId || '—'}</span>`;
+
+        const sectorCell = `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:3px 7px;border-radius:6px;font-size:11px;text-align:center;white-space:nowrap;">${sectorMap[fare.sectorId] || fare.sectorId}</span>`;
+
+        let timeCell = '<span style="color:#94a3b8;font-size:12px;">—</span>';
+        if (fare.flightTime) {
+          const parts = fare.flightTime.split('-').map((part) => part.trim());
+          if (parts.length >= 2) {
+            timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
+          } else {
+            timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${fare.flightTime}</span>`;
+          }
+        }
+
+        const posterRate = getPosterRateDisplay(fare.finalRate, fare.flightDate);
+
+        rows.push(`
+          <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
+            <td style="padding:6px 8px;font-weight:700;color:#0f172a;font-size:12px;white-space:nowrap;">${dt}</td>
+            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
+            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
+            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
+            <td style="padding:6px 8px;text-align:right;vertical-align:middle;">
+              <div
+                data-rate-mode="${posterRate.isMasked ? 'masked' : 'live'}"
+                data-actual-rate="${escapeHtml(posterRate.actualLabel)}"
+                style="display:inline-block;color:${fareText};font-weight:900;font-size:14px;white-space:nowrap;"
+              >
+                ${escapeHtml(posterRate.displayLabel)}
+              </div>
+            </td>
+          </tr>`);
+      });
+
+      for (let i = frameFares.length; i < POSTER_MAX_ROWS; i += 1) {
+        const rowBg = i % 2 === 0 ? '#ffffff' : rowAlt;
+        rows.push(`
+          <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
+            <td style="padding:6px 8px;">&nbsp;</td>
+            <td style="padding:6px 8px;">&nbsp;</td>
+            <td style="padding:6px 8px;">&nbsp;</td>
+            <td style="padding:6px 8px;">&nbsp;</td>
+            <td style="padding:6px 8px;">&nbsp;</td>
+          </tr>`);
+      }
+
+      tbody.innerHTML = rows.join('');
+    };
+
+    const faresBySector = new Map();
+    sortedFares.forEach((fare) => {
+      const sid = fare.sectorId || 'unknown';
+      if (!faresBySector.has(sid)) faresBySector.set(sid, []);
+      faresBySector.get(sid).push(fare);
+    });
+
+    let sectorIdsToRender = [];
+    if (sectorId === 'all') {
+      sectorIdsToRender = Array.from(faresBySector.keys());
+      const order = new Map(_sectors.map((sector, idx) => [sector.id, idx]));
+      sectorIdsToRender.sort((a, b) => {
+        const oa = order.get(a) ?? 1e9;
+        const ob = order.get(b) ?? 1e9;
+        if (oa !== ob) return oa - ob;
+        return String(a).localeCompare(String(b));
+      });
+    } else {
+      sectorIdsToRender = [sectorId];
+    }
+
+    const framesToRender = [];
+    sectorIdsToRender.forEach((sid) => {
+      const frameFares = faresBySector.get(sid) || [];
+      if (!frameFares.length) return;
+      const chunks = chunkPosterFares(frameFares, POSTER_MAX_ROWS);
+      const totalPages = chunks.length || 1;
+      chunks.forEach((chunk, idx) => {
+        framesToRender.push({ sid, fares: chunk, page: idx + 1, pages: totalPages });
+      });
+    });
+
+    const themePool = buildPosterThemeOrder(sectorIdsToRender.length || 1);
+    const themeBySector = new Map();
+    sectorIdsToRender.forEach((sid, idx) => {
+      themeBySector.set(sid, themePool[idx] || themePool[0]);
+    });
+
+    const frames = [];
+    framesToRender.forEach((entry, idx) => {
+      const { sid, fares: frameFares, page, pages } = entry;
+      let frameEl = templateFrame;
+      if (idx > 0) {
+        frameEl = templateFrame.cloneNode(true);
+        frameEl.dataset.posterClone = '1';
+        frameEl.removeAttribute('data-poster-template');
+        frameEl.querySelectorAll('#poster-sector-title, #poster-fares-tbody').forEach((el) => el.removeAttribute('id'));
+        const sectorCode = sectorMap[sid] || sid;
+        const slug = fileSafeSlug(sectorCode) || `sector-${idx + 1}`;
+        frameEl.id = `poster-render-frame-${slug}-${page}-${idx + 1}`;
+        stack.appendChild(frameEl);
+      } else {
+        frameEl.id = 'poster-render-frame';
+      }
+
+      frameEl.dataset.posterFrame = '1';
+      frameEl.dataset.sectorId = sid;
+      frameEl.dataset.sectorCode = sectorMap[sid] || sid;
+      frameEl.dataset.posterPage = String(page);
+      frameEl.dataset.posterPageCount = String(pages);
+
+      const theme = themeBySector.get(sid) || themePool[0];
+      renderIntoFrame(frameEl, frameFares, sid, theme);
+      frames.push(frameEl);
+    });
+
+  return frames;
+}
+
+function createOffscreenPosterWorkspace() {
+  const sourceTemplate = document.querySelector('[data-poster-template="1"]') || document.getElementById('poster-render-frame');
+  if (!sourceTemplate) {
+    throw new Error('Poster template not found.');
+  }
+
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden', 'true');
+  host.style.position = 'fixed';
+  host.style.left = '-100000px';
+  host.style.top = '0';
+  host.style.width = '1400px';
+  host.style.opacity = '0';
+  host.style.pointerEvents = 'none';
+  host.style.zIndex = '-1';
+
+  const stack = document.createElement('div');
+  stack.style.display = 'flex';
+  stack.style.flexDirection = 'column';
+  stack.style.gap = '40px';
+  stack.style.alignItems = 'flex-start';
+  host.appendChild(stack);
+
+  const templateFrame = sourceTemplate.cloneNode(true);
+  templateFrame.removeAttribute('data-poster-clone');
+  templateFrame.setAttribute('data-poster-template', '1');
+  templateFrame.id = 'poster-render-frame-workspace';
+  stack.appendChild(templateFrame);
+  document.body.appendChild(host);
+
+  return {
+    host,
+    stack,
+    templateFrame,
+    destroy() {
+      if (stack.__posterLogoBlobMap) {
+        releasePosterLogoBlobMap(stack.__posterLogoBlobMap);
+        delete stack.__posterLogoBlobMap;
+      }
+      host.remove();
+    },
+  };
+}
+
+async function renderPosterFrameToBlob(posterEl) {
+  const origTransform = posterEl.style.transform;
+  posterEl.style.transform = 'none';
+  try {
+    await Promise.all(
+      Array.from(posterEl.querySelectorAll('img')).map((img) =>
+        img.complete ? Promise.resolve() : new Promise((res) => {
+          img.onload = res;
+          img.onerror = res;
+        })
+      )
+    );
+    const canvas = await html2canvas(posterEl, {
+      scale: 2,
+      useCORS: false,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      onclone: (doc) => {
+        const target = posterEl.id ? doc.getElementById(posterEl.id) : null;
+        if (target) inlineColorsForCanvas(target);
+      },
+    });
+    return await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  } finally {
+    posterEl.style.transform = origTransform;
+  }
+}
+
+async function composePosterStoryImage(feedBlob) {
+  if (!feedBlob) return null;
+  const url = URL.createObjectURL(feedBlob);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = url;
+    });
+
+    const width = 1080;
+    const height = 1920;
+    const padX = 48;
+    const padY = 160;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, '#0b1120');
+    grad.addColorStop(1, '#1e293b');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    const availW = width - padX * 2;
+    const availH = height - padY * 2;
+    const scale = Math.min(availW / img.width, availH / img.height);
+    const drawW = img.width * scale;
+    const drawH = img.height * scale;
+    const drawX = (width - drawW) / 2;
+    const drawY = (height - drawH) / 2;
+
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 30;
+    ctx.shadowOffsetY = 10;
+    ctx.fillStyle = '#ffffff';
+    const radius = 24;
+    ctx.beginPath();
+    ctx.moveTo(drawX + radius, drawY);
+    ctx.arcTo(drawX + drawW, drawY, drawX + drawW, drawY + drawH, radius);
+    ctx.arcTo(drawX + drawW, drawY + drawH, drawX, drawY + drawH, radius);
+    ctx.arcTo(drawX, drawY + drawH, drawX, drawY, radius);
+    ctx.arcTo(drawX, drawY, drawX + drawW, drawY, radius);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(drawX + radius, drawY);
+    ctx.arcTo(drawX + drawW, drawY, drawX + drawW, drawY + drawH, radius);
+    ctx.arcTo(drawX + drawW, drawY + drawH, drawX, drawY + drawH, radius);
+    ctx.arcTo(drawX, drawY + drawH, drawX, drawY, radius);
+    ctx.arcTo(drawX, drawY, drawX + drawW, drawY, radius);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.restore();
+
+    return await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function getPosterSocialDateFilters() {
+  const startInput = document.getElementById('poster-start-date');
+  const endInput = document.getElementById('poster-end-date');
+  return getPosterDateRange(startInput, endInput);
+}
+
+function getMarketSectorIds(marketKey) {
+  return _sectors
+    .filter((sector) => resolveSectorMarketKey(sector) === marketKey)
+    .map((sector) => sector.id);
+}
+
+function renderPosterSocialMarketCards() {
+  const grid = document.getElementById('poster-social-market-grid');
+  if (!grid) return;
+
+  grid.innerHTML = listPosterSocialMarkets().map((market) => `
+    <article class="rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_20px_45px_rgba(15,23,42,0.08)] p-5 flex flex-col gap-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-[18px] font-bold text-navy">${market.label}</h3>
+          <p class="text-[12px] uppercase tracking-[0.18em] text-primary/80 font-semibold mt-1">${market.summary}</p>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-primary/10 text-primary text-[11px] font-bold px-3 py-1">${market.airports.length} airport${market.airports.length > 1 ? 's' : ''}</span>
+      </div>
+      <p class="text-sm text-text-muted leading-6">Queue ready-made posts, stories, reels, shorts, and YouTube videos for the selected date range.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
+        <button
+          type="button"
+          class="admin-btn admin-btn-soft w-full justify-center"
+          data-market-social-action="images"
+          data-market-key="${market.key}"
+        >
+          <i class="bi bi-images"></i> Queue Images
+        </button>
+        <button
+          type="button"
+          class="admin-btn admin-btn-primary w-full justify-center"
+          data-market-social-action="videos"
+          data-market-key="${market.key}"
+        >
+          <i class="bi bi-camera-video"></i> Queue Videos
+        </button>
+      </div>
+    </article>
+  `).join('');
+}
+
+function setMarketSocialButtonsDisabled(disabled, activeButton = null, busyLabel = '') {
+  document.querySelectorAll('[data-market-social-action]').forEach((button) => {
+    const btn = button;
+    if (!btn.dataset.defaultLabel) {
+      btn.dataset.defaultLabel = btn.innerHTML;
+    }
+    btn.disabled = disabled;
+    if (disabled && activeButton === btn) {
+      btn.innerHTML = busyLabel || btn.dataset.defaultLabel;
+    } else if (!disabled) {
+      btn.innerHTML = btn.dataset.defaultLabel;
+    }
+  });
+}
+
+async function queueMarketImagesForSocial(marketKey, triggerButton) {
+  const market = getPosterSocialMarket(marketKey);
+  if (!market) {
+    toast('error', 'Queue Failed', 'Unknown social market.');
+    return;
+  }
+
+  if (isVideoPosterGenerating || isMarketSocialQueueGenerating) {
+    toast('warning', 'Please Wait', 'Another poster export or social queue job is already running.');
+    return;
+  }
+
+  const sectorIds = getMarketSectorIds(marketKey);
+  if (!sectorIds.length) {
+    toast('warning', 'No Sectors', `No India ↔ ${market.label} sectors are configured yet.`);
+    return;
+  }
+
+  const { startDate, endDate } = getPosterSocialDateFilters();
+  isMarketSocialQueueGenerating = true;
+  setMarketSocialButtonsDisabled(true, triggerButton, '<i class="bi bi-arrow-repeat animate-spin"></i> Queuing…');
+
+  try {
+    const fares = await getFares({ sectorId: 'all', startDate, endDate, includeHidden: false });
+    const faresBySector = new Map();
+    fares.forEach((fare) => {
+      if (!sectorIds.includes(fare.sectorId)) return;
+      if (!faresBySector.has(fare.sectorId)) faresBySector.set(fare.sectorId, []);
+      faresBySector.get(fare.sectorId).push(fare);
+    });
+
+    const eligibleSectors = sectorIds
+      .map((sid) => _sectors.find((sector) => sector.id === sid))
+      .filter((sector) => sector && (faresBySector.get(sector.id)?.length || 0) > 0);
+
+    if (!eligibleSectors.length) {
+      toast('warning', 'No Fares', `No live ${market.label} fares found for the selected date range.`);
+      return;
+    }
+
+    const workspace = createOffscreenPosterWorkspace();
+    let queuedCarousels = 0;
+    let totalImages = 0;
+    let failedSectors = 0;
+    try {
+      for (let index = 0; index < eligibleSectors.length; index += 1) {
+        const sector = eligibleSectors[index];
+        try {
+          const sectorFares = faresBySector.get(sector.id) || [];
+          const frames = await populatePosterRenderStack(sectorFares, sector.id, workspace.stack, workspace.templateFrame);
+          if (!frames.length) continue;
+
+          const items = [];
+          for (const frame of frames) {
+            const blob = await renderPosterFrameToBlob(frame);
+            if (!blob) continue;
+            const page = Number(frame.dataset.posterPage || 1);
+            const pageCount = Number(frame.dataset.posterPageCount || 1);
+            const pageSuffix = pageCount > 1 ? `-p${page}` : '';
+            items.push({
+              blob,
+              filename: `${fileSafeSlug(sector.sectorCode || sector.id) || 'poster'}${pageSuffix}-${Date.now()}.jpg`,
+            });
+          }
+          if (!items.length) continue;
+
+          let storyItem = null;
+          const storyBlob = await composePosterStoryImage(items[0].blob).catch((error) => {
+            console.warn('Story composition failed; using feed image only.', error);
+            return null;
+          });
+          if (storyBlob) {
+            storyItem = {
+              blob: storyBlob,
+              filename: `${fileSafeSlug(sector.sectorCode || sector.id) || 'poster'}-story-9x16-${Date.now()}.jpg`,
+            };
+          }
+
+          await uploadAndQueueCarousel(items, {
+            sectorId: sector.id,
+            sectorCode: sector.sectorCode || sector.id,
+            marketKey,
+            caption: formatPosterSocialCaption(sector, marketKey, 'image'),
+            platforms: ['instagram', 'facebook'],
+            includeStories: true,
+            storyItem,
+          });
+
+          queuedCarousels += 1;
+          totalImages += items.length;
+        } catch (error) {
+          failedSectors += 1;
+          console.error('Market image queue failed for sector', sector.id, error);
+        }
+      }
+    } finally {
+      workspace.destroy();
+    }
+
+    if (!queuedCarousels) {
+      toast('warning', 'No Fares', `No live ${market.label} fares found for the selected date range.`);
+      return;
+    }
+
+    const carouselLabel = queuedCarousels === 1 ? 'sector batch' : 'sector batches';
+    const imageLabel = totalImages === 1 ? 'image' : 'images';
+    const failureNote = failedSectors ? ` ${failedSectors} sector${failedSectors > 1 ? 's' : ''} failed.` : '';
+    toast('success', 'Queued for Social', `${queuedCarousels} ${market.label} ${carouselLabel} (${totalImages} ${imageLabel}) queued with stories.${failureNote}`);
+  } catch (error) {
+    console.error('Market image queue failed:', error);
+    toast('error', 'Queue Failed', error.message || 'Failed to queue market images.');
+  } finally {
+    isMarketSocialQueueGenerating = false;
+    setMarketSocialButtonsDisabled(false);
+  }
+}
+
+async function queueMarketVideosForSocial(marketKey, triggerButton) {
+  const market = getPosterSocialMarket(marketKey);
+  if (!market) {
+    toast('error', 'Queue Failed', 'Unknown social market.');
+    return;
+  }
+
+  if (isVideoPosterGenerating || isMarketSocialQueueGenerating) {
+    toast('warning', 'Please Wait', 'Another poster export or social queue job is already running.');
+    return;
+  }
+
+  const sectorIds = getMarketSectorIds(marketKey);
+  if (!sectorIds.length) {
+    toast('warning', 'No Sectors', `No India ↔ ${market.label} sectors are configured yet.`);
+    return;
+  }
+
+  const { startDate, endDate } = getPosterSocialDateFilters();
+  const progressEl = document.getElementById('poster-video-progress');
+  const setProgress = (message) => {
+    if (!progressEl) return;
+    if (message) {
+      progressEl.textContent = message;
+      progressEl.classList.remove('hidden');
+    } else {
+      progressEl.classList.add('hidden');
+    }
+  };
+
+  isVideoPosterGenerating = true;
+  isMarketSocialQueueGenerating = true;
+  setMarketSocialButtonsDisabled(true, triggerButton, '<i class="bi bi-arrow-repeat animate-spin"></i> Rendering…');
+  setProgress(`Preparing ${market.label} video queue…`);
+
+  try {
+    const fares = await getFares({ sectorId: 'all', startDate, endDate, includeHidden: false });
+    const faresBySector = new Map();
+    fares.forEach((fare) => {
+      if (!sectorIds.includes(fare.sectorId)) return;
+      if (!faresBySector.has(fare.sectorId)) faresBySector.set(fare.sectorId, []);
+      faresBySector.get(fare.sectorId).push(fare);
+    });
+
+    const eligibleSectors = sectorIds
+      .map((sid) => _sectors.find((sector) => sector.id === sid))
+      .filter((sector) => sector && (faresBySector.get(sector.id)?.length || 0) > 0);
+
+    if (!eligibleSectors.length) {
+      toast('warning', 'No Fares', `No live ${market.label} fares found for the selected date range.`);
+      return;
+    }
+
+    let queuedVideos = 0;
+    let failedSectors = 0;
+    for (let index = 0; index < eligibleSectors.length; index += 1) {
+      const sector = eligibleSectors[index];
+      try {
+        const sectorFares = faresBySector.get(sector.id) || [];
+        const sectorCode = sector.sectorCode || sector.id;
+
+        setProgress(`Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode} · 9:16`);
+        const shortResult = await downloadVideoPoster('9x16', sectorFares, sector.id, _sectors, _airlines, {
+          autoDownload: false,
+          returnBlob: true,
+          requireMp4: true,
+        });
+        if (shortResult?.blob) {
+          await uploadAndQueueForSocial(shortResult.blob, `${fileSafeSlug(sectorCode)}-9x16-${Date.now()}.mp4`, {
+            sectorId: sector.id,
+            sectorCode,
+            marketKey,
+            mediaType: 'video',
+            ratio: '9x16',
+            caption: formatPosterSocialCaption(sector, marketKey, 'video9x16'),
+            youtubeTitle: formatPosterSocialYouTubeTitle(sector, marketKey, 'video9x16'),
+            platforms: ['instagram', 'facebook', 'youtube'],
+          });
+          queuedVideos += 1;
+        }
+
+        setProgress(`Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode} · 16:9`);
+        const widescreenResult = await downloadVideoPoster('16x9', sectorFares, sector.id, _sectors, _airlines, {
+          autoDownload: false,
+          returnBlob: true,
+          requireMp4: true,
+        });
+        if (widescreenResult?.blob) {
+          await uploadAndQueueForSocial(widescreenResult.blob, `${fileSafeSlug(sectorCode)}-16x9-${Date.now()}.mp4`, {
+            sectorId: sector.id,
+            sectorCode,
+            marketKey,
+            mediaType: 'video',
+            ratio: '16x9',
+            caption: formatPosterSocialCaption(sector, marketKey, 'video16x9'),
+            youtubeTitle: formatPosterSocialYouTubeTitle(sector, marketKey, 'video16x9'),
+            platforms: ['youtube'],
+          });
+          queuedVideos += 1;
+        }
+      } catch (error) {
+        failedSectors += 1;
+        console.error('Market video queue failed for sector', sector.id, error);
+      }
+    }
+
+    if (!queuedVideos) {
+      toast('warning', 'Queue Failed', `No ${market.label} videos were queued.${failedSectors ? ` ${failedSectors} sector${failedSectors > 1 ? 's' : ''} failed.` : ''}`);
+      return;
+    }
+
+    const failureNote = failedSectors ? ` ${failedSectors} sector${failedSectors > 1 ? 's' : ''} failed.` : '';
+    toast('success', 'Queued for Social', `${queuedVideos} ${market.label} video uploads queued for Buffer.${failureNote}`);
+  } catch (error) {
+    console.error('Market video queue failed:', error);
+    toast('error', 'Queue Failed', error.message || 'Failed to queue market videos.');
+  } finally {
+    isVideoPosterGenerating = false;
+    isMarketSocialQueueGenerating = false;
+    setProgress('');
+    setMarketSocialButtonsDisabled(false);
+  }
 }
 
 function wirePosterVideoMenu() {
@@ -1192,9 +1991,7 @@ async function queuePosterForSocial() {
       const first = group[0];
       const sectorCode = first.dataset.sectorCode || sidRaw;
       const sector = _sectors.find(s => s.id === sidRaw);
-      const caption = sector
-        ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
-        : 'Special fares available now! Book at zamratravels.com';
+      const caption = formatPosterSocialCaption(sector);
 
       const items = [];
       for (const frame of group) {
@@ -1309,9 +2106,7 @@ async function queueVideoForSocial(ratio) {
           });
           if (result?.blob) {
             const filename = `${fileSafe(sectorLabel)}-${ratio}-${Date.now()}.mp4`;
-            const caption = sector
-              ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
-              : 'Special fares available now! Book at zamratravels.com';
+            const caption = formatPosterSocialCaption(sector);
             await uploadAndQueueForSocial(result.blob, filename, {
               sectorId: sid,
               sectorCode: sectorLabel,
@@ -1337,9 +2132,7 @@ async function queueVideoForSocial(ratio) {
       });
       if (result?.blob) {
         const filename = `${fileSafe(sectorLabel)}-${ratio}-${Date.now()}.mp4`;
-        const caption = sector
-          ? `Special fares ${sector.sectorFrom} → ${sector.sectorTo}! Book now at zamratravels.com`
-          : 'Special fares available now! Book at zamratravels.com';
+        const caption = formatPosterSocialCaption(sector);
         await uploadAndQueueForSocial(result.blob, filename, {
           sectorId,
           sectorCode: sectorLabel,
@@ -1377,7 +2170,23 @@ async function renderDashboardTab() {
   const endInput = document.getElementById('poster-end-date');
   getPosterDateRange(startInput, endInput);
   wirePosterVideoMenu();
-  wirePosterSocialMenu();
+  renderPosterSocialMarketCards();
+
+  const socialGrid = document.getElementById('poster-social-market-grid');
+  if (socialGrid && !socialGrid.dataset.wired) {
+    socialGrid.dataset.wired = '1';
+    socialGrid.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-market-social-action]');
+      if (!btn) return;
+      const marketKey = btn.dataset.marketKey;
+      const action = btn.dataset.marketSocialAction;
+      if (action === 'images') {
+        queueMarketImagesForSocial(marketKey, btn);
+      } else if (action === 'videos') {
+        queueMarketVideosForSocial(marketKey, btn);
+      }
+    });
+  }
 
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');
@@ -1420,31 +2229,6 @@ async function renderDashboardTab() {
     document.getElementById('poster-download-vid-1x1')?.addEventListener('click', () => handleVideoPoster('1x1'));
     document.getElementById('poster-download-vid-9x16')?.addEventListener('click', () => handleVideoPoster('9x16'));
     document.getElementById('poster-download-vid-16x9')?.addEventListener('click', () => handleVideoPoster('16x9'));
-
-    // Wire up social queue buttons
-    document.getElementById('poster-queue-social-img')?.addEventListener('click', () => queuePosterForSocial());
-    document.getElementById('poster-queue-social-vid-1x1')?.addEventListener('click', () => queueVideoForSocial('1x1'));
-    document.getElementById('poster-queue-social-vid-9x16')?.addEventListener('click', () => queueVideoForSocial('9x16'));
-    document.getElementById('poster-queue-social-vid-16x9')?.addEventListener('click', () => queueVideoForSocial('16x9'));
-    document.getElementById('poster-sync-buffer')?.addEventListener('click', () => syncBufferChannelsUI());
-  }
-}
-
-/* syncBufferChannelsUI — Prompts for the Buffer organizationId on the first run,
-   then calls the syncBufferChannels Cloud Function to cache channel IDs in
-   Firestore. Subsequent runs can leave the prompt blank to reuse the cached org. */
-async function syncBufferChannelsUI() {
-  try {
-    const organizationId = prompt(
-      'Buffer organizationId (leave blank to reuse cached):',
-      '',
-    );
-    const res = await callSyncBufferChannels(organizationId || undefined);
-    const services = Object.keys(res?.channels || {}).join(', ') || 'none';
-    toast('success', 'Buffer Synced', `Cached ${services} (${res?.rawCount || 0} total channels).`);
-  } catch (e) {
-    console.error('Buffer sync failed:', e);
-    toast('error', 'Sync Failed', e.message || 'Unknown error');
   }
 }
 

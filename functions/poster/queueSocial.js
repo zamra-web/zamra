@@ -11,7 +11,8 @@ const { getStorage } = require("firebase-admin/storage");
  * @param {Buffer} jpegBuffer
  * @param {string} filename  e.g. "daily-ccj-jed-1x1-1729834200000.jpg"
  * @param {{ sectorId: string, sectorCode: string, ratio: string,
- *            caption: string, platforms: string[], includeStories?: boolean }} meta
+ *            caption: string, platforms: string[], includeStories?: boolean,
+ *            marketKey?: string, youtubeTitle?: string }} meta
  * @returns {Promise<{ mediaUrl: string, queueId: string }>}
  */
 async function uploadAndQueue(jpegBuffer, filename, meta) {
@@ -34,12 +35,14 @@ async function uploadAndQueue(jpegBuffer, filename, meta) {
   const docRef = await getFirestore().collection("social_queue").add({
     sectorId: meta.sectorId || "",
     sectorCode: meta.sectorCode || "",
+    marketKey: meta.marketKey || "",
     mediaType: "image",
     ratio: meta.ratio || "4x5",
     mediaUrl,
     mediaUrls: [mediaUrl],
     filename,
     caption: meta.caption || "",
+    youtubeTitle: meta.youtubeTitle || "",
     status: "pending",
     platforms: meta.platforms && meta.platforms.length
       ? meta.platforms

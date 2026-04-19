@@ -23,6 +23,15 @@ function formatRate(n) {
   return "₹" + Math.round(num).toLocaleString("en-IN");
 }
 
+function formatCaptionDate(date = new Date()) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date).replace(/\//g, ".");
+}
+
 /**
  * @param {{ sector: object, fares: object[], airlineMap: object, logoMap: object }} ctx
  * @returns {string} full HTML document (1080x1350)
@@ -118,23 +127,24 @@ function buildCaption({ sector, fares, customTemplate }) {
   const to = (sector.sectorTo || "").trim();
   const code = (sector.sectorCode || "").trim();
   const cheapest = fares.length ? formatRate(fares[0].finalRate) : "";
+  const fromUpper = from.toUpperCase();
+  const toUpper = to.toUpperCase();
 
   if (customTemplate) {
     return customTemplate
+      .replace(/\{today\}/g, formatCaptionDate())
       .replace(/\{from\}/g, from)
       .replace(/\{to\}/g, to)
       .replace(/\{code\}/g, code)
       .replace(/\{cheapest\}/g, cheapest);
   }
 
-  return `✈️ Today's best fares from ${from} to ${to}${cheapest ? ` — starting at ${cheapest}` : ""}!
-
-Book your seats now — limited availability.
-
-📞 +91 98466 06739
-🌐 zamratravels.com
-
-#ZamraTravels #FlightDeals #${code.replace(/[^A-Za-z0-9]/g, "")} #Travel`;
+  return [
+    `TODAY (${formatCaptionDate()})`,
+    fromUpper && toUpper ? `Special fares ${fromUpper} → ${toUpper}!` : "Special fares available now!",
+    "Book now at zamratravels.com",
+    "Contact : 9846606739",
+  ].join("\n");
 }
 
 module.exports = { buildDailyPosterHtml, buildCaption };

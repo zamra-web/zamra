@@ -26,6 +26,7 @@ const { fetchLogos } = require("../poster/fetchLogos");
 const { buildDailyPosterHtml, buildCaption } = require("../poster/dailyTemplate");
 const { renderHtmlBatch } = require("../poster/render");
 const { uploadAndQueue } = require("../poster/queueSocial");
+const { resolveSectorMarketKey } = require("../buffer/marketConfig");
 
 const fileSafe = (s) =>
   String(s || "")
@@ -110,10 +111,16 @@ async function runDailyPost() {
     const { sector, caption } = jobs[i];
     const buf = buffers[i];
     const filename = `daily-${fileSafe(sector.sectorCode || sector.id)}-4x5-${ts}-${i}.jpg`;
+    const marketKey = resolveSectorMarketKey(sector);
+    if (!marketKey) {
+      logger.warn(`autoPostDaily: market not resolved for ${sector.sectorCode || sector.id} — skipping`);
+      continue;
+    }
     try {
       const { queueId } = await uploadAndQueue(buf, filename, {
         sectorId: sector.id,
         sectorCode: sector.sectorCode || "",
+        marketKey,
         ratio: "4x5",
         caption,
         platforms,

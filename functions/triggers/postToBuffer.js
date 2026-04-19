@@ -15,18 +15,28 @@
 
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { FieldValue } = require("firebase-admin/firestore");
-const { readCachedChannels } = require("../buffer/channels");
 const { createPostOnChannel } = require("../buffer/createPost");
+const { BUFFER_MARKET_CONFIG, isConfiguredChannelId } = require("../buffer/marketConfig");
 
 const ELIGIBLE_PLATFORMS = ["instagram", "facebook", "youtube"];
 const STORY_PLATFORMS = ["instagram", "facebook"];
 
-function build(bufferApiKeySecret) {
+async function failQueueItem(ref, message, errors = []) {
+  const list = errors.length ? errors : [{ platform: null, message }];
+  await ref.update({
+    status: "failed",
+    errors: list,
+    processedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+function build(bufferApiKeySecretsByMarket) {
+  const secrets = Object.values(bufferApiKeySecretsByMarket).filter(Boolean);
   return onDocumentCreated(
     {
       document: "social_queue/{queueId}",
       region: "asia-south1",
-      secrets: [bufferApiKeySecret],
+      secrets,
     },
     async (event) => {
       const snap = event.data;
@@ -47,59 +57,61 @@ function build(bufferApiKeySecret) {
       const requestedPlatforms = Array.isArray(doc.platforms) ? doc.platforms : [];
       const includeStories = doc.includeStories === true && mediaType === "image";
       const storyMediaUrl = typeof doc.storyMediaUrl === "string" && doc.storyMediaUrl ? doc.storyMediaUrl : null;
+      const marketKey = String(doc.marketKey || "").trim().toLowerCase();
+      const youtubeTitle = String(doc.youtubeTitle || "").trim();
 
       if (mediaUrls.length === 0) {
-        await snap.ref.update({
-          status: "failed",
-          errors: [{ platform: null, message: "mediaUrl(s) missing on queue doc" }],
-          processedAt: FieldValue.serverTimestamp(),
-        });
+        await failQueueItem(snap.ref, "mediaUrl(s) missing on queue doc");
         return;
       }
 
-      const apiKey = bufferApiKeySecret.value();
+      if (!marketKey) {
+        await failQueueItem(snap.ref, "marketKey missing on queue doc");
+        return;
+      }
+
+      const marketConfig = BUFFER_MARKET_CONFIG[marketKey];
+      if (!marketConfig) {
+        await failQueueItem(snap.ref, `Unknown marketKey "${marketKey}"`);
+        return;
+      }
+
+      const marketSecret = bufferApiKeySecretsByMarket[marketKey];
+      if (!marketSecret || typeof marketSecret.value !== "function") {
+        await failQueueItem(snap.ref, `No Buffer secret configured for market "${marketKey}"`);
+        return;
+      }
+
+      const apiKey = marketSecret.value();
       if (!apiKey) {
-        await snap.ref.update({
-          status: "failed",
-          errors: [{ platform: null, message: "BUFFER_API_KEY secret not set" }],
-          processedAt: FieldValue.serverTimestamp(),
-        });
-        return;
-      }
-
-      const cached = await readCachedChannels();
-      if (!cached || !cached.channels) {
-        await snap.ref.update({
-          status: "failed",
-          errors: [{ platform: null, message: "Buffer channel cache empty — run syncBufferChannels first" }],
-          processedAt: FieldValue.serverTimestamp(),
-        });
+        await failQueueItem(snap.ref, `Buffer API key secret not set for market "${marketKey}"`);
         return;
       }
 
       const targets = [];
+      const configErrors = [];
       for (const platform of requestedPlatforms) {
         const key = String(platform).toLowerCase();
         if (!ELIGIBLE_PLATFORMS.includes(key)) continue;
         if (key === "youtube" && mediaType !== "video") continue;
-        const channel = cached.channels[key];
-        if (!channel || !channel.id) {
+        const channelId = marketConfig.channels?.[key];
+        if (!isConfiguredChannelId(channelId)) {
+          configErrors.push({
+            platform: key,
+            message: `Buffer channel ID missing for ${marketConfig.label} ${key}`,
+          });
           continue;
         }
-        targets.push({ platform: key, channelId: channel.id });
+        targets.push({ platform: key, channelId });
       }
 
       if (targets.length === 0) {
-        await snap.ref.update({
-          status: "failed",
-          errors: [{ platform: null, message: "No eligible channels for this queue item" }],
-          processedAt: FieldValue.serverTimestamp(),
-        });
+        await failQueueItem(snap.ref, "No eligible channels for this queue item", configErrors);
         return;
       }
 
       const bufferPostIds = {};
-      const errors = [];
+      const errors = [...configErrors];
 
       for (const target of targets) {
         const result = await createPostOnChannel({
@@ -110,6 +122,7 @@ function build(bufferApiKeySecret) {
           mediaUrls,
           mediaType,
           ratio,
+          youtubeTitle,
         });
         if (result.ok) {
           bufferPostIds[target.platform] = result.postId;
@@ -133,6 +146,7 @@ function build(bufferApiKeySecret) {
             mediaType,
             ratio: storyMediaUrl ? "9x16" : ratio,
             postType: "story",
+            youtubeTitle,
           });
           const storyKey = `${target.platform}_story`;
           if (storyResult.ok) {

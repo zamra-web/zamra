@@ -149,6 +149,21 @@
                 </div>
             </div>
 
+            <div class="admin-panel p-6 text-text-main mb-8">
+                <div class="flex flex-col gap-2 mb-6">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-primary/10 text-primary text-xl">
+                            <i class="bi bi-share-fill"></i>
+                        </span>
+                        <div>
+                            <h3 class="text-xl font-bold text-navy">Social Publishing</h3>
+                            <p class="text-sm text-text-muted mt-1">Queue market-specific image posts, stories, reels, shorts, and YouTube videos using the selected date range.</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="poster-social-market-grid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+            </div>
+
             <!-- Poster Preview Area -->
             <div id="poster-preview-container" class="hidden flex-col items-center">
                 <div class="flex gap-4 mb-6">
@@ -174,36 +189,6 @@
                             <button id="poster-download-vid-16x9"
                                 class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50">16:9
                                 (YouTube/TV)</button>
-                        </div>
-                    </div>
-
-                    <!-- Queue for Social (n8n) -->
-                    <div class="relative group" data-poster-social-menu>
-                        <button type="button" class="admin-btn admin-btn-social px-6" data-poster-social-toggle aria-haspopup="true" aria-expanded="false">
-                            <i class="bi bi-share"></i> Queue for Social <i class="bi bi-chevron-down text-xs ml-1"></i>
-                        </button>
-                        <div class="absolute top-full left-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-slate-100 hidden z-50 overflow-hidden"
-                            data-poster-social-options>
-                            <button id="poster-queue-social-img"
-                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-100">
-                                <i class="bi bi-image text-emerald-600 mr-1"></i> Queue Image
-                            </button>
-                            <button id="poster-queue-social-vid-1x1"
-                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-100">
-                                <i class="bi bi-camera-video text-emerald-600 mr-1"></i> Queue Video 1:1
-                            </button>
-                            <button id="poster-queue-social-vid-9x16"
-                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-100">
-                                <i class="bi bi-camera-video text-emerald-600 mr-1"></i> Queue Video 9:16
-                            </button>
-                            <button id="poster-queue-social-vid-16x9"
-                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50 border-b border-slate-100">
-                                <i class="bi bi-camera-video text-emerald-600 mr-1"></i> Queue Video 16:9
-                            </button>
-                            <button id="poster-sync-buffer"
-                                class="w-full text-left px-4 py-3 text-sm font-semibold text-navy hover:bg-slate-50">
-                                <i class="bi bi-arrow-repeat text-indigo-600 mr-1"></i> Sync Buffer Channels
-                            </button>
                         </div>
                     </div>
                 </div>

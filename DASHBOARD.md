@@ -109,6 +109,10 @@ web/
   - **Download PDF** — converts poster canvas to a mm-based jsPDF page exactly sized to the poster dimensions (downloads one file per sector for All Sectors)
   - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Uses the same deduping logic as posters. Randomizes the color theme per export. When a route spans multiple pages, merges them into a single slideshow video. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)
   - Export buttons disable during generation and re-enable once done
+  - **Social Publishing panel** — six dedicated market cards (`Saudi`, `UAE`, `Bahrain`, `Oman`, `Kuwait`, `Qatar`) sit below the poster filters and use the selected date range rather than the current preview
+  - **Queue Images** — batches eligible India ↔ market sectors into Instagram/Facebook feed posts and also creates one 9:16 story image per sector
+  - **Queue Videos** — batches eligible India ↔ market sectors into two uploads per sector: `9:16` for Instagram/Facebook/YouTube Shorts and `16:9` for YouTube only
+  - **Market routing** — social queueing only includes India ↔ market routes in either direction (for example `CCJ DMM` and `DMM CCJ`), never market ↔ market routes like `DOH DXB`
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
 - All data from Firestore `agent_fares` + `airlines`
 
