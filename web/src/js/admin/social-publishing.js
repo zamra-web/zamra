@@ -53,6 +53,18 @@ function titleCaseStatus(value = '') {
     .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Unknown';
 }
 
+function formatMarketLabel(deps, marketKey = '', fallback = 'Unknown airport group') {
+  const market = deps.getPosterSocialMarket?.(marketKey);
+  if (market?.label) return market.label;
+  const raw = String(marketKey || '').trim();
+  return raw ? raw.toUpperCase() : fallback;
+}
+
+function formatMarketSummary(market = null) {
+  if (!market) return '';
+  return market.summary || (Array.isArray(market.airports) ? market.airports.join(' · ') : '');
+}
+
 function isTerminalJobStatus(status = '') {
   return ['completed', 'completed_with_failures', 'failed'].includes(String(status || '').toLowerCase());
 }
@@ -164,7 +176,7 @@ export function createSocialPublishingController(deps) {
 
     grid.innerHTML = `
       <div class="flex flex-col gap-3">
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
           ${markets.map((market) => {
             const marketState = getMarketState(market.key);
             const isActive = market.key === state.activeMarketKey;
@@ -190,7 +202,7 @@ export function createSocialPublishingController(deps) {
                   </span>
                 </span>
                 <span class="mt-3 block text-[10px] font-semibold uppercase tracking-[0.2em] ${isActive ? 'text-white/72' : 'text-text-muted'}">
-                  ${market.airports.join(' · ')}
+                  ${escapeHtml(formatMarketSummary(market))}
                 </span>
                 <span class="mt-2 block text-[11px] leading-5 ${isActive ? 'text-white/82' : 'text-text-muted'}">
                   ${escapeHtml((marketState && marketState.message) || 'Refreshing Buffer health…')}
@@ -209,7 +221,7 @@ export function createSocialPublishingController(deps) {
                   </span>
                   <div class="min-w-0">
                     <p class="truncate text-sm font-bold text-navy">${activeMarket.label}</p>
-                    <p class="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted">${activeMarket.airports.join(' · ')}</p>
+                    <p class="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted">${escapeHtml(formatMarketSummary(activeMarket))}</p>
                   </div>
                 </div>
                 <p class="mt-3 text-sm text-text-muted">${escapeHtml(((getMarketState(activeMarket.key) || {}).message) || 'Refreshing Buffer health…')}</p>
@@ -277,7 +289,7 @@ export function createSocialPublishingController(deps) {
           <div>
             <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">Current Activity</p>
             <p class="mt-1 text-base font-bold text-navy">${escapeHtml(activeJob.lastMessage || 'Processing social publishing job')}</p>
-            <p class="mt-1 text-sm text-text-muted">${escapeHtml(activeJob.marketKey || 'market').toUpperCase()} · ${titleCaseStatus(activeJob.mediaType || 'image')} · ${escapeHtml(activeJob.currentItemLabel || 'Preparing')}</p>
+            <p class="mt-1 text-sm text-text-muted">${escapeHtml(formatMarketLabel(deps, activeJob.marketKey, 'Multiple airports'))} · ${titleCaseStatus(activeJob.mediaType || 'image')} · ${escapeHtml(activeJob.currentItemLabel || 'Preparing')}</p>
           </div>
           <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(activeJob.status)}">${titleCaseStatus(activeJob.status)}</span>
         </div>
@@ -320,7 +332,7 @@ export function createSocialPublishingController(deps) {
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
                     <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(job.status)}">${titleCaseStatus(job.status)}</span>
-                    <span class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">${escapeHtml(job.marketKey || 'unknown')} · ${escapeHtml(job.mediaType || 'image')}</span>
+                    <span class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">${escapeHtml(formatMarketLabel(deps, job.marketKey, 'Multiple airports'))} · ${escapeHtml(job.mediaType || 'image')}</span>
                   </div>
                   <p class="mt-2 text-sm font-bold text-navy">${escapeHtml(job.lastMessage || 'No status message recorded.')}</p>
                   <p class="mt-1 text-xs text-text-muted">${formatDateTime(job.createdAt)} · ${formatRelativeTime(job.createdAt)}</p>
@@ -347,7 +359,7 @@ export function createSocialPublishingController(deps) {
             </div>
           `).join('') : `
             <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-10 text-center text-sm text-text-muted">
-              No publishing jobs yet. Queue images or videos for any market to start tracking.
+              No publishing jobs yet. Queue images or videos for any airport group to start tracking.
             </div>
           `}
         </div>
@@ -379,7 +391,7 @@ export function createSocialPublishingController(deps) {
     try {
       await deps.callRefreshSocialPublishingHealth();
       if (!options.silent) {
-        deps.toast('success', 'Health Refreshed', 'Buffer channel health has been refreshed.');
+        deps.toast('success', 'Health Refreshed', 'Airport group Buffer health has been refreshed.');
       }
     } catch (error) {
       if (!options.silent) {
@@ -396,7 +408,7 @@ export function createSocialPublishingController(deps) {
   async function queueMarketImagesForSocial(marketKey) {
     const market = deps.getPosterSocialMarket(marketKey);
     if (!market) {
-      deps.toast('error', 'Queue Failed', 'Unknown social market.');
+      deps.toast('error', 'Queue Failed', 'Unknown airport group.');
       return;
     }
     if (deps.isBlockedByOtherWork() || state.isBusy) {
@@ -405,13 +417,13 @@ export function createSocialPublishingController(deps) {
     }
     const readiness = getActionReadiness(marketKey, 'images');
     if (!readiness.ready) {
-      deps.toast('warning', 'Market Not Ready', readiness.message);
+      deps.toast('warning', 'Airport Group Not Ready', readiness.message);
       return;
     }
 
     const sectorIds = deps.getMarketSectorIds(marketKey);
     if (!sectorIds.length) {
-      deps.toast('warning', 'No Sectors', `No India ↔ ${market.label} sectors are configured yet.`);
+      deps.toast('warning', 'No Sectors', `No routes touching ${market.label} are configured yet.`);
       return;
     }
 
@@ -605,7 +617,7 @@ export function createSocialPublishingController(deps) {
       deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} queued.${failureNote}`);
     } catch (error) {
       console.error('queueMarketImagesForSocial:', error);
-      deps.toast('error', 'Queue Failed', error.message || 'Failed to queue market images.');
+      deps.toast('error', 'Queue Failed', error.message || 'Failed to queue airport images.');
     } finally {
       deps.setMarketQueueBusy(false);
       setBusy(false);
@@ -615,7 +627,7 @@ export function createSocialPublishingController(deps) {
   async function queueMarketVideosForSocial(marketKey) {
     const market = deps.getPosterSocialMarket(marketKey);
     if (!market) {
-      deps.toast('error', 'Queue Failed', 'Unknown social market.');
+      deps.toast('error', 'Queue Failed', 'Unknown airport group.');
       return;
     }
     if (deps.isBlockedByOtherWork() || state.isBusy) {
@@ -624,13 +636,13 @@ export function createSocialPublishingController(deps) {
     }
     const readiness = getActionReadiness(marketKey, 'videos');
     if (!readiness.ready) {
-      deps.toast('warning', 'Market Not Ready', readiness.message);
+      deps.toast('warning', 'Airport Group Not Ready', readiness.message);
       return;
     }
 
     const sectorIds = deps.getMarketSectorIds(marketKey);
     if (!sectorIds.length) {
-      deps.toast('warning', 'No Sectors', `No India ↔ ${market.label} sectors are configured yet.`);
+      deps.toast('warning', 'No Sectors', `No routes touching ${market.label} are configured yet.`);
       return;
     }
 
@@ -820,7 +832,7 @@ export function createSocialPublishingController(deps) {
       deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} video upload${counts.queuedItems > 1 ? 's' : ''} queued.${failureNote}`);
     } catch (error) {
       console.error('queueMarketVideosForSocial:', error);
-      deps.toast('error', 'Queue Failed', error.message || 'Failed to queue market videos.');
+      deps.toast('error', 'Queue Failed', error.message || 'Failed to queue airport videos.');
     } finally {
       setInlineProgress('');
       deps.setVideoExportBusy(false);
@@ -835,7 +847,7 @@ export function createSocialPublishingController(deps) {
         <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">${escapeHtml(job.marketKey || 'unknown')} · ${escapeHtml(job.mediaType || 'image')}</p>
+              <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">${escapeHtml(formatMarketLabel(deps, job.marketKey, 'Multiple airports'))} · ${escapeHtml(job.mediaType || 'image')}</p>
               <p class="mt-1 text-lg font-bold text-navy">${escapeHtml(job.lastMessage || 'No status message recorded.')}</p>
               <p class="mt-1 text-sm text-text-muted">${formatDateTime(job.createdAt)}</p>
             </div>

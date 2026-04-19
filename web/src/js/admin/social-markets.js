@@ -1,55 +1,49 @@
-export const POSTER_SOCIAL_MARKET_ORDER = ['saudi', 'uae', 'bahrain', 'oman', 'kuwait', 'qatar'];
+export const POSTER_SOCIAL_MARKET_ORDER = ['ccj', 'cok', 'cnn', 'trv', 'ixe'];
 
 export const POSTER_SOCIAL_MARKETS = {
-  saudi: {
-    key: 'saudi',
-    label: 'Saudi',
-    airports: ['JED', 'RUH', 'DMM'],
-    summary: 'India ↔ JED / RUH / DMM',
-    hashtags: ['#SaudiFlights', '#SaudiDeals', '#UmrahTravel', '#ZamraTravels'],
+  ccj: {
+    key: 'ccj',
+    label: 'Calicut (CCJ)',
+    airports: ['CCJ'],
+    summary: 'Flights from or to Calicut',
+    hashtags: ['#CalicutFlights', '#CCJDeals', '#KeralaTravel', '#ZamraTravels'],
   },
-  uae: {
-    key: 'uae',
-    label: 'UAE',
-    airports: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'],
-    summary: 'India ↔ DXB / SHJ / AUH / RKT / AAN / FJR',
-    hashtags: ['#UAEFlights', '#DubaiDeals', '#SharjahFlights', '#ZamraTravels'],
+  cok: {
+    key: 'cok',
+    label: 'Kochi (COK)',
+    airports: ['COK'],
+    summary: 'Flights from or to Kochi',
+    hashtags: ['#KochiFlights', '#COKDeals', '#CochinFlights', '#ZamraTravels'],
   },
-  bahrain: {
-    key: 'bahrain',
-    label: 'Bahrain',
-    airports: ['BAH'],
-    summary: 'India ↔ BAH',
-    hashtags: ['#BahrainFlights', '#BahrainDeals', '#TravelDeals', '#ZamraTravels'],
+  cnn: {
+    key: 'cnn',
+    label: 'Kannur (CNN)',
+    airports: ['CNN'],
+    summary: 'Flights from or to Kannur',
+    hashtags: ['#KannurFlights', '#CNNDeals', '#NorthKeralaTravel', '#ZamraTravels'],
   },
-  oman: {
-    key: 'oman',
-    label: 'Oman',
-    airports: ['MCT'],
-    summary: 'India ↔ MCT',
-    hashtags: ['#OmanFlights', '#MuscatDeals', '#TravelDeals', '#ZamraTravels'],
+  trv: {
+    key: 'trv',
+    label: 'Trivandrum (TRV)',
+    airports: ['TRV'],
+    summary: 'Flights from or to Trivandrum',
+    hashtags: ['#TrivandrumFlights', '#TRVDeals', '#SouthKeralaTravel', '#ZamraTravels'],
   },
-  kuwait: {
-    key: 'kuwait',
-    label: 'Kuwait',
-    airports: ['KWI'],
-    summary: 'India ↔ KWI',
-    hashtags: ['#KuwaitFlights', '#KuwaitDeals', '#TravelDeals', '#ZamraTravels'],
-  },
-  qatar: {
-    key: 'qatar',
-    label: 'Qatar',
-    airports: ['DOH'],
-    summary: 'India ↔ DOH',
-    hashtags: ['#QatarFlights', '#DohaDeals', '#TravelDeals', '#ZamraTravels'],
+  ixe: {
+    key: 'ixe',
+    label: 'Mangalore (IXE)',
+    airports: ['IXE'],
+    summary: 'Flights from or to Mangalore',
+    hashtags: ['#MangaloreFlights', '#IXEDeals', '#CoastalTravel', '#ZamraTravels'],
   },
 };
 
 export const INDIA_AIRPORT_CODES = ['CCJ', 'COK', 'CNN', 'TRV', 'IXE'];
 
 const INDIA_AIRPORT_SET = new Set(INDIA_AIRPORT_CODES);
-const MARKET_CODE_TO_KEY = Object.values(POSTER_SOCIAL_MARKETS)
-  .flatMap((market) => market.airports.map((code) => [code, market.key]));
+const INDIA_AIRPORT_KEY_BY_CODE = Object.fromEntries(
+  INDIA_AIRPORT_CODES.map((code) => [code, code.toLowerCase()]),
+);
 
 const LOCATION_CODE_MAP = {
   KOZHIKODE: 'CCJ',
@@ -126,9 +120,8 @@ export function resolveSectorMarketKey(sector = {}) {
   const toIndia = INDIA_AIRPORT_SET.has(toCode);
   if (fromIndia === toIndia) return null;
 
-  const marketCode = fromIndia ? toCode : fromCode;
-  const match = MARKET_CODE_TO_KEY.find(([code]) => code === marketCode);
-  return match ? match[1] : null;
+  const indiaCode = fromIndia ? fromCode : toCode;
+  return INDIA_AIRPORT_KEY_BY_CODE[indiaCode] || null;
 }
 
 export function getPosterSocialMarket(key) {

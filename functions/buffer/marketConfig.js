@@ -1,68 +1,66 @@
 const BUFFER_MARKET_CONFIG = {
-  saudi: {
-    key: "saudi",
-    label: "Saudi",
-    airports: ["JED", "RUH", "DMM"],
+  ccj: {
+    key: "ccj",
+    label: "Calicut (CCJ)",
+    airports: ["CCJ"],
     channels: {
-      instagram: "__SET_SAUDI_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_SAUDI_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_SAUDI_YOUTUBE_CHANNEL_ID__",
+      instagram: "__SET_CCJ_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_CCJ_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_CCJ_YOUTUBE_CHANNEL_ID__",
     },
   },
-  uae: {
-    key: "uae",
-    label: "UAE",
-    airports: ["DXB", "SHJ", "AUH", "RKT", "AAN", "FJR"],
+  cok: {
+    key: "cok",
+    label: "Kochi (COK)",
+    airports: ["COK"],
     channels: {
-      instagram: "__SET_UAE_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_UAE_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_UAE_YOUTUBE_CHANNEL_ID__",
+      instagram: "__SET_COK_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_COK_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_COK_YOUTUBE_CHANNEL_ID__",
     },
   },
-  bahrain: {
-    key: "bahrain",
-    label: "Bahrain",
-    airports: ["BAH"],
+  cnn: {
+    key: "cnn",
+    label: "Kannur (CNN)",
+    airports: ["CNN"],
     channels: {
-      instagram: "__SET_BAHRAIN_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_BAHRAIN_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_BAHRAIN_YOUTUBE_CHANNEL_ID__",
+      instagram: "__SET_CNN_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_CNN_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_CNN_YOUTUBE_CHANNEL_ID__",
     },
   },
-  oman: {
-    key: "oman",
-    label: "Oman",
-    airports: ["MCT"],
+  trv: {
+    key: "trv",
+    label: "Trivandrum (TRV)",
+    airports: ["TRV"],
     channels: {
-      instagram: "__SET_OMAN_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_OMAN_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_OMAN_YOUTUBE_CHANNEL_ID__",
+      instagram: "__SET_TRV_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_TRV_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_TRV_YOUTUBE_CHANNEL_ID__",
     },
   },
-  kuwait: {
-    key: "kuwait",
-    label: "Kuwait",
-    airports: ["KWI"],
+  ixe: {
+    key: "ixe",
+    label: "Mangalore (IXE)",
+    airports: ["IXE"],
     channels: {
-      instagram: "__SET_KUWAIT_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_KUWAIT_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_KUWAIT_YOUTUBE_CHANNEL_ID__",
-    },
-  },
-  qatar: {
-    key: "qatar",
-    label: "Qatar",
-    airports: ["DOH"],
-    channels: {
-      instagram: "__SET_QATAR_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_QATAR_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_QATAR_YOUTUBE_CHANNEL_ID__",
+      instagram: "__SET_IXE_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_IXE_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_IXE_YOUTUBE_CHANNEL_ID__",
     },
   },
 };
 
 const PLATFORM_KEYS = ["instagram", "facebook", "youtube"];
 const INDIA_AIRPORT_CODES = new Set(["CCJ", "COK", "CNN", "TRV", "IXE"]);
+const INDIA_AIRPORT_KEY_BY_CODE = {
+  CCJ: "ccj",
+  COK: "cok",
+  CNN: "cnn",
+  TRV: "trv",
+  IXE: "ixe",
+};
+const VALID_MARKET_KEYS = new Set(Object.keys(BUFFER_MARKET_CONFIG));
 
 const LOCATION_CODE_MAP = {
   KOZHIKODE: "CCJ",
@@ -90,9 +88,6 @@ const LOCATION_CODE_MAP = {
   "AL AIN": "AAN",
   FUJAIRAH: "FJR",
 };
-
-const MARKET_CODE_TO_KEY = Object.values(BUFFER_MARKET_CONFIG)
-  .flatMap((market) => market.airports.map((code) => [code, market.key]));
 
 function normalizeToken(value = "") {
   return String(value || "")
@@ -142,9 +137,17 @@ function resolveSectorMarketKey(sector = {}) {
   const toIndia = INDIA_AIRPORT_CODES.has(toCode);
   if (fromIndia === toIndia) return null;
 
-  const marketCode = fromIndia ? toCode : fromCode;
-  const match = MARKET_CODE_TO_KEY.find(([code]) => code === marketCode);
-  return match ? match[1] : null;
+  const indiaCode = fromIndia ? fromCode : toCode;
+  return INDIA_AIRPORT_KEY_BY_CODE[indiaCode] || null;
+}
+
+function normalizeMarketKey(value = "") {
+  const key = String(value || "").trim().toLowerCase();
+  return VALID_MARKET_KEYS.has(key) ? key : "";
+}
+
+function resolveNormalizedMarketKey(data = {}) {
+  return normalizeMarketKey(data.marketKey) || resolveSectorMarketKey(data) || "";
 }
 
 function isConfiguredChannelId(value) {
@@ -166,7 +169,11 @@ function getFallbackChannelId(marketKey, platform) {
 module.exports = {
   BUFFER_MARKET_CONFIG,
   PLATFORM_KEYS,
+  VALID_MARKET_KEYS,
+  getSectorRouteCodes,
   resolveSectorMarketKey,
+  normalizeMarketKey,
+  resolveNormalizedMarketKey,
   isConfiguredChannelId,
   getFallbackChannels,
   getFallbackChannelId,

@@ -5,6 +5,7 @@ const bufferChannels = require("../buffer/channels");
 const {
   inspectMarketHealth,
   getConfiguredChannelForMarket,
+  resolveQueueMarketKey,
   buildQueueCreatePayload,
 } = require("../social/pipeline");
 
@@ -24,10 +25,10 @@ test("getConfiguredChannelForMarket prefers Firestore ids and otherwise falls ba
         source: "firestore",
       },
     },
-  }, "saudi", "instagram");
+  }, "ccj", "instagram");
   assert.deepEqual(explicit, { id: "ig-live-channel", source: "firestore" });
 
-  const missing = getConfiguredChannelForMarket({}, "saudi", "instagram");
+  const missing = getConfiguredChannelForMarket({}, "ccj", "instagram");
   assert.equal(missing.id, "");
 });
 
@@ -37,7 +38,7 @@ test("inspectMarketHealth reports missing config as blocked", async () => {
     throw new Error("should not fetch channel when no ids are configured");
   };
 
-  const health = await inspectMarketHealth("saudi", "token", {});
+  const health = await inspectMarketHealth("ccj", "token", {});
   assert.equal(health.status, "blocked");
   assert.match(health.message, /No instagram channel configured/i);
 });
@@ -54,7 +55,7 @@ test("inspectMarketHealth marks paused Buffer channels as warnings", async () =>
     };
   };
 
-  const health = await inspectMarketHealth("saudi", "token", {
+  const health = await inspectMarketHealth("ccj", "token", {
     organizationId: "org-1",
     channels: {
       instagram: { configuredId: "ig-live", source: "firestore" },
@@ -68,12 +69,19 @@ test("inspectMarketHealth marks paused Buffer channels as warnings", async () =>
   assert.equal(health.channels.facebook.status, "ready");
 });
 
+test("resolveQueueMarketKey normalizes legacy country keys to airport keys", () => {
+  assert.equal(resolveQueueMarketKey({ marketKey: "saudi", sectorCode: "JED CCJ" }), "ccj");
+  assert.equal(resolveQueueMarketKey({ marketKey: "uae", sectorCode: "DXB COK" }), "cok");
+  assert.equal(resolveQueueMarketKey({ marketKey: "", sectorCode: "CCJ COK" }), "");
+});
+
 test("buildQueueCreatePayload seeds queue docs with retry and visibility fields", () => {
   const payload = buildQueueCreatePayload({
     source: "admin",
     jobId: "job-1",
     jobItemId: "item-1",
     marketKey: "saudi",
+    sectorCode: "JED CCJ",
     mediaType: "video",
     ratio: "9x16",
     mediaUrl: "https://example.com/video.mp4",
@@ -85,6 +93,7 @@ test("buildQueueCreatePayload seeds queue docs with retry and visibility fields"
   assert.equal(payload.stage, "waiting_dispatch");
   assert.equal(payload.jobId, "job-1");
   assert.equal(payload.jobItemId, "item-1");
+  assert.equal(payload.marketKey, "ccj");
   assert.equal(payload.mediaType, "video");
   assert.equal(payload.mediaUrls.length, 1);
   assert.equal(payload.attemptCount, 0);

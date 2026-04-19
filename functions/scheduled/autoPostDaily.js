@@ -153,10 +153,10 @@ async function runDailyPost() {
       await updateSocialJobItem(jobId, itemId, {
         status: "failed",
         stage: "failed",
-        lastMessage: `Market could not be resolved for ${sector.sectorCode || sector.id}.`,
-        lastError: { message: `Market could not be resolved for ${sector.sectorCode || sector.id}.`, retryable: false },
+        lastMessage: `Airport group could not be resolved for ${sector.sectorCode || sector.id}.`,
+        lastError: { message: `Airport group could not be resolved for ${sector.sectorCode || sector.id}.`, retryable: false },
       });
-      logger.warn(`autoPostDaily: market not resolved for ${sector.sectorCode || sector.id} — skipping`);
+      logger.warn(`autoPostDaily: airport group not resolved for ${sector.sectorCode || sector.id} — skipping`);
       continue;
     }
     try {

@@ -114,13 +114,13 @@ web/
   - **Download PDF** — converts poster canvas to a mm-based jsPDF page exactly sized to the poster dimensions (downloads one file per sector for All Sectors)
   - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Uses the same deduping logic as posters. Randomizes the color theme per export. When a route spans multiple pages, merges them into a single slideshow video. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)
   - Export buttons disable during generation and re-enable once done
-  - **Social Publishing panel** — six compact market buttons (`Saudi`, `UAE`, `Bahrain`, `Oman`, `Kuwait`, `Qatar`) sit below the poster filters; selecting one reveals a minimal Images/Videos action dock that uses the selected date range rather than the current preview
-  - **Health-aware publishing controls** — the panel now reads Buffer health from Firestore `config/socialPublishing`; action buttons disable automatically when the required market channels are missing, mismatched, or paused
+  - **Social Publishing panel** — five compact airport-group buttons (`Calicut (CCJ)`, `Kochi (COK)`, `Kannur (CNN)`, `Trivandrum (TRV)`, `Mangalore (IXE)`) sit below the poster filters; selecting one reveals a minimal Images/Videos action dock that uses the selected date range rather than the current preview
+  - **Health-aware publishing controls** — the panel now reads Buffer health from Firestore `config/socialPublishing`; action buttons disable automatically when the required airport-specific channels are missing, mismatched, or paused
   - **Current Activity card** — shows the live stage, current route/ratio, and running counters while a publishing batch is rendering/uploading/dispatching
   - **Recent Publishing Jobs** — last 25 jobs from the past 3 days are listed inline with success/failure counts; opening a job shows item-level status and retry actions
-  - **Queue Images** — batches eligible India ↔ market sectors into Instagram/Facebook feed posts and also creates one 9:16 story image per sector
-  - **Queue Videos** — batches eligible India ↔ market sectors into two uploads per sector: `9:16` for Instagram/Facebook/YouTube Shorts and `16:9` for YouTube only
-  - **Market routing** — social queueing only includes India ↔ market routes in either direction (for example `CCJ DMM` and `DMM CCJ`), never market ↔ market routes like `DOH DXB`
+  - **Queue Images** — batches eligible India ↔ international sectors by India-side airport group into Instagram/Facebook feed posts and also creates one 9:16 story image per sector
+  - **Queue Videos** — batches eligible India ↔ international sectors by India-side airport group into two uploads per sector: `9:16` for Instagram/Facebook/YouTube Shorts and `16:9` for YouTube only
+  - **Airport routing** — social queueing always groups by the India-side airport in either direction (for example `CCJ DMM` and `DMM CCJ` both publish under `Calicut (CCJ)`), and still excludes non-India routes like `DOH DXB`
   - **Durable queue pipeline** — every batch creates a `social_jobs/{jobId}` record plus `social_jobs/{jobId}/items/*`; uploaded media is written to `social_queue` with retry/lease metadata, then dispatched by scheduled workers
   - **Final success = Buffer `sent`** — queue docs do not count as complete when Buffer merely accepts the post; a scheduled reconciler checks Buffer post status and only moves items to `posted` after Buffer reports `sent`
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
@@ -414,14 +414,14 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
 | `generateAgentReport` | Aggregates fares with fully optional filters (sector, agent, date range). **All filters are optional** — passing no filters returns stats across the entire dataset. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
 | `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, and **`agents`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. Batch-writes to `agent_fares`. |
-| `refreshSocialPublishingHealth` | Admin callable. Verifies each market's configured/fallback Buffer channels, checks service type + pause state, resolves/stores organization IDs, and writes the health snapshot to `config/socialPublishing`. |
-| `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 market per run) instead of waiting for the next minute cron. |
+| `refreshSocialPublishingHealth` | Admin callable. Verifies each airport group's configured/fallback Buffer channels, checks service type + pause state, resolves/stores organization IDs, and writes the health snapshot to `config/socialPublishing`. |
+| `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next minute cron. |
 | `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a failed/partial job item without mutating the old queue record. |
 | `purgeOldFaresDaily` | Scheduled cleanup. Deletes `agent_fares` with `flightDate` earlier than **today − 2 days** (UTC midnight). Keeps the most recent two days of fares plus today. |
 
 **Social publishing scheduled workers**
 - `autoPostDaily` renders scheduled posters, creates `social_jobs` / `social_jobs/*/items`, uploads media, and enqueues queue docs.
-- `socialQueueDispatcher` runs every minute, leases due queue docs, and dispatches them to market-specific Buffer channels with retry backoff (`2m -> 10m -> 30m`, max 3 attempts).
+- `socialQueueDispatcher` runs every minute, leases due queue docs, and dispatches them to airport-specific Buffer channels with retry backoff (`2m -> 10m -> 30m`, max 3 attempts).
 - `socialQueueReconciler` runs every 5 minutes, checks Buffer post retrieval/status, and only marks queue docs complete when Buffer reports `sent`.
 - `purgeSocialPublishing` runs every 5 minutes and removes terminal `social_queue` docs, related `generated_posters/*` media, and expired `social_jobs` after exactly 72 hours.
 

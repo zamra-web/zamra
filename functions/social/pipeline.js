@@ -12,6 +12,8 @@ const {
   PLATFORM_KEYS,
   getFallbackChannelId,
   isConfiguredChannelId,
+  normalizeMarketKey,
+  resolveNormalizedMarketKey,
 } = require("../buffer/marketConfig");
 const {
   toMillis,
@@ -86,7 +88,7 @@ function queueDocToItemUpdate(queueId, data = {}) {
     queueId,
     status: data.status || "pending",
     stage: data.stage || "waiting_dispatch",
-    marketKey: data.marketKey || "",
+    marketKey: resolveQueueMarketKey(data),
     mediaType: data.mediaType || "image",
     ratio: data.ratio || null,
     sectorId: data.sectorId || "",
@@ -118,6 +120,38 @@ async function readSocialPublishingConfig() {
   return snap.exists ? (snap.data() || {}) : { markets: {} };
 }
 
+function getMarketLabel(marketKey = "") {
+  const normalized = normalizeMarketKey(marketKey);
+  if (normalized && BUFFER_MARKET_CONFIG[normalized]) {
+    return BUFFER_MARKET_CONFIG[normalized].label;
+  }
+  const raw = String(marketKey || "").trim();
+  return raw ? raw.toUpperCase() : "Unknown airport group";
+}
+
+function resolveQueueMarketKey(data = {}) {
+  return resolveNormalizedMarketKey(data);
+}
+
+function filterKnownMarkets(markets = {}) {
+  return Object.fromEntries(
+    Object.entries(markets || {}).filter(([key]) => normalizeMarketKey(key)),
+  );
+}
+
+async function persistNormalizedQueueMarketKey(ref, data = {}) {
+  const normalizedMarketKey = resolveQueueMarketKey(data);
+  const currentMarketKey = String(data.marketKey || "").trim().toLowerCase();
+  if (normalizedMarketKey && normalizedMarketKey !== currentMarketKey) {
+    await ref.update({
+      marketKey: normalizedMarketKey,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await syncQueueToJob(ref.id, { ...data, marketKey: normalizedMarketKey });
+  }
+  return normalizedMarketKey;
+}
+
 function getConfiguredChannelForMarket(existingMarket = {}, marketKey, platform) {
   const channel = existingMarket && existingMarket.channels && existingMarket.channels[platform]
     ? existingMarket.channels[platform]
@@ -145,9 +179,9 @@ async function inspectMarketHealth(marketKey, apiKey, existingMarket = {}) {
       key: marketKey,
       label: marketKey,
       status: "blocked",
-      message: `Unknown market "${marketKey}"`,
+      message: `Unknown airport group "${marketKey}"`,
       warnings: [],
-      blockers: [`Unknown market "${marketKey}"`],
+      blockers: [`Unknown airport group "${marketKey}"`],
       channels: {},
       verifiedAt: new Date().toISOString(),
     };
@@ -179,7 +213,7 @@ async function inspectMarketHealth(marketKey, apiKey, existingMarket = {}) {
     } else if (!organizationId && organizations.length > 1) {
       blockers.push("Multiple Buffer organizations detected. Set organizationId in config/socialPublishing.");
     } else if (!organizationId && organizations.length === 0) {
-      blockers.push("No Buffer organizations available for this market account.");
+      blockers.push("No Buffer organizations available for this airport account.");
     }
   } catch (error) {
     blockers.push(`Failed to read Buffer organizations: ${error.message || error}`);
@@ -274,12 +308,12 @@ async function inspectMarketHealth(marketKey, apiKey, existingMarket = {}) {
 
 async function refreshSocialPublishingHealth(bufferApiKeySecretsByMarket, marketKeys = null) {
   const existing = await readSocialPublishingConfig();
-  const existingMarkets = existing.markets || {};
+  const existingMarkets = filterKnownMarkets(existing.markets || {});
   const keys = Array.isArray(marketKeys) && marketKeys.length
     ? marketKeys
     : Object.keys(BUFFER_MARKET_CONFIG);
 
-  const refreshedMarkets = {};
+  const refreshedMarkets = { ...existingMarkets };
   for (const marketKey of keys) {
     const secret = bufferApiKeySecretsByMarket[marketKey];
     const apiKey = secret && typeof secret.value === "function" ? secret.value() : "";
@@ -296,7 +330,7 @@ async function refreshSocialPublishingHealth(bufferApiKeySecretsByMarket, market
     markets: refreshedMarkets,
     updatedAt: FieldValue.serverTimestamp(),
     lastHealthRefreshAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  });
 
   return refreshedMarkets;
 }
@@ -327,7 +361,7 @@ function buildQueueCreatePayload(meta = {}) {
     sectorId: meta.sectorId || "",
     sectorCode: meta.sectorCode || "",
     label: meta.label || meta.sectorCode || meta.filename || meta.jobItemId || "",
-    marketKey: meta.marketKey || "",
+    marketKey: resolveQueueMarketKey(meta),
     mediaType,
     ratio: meta.ratio || null,
     mediaUrl: mediaUrls[0] || "",
@@ -375,7 +409,7 @@ async function enqueueExistingMedia(meta = {}) {
 async function createSocialJob(data = {}) {
   const docRef = await socialJobsRef().add({
     source: data.source || "admin",
-    marketKey: data.marketKey || "",
+    marketKey: normalizeMarketKey(data.marketKey),
     mediaType: data.mediaType || "image",
     filters: data.filters || {},
     requestedBy: data.requestedBy || {},
@@ -403,7 +437,7 @@ async function createSocialJobItem(jobId, data = {}) {
     label: data.label || data.sectorCode || "",
     sectorId: data.sectorId || "",
     sectorCode: data.sectorCode || "",
-    marketKey: data.marketKey || "",
+    marketKey: resolveQueueMarketKey(data),
     mediaType: data.mediaType || "image",
     ratio: data.ratio || null,
     status: data.status || "pending",
@@ -455,8 +489,12 @@ async function syncSocialJobSummary(jobId) {
   const snap = await jobRef.collection("items").get();
   const items = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   const summary = summarizeSocialJobItems(items);
+  const marketKeys = [...new Set(items
+    .map((item) => normalizeMarketKey(item.marketKey))
+    .filter(Boolean))];
   await jobRef.set({
     ...summary,
+    marketKey: marketKeys.length === 1 ? marketKeys[0] : FieldValue.delete(),
     expiresAt: futureTimestamp(RETENTION_MS),
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
@@ -519,8 +557,11 @@ async function claimDueQueueItems(limit = DISPATCH_BATCH_LIMIT) {
 
   for (const doc of candidates.docs) {
     if (claimed.length >= limit) break;
-    const marketKey = String(doc.data().marketKey || "").trim().toLowerCase();
-    if (marketsUsed.has(marketKey)) continue;
+    const predictedMarketKey =
+      resolveQueueMarketKey(doc.data() || {}) ||
+      String(doc.data().marketKey || "").trim().toLowerCase() ||
+      doc.id;
+    if (marketsUsed.has(predictedMarketKey)) continue;
 
     const claimedData = await db().runTransaction(async (tx) => {
       const fresh = await tx.get(doc.ref);
@@ -528,18 +569,21 @@ async function claimDueQueueItems(limit = DISPATCH_BATCH_LIMIT) {
       const data = fresh.data() || {};
       const dueAt = toMillis(data.nextAttemptAt || 0);
       if (data.status !== "pending" || (dueAt && dueAt > Date.now())) return null;
+  const normalizedMarketKey = resolveQueueMarketKey(data);
       const attemptCount = Number(data.attemptCount || 0) + 1;
-      tx.update(doc.ref, {
+      tx.update(doc.ref, cleanObject({
         status: "processing",
         stage: "dispatching",
+        marketKey: normalizedMarketKey || undefined,
         attemptCount,
         leaseExpiresAt: futureTimestamp(LEASE_MS),
         lastMessage: "Dispatching to Buffer…",
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      }));
       return {
         id: fresh.id,
         ...data,
+        marketKey: normalizedMarketKey || String(data.marketKey || "").trim().toLowerCase(),
         attemptCount,
         status: "processing",
         stage: "dispatching",
@@ -547,7 +591,7 @@ async function claimDueQueueItems(limit = DISPATCH_BATCH_LIMIT) {
     });
 
     if (claimedData) {
-      marketsUsed.add(marketKey);
+      marketsUsed.add(predictedMarketKey);
       claimed.push(claimedData);
     }
   }
@@ -583,22 +627,41 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
     return;
   }
 
-  const marketKey = String(doc.marketKey || "").trim().toLowerCase();
+  const normalizedMarketKey = await persistNormalizedQueueMarketKey(ref, doc);
+  if (normalizedMarketKey) doc.marketKey = normalizedMarketKey;
+  const marketKey = normalizeMarketKey(doc.marketKey);
+  const marketLabel = getMarketLabel(marketKey || doc.marketKey);
+  if (!marketKey) {
+    const message = "Airport group could not be resolved for this queue item.";
+    await ref.update({
+      status: "failed",
+      stage: "failed",
+      lastError: { message, retryable: false },
+      lastMessage: message,
+      processedAt: FieldValue.serverTimestamp(),
+      expiresAt: futureTimestamp(RETENTION_MS),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await syncQueueToJob(ref.id, { ...doc, status: "failed", stage: "failed", lastMessage: message });
+    return;
+  }
+
   const secret = bufferApiKeySecretsByMarket[marketKey];
   const apiKey = secret && typeof secret.value === "function" ? secret.value() : "";
   const marketHealth = await ensureMarketHealth(bufferApiKeySecretsByMarket, marketKey);
 
   if (!apiKey) {
+    const message = `No Buffer API key configured for ${marketLabel}.`;
     await ref.update({
       status: "failed",
       stage: "failed",
-      lastError: { message: `No Buffer API key configured for market "${marketKey}".`, retryable: false },
-      lastMessage: `No Buffer API key configured for market "${marketKey}".`,
+      lastError: { message, retryable: false },
+      lastMessage: message,
       processedAt: FieldValue.serverTimestamp(),
       expiresAt: futureTimestamp(RETENTION_MS),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    await syncQueueToJob(ref.id, { ...doc, status: "failed", stage: "failed", lastMessage: `No Buffer API key configured for market "${marketKey}".` });
+    await syncQueueToJob(ref.id, { ...doc, marketKey, status: "failed", stage: "failed", lastMessage: message });
     return;
   }
 
@@ -610,11 +673,11 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
     if (platform === "youtube" && mediaType !== "video") continue;
     const state = getRequiredPlatformState(marketHealth, platform);
     if (!state || !isConfiguredChannelId(state.id)) {
-      setupErrors.push({ platform, message: `No configured ${platform} channel for ${marketKey}.`, retryable: false });
+      setupErrors.push({ platform, message: `No configured ${platform} channel for ${marketLabel}.`, retryable: false });
       continue;
     }
     if (state.status === "blocked") {
-      setupErrors.push({ platform, message: state.message || `Blocked ${platform} channel for ${marketKey}.`, retryable: false });
+      setupErrors.push({ platform, message: state.message || `Blocked ${platform} channel for ${marketLabel}.`, retryable: false });
       continue;
     }
     if (state.isQueuePaused) {
@@ -789,6 +852,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   });
   await syncQueueToJob(ref.id, {
     ...doc,
+    marketKey,
     status,
     stage,
     organizationId: doc.organizationId || marketHealth.organizationId || "",
@@ -813,7 +877,27 @@ async function reconcileQueueDoc(bufferApiKeySecretsByMarket, snap) {
   if (doc.status === "partial" && doc.stage !== "awaiting_publish_confirmation") {
     return;
   }
-  const marketKey = String(doc.marketKey || "").trim().toLowerCase();
+  const normalizedMarketKey = await persistNormalizedQueueMarketKey(snap.ref, doc);
+  if (normalizedMarketKey) doc.marketKey = normalizedMarketKey;
+  const marketKey = normalizeMarketKey(doc.marketKey);
+  if (!marketKey) {
+    const message = "Airport group could not be resolved for this queue item.";
+    await snap.ref.update({
+      status: "failed",
+      stage: "failed",
+      lastError: { message, retryable: false },
+      lastMessage: message,
+      processedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await syncQueueToJob(snap.id, {
+      ...doc,
+      status: "failed",
+      stage: "failed",
+      lastMessage: message,
+    });
+    return;
+  }
   const secret = bufferApiKeySecretsByMarket[marketKey];
   const apiKey = secret && typeof secret.value === "function" ? secret.value() : "";
   const marketHealth = await ensureMarketHealth(bufferApiKeySecretsByMarket, marketKey);
@@ -1075,13 +1159,20 @@ function buildRetrySocialJobItem(requireAdmin, bufferApiKeySecretsByMarket) {
       if (!mediaUrls.length) {
         throw new HttpsError("failed-precondition", "This job item has no retained media to retry.");
       }
+      const marketKey = resolveQueueMarketKey(item);
+      if (!marketKey) {
+        throw new HttpsError("failed-precondition", "Airport group could not be resolved for this job item.");
+      }
+      if (marketKey !== normalizeMarketKey(item.marketKey)) {
+        await updateSocialJobItem(jobId, itemId, { marketKey });
+      }
 
       const newItemId = await createSocialJobItem(jobId, {
         source: "retry",
         label: item.label || item.sectorCode || "",
         sectorId: item.sectorId || "",
         sectorCode: item.sectorCode || "",
-        marketKey: item.marketKey || "",
+        marketKey,
         mediaType: item.mediaType || "image",
         ratio: item.ratio || null,
         status: "pending",
@@ -1105,7 +1196,7 @@ function buildRetrySocialJobItem(requireAdmin, bufferApiKeySecretsByMarket) {
         jobId,
         jobItemId: newItemId,
         retryOfItemId: itemId,
-        marketKey: item.marketKey || "",
+        marketKey,
         mediaType: item.mediaType || "image",
         ratio: item.ratio || null,
         sectorId: item.sectorId || "",
@@ -1194,5 +1285,6 @@ module.exports = {
   purgeExpiredSocialPublishing,
   inspectMarketHealth,
   getConfiguredChannelForMarket,
+  resolveQueueMarketKey,
   buildQueueCreatePayload,
 };

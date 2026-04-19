@@ -156,6 +156,19 @@ function uniquePosterHashtags(...groups) {
   return [...new Set(groups.flat().filter(Boolean))];
 }
 
+function formatPosterSocialMarketLabel(marketKey, fallback = 'Unknown airport group') {
+  const market = getPosterSocialMarket(marketKey);
+  if (market?.label) return market.label;
+  const raw = String(marketKey || '').trim();
+  return raw ? raw.toUpperCase() : fallback;
+}
+
+function formatPosterSocialMarketSummary(marketKey) {
+  const market = getPosterSocialMarket(marketKey);
+  if (!market) return '';
+  return market.summary || (Array.isArray(market.airports) ? market.airports.join(' · ') : '');
+}
+
 function getPosterSocialHashtags(marketKey, type = 'image') {
   const market = getPosterSocialMarket(marketKey);
   const base = market?.hashtags || ['#TravelDeals', '#ZamraTravels'];
@@ -173,7 +186,7 @@ function formatPosterSocialCaption(sector, marketKey, type = 'image', date = new
 
   if (type === 'video16x9') {
     return [
-      `${routeLabel} flight deals from ${marketLabel}.`,
+      `${routeLabel} flight deals for ${marketLabel}.`,
       `Fresh fares for ${formatPosterSocialDate(date)} from ${POSTER_SOCIAL_MARKET_LABEL}.`,
       `Book now at ${POSTER_SOCIAL_SITE} or call ${POSTER_SOCIAL_CONTACT}.`,
       hashtags,
@@ -1563,7 +1576,7 @@ function renderPosterSocialMarketCards() {
   const activeMarket = getPosterSocialMarket(_activePosterSocialMarketKey);
   grid.innerHTML = `
     <div class="flex flex-col gap-3">
-      <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         ${markets.map((market) => {
           const isActive = market.key === _activePosterSocialMarketKey;
           const activeClasses = isActive
@@ -1580,12 +1593,9 @@ function renderPosterSocialMarketCards() {
             >
               <span class="flex items-start justify-between gap-2">
                 <span class="text-[15px] font-bold">${market.label}</span>
-                <span class="inline-flex min-w-[34px] items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold ${isActive ? 'bg-white/15 text-white' : 'bg-primary/10 text-primary'}">
-                  ${market.airports.length}
-                </span>
               </span>
               <span class="mt-3 block text-[10px] font-semibold uppercase tracking-[0.2em] ${isActive ? 'text-white/72' : 'text-text-muted'}">
-                ${market.airports.join(' · ')}
+                ${formatPosterSocialMarketSummary(market.key)}
               </span>
             </button>
           `;
@@ -1599,7 +1609,7 @@ function renderPosterSocialMarketCards() {
             </span>
             <div class="min-w-0">
               <p class="truncate text-sm font-bold text-navy">${activeMarket.label}</p>
-              <p class="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted">${activeMarket.airports.join(' · ')}</p>
+              <p class="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted">${formatPosterSocialMarketSummary(activeMarket.key)}</p>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-2 sm:flex">
@@ -1645,7 +1655,7 @@ function setMarketSocialButtonsDisabled(disabled, activeButton = null, busyLabel
 async function queueMarketImagesForSocial(marketKey, triggerButton) {
   const market = getPosterSocialMarket(marketKey);
   if (!market) {
-    toast('error', 'Queue Failed', 'Unknown social market.');
+    toast('error', 'Queue Failed', 'Unknown airport group.');
     return;
   }
 
@@ -1656,7 +1666,7 @@ async function queueMarketImagesForSocial(marketKey, triggerButton) {
 
   const sectorIds = getMarketSectorIds(marketKey);
   if (!sectorIds.length) {
-    toast('warning', 'No Sectors', `No India ↔ ${market.label} sectors are configured yet.`);
+    toast('warning', 'No Sectors', `No routes touching ${market.label} are configured yet.`);
     return;
   }
 
@@ -1752,7 +1762,7 @@ async function queueMarketImagesForSocial(marketKey, triggerButton) {
     toast('success', 'Queued for Social', `${queuedCarousels} ${market.label} ${carouselLabel} (${totalImages} ${imageLabel}) queued with stories.${failureNote}`);
   } catch (error) {
     console.error('Market image queue failed:', error);
-    toast('error', 'Queue Failed', error.message || 'Failed to queue market images.');
+    toast('error', 'Queue Failed', error.message || 'Failed to queue airport images.');
   } finally {
     isMarketSocialQueueGenerating = false;
     setMarketSocialButtonsDisabled(false);
@@ -1762,7 +1772,7 @@ async function queueMarketImagesForSocial(marketKey, triggerButton) {
 async function queueMarketVideosForSocial(marketKey, triggerButton) {
   const market = getPosterSocialMarket(marketKey);
   if (!market) {
-    toast('error', 'Queue Failed', 'Unknown social market.');
+    toast('error', 'Queue Failed', 'Unknown airport group.');
     return;
   }
 
@@ -1773,7 +1783,7 @@ async function queueMarketVideosForSocial(marketKey, triggerButton) {
 
   const sectorIds = getMarketSectorIds(marketKey);
   if (!sectorIds.length) {
-    toast('warning', 'No Sectors', `No India ↔ ${market.label} sectors are configured yet.`);
+    toast('warning', 'No Sectors', `No routes touching ${market.label} are configured yet.`);
     return;
   }
 
@@ -1874,7 +1884,7 @@ async function queueMarketVideosForSocial(marketKey, triggerButton) {
     toast('success', 'Queued for Social', `${queuedVideos} ${market.label} video uploads queued for Buffer.${failureNote}`);
   } catch (error) {
     console.error('Market video queue failed:', error);
-    toast('error', 'Queue Failed', error.message || 'Failed to queue market videos.');
+    toast('error', 'Queue Failed', error.message || 'Failed to queue airport videos.');
   } finally {
     isVideoPosterGenerating = false;
     isMarketSocialQueueGenerating = false;

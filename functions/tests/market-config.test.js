@@ -7,14 +7,15 @@ const {
   isConfiguredChannelId,
 } = require("../buffer/marketConfig");
 
-test("resolveSectorMarketKey only matches India <-> market routes", () => {
-  assert.equal(resolveSectorMarketKey({ sectorCode: "CCJ JED" }), "saudi");
-  assert.equal(resolveSectorMarketKey({ sectorCode: "DXB CCJ" }), "uae");
+test("resolveSectorMarketKey only matches India-linked airport routes", () => {
+  assert.equal(resolveSectorMarketKey({ sectorCode: "CCJ JED" }), "ccj");
+  assert.equal(resolveSectorMarketKey({ sectorCode: "JED CCJ" }), "ccj");
+  assert.equal(resolveSectorMarketKey({ sectorCode: "DXB COK" }), "cok");
   assert.equal(resolveSectorMarketKey({ sectorCode: "DOH DXB" }), null);
   assert.equal(resolveSectorMarketKey({ sectorCode: "CCJ COK" }), null);
 });
 
 test("fallback Buffer channel ids stay unconfigured until real ids are supplied", () => {
-  assert.equal(isConfiguredChannelId(getFallbackChannelId("saudi", "instagram")), false);
-  assert.equal(isConfiguredChannelId(getFallbackChannelId("uae", "youtube")), false);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("ccj", "instagram")), false);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("cok", "youtube")), false);
 });

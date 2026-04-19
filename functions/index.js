@@ -504,27 +504,25 @@ exports.purgeOldFaresDaily = onSchedule(
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Buffer social publishing pipeline
-//   - refreshSocialPublishingHealth: verifies per-market Buffer channels
+//   - refreshSocialPublishingHealth: verifies per-airport Buffer channels
 //   - runSocialQueueNow: admin callable to dispatch pending queue work
 //   - socialQueueDispatcher: scheduled queue worker (every minute)
 //   - socialQueueReconciler: confirms final Buffer publish outcomes
-//   Secrets: one Buffer API key per market account.
+//   Secrets: one Buffer API key per India-airport account.
 // ══════════════════════════════════════════════════════════════════════════════
 const { defineSecret } = require("firebase-functions/params");
-const BUFFER_API_KEY_SAUDI = defineSecret("BUFFER_API_KEY_SAUDI");
-const BUFFER_API_KEY_UAE = defineSecret("BUFFER_API_KEY_UAE");
-const BUFFER_API_KEY_BAHRAIN = defineSecret("BUFFER_API_KEY_BAHRAIN");
-const BUFFER_API_KEY_OMAN = defineSecret("BUFFER_API_KEY_OMAN");
-const BUFFER_API_KEY_KUWAIT = defineSecret("BUFFER_API_KEY_KUWAIT");
-const BUFFER_API_KEY_QATAR = defineSecret("BUFFER_API_KEY_QATAR");
+const BUFFER_API_KEY_CCJ = defineSecret("BUFFER_API_KEY_CCJ");
+const BUFFER_API_KEY_COK = defineSecret("BUFFER_API_KEY_COK");
+const BUFFER_API_KEY_CNN = defineSecret("BUFFER_API_KEY_CNN");
+const BUFFER_API_KEY_TRV = defineSecret("BUFFER_API_KEY_TRV");
+const BUFFER_API_KEY_IXE = defineSecret("BUFFER_API_KEY_IXE");
 
 const BUFFER_API_KEYS_BY_MARKET = {
-  saudi: BUFFER_API_KEY_SAUDI,
-  uae: BUFFER_API_KEY_UAE,
-  bahrain: BUFFER_API_KEY_BAHRAIN,
-  oman: BUFFER_API_KEY_OMAN,
-  kuwait: BUFFER_API_KEY_KUWAIT,
-  qatar: BUFFER_API_KEY_QATAR,
+  ccj: BUFFER_API_KEY_CCJ,
+  cok: BUFFER_API_KEY_COK,
+  cnn: BUFFER_API_KEY_CNN,
+  trv: BUFFER_API_KEY_TRV,
+  ixe: BUFFER_API_KEY_IXE,
 };
 
 const socialPipeline = require("./social/pipeline");
