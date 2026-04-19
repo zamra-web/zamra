@@ -22,10 +22,15 @@ import {
   callToggleAgentVisibility, callToggleSectorVisibility,
   callGenerateAgentReport,
   uploadAndQueueForSocial, uploadAndQueueCarousel,
+  createSocialJob, updateSocialJob,
+  createSocialJobItem, updateSocialJobItem,
+  subscribeSocialPublishingConfig, subscribeRecentSocialJobs, subscribeSocialJobItems,
+  callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
 } from './db.js';
 
 import { downloadVideoPoster } from './video-export.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
+import { createSocialPublishingController } from './social-publishing.js';
 import {
   getPosterSocialMarket,
   listPosterSocialMarkets,
@@ -48,6 +53,9 @@ let _databaseFares = [];
 let _databaseDrafts = {};
 let _databaseSelected = new Set();
 let _databaseEditing = new Set();
+let _activePosterSocialMarketKey = '';
+let _currentAdminUser = null;
+let _socialPublishingController = null;
 
 // ── Theme Toggle ─────────────────────────────────────────────────────────────
 const THEME_STORAGE_KEY = 'zamra-admin-theme';
@@ -469,6 +477,7 @@ onAuthChange(async (user) => {
     window.location.href = '/login.html';
     return;
   }
+  _currentAdminUser = user;
   document.documentElement.style.visibility = 'visible';
   const adminNameEl = document.getElementById('admin-user-name');
   if (adminNameEl) adminNameEl.textContent = user.email.split('@')[0];
@@ -1480,6 +1489,56 @@ async function composePosterStoryImage(feedBlob) {
   }
 }
 
+function getRequestedBy() {
+  return {
+    type: 'user',
+    uid: _currentAdminUser?.uid || '',
+    email: _currentAdminUser?.email || '',
+    label: _currentAdminUser?.email || 'admin',
+  };
+}
+
+function getSocialPublishingController() {
+  if (_socialPublishingController) return _socialPublishingController;
+  _socialPublishingController = createSocialPublishingController({
+    toast,
+    openModal,
+    getFares,
+    uploadAndQueueForSocial,
+    uploadAndQueueCarousel,
+    createSocialJob,
+    updateSocialJob,
+    createSocialJobItem,
+    updateSocialJobItem,
+    subscribeSocialPublishingConfig,
+    subscribeRecentSocialJobs,
+    subscribeSocialJobItems,
+    callRefreshSocialPublishingHealth,
+    callRunSocialQueueNow,
+    callRetrySocialJobItem,
+    getPosterSocialMarket,
+    listPosterSocialMarkets,
+    resolveSectorMarketKey,
+    getPosterSocialDateFilters,
+    getMarketSectorIds,
+    formatPosterSocialCaption,
+    formatPosterSocialYouTubeTitle,
+    createOffscreenPosterWorkspace,
+    populatePosterRenderStack,
+    renderPosterFrameToBlob,
+    composePosterStoryImage,
+    downloadVideoPoster,
+    fileSafeSlug,
+    getSectors: () => _sectors,
+    getAirlines: () => _airlines,
+    getRequestedBy,
+    isBlockedByOtherWork: () => isVideoPosterGenerating || isMarketSocialQueueGenerating,
+    setVideoExportBusy: (value) => { isVideoPosterGenerating = !!value; },
+    setMarketQueueBusy: (value) => { isMarketSocialQueueGenerating = !!value; },
+  });
+  return _socialPublishingController;
+}
+
 function getPosterSocialDateFilters() {
   const startInput = document.getElementById('poster-start-date');
   const endInput = document.getElementById('poster-end-date');
@@ -1496,45 +1555,85 @@ function renderPosterSocialMarketCards() {
   const grid = document.getElementById('poster-social-market-grid');
   if (!grid) return;
 
-  grid.innerHTML = listPosterSocialMarkets().map((market) => `
-    <article class="rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_20px_45px_rgba(15,23,42,0.08)] p-5 flex flex-col gap-4">
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <h3 class="text-[18px] font-bold text-navy">${market.label}</h3>
-          <p class="text-[12px] uppercase tracking-[0.18em] text-primary/80 font-semibold mt-1">${market.summary}</p>
+  const markets = listPosterSocialMarkets();
+  if (_activePosterSocialMarketKey && !markets.some((market) => market.key === _activePosterSocialMarketKey)) {
+    _activePosterSocialMarketKey = '';
+  }
+
+  const activeMarket = getPosterSocialMarket(_activePosterSocialMarketKey);
+  grid.innerHTML = `
+    <div class="flex flex-col gap-3">
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        ${markets.map((market) => {
+          const isActive = market.key === _activePosterSocialMarketKey;
+          const activeClasses = isActive
+            ? 'border-primary bg-linear-to-br from-primary to-[#1b63b9] text-white shadow-[0_20px_36px_rgba(12,74,138,0.28)]'
+            : 'border-slate-200 bg-white/90 text-navy shadow-[0_14px_28px_rgba(15,23,42,0.06)] hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-[0_18px_32px_rgba(15,23,42,0.1)]';
+
+          return `
+            <button
+              type="button"
+              class="group min-h-[92px] rounded-[22px] border px-4 py-3 text-left transition-all duration-200 disabled:pointer-events-none disabled:opacity-60 ${activeClasses}"
+              data-market-social-select="1"
+              data-market-key="${market.key}"
+              aria-pressed="${isActive ? 'true' : 'false'}"
+            >
+              <span class="flex items-start justify-between gap-2">
+                <span class="text-[15px] font-bold">${market.label}</span>
+                <span class="inline-flex min-w-[34px] items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold ${isActive ? 'bg-white/15 text-white' : 'bg-primary/10 text-primary'}">
+                  ${market.airports.length}
+                </span>
+              </span>
+              <span class="mt-3 block text-[10px] font-semibold uppercase tracking-[0.2em] ${isActive ? 'text-white/72' : 'text-text-muted'}">
+                ${market.airports.join(' · ')}
+              </span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+      ${activeMarket ? `
+        <div class="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-[0_18px_34px_rgba(15,23,42,0.08)] sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex min-w-0 items-center gap-3">
+            <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <i class="bi bi-share-fill"></i>
+            </span>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-bold text-navy">${activeMarket.label}</p>
+              <p class="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted">${activeMarket.airports.join(' · ')}</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 sm:flex">
+            <button
+              type="button"
+              class="admin-btn admin-btn-soft min-w-[126px] justify-center"
+              data-market-social-action="images"
+              data-market-key="${activeMarket.key}"
+            >
+              <i class="bi bi-images"></i> Images
+            </button>
+            <button
+              type="button"
+              class="admin-btn admin-btn-primary min-w-[126px] justify-center"
+              data-market-social-action="videos"
+              data-market-key="${activeMarket.key}"
+            >
+              <i class="bi bi-camera-video"></i> Videos
+            </button>
+          </div>
         </div>
-        <span class="inline-flex items-center rounded-full bg-primary/10 text-primary text-[11px] font-bold px-3 py-1">${market.airports.length} airport${market.airports.length > 1 ? 's' : ''}</span>
-      </div>
-      <p class="text-sm text-text-muted leading-6">Queue ready-made posts, stories, reels, shorts, and YouTube videos for the selected date range.</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
-        <button
-          type="button"
-          class="admin-btn admin-btn-soft w-full justify-center"
-          data-market-social-action="images"
-          data-market-key="${market.key}"
-        >
-          <i class="bi bi-images"></i> Queue Images
-        </button>
-        <button
-          type="button"
-          class="admin-btn admin-btn-primary w-full justify-center"
-          data-market-social-action="videos"
-          data-market-key="${market.key}"
-        >
-          <i class="bi bi-camera-video"></i> Queue Videos
-        </button>
-      </div>
-    </article>
-  `).join('');
+      ` : ''}
+    </div>
+  `;
 }
 
 function setMarketSocialButtonsDisabled(disabled, activeButton = null, busyLabel = '') {
-  document.querySelectorAll('[data-market-social-action]').forEach((button) => {
+  document.querySelectorAll('[data-market-social-select], [data-market-social-action]').forEach((button) => {
     const btn = button;
+    btn.disabled = disabled;
+    if (!btn.matches('[data-market-social-action]')) return;
     if (!btn.dataset.defaultLabel) {
       btn.dataset.defaultLabel = btn.innerHTML;
     }
-    btn.disabled = disabled;
     if (disabled && activeButton === btn) {
       btn.innerHTML = busyLabel || btn.dataset.defaultLabel;
     } else if (!disabled) {
@@ -2170,23 +2269,7 @@ async function renderDashboardTab() {
   const endInput = document.getElementById('poster-end-date');
   getPosterDateRange(startInput, endInput);
   wirePosterVideoMenu();
-  renderPosterSocialMarketCards();
-
-  const socialGrid = document.getElementById('poster-social-market-grid');
-  if (socialGrid && !socialGrid.dataset.wired) {
-    socialGrid.dataset.wired = '1';
-    socialGrid.addEventListener('click', (event) => {
-      const btn = event.target.closest('[data-market-social-action]');
-      if (!btn) return;
-      const marketKey = btn.dataset.marketKey;
-      const action = btn.dataset.marketSocialAction;
-      if (action === 'images') {
-        queueMarketImagesForSocial(marketKey, btn);
-      } else if (action === 'videos') {
-        queueMarketVideosForSocial(marketKey, btn);
-      }
-    });
-  }
+  getSocialPublishingController().render();
 
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');

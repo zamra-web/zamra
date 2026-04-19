@@ -61,6 +61,7 @@ const BUFFER_MARKET_CONFIG = {
   },
 };
 
+const PLATFORM_KEYS = ["instagram", "facebook", "youtube"];
 const INDIA_AIRPORT_CODES = new Set(["CCJ", "COK", "CNN", "TRV", "IXE"]);
 
 const LOCATION_CODE_MAP = {
@@ -153,8 +154,20 @@ function isConfiguredChannelId(value) {
   return true;
 }
 
+function getFallbackChannels(marketKey) {
+  const market = BUFFER_MARKET_CONFIG[String(marketKey || "").trim().toLowerCase()];
+  return market && market.channels ? market.channels : {};
+}
+
+function getFallbackChannelId(marketKey, platform) {
+  return getFallbackChannels(marketKey)[String(platform || "").trim().toLowerCase()] || "";
+}
+
 module.exports = {
   BUFFER_MARKET_CONFIG,
+  PLATFORM_KEYS,
   resolveSectorMarketKey,
   isConfiguredChannelId,
+  getFallbackChannels,
+  getFallbackChannelId,
 };

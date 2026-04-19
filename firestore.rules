@@ -90,10 +90,26 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── config ────────────────────────────────────────────────────────────────
+    // Admin-managed operational config (e.g. social publishing health/channel ids)
+    match /config/{configId} {
+      allow read, write: if isAdmin();
+    }
+
     // ── social_queue ──────────────────────────────────────────────────────────
-    // Items queued for posting to Instagram / WhatsApp via n8n
+    // Internal queue items for Buffer publishing
     match /social_queue/{itemId} {
       allow read, write: if isAdmin();
+    }
+
+    // ── social_jobs ───────────────────────────────────────────────────────────
+    // Operator-visible publishing jobs + per-item history
+    match /social_jobs/{jobId} {
+      allow read, write: if isAdmin();
+
+      match /items/{itemId} {
+        allow read, write: if isAdmin();
+      }
     }
 
   }

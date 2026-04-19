@@ -149,19 +149,24 @@
                 </div>
             </div>
 
-            <div class="admin-panel p-6 text-text-main mb-8">
-                <div class="flex flex-col gap-2 mb-6">
+            <div class="admin-panel p-5 sm:p-6 text-text-main mb-8">
+                <div class="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-primary/10 text-primary text-xl">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-primary/10 text-primary text-lg">
                             <i class="bi bi-share-fill"></i>
                         </span>
                         <div>
                             <h3 class="text-xl font-bold text-navy">Social Publishing</h3>
-                            <p class="text-sm text-text-muted mt-1">Queue market-specific image posts, stories, reels, shorts, and YouTube videos using the selected date range.</p>
+                            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted mt-1">Live health, queue progress, and publishing history</p>
                         </div>
                     </div>
+                    <button id="poster-social-refresh-btn" type="button" class="admin-btn admin-btn-soft justify-center sm:min-w-[170px]">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Health
+                    </button>
                 </div>
-                <div id="poster-social-market-grid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+                <div id="poster-social-market-grid" class="min-h-[92px]"></div>
+                <div id="poster-social-current-activity" class="mt-4"></div>
+                <div id="poster-social-jobs" class="mt-4"></div>
             </div>
 
             <!-- Poster Preview Area -->

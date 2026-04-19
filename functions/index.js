@@ -8,7 +8,6 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
-const { getStorage } = require("firebase-admin/storage");
 
 initializeApp();
 const db = getFirestore();
@@ -485,77 +484,7 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 7. getSocialQueue
-//    Returns pending items from social_queue for n8n to process and post.
-//    GET  /getSocialQueue?sectorId=X&mediaType=image&limit=50
-// ══════════════════════════════════════════════════════════════════════════════
-const N8N_SOCIAL_TOKEN = "ZamraSocialQueue2024";
-
-exports.getSocialQueue = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
-  if (req.method !== "GET") return res.status(405).send("Method Not Allowed");
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== `Bearer ${N8N_SOCIAL_TOKEN}`) {
-    return res.status(401).send("Unauthorized");
-  }
-
-  const { sectorId, mediaType, limit: limitParam } = req.query;
-  let query = db.collection("social_queue").where("status", "==", "pending");
-  if (sectorId) query = query.where("sectorId", "==", sectorId);
-  if (mediaType) query = query.where("mediaType", "==", mediaType);
-  query = query.orderBy("createdAt", "asc").limit(Number(limitParam) || 50);
-
-  const snap = await query.get();
-  const items = snap.docs.map(d => ({
-    id: d.id,
-    ...d.data(),
-    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || null,
-  }));
-
-  res.status(200).json({ success: true, count: items.length, items });
-});
-
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 8. markSocialPosted
-//    Called by n8n after posting to update a social_queue item's status.
-//    POST /markSocialPosted  { id, status, platforms?, postedAt? }
-// ══════════════════════════════════════════════════════════════════════════════
-exports.markSocialPosted = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== `Bearer ${N8N_SOCIAL_TOKEN}`) {
-    return res.status(401).send("Unauthorized");
-  }
-
-  const { id, status, platforms, postedAt } = req.body || {};
-  if (!id || !status) {
-    return res.status(400).json({ error: "id and status are required." });
-  }
-
-  const validStatuses = ["posted", "failed", "skipped"];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ error: `status must be one of: ${validStatuses.join(", ")}` });
-  }
-
-  const docRef = db.collection("social_queue").doc(id);
-  const snap = await docRef.get();
-  if (!snap.exists) return res.status(404).json({ error: "Queue item not found." });
-
-  await docRef.update({
-    status,
-    postedAt: postedAt ? new Date(postedAt) : FieldValue.serverTimestamp(),
-    postedToPlatforms: platforms || [],
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-
-  res.status(200).json({ success: true, id, status });
-});
-
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 9. purgeOldFaresDaily (Scheduled)
+// 7. purgeOldFaresDaily (Scheduled)
 //    Deletes fares older than 2 days (by flightDate, UTC midnight).
 // ══════════════════════════════════════════════════════════════════════════════
 exports.purgeOldFaresDaily = onSchedule(
@@ -574,9 +503,11 @@ exports.purgeOldFaresDaily = onSchedule(
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Buffer social auto-post
-//   - postSocialQueueToBuffer (firestore trigger): routes social_queue items
-//     to market-specific Instagram / Facebook / YouTube Buffer channels.
+// Buffer social publishing pipeline
+//   - refreshSocialPublishingHealth: verifies per-market Buffer channels
+//   - runSocialQueueNow: admin callable to dispatch pending queue work
+//   - socialQueueDispatcher: scheduled queue worker (every minute)
+//   - socialQueueReconciler: confirms final Buffer publish outcomes
 //   Secrets: one Buffer API key per market account.
 // ══════════════════════════════════════════════════════════════════════════════
 const { defineSecret } = require("firebase-functions/params");
@@ -596,16 +527,29 @@ const BUFFER_API_KEYS_BY_MARKET = {
   qatar: BUFFER_API_KEY_QATAR,
 };
 
-exports.postSocialQueueToBuffer =
-  require("./triggers/postToBuffer").build(BUFFER_API_KEYS_BY_MARKET);
+const socialPipeline = require("./social/pipeline");
+
+exports.refreshSocialPublishingHealth =
+  socialPipeline.buildRefreshSocialPublishingHealth(requireAdmin, BUFFER_API_KEYS_BY_MARKET);
+
+exports.runSocialQueueNow =
+  socialPipeline.buildRunSocialQueueNow(requireAdmin, BUFFER_API_KEYS_BY_MARKET);
+
+exports.retrySocialJobItem =
+  socialPipeline.buildRetrySocialJobItem(requireAdmin, BUFFER_API_KEYS_BY_MARKET);
+
+exports.socialQueueDispatcher =
+  socialPipeline.buildScheduledDispatcher(BUFFER_API_KEYS_BY_MARKET);
+
+exports.socialQueueReconciler =
+  socialPipeline.buildScheduledReconciler(BUFFER_API_KEYS_BY_MARKET);
 
 
 // ══════════════════════════════════════════════════════════════════════════════
 // autoPostDaily (Scheduled, 10:00 Asia/Kolkata)
 //   Renders a simplified daily poster for each sector in
-//   `posting_schedule/daily` and enqueues it via social_queue. The existing
-//   postSocialQueueToBuffer trigger publishes to Buffer. Requires 2GiB mem
-//   because it bundles headless Chromium (via @sparticuz/chromium) to render.
+//   `posting_schedule/daily` and enqueues it into the shared social_queue/job
+//   pipeline. The scheduled dispatcher + reconciler handle Buffer delivery.
 //
 //   Also exports `runDailyPostNow` — an admin-only callable that runs the
 //   same logic on demand, for testing without waiting for the cron.
@@ -624,87 +568,9 @@ exports.runDailyPostNow = onCall(
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 10. purgeProcessedSocialQueue (Scheduled, every 5 min)
-//    Deletes social_queue docs and their Storage files 10+ minutes after
-//    processing, so generated posters don't accumulate forever. Only touches
-//    terminal statuses — anything still "pending" is left alone for debugging.
+// 8. purgeSocialPublishing (Scheduled, every 5 min)
+//    Deletes terminal social_queue docs, their generated media, and expired
+//    social_jobs after the 72-hour retention window.
 // ══════════════════════════════════════════════════════════════════════════════
-const TERMINAL_STATUSES = ["queued", "posted", "failed", "skipped"];
-const PURGE_AGE_MS = 10 * 60 * 1000;
-
-/**
- * Extracts `generated_posters/<file>` from a Firebase Storage download URL.
- * URLs look like: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<url-encoded-path>?alt=media&token=...
- */
-function pathFromStorageUrl(url) {
-  if (typeof url !== "string" || !url) return null;
-  const marker = "/o/";
-  const i = url.indexOf(marker);
-  if (i === -1) return null;
-  const tail = url.slice(i + marker.length).split("?")[0];
-  try {
-    return decodeURIComponent(tail);
-  } catch {
-    return null;
-  }
-}
-
-async function deleteStorageFiles(paths) {
-  const bucket = getStorage().bucket();
-  const unique = [...new Set(paths.filter(Boolean))];
-  await Promise.all(unique.map(async (p) => {
-    try {
-      await bucket.file(p).delete({ ignoreNotFound: true });
-    } catch (e) {
-      console.warn(`purgeProcessedSocialQueue: failed to delete ${p}: ${e.message}`);
-    }
-  }));
-}
-
-exports.purgeProcessedSocialQueue = onSchedule(
-  { region: "asia-south1", schedule: "every 5 minutes", timeZone: "UTC" },
-  async () => {
-    const cutoff = Date.now() - PURGE_AGE_MS;
-    const snap = await db.collection("social_queue")
-      .where("status", "in", TERMINAL_STATUSES)
-      .get();
-
-    let deletedDocs = 0;
-    let deletedFiles = 0;
-
-    for (const doc of snap.docs) {
-      const data = doc.data() || {};
-      const stamp = data.processedAt || data.postedAt || data.createdAt;
-      const ms = stamp && typeof stamp.toMillis === "function" ? stamp.toMillis() : 0;
-      if (!ms || ms > cutoff) continue;
-
-      const paths = [];
-      if (Array.isArray(data.filenames) && data.filenames.length) {
-        data.filenames.forEach((f) => paths.push(`generated_posters/${f}`));
-      } else if (data.filename) {
-        paths.push(`generated_posters/${data.filename}`);
-      } else if (Array.isArray(data.mediaUrls)) {
-        data.mediaUrls.forEach((u) => {
-          const p = pathFromStorageUrl(u);
-          if (p) paths.push(p);
-        });
-      } else if (data.mediaUrl) {
-        const p = pathFromStorageUrl(data.mediaUrl);
-        if (p) paths.push(p);
-      }
-      if (data.storyMediaUrl) {
-        const p = pathFromStorageUrl(data.storyMediaUrl);
-        if (p) paths.push(p);
-      }
-
-      await deleteStorageFiles(paths);
-      deletedFiles += paths.length;
-      await doc.ref.delete();
-      deletedDocs += 1;
-    }
-
-    console.log(
-      `purgeProcessedSocialQueue: deleted ${deletedDocs} doc(s), ${deletedFiles} file(s)`
-    );
-  }
-);
+exports.purgeSocialPublishing =
+  socialPipeline.buildPurgeSocialPublishing();

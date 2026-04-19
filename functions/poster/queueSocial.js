@@ -1,11 +1,11 @@
 /**
  * Server-side port of web/src/js/admin/db.js `uploadAndQueueForSocial`.
  * Uploads a JPEG buffer to Firebase Storage and writes a `social_queue` doc.
- * The existing `postSocialQueueToBuffer` trigger picks it up from there.
+ * The shared scheduled dispatcher + reconciler pick it up from there.
  */
 
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
+const { enqueueExistingMedia } = require("../social/pipeline");
 
 /**
  * @param {Buffer} jpegBuffer
@@ -32,7 +32,10 @@ async function uploadAndQueue(jpegBuffer, filename, meta) {
     `https://firebasestorage.googleapis.com/v0/b/${bucket.name}` +
     `/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
 
-  const docRef = await getFirestore().collection("social_queue").add({
+  const { queueId } = await enqueueExistingMedia({
+    source: meta.source || "autoPostDaily",
+    jobId: meta.jobId || "",
+    jobItemId: meta.jobItemId || "",
     sectorId: meta.sectorId || "",
     sectorCode: meta.sectorCode || "",
     marketKey: meta.marketKey || "",
@@ -41,19 +44,18 @@ async function uploadAndQueue(jpegBuffer, filename, meta) {
     mediaUrl,
     mediaUrls: [mediaUrl],
     filename,
+    filenames: [filename],
     caption: meta.caption || "",
     youtubeTitle: meta.youtubeTitle || "",
-    status: "pending",
     platforms: meta.platforms && meta.platforms.length
       ? meta.platforms
       : ["instagram", "facebook"],
     includeStories: meta.includeStories !== false,
     storyMediaUrl: null,
-    source: "autoPostDaily",
-    createdAt: FieldValue.serverTimestamp(),
+    lastMessage: "Uploaded and waiting for Buffer dispatch.",
   });
 
-  return { mediaUrl, queueId: docRef.id };
+  return { mediaUrl, queueId };
 }
 
 module.exports = { uploadAndQueue };

@@ -19,7 +19,7 @@
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { logger } = require("firebase-functions/v2");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
 const { fetchDailyFares } = require("../poster/fetchFares");
 const { fetchLogos } = require("../poster/fetchLogos");
@@ -27,6 +27,12 @@ const { buildDailyPosterHtml, buildCaption } = require("../poster/dailyTemplate"
 const { renderHtmlBatch } = require("../poster/render");
 const { uploadAndQueue } = require("../poster/queueSocial");
 const { resolveSectorMarketKey } = require("../buffer/marketConfig");
+const {
+  createSocialJob,
+  createSocialJobItem,
+  updateSocialJobItem,
+  syncSocialJobSummary,
+} = require("../social/pipeline");
 
 const fileSafe = (s) =>
   String(s || "")
@@ -103,21 +109,67 @@ async function runDailyPost() {
 
   // Step 2: batch-render all HTMLs with a single browser.
   logger.info(`autoPostDaily: rendering ${jobs.length} poster(s)`);
+  const jobId = await createSocialJob({
+    source: "autoPostDaily",
+    mediaType: "image",
+    status: "processing",
+    currentStage: "rendering",
+    lastMessage: `Rendering ${jobs.length} scheduled poster${jobs.length > 1 ? "s" : ""}.`,
+    requestedBy: { type: "system", label: "autoPostDaily" },
+    plannedItems: jobs.length,
+  });
+
+  const itemIds = [];
+  for (const job of jobs) {
+    const itemId = await createSocialJobItem(jobId, {
+      source: "autoPostDaily",
+      label: job.sector.sectorCode || job.sector.id,
+      sectorId: job.sector.id,
+      sectorCode: job.sector.sectorCode || "",
+      marketKey: resolveSectorMarketKey(job.sector) || "",
+      mediaType: "image",
+      ratio: "4x5",
+      status: "pending",
+      stage: "rendering",
+      lastMessage: "Waiting for server-side poster render.",
+      platforms,
+      includeStories,
+      caption: job.caption,
+    });
+    itemIds.push(itemId);
+  }
+
   const buffers = await renderHtmlBatch(jobs.map((j) => j.html));
 
   // Step 3: upload each + enqueue to social_queue. Existing trigger does the rest.
   const ts = Date.now();
   for (let i = 0; i < jobs.length; i++) {
     const { sector, caption } = jobs[i];
+    const itemId = itemIds[i];
     const buf = buffers[i];
     const filename = `daily-${fileSafe(sector.sectorCode || sector.id)}-4x5-${ts}-${i}.jpg`;
     const marketKey = resolveSectorMarketKey(sector);
     if (!marketKey) {
+      await updateSocialJobItem(jobId, itemId, {
+        status: "failed",
+        stage: "failed",
+        lastMessage: `Market could not be resolved for ${sector.sectorCode || sector.id}.`,
+        lastError: { message: `Market could not be resolved for ${sector.sectorCode || sector.id}.`, retryable: false },
+      });
       logger.warn(`autoPostDaily: market not resolved for ${sector.sectorCode || sector.id} — skipping`);
       continue;
     }
     try {
+      await updateSocialJobItem(jobId, itemId, {
+        status: "pending",
+        stage: "uploading",
+        renderedAt: FieldValue.serverTimestamp(),
+        lastMessage: "Rendered successfully. Uploading poster media…",
+      });
       const { queueId } = await uploadAndQueue(buf, filename, {
+        source: "autoPostDaily",
+        jobId,
+        jobItemId: itemId,
         sectorId: sector.id,
         sectorCode: sector.sectorCode || "",
         marketKey,
@@ -126,11 +178,30 @@ async function runDailyPost() {
         platforms,
         includeStories,
       });
+      await updateSocialJobItem(jobId, itemId, {
+        queueId,
+        status: "pending",
+        stage: "waiting_dispatch",
+        uploadedAt: FieldValue.serverTimestamp(),
+        mediaUrl: "",
+        mediaUrls: [],
+        filename,
+        filenames: [filename],
+        lastMessage: "Uploaded and waiting for Buffer dispatch.",
+      });
       logger.info(`autoPostDaily: queued ${sector.sectorCode || sector.id} → ${queueId}`);
     } catch (e) {
+      await updateSocialJobItem(jobId, itemId, {
+        status: "failed",
+        stage: "failed",
+        lastMessage: e.message || `Failed to enqueue ${sector.sectorCode || sector.id}.`,
+        lastError: { message: e.message || String(e), retryable: false },
+      });
       logger.error(`autoPostDaily: enqueue failed for ${sector.id}`, e);
     }
   }
+
+  await syncSocialJobSummary(jobId);
 }
 
 function build() {

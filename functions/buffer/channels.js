@@ -20,6 +20,29 @@ const GET_CHANNELS_QUERY = `
   }
 `;
 
+const GET_ORGANIZATIONS_QUERY = `
+  query GetOrganizations {
+    account {
+      organizations {
+        id
+      }
+    }
+  }
+`;
+
+const GET_CHANNEL_QUERY = `
+  query GetChannel($id: ChannelId!) {
+    channel(input: { id: $id }) {
+      id
+      name
+      displayName
+      service
+      avatar
+      isQueuePaused
+    }
+  }
+`;
+
 /**
  * Fetch all channels for an org directly from Buffer.
  * @param {string} apiKey
@@ -28,6 +51,30 @@ const GET_CHANNELS_QUERY = `
 async function fetchBufferChannels(apiKey, organizationId) {
   const data = await bufferQuery(apiKey, GET_CHANNELS_QUERY, { organizationId });
   return Array.isArray(data.channels) ? data.channels : [];
+}
+
+/**
+ * Fetch organizations for the current Buffer account.
+ * @param {string} apiKey
+ * @returns {Promise<string[]>}
+ */
+async function fetchOrganizations(apiKey) {
+  const data = await bufferQuery(apiKey, GET_ORGANIZATIONS_QUERY);
+  const orgs = data && data.account && Array.isArray(data.account.organizations)
+    ? data.account.organizations
+    : [];
+  return orgs.map((org) => String(org.id || "").trim()).filter(Boolean);
+}
+
+/**
+ * Fetch a single Buffer channel by id.
+ * @param {string} apiKey
+ * @param {string} id
+ * @returns {Promise<object|null>}
+ */
+async function fetchChannelById(apiKey, id) {
+  const data = await bufferQuery(apiKey, GET_CHANNEL_QUERY, { id });
+  return data && data.channel ? data.channel : null;
 }
 
 /**
@@ -77,6 +124,8 @@ async function refreshChannelCache(apiKey, organizationId) {
 
 module.exports = {
   fetchBufferChannels,
+  fetchOrganizations,
+  fetchChannelById,
   channelsByService,
   readCachedChannels,
   refreshChannelCache,

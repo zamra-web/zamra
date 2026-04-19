@@ -7,11 +7,13 @@
 
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, setDoc,
-  query, where, orderBy, Timestamp, serverTimestamp, writeBatch
+  query, where, orderBy, Timestamp, serverTimestamp, writeBatch, onSnapshot, limit
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { db, storage, functions } from './firebase-config.js';
+
+const SOCIAL_RETENTION_MS = 72 * 60 * 60 * 1000;
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -702,11 +704,122 @@ export async function callToggleSectorVisibility(sectorId, isHidden) {
 // SOCIAL QUEUE
 // ─────────────────────────────────────────────────────────────────────────────
 
+export async function createSocialJob(data = {}) {
+  const docRef = await addDoc(collection(db, 'social_jobs'), {
+    source: data.source || 'admin',
+    marketKey: data.marketKey || '',
+    mediaType: data.mediaType || 'image',
+    filters: data.filters || {},
+    requestedBy: data.requestedBy || {},
+    status: data.status || 'pending',
+    currentStage: data.currentStage || 'rendering',
+    currentItemLabel: data.currentItemLabel || '',
+    lastMessage: data.lastMessage || 'Preparing social publishing job.',
+    plannedItems: Number(data.plannedItems || 0),
+    renderedItems: Number(data.renderedItems || 0),
+    uploadedItems: Number(data.uploadedItems || 0),
+    queuedItems: Number(data.queuedItems || 0),
+    postedItems: Number(data.postedItems || 0),
+    failedItems: Number(data.failedItems || 0),
+    partialItems: Number(data.partialItems || 0),
+    expiresAt: Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS)),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateSocialJob(jobId, data = {}) {
+  await setDoc(doc(db, 'social_jobs', jobId), {
+    ...data,
+    expiresAt: data.expiresAt || Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS)),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function createSocialJobItem(jobId, data = {}) {
+  const docRef = await addDoc(collection(db, 'social_jobs', jobId, 'items'), {
+    source: data.source || 'admin',
+    label: data.label || data.sectorCode || '',
+    sectorId: data.sectorId || '',
+    sectorCode: data.sectorCode || '',
+    marketKey: data.marketKey || '',
+    mediaType: data.mediaType || 'image',
+    ratio: data.ratio || null,
+    status: data.status || 'pending',
+    stage: data.stage || 'rendering',
+    lastMessage: data.lastMessage || 'Preparing media.',
+    lastError: data.lastError || null,
+    platforms: Array.isArray(data.platforms) ? data.platforms : [],
+    includeStories: data.includeStories === true,
+    mediaUrl: data.mediaUrl || '',
+    mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls : [],
+    storyMediaUrl: data.storyMediaUrl || '',
+    filename: data.filename || '',
+    filenames: Array.isArray(data.filenames) ? data.filenames : [],
+    caption: data.caption || '',
+    youtubeTitle: data.youtubeTitle || '',
+    retryOfItemId: data.retryOfItemId || '',
+    queueId: data.queueId || '',
+    renderedAt: data.renderedAt || null,
+    uploadedAt: data.uploadedAt || null,
+    expiresAt: Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS)),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateSocialJobItem(jobId, itemId, data = {}) {
+  await setDoc(doc(db, 'social_jobs', jobId, 'items', itemId), {
+    ...data,
+    expiresAt: data.expiresAt || Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS)),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export function subscribeSocialPublishingConfig(callback) {
+  return onSnapshot(doc(db, 'config', 'socialPublishing'), (snap) => {
+    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+  });
+}
+
+export function subscribeRecentSocialJobs(callback, maxItems = 25) {
+  const q = query(collection(db, 'social_jobs'), orderBy('createdAt', 'desc'), limit(maxItems));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })));
+  });
+}
+
+export function subscribeSocialJobItems(jobId, callback) {
+  const q = query(collection(db, 'social_jobs', jobId, 'items'), orderBy('createdAt', 'asc'));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })));
+  });
+}
+
+export async function callRefreshSocialPublishingHealth(marketKey = '') {
+  const fn = httpsCallable(functions, 'refreshSocialPublishingHealth');
+  const result = await fn(marketKey ? { marketKey } : {});
+  return result.data;
+}
+
+export async function callRunSocialQueueNow() {
+  const fn = httpsCallable(functions, 'runSocialQueueNow');
+  const result = await fn({});
+  return result.data;
+}
+
+export async function callRetrySocialJobItem(jobId, itemId) {
+  const fn = httpsCallable(functions, 'retrySocialJobItem');
+  const result = await fn({ jobId, itemId });
+  return result.data;
+}
+
 /**
  * Upload a poster or video blob to Firebase Storage, then enqueue it in
- * the `social_queue` Firestore collection. The postSocialQueueToBuffer Cloud
- * Function picks it up and publishes via Buffer to Instagram / Facebook /
- * YouTube (YouTube only for videos).
+ * the `social_queue` Firestore collection. The scheduled dispatcher +
+ * reconciler pick it up and publish/confirm via Buffer.
  *
  * @param {Blob}   blob     — The JPEG image or MP4 video blob
  * @param {string} filename — Destination filename (e.g. 'ccj-jed-1x1-1234567890.mp4')
@@ -723,6 +836,7 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
   const mediaUrl = await getDownloadURL(fileRef);
 
   const mediaType = meta.mediaType || 'image';
+  const expiresAt = Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS));
 
   let storyMediaUrl = null;
   if (mediaType === 'image' && meta.storyItem && meta.storyItem.blob) {
@@ -734,6 +848,10 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
   }
 
   const docRef = await addDoc(collection(db, 'social_queue'), {
+    source: meta.source || 'admin',
+    jobId: meta.jobId || '',
+    jobItemId: meta.jobItemId || '',
+    label: meta.label || meta.sectorCode || filename || '',
     sectorId: meta.sectorId || '',
     sectorCode: meta.sectorCode || '',
     marketKey: meta.marketKey || '',
@@ -745,10 +863,21 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
     caption: meta.caption || '',
     youtubeTitle: meta.youtubeTitle || '',
     status: 'pending',
+    stage: 'waiting_dispatch',
+    attemptCount: 0,
+    nextAttemptAt: Timestamp.fromDate(new Date()),
+    leaseExpiresAt: null,
+    bufferPosts: {},
+    lastError: null,
+    lastMessage: meta.lastMessage || 'Uploaded and waiting for Buffer dispatch.',
+    lastCheckedAt: null,
+    processedAt: null,
     platforms: meta.platforms || ['instagram', 'facebook', 'youtube'],
     includeStories: mediaType === 'image' ? (meta.includeStories !== false) : false,
     storyMediaUrl,
+    expiresAt,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
   return { mediaUrl, storyMediaUrl, queueId: docRef.id };
@@ -757,7 +886,7 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
 
 /**
  * Upload multiple image blobs and enqueue them as a single carousel post.
- * Produces ONE `social_queue` doc with `mediaUrls` (array) so the Buffer trigger
+ * Produces ONE `social_queue` doc with `mediaUrls` (array) so the dispatcher
  * publishes a single multi-image post (Instagram/Facebook carousel).
  *
  * @param {Array<{ blob: Blob, filename: string }>} items — 1..10 images
@@ -772,6 +901,7 @@ export async function uploadAndQueueCarousel(items, meta) {
 
   const mediaUrls = [];
   const filenames = [];
+  const expiresAt = Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS));
   for (const { blob, filename } of items) {
     const fileRef = ref(storage, `generated_posters/${filename}`);
     await uploadBytes(fileRef, blob, { contentType: blob.type || 'image/jpeg' });
@@ -789,6 +919,10 @@ export async function uploadAndQueueCarousel(items, meta) {
   }
 
   const docRef = await addDoc(collection(db, 'social_queue'), {
+    source: meta.source || 'admin',
+    jobId: meta.jobId || '',
+    jobItemId: meta.jobItemId || '',
+    label: meta.label || meta.sectorCode || filenames[0] || '',
     sectorId: meta.sectorId || '',
     sectorCode: meta.sectorCode || '',
     marketKey: meta.marketKey || '',
@@ -800,10 +934,21 @@ export async function uploadAndQueueCarousel(items, meta) {
     filenames,
     caption: meta.caption || '',
     status: 'pending',
+    stage: 'waiting_dispatch',
+    attemptCount: 0,
+    nextAttemptAt: Timestamp.fromDate(new Date()),
+    leaseExpiresAt: null,
+    bufferPosts: {},
+    lastError: null,
+    lastMessage: meta.lastMessage || 'Uploaded and waiting for Buffer dispatch.',
+    lastCheckedAt: null,
+    processedAt: null,
     platforms: meta.platforms || ['instagram', 'facebook'],
     includeStories: meta.includeStories !== false,
     storyMediaUrl,
+    expiresAt,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
   return { mediaUrls, storyMediaUrl, queueId: docRef.id };
