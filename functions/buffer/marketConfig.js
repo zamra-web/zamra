@@ -14,9 +14,9 @@ const BUFFER_MARKET_CONFIG = {
     label: "Kochi (COK)",
     airports: ["COK"],
     channels: {
-      instagram: "__SET_COK_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_COK_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_COK_YOUTUBE_CHANNEL_ID__",
+      instagram: "69e8d1b2031bfa423c2f3991",
+      facebook: "69e8d1c8031bfa423c2f39e0",
+      youtube: "69e8d13d031bfa423c2f37dd",
     },
   },
   cnn: {
