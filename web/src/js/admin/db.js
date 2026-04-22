@@ -779,9 +779,15 @@ export async function updateSocialJobItem(jobId, itemId, data = {}) {
 }
 
 export function subscribeSocialPublishingConfig(callback) {
-  return onSnapshot(doc(db, 'config', 'socialPublishing'), (snap) => {
+  const ref = doc(db, 'config', 'socialPublishing');
+  getDoc(ref).then((snap) => {
     callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-  });
+  }).catch((err) => console.error('[social] config initial fetch error:', err));
+  return onSnapshot(
+    ref,
+    (snap) => { callback(snap.exists() ? { id: snap.id, ...snap.data() } : null); },
+    (err) => console.error('[social] config listener error:', err),
+  );
 }
 
 export function subscribeRecentSocialJobs(callback, maxItems = 25) {
