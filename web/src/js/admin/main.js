@@ -35,6 +35,7 @@ import {
   getPosterSocialMarket,
   listPosterSocialMarkets,
   resolveSectorMarketKey,
+  getSectorRouteCodes,
 } from './social-markets.js';
 
 // ── Global State ──────────────────────────────────────────────────────────────
@@ -64,6 +65,25 @@ const POSTER_SOCIAL_TIME_ZONE = 'Asia/Kolkata';
 const POSTER_SOCIAL_SITE = 'zamratravels.com';
 const POSTER_SOCIAL_CONTACT = '9846606739';
 const POSTER_SOCIAL_MARKET_LABEL = 'Zamra Travels';
+const POSTER_COUNTRY_SELECTION_PREFIX = 'country:';
+const POSTER_SECTOR_COUNTRY_SHORTCUTS = [
+  { key: 'saudi', label: 'Saudi', airportCodes: ['JED', 'RUH', 'DMM'], keywords: ['SAUDI', 'SAUDI ARABIA'] },
+  { key: 'uae', label: 'UAE', airportCodes: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'], keywords: ['UAE', 'UNITED ARAB EMIRATES', 'DUBAI', 'SHARJAH', 'ABU DHABI', 'RAS AL KHAIMAH', 'AL AIN', 'FUJAIRAH'] },
+  { key: 'qatar', label: 'Qatar', airportCodes: ['DOH'], keywords: ['QATAR', 'DOHA'] },
+  { key: 'oman', label: 'Oman', airportCodes: ['MCT'], keywords: ['OMAN', 'MUSCAT'] },
+  { key: 'kuwait', label: 'Kuwait', airportCodes: ['KWI'], keywords: ['KUWAIT'] },
+  { key: 'bahrain', label: 'Bahrain', airportCodes: ['BAH'], keywords: ['BAHRAIN'] },
+];
+const POSTER_SECTOR_COUNTRY_SHORTCUT_BY_KEY = new Map(
+  POSTER_SECTOR_COUNTRY_SHORTCUTS.map((shortcut) => [
+    shortcut.key,
+    {
+      ...shortcut,
+      airportCodeSet: new Set(shortcut.airportCodes.map((code) => String(code || '').trim().toUpperCase())),
+      keywordList: [...new Set((shortcut.keywords || []).map((keyword) => String(keyword || '').trim().toUpperCase()).filter(Boolean))],
+    },
+  ]),
+);
 
 function getStoredTheme() {
   try { return localStorage.getItem(THEME_STORAGE_KEY); } catch { return null; }
@@ -132,6 +152,154 @@ function normalizeSectorRecord(sector = {}) {
 
 function normalizeSectors(list = []) {
   return list.map((sector) => normalizeSectorRecord(sector));
+}
+
+function getPosterCountryShortcutValue(key) {
+  return `${POSTER_COUNTRY_SELECTION_PREFIX}${key}`;
+}
+
+function getPosterCountryShortcut(countryKey = '') {
+  return POSTER_SECTOR_COUNTRY_SHORTCUT_BY_KEY.get(String(countryKey || '').trim().toLowerCase()) || null;
+}
+
+function sortPosterSectorIds(sectorIds = []) {
+  const seen = new Set();
+  const uniqueSectorIds = sectorIds.filter((sectorId) => {
+    const key = String(sectorId || '').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const order = new Map(_sectors.map((sector, idx) => [sector.id, idx]));
+  return uniqueSectorIds.sort((a, b) => {
+    const oa = order.get(a) ?? Number.MAX_SAFE_INTEGER;
+    const ob = order.get(b) ?? Number.MAX_SAFE_INTEGER;
+    if (oa !== ob) return oa - ob;
+    return String(a).localeCompare(String(b));
+  });
+}
+
+function sectorMatchesPosterCountryShortcut(sector, shortcut) {
+  if (!sector || !shortcut) return false;
+
+  const { fromCode, toCode } = getSectorRouteCodes(sector);
+  const routeCodes = [fromCode, toCode]
+    .map((code) => String(code || '').trim().toUpperCase())
+    .filter(Boolean);
+  if (routeCodes.some((code) => shortcut.airportCodeSet.has(code))) return true;
+
+  if (!shortcut.keywordList?.length) return false;
+  const haystack = [
+    sector.sectorFrom,
+    sector.sectorTo,
+    sector.sectorCode,
+  ]
+    .map((value) => normalizeDamammText(String(value || '').trim().toUpperCase()))
+    .filter(Boolean);
+  return haystack.some((value) => shortcut.keywordList.some((keyword) => value.includes(keyword)));
+}
+
+function getPosterCountrySectorIds(countryKey) {
+  const shortcut = getPosterCountryShortcut(countryKey);
+  if (!shortcut) return [];
+  return sortPosterSectorIds(
+    _sectors
+      .filter((sector) => sectorMatchesPosterCountryShortcut(sector, shortcut))
+      .map((sector) => sector.id)
+  );
+}
+
+function resolvePosterSectorSelection(rawValue) {
+  const value = String(rawValue || '').trim();
+  if (!value) {
+    return { rawValue: '', kind: 'none', label: '', sectorIds: [] };
+  }
+
+  if (value === 'all') {
+    return {
+      rawValue: value,
+      kind: 'all',
+      label: 'All Sectors',
+      sectorIds: sortPosterSectorIds(_sectors.map((sector) => sector.id)),
+    };
+  }
+
+  if (value.startsWith(POSTER_COUNTRY_SELECTION_PREFIX)) {
+    const key = value.slice(POSTER_COUNTRY_SELECTION_PREFIX.length);
+    const shortcut = getPosterCountryShortcut(key);
+    return {
+      rawValue: value,
+      kind: 'country',
+      key,
+      label: shortcut?.label || 'Country',
+      sectorIds: getPosterCountrySectorIds(key),
+    };
+  }
+
+  const sector = _sectors.find((item) => item.id === value);
+  return {
+    rawValue: value,
+    kind: 'sector',
+    label: sector?.sectorCode || value,
+    sectorIds: value ? [value] : [],
+  };
+}
+
+function getPosterSelectionRenderSectorIds(faresBySector, selection) {
+  const normalizedSelection = selection?.kind ? selection : resolvePosterSectorSelection(selection);
+  const sectorIds = normalizedSelection.kind === 'all'
+    ? Array.from(faresBySector.keys())
+    : normalizedSelection.sectorIds;
+  if (!sectorIds?.length) return [];
+
+  const availableIds = new Set(faresBySector.keys());
+  return sortPosterSectorIds(sectorIds.filter((sectorId) => availableIds.has(sectorId)));
+}
+
+async function getPosterSelectionFares(selection, { startDate, endDate, includeHidden = false } = {}) {
+  const normalizedSelection = selection?.kind ? selection : resolvePosterSectorSelection(selection);
+  if (normalizedSelection.kind === 'none') return [];
+  if (normalizedSelection.kind !== 'all' && !normalizedSelection.sectorIds.length) return [];
+
+  const fares = await getFares({
+    sectorId: normalizedSelection.kind === 'sector' ? normalizedSelection.rawValue : 'all',
+    startDate,
+    endDate,
+    includeHidden,
+  });
+
+  if (normalizedSelection.kind === 'all') return fares;
+
+  const allowedSectorIds = new Set(normalizedSelection.sectorIds);
+  return fares.filter((fare) => allowedSectorIds.has(fare.sectorId));
+}
+
+function populatePosterSectorSelect(selectEl) {
+  if (!selectEl) return;
+
+  const currentValue = selectEl.value;
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(new Option('Choose Sector or Country', ''));
+  fragment.appendChild(new Option('All Sectors', 'all'));
+
+  POSTER_SECTOR_COUNTRY_SHORTCUTS.forEach((shortcut) => {
+    fragment.appendChild(new Option(shortcut.label, getPosterCountryShortcutValue(shortcut.key)));
+  });
+
+  const sectorGroup = document.createElement('optgroup');
+  sectorGroup.label = 'Sectors';
+  _sectors.forEach((sector) => {
+    sectorGroup.appendChild(new Option(sector.sectorCode || sector.id, sector.id));
+  });
+  fragment.appendChild(sectorGroup);
+
+  selectEl.innerHTML = '';
+  selectEl.appendChild(fragment);
+
+  const nextValue = Array.from(selectEl.options).some((option) => option.value === currentValue)
+    ? currentValue
+    : '';
+  selectEl.value = nextValue;
 }
 
 function formatPosterSocialDate(date = new Date()) {
@@ -1180,7 +1348,7 @@ function chunkPosterFares(list, size) {
   return chunks;
 }
 
-async function populatePosterRenderStack(fares, sectorId, stack, templateFrame) {
+async function populatePosterRenderStack(fares, selection, stack, templateFrame) {
   if (!stack || !templateFrame) return [];
 
   if (stack.__posterLogoBlobMap) {
@@ -1298,19 +1466,7 @@ async function populatePosterRenderStack(fares, sectorId, stack, templateFrame) 
       faresBySector.get(sid).push(fare);
     });
 
-    let sectorIdsToRender = [];
-    if (sectorId === 'all') {
-      sectorIdsToRender = Array.from(faresBySector.keys());
-      const order = new Map(_sectors.map((sector, idx) => [sector.id, idx]));
-      sectorIdsToRender.sort((a, b) => {
-        const oa = order.get(a) ?? 1e9;
-        const ob = order.get(b) ?? 1e9;
-        if (oa !== ob) return oa - ob;
-        return String(a).localeCompare(String(b));
-      });
-    } else {
-      sectorIdsToRender = [sectorId];
-    }
+    const sectorIdsToRender = getPosterSelectionRenderSectorIds(faresBySector, selection);
 
     const framesToRender = [];
     sectorIdsToRender.forEach((sid) => {
@@ -2152,11 +2308,16 @@ async function queueVideoForSocial(ratio) {
   const sectorSel = document.getElementById('poster-sector-sel');
   const startInput = document.getElementById('poster-start-date');
   const endInput = document.getElementById('poster-end-date');
-  const sectorId = sectorSel?.value;
+  const selection = resolvePosterSectorSelection(sectorSel?.value);
   const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
-  if (!sectorId) {
-    toast('warning', 'Validation Error', 'Please select a sector before queuing a video.');
+  if (selection.kind === 'none') {
+    toast('warning', 'Validation Error', 'Please select a sector or country before queuing a video.');
+    return;
+  }
+
+  if (selection.kind === 'country' && !selection.sectorIds.length) {
+    toast('warning', 'No Sectors', `No sectors are mapped to ${selection.label} yet.`);
     return;
   }
 
@@ -2179,13 +2340,13 @@ async function queueVideoForSocial(ratio) {
   setProgress(`Generating ${ratioLabel} video…`);
 
   try {
-    const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
+    const fares = await getPosterSelectionFares(selection, { startDate, endDate, includeHidden: false });
     if (!fares || !fares.length) {
-      toast('warning', 'No Fares', 'No live fares found for the selected sector and dates.');
+      toast('warning', 'No Fares', `No live fares found for ${selection.label || 'the selected option'} in the selected date range.`);
       return;
     }
 
-    if (sectorId === 'all') {
+    if (selection.kind !== 'sector') {
       const faresBySector = new Map();
       fares.forEach(f => {
         const sid = f.sectorId || 'unknown';
@@ -2193,14 +2354,9 @@ async function queueVideoForSocial(ratio) {
         faresBySector.get(sid).push(f);
       });
 
-      const order = new Map(_sectors.map((s, idx) => [s.id, idx]));
-      const sectorIds = Array.from(faresBySector.keys()).sort((a, b) => {
-        const oa = order.get(a) ?? 1e9;
-        const ob = order.get(b) ?? 1e9;
-        return oa !== ob ? oa - ob : String(a).localeCompare(String(b));
-      });
+      const sectorIds = getPosterSelectionRenderSectorIds(faresBySector, selection);
 
-      toast('info', 'Queue Videos', `Generating ${sectorIds.length} videos for the queue…`);
+      toast('info', 'Queue Videos', `Generating ${sectorIds.length} video${sectorIds.length > 1 ? 's' : ''} for ${selection.label}…`);
       let ok = 0;
       for (let idx = 0; idx < sectorIds.length; idx++) {
         const sid = sectorIds[idx];
@@ -2233,8 +2389,9 @@ async function queueVideoForSocial(ratio) {
       }
       if (ok) toast('success', 'Queued for Social', `${ok} video${ok > 1 ? 's' : ''} added to the posting queue.`);
     } else {
+      const sectorId = selection.rawValue;
       const sector = _sectors.find(s => s.id === sectorId);
-      const sectorLabel = sector?.sectorCode || sectorId;
+      const sectorLabel = sector?.sectorCode || selection.label || sectorId;
       setProgress(`Rendering ${ratioLabel} video…`);
       const result = await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines, {
         autoDownload: false, returnBlob: true, requireMp4: true,
@@ -2268,12 +2425,7 @@ async function renderDashboardTab() {
 
   // Populate sector dropdown from live Firestore data
   const sectorSel = document.getElementById('poster-sector-sel');
-  if (sectorSel && sectorSel.options.length <= 2) {
-    _sectors.forEach(s => {
-      const opt = new Option(s.sectorCode, s.id);
-      sectorSel.appendChild(opt);
-    });
-  }
+  populatePosterSectorSelect(sectorSel);
 
   const startInput = document.getElementById('poster-start-date');
   const endInput = document.getElementById('poster-end-date');
@@ -2288,24 +2440,29 @@ async function renderDashboardTab() {
     generateBtn.addEventListener('click', async () => {
       const startInput = document.getElementById('poster-start-date');
       const endInput = document.getElementById('poster-end-date');
-      const sectorId = sectorSel?.value;
+      const selection = resolvePosterSectorSelection(sectorSel?.value);
       const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
-      if (!sectorId) {
-        toast('warning', 'Validation Error', 'Please select a sector to generate the poster.');
+      if (selection.kind === 'none') {
+        toast('warning', 'Validation Error', 'Please select a sector or country to generate the poster.');
+        return;
+      }
+
+      if (selection.kind === 'country' && !selection.sectorIds.length) {
+        toast('warning', 'No Sectors', `No sectors are mapped to ${selection.label} yet.`);
         return;
       }
 
       generateBtn.disabled = true;
       generateBtn.textContent = 'Generating…';
       try {
-        const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
+        const fares = await getPosterSelectionFares(selection, { startDate, endDate, includeHidden: false });
         if (!fares || !fares.length) {
-          toast('warning', 'No Fares', 'No live fares found for the selected sector and dates.');
+          toast('warning', 'No Fares', `No live fares found for ${selection.label || 'the selected option'} in the selected date range.`);
           document.getElementById('poster-preview-container').classList.add('hidden');
           return;
         }
-        await renderPoster(fares, sectorId);
+        await renderPoster(fares, selection);
       } catch (e) {
         toast('error', 'Generation Failed', e.message);
       } finally {
@@ -2329,11 +2486,16 @@ async function handleVideoPoster(ratio) {
   const sectorSel = document.getElementById('poster-sector-sel');
   const startInput = document.getElementById('poster-start-date');
   const endInput = document.getElementById('poster-end-date');
-  const sectorId = sectorSel?.value;
+  const selection = resolvePosterSectorSelection(sectorSel?.value);
   const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
-  if (!sectorId) {
-    toast('warning', 'Validation Error', 'Please select a sector to generate the poster.');
+  if (selection.kind === 'none') {
+    toast('warning', 'Validation Error', 'Please select a sector or country to generate the poster.');
+    return;
+  }
+
+  if (selection.kind === 'country' && !selection.sectorIds.length) {
+    toast('warning', 'No Sectors', `No sectors are mapped to ${selection.label} yet.`);
     return;
   }
 
@@ -2363,12 +2525,12 @@ async function handleVideoPoster(ratio) {
   setProgress('Preparing video…');
 
   try {
-    const fares = await getFares({ sectorId, startDate, endDate, includeHidden: false });
+    const fares = await getPosterSelectionFares(selection, { startDate, endDate, includeHidden: false });
     if (!fares || !fares.length) {
-      toast('warning', 'No Fares', 'No live fares found for the selected sector and dates.');
+      toast('warning', 'No Fares', `No live fares found for ${selection.label || 'the selected option'} in the selected date range.`);
       return;
     }
-    if (sectorId === 'all') {
+    if (selection.kind !== 'sector') {
       // Generate one video per sector (same as multi-poster behavior)
       const faresBySector = new Map();
       fares.forEach(f => {
@@ -2377,15 +2539,9 @@ async function handleVideoPoster(ratio) {
         faresBySector.get(sid).push(f);
       });
 
-      const order = new Map(_sectors.map((s, idx) => [s.id, idx]));
-      const sectorIds = Array.from(faresBySector.keys()).sort((a, b) => {
-        const oa = order.get(a) ?? 1e9;
-        const ob = order.get(b) ?? 1e9;
-        if (oa !== ob) return oa - ob;
-        return String(a).localeCompare(String(b));
-      });
+      const sectorIds = getPosterSelectionRenderSectorIds(faresBySector, selection);
 
-      toast('info', 'Video Generation', `Generating ${sectorIds.length} videos. This may take a while…`);
+      toast('info', 'Video Generation', `Generating ${sectorIds.length} video${sectorIds.length > 1 ? 's' : ''} for ${selection.label}. This may take a while…`);
       const downloads = [];
       let ok = 0;
       let fail = 0;
@@ -2454,7 +2610,8 @@ async function handleVideoPoster(ratio) {
       return;
     }
 
-    const singleLabel = _sectors.find(s => s.id === sectorId)?.sectorCode || sectorId;
+    const sectorId = selection.rawValue;
+    const singleLabel = _sectors.find(s => s.id === sectorId)?.sectorCode || selection.label || sectorId;
     setProgress(`Rendering 1/1 · ${singleLabel}`);
     await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines, { requireMp4: true });
   } catch (e) {
@@ -2468,270 +2625,14 @@ async function handleVideoPoster(ratio) {
 }
 
 
-async function renderPoster(fares, sectorId) {
+async function renderPoster(fares, selection) {
   const container = document.getElementById('poster-preview-container');
   const stack = document.getElementById('poster-render-stack');
   const templateFrame = document.querySelector('[data-poster-template="1"]') || document.getElementById('poster-render-frame');
 
   if (!container || !stack || !templateFrame) return;
 
-  // Remove any previously-cloned frames (keep the template in place)
-  stack.querySelectorAll('[data-poster-clone="1"]').forEach(el => el.remove());
-
-  const airlineMap = {};
-  _airlines.forEach(a => {
-    if (a.id) airlineMap[a.id.trim().toLowerCase()] = a;
-    if (a.code) airlineMap[a.code.trim().toLowerCase()] = a;
-    if (a.name) airlineMap[a.name.trim().toLowerCase()] = a;
-  });
-
-  const getAirline = (rawId) => {
-    if (!rawId) return null;
-    return airlineMap[String(rawId).trim().toLowerCase()];
-  };
-
-  const toAirlineKey = (rawId) => {
-    const airline = getAirline(rawId);
-    if (airline?.id) return airline.id;
-    return String(rawId || '').trim().toLowerCase();
-  };
-
-  const toTimeKey = (rawTime) => normalizeFlightTime(rawTime).replace(/\s+/g, '');
-
-  // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
-  const groupedFaresMap = new Map();
-  fares.forEach(fare => {
-    const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
-    const airlineKey = toAirlineKey(fare.airlineId);
-    const timeKey = toTimeKey(fare.flightTime);
-    const key = `${fare.sectorId}_${airlineKey}_${dtTime}_${timeKey}`;
-    if (!groupedFaresMap.has(key)) {
-      groupedFaresMap.set(key, fare);
-    } else {
-      if (fare.finalRate < groupedFaresMap.get(key).finalRate) {
-        groupedFaresMap.set(key, fare);
-      }
-    }
-  });
-  const uniqueLowestFares = Array.from(groupedFaresMap.values());
-
-  // Sort fares by date
-  const sortedFares = uniqueLowestFares.sort((a, b) => {
-    let valA = a.flightDate, valB = b.flightDate;
-    if (valA instanceof Date) valA = valA.getTime();
-    if (valB instanceof Date) valB = valB.getTime();
-    return valA - valB;
-  });
-
-  // Pre-fetch airline logos as blob URLs — sidesteps CORS for html2canvas
-  async function fetchLogoBlob(url) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const blob = await res.blob();
-      return URL.createObjectURL(blob);
-    } catch { return null; }
-  }
-
-  const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))]
-    .map(id => getAirline(id))
-    .filter(a => a && a.logoUrl);
-
-  const blobUrlMap = {};
-  await Promise.all(uniqueAirlines.map(async a => {
-    const blobUrl = await fetchLogoBlob(a.logoUrl);
-    if (blobUrl) {
-      blobUrlMap[a.id] = blobUrl; // Key the blob directly by the standard airline document ID
-    }
-  }));
-
-  const sectorMap = {};
-  _sectors.forEach(s => sectorMap[s.id] = s.sectorCode);
-
-  const fileSafe = (s) =>
-    String(s || '')
-      .trim()
-      .replace(/[^a-z0-9]+/gi, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase();
-
-  const renderIntoFrame = (frameEl, frameFares, frameSectorId, theme) => {
-    const titleEl = frameEl.querySelector('[data-poster-title]') || frameEl.querySelector('#poster-sector-title');
-    const tbody = frameEl.querySelector('[data-poster-tbody]') || frameEl.querySelector('#poster-fares-tbody');
-    if (!titleEl || !tbody) return;
-
-    applyPosterTheme(frameEl, theme);
-
-    const sector = _sectors.find(s => s.id === frameSectorId);
-    let originName = sector ? (sector.sectorFrom || 'DEP').toUpperCase() : 'DEP';
-    let destName = sector ? (sector.sectorTo || 'ARR').toUpperCase() : 'ARR';
-    if (!sector) {
-      const raw = sectorMap[frameSectorId] || frameSectorId;
-      const m = String(raw).match(/^\s*([A-Za-z0-9]+)\s*[-→>]\s*([A-Za-z0-9]+)\s*$/);
-      if (m) {
-        originName = m[1].toUpperCase();
-        destName = m[2].toUpperCase();
-      } else {
-        originName = String(raw).toUpperCase();
-        destName = '';
-      }
-    }
-    const accent = theme?.accent || '#60a5fa';
-    titleEl.innerHTML = destName
-      ? `${originName} <span style="color:${accent};font-weight:900;">&#8594;</span> ${destName}`
-      : `${originName}`;
-
-    // Render table rows — use only explicit hex/rgb inline styles; no Tailwind classes
-    // that would resolve to oklch() (which html2canvas 1.4.x cannot parse).
-    const rows = [];
-    const rowAlt = theme?.rowAlt || '#f8fafc';
-    const rowBorder = theme?.tableBorder || '#f1f5f9';
-    const sectorChipBg = theme?.sectorChipBg || 'rgba(37,99,235,0.1)';
-    const sectorChipText = theme?.sectorChipText || '#2563eb';
-    const fareText = theme?.fareText || '#0f172a';
-
-    frameFares.forEach((f, i) => {
-      const dt = f.flightDate instanceof Date
-        ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
-        : f.flightDate;
-
-      const airline = getAirline(f.airlineId);
-      const rowBg = i % 2 === 0 ? '#ffffff' : rowAlt;
-      const logoSrc = airline ? blobUrlMap[airline.id] : null;
-
-      // Airline cell: logo if available; airline name as fallback
-      const airlineCell = logoSrc
-        ? `<img src="${logoSrc}" style="height:22px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
-        : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:12px;white-space:nowrap;">${airline?.name || f.airlineId || '—'}</span>`;
-
-      // Sector cell
-      const sectorCell = `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:3px 7px;border-radius:6px;font-size:11px;text-align:center;white-space:nowrap;">${sectorMap[f.sectorId] || f.sectorId}</span>`;
-
-      // Time cell: parse "HH:MM - HH:MM" or "HH:MM" from flightTime
-      let timeCell = '<span style="color:#94a3b8;font-size:12px;">—</span>';
-      if (f.flightTime) {
-        const parts = f.flightTime.split('-').map(s => s.trim());
-        if (parts.length >= 2) {
-          timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
-        } else {
-          timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${f.flightTime}</span>`;
-        }
-      }
-
-      const posterRate = getPosterRateDisplay(f.finalRate, f.flightDate);
-
-      rows.push(`
-        <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
-          <td style="padding:6px 8px;font-weight:700;color:#0f172a;font-size:12px;white-space:nowrap;">${dt}</td>
-          <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
-          <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
-          <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
-          <td style="padding:6px 8px;text-align:right;vertical-align:middle;">
-            <div
-              data-rate-mode="${posterRate.isMasked ? 'masked' : 'live'}"
-              data-actual-rate="${escapeHtml(posterRate.actualLabel)}"
-              style="display:inline-block;color:${fareText};font-weight:900;font-size:14px;white-space:nowrap;"
-            >
-              ${escapeHtml(posterRate.displayLabel)}
-            </div>
-          </td>
-        </tr>`);
-    });
-
-    for (let i = frameFares.length; i < POSTER_MAX_ROWS; i++) {
-      const rowBg = i % 2 === 0 ? '#ffffff' : rowAlt;
-      rows.push(`
-        <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
-          <td style="padding:6px 8px;">&nbsp;</td>
-          <td style="padding:6px 8px;">&nbsp;</td>
-          <td style="padding:6px 8px;">&nbsp;</td>
-          <td style="padding:6px 8px;">&nbsp;</td>
-          <td style="padding:6px 8px;">&nbsp;</td>
-        </tr>`);
-    }
-
-    tbody.innerHTML = rows.join('');
-  };
-
-  // Split fares by sector for rendering
-  const faresBySector = new Map();
-  sortedFares.forEach(f => {
-    const sid = f.sectorId || 'unknown';
-    if (!faresBySector.has(sid)) faresBySector.set(sid, []);
-    faresBySector.get(sid).push(f);
-  });
-
-  let sectorIdsToRender = [];
-  if (sectorId === 'all') {
-    sectorIdsToRender = Array.from(faresBySector.keys());
-    const order = new Map(_sectors.map((s, idx) => [s.id, idx]));
-    sectorIdsToRender.sort((a, b) => {
-      const oa = order.get(a) ?? 1e9;
-      const ob = order.get(b) ?? 1e9;
-      if (oa !== ob) return oa - ob;
-      return String(a).localeCompare(String(b));
-    });
-  } else {
-    sectorIdsToRender = [sectorId];
-  }
-
-  const chunkFares = (list, size) => {
-    const chunks = [];
-    for (let i = 0; i < list.length; i += size) {
-      chunks.push(list.slice(i, i + size));
-    }
-    return chunks;
-  };
-
-  const framesToRender = [];
-  sectorIdsToRender.forEach((sid) => {
-    const frameFares = faresBySector.get(sid) || [];
-    if (!frameFares.length) return;
-    const chunks = chunkFares(frameFares, POSTER_MAX_ROWS);
-    const totalPages = chunks.length || 1;
-    chunks.forEach((chunk, idx) => {
-      framesToRender.push({ sid, fares: chunk, page: idx + 1, pages: totalPages });
-    });
-  });
-
-  const themePool = buildPosterThemeOrder(sectorIdsToRender.length || 1);
-  const themeBySector = new Map();
-  sectorIdsToRender.forEach((sid, idx) => {
-    themeBySector.set(sid, themePool[idx] || themePool[0]);
-  });
-
-  // Render one poster per sector (and page)
-  framesToRender.forEach((entry, idx) => {
-    const { sid, fares: frameFares, page, pages } = entry;
-
-    let frameEl = templateFrame;
-    if (idx > 0) {
-      frameEl = templateFrame.cloneNode(true);
-      frameEl.dataset.posterClone = '1';
-      frameEl.removeAttribute('data-poster-template');
-
-      // Ensure no duplicate IDs inside cloned frames
-      frameEl.querySelectorAll('#poster-sector-title, #poster-fares-tbody').forEach(el => el.removeAttribute('id'));
-
-      // Give the frame a unique ID so html2canvas onclone can target it reliably
-      const sectorCode = sectorMap[sid] || sid;
-      const slug = fileSafe(sectorCode) || `sector-${idx + 1}`;
-      frameEl.id = `poster-render-frame-${slug}-${page}-${idx + 1}`;
-
-      stack.appendChild(frameEl);
-    } else {
-      frameEl.id = 'poster-render-frame';
-    }
-
-    frameEl.dataset.posterFrame = '1';
-    frameEl.dataset.sectorId = sid;
-    frameEl.dataset.sectorCode = sectorMap[sid] || sid;
-    frameEl.dataset.posterPage = String(page);
-    frameEl.dataset.posterPageCount = String(pages);
-
-    const theme = themeBySector.get(sid) || themePool[0];
-    renderIntoFrame(frameEl, frameFares, sid, theme);
-  });
+  await populatePosterRenderStack(fares, selection, stack, templateFrame);
 
   container.classList.remove('hidden');
   container.classList.add('flex');

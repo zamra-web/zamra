@@ -98,6 +98,7 @@ web/
 
 ### 1. 📊 Dashboard Tab
 - **Poster Generator** — select a sector (or 'All Sectors') and optional date range, click **Generate Poster** to preview a shareable fare poster
+  - **Country shortcuts first** — the sector dropdown now shows `Saudi`, `UAE`, `Qatar`, `Oman`, `Kuwait`, and `Bahrain` above the individual routes; picking one bundles all matching sectors for that country
   - Displays fares sorted by date
   - **Default date floor = today** — poster fetches always start from today to avoid expired fares (even if the date input is blank or earlier)
   - **All Sectors** renders **one poster per sector** (instead of mixing sectors into a single table)
