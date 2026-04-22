@@ -1132,7 +1132,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.font = `700 ${preset.subtitle.size}px Arial, sans-serif`;
                 const subtitleY = badgeY + preset.subtitle.offset - (motion.subtitleRise * (1 - subtitleT));
                 ctx.globalAlpha = subtitleT;
-                ctx.fillText('SPECIAL FARES AVAILABLE NOW', width/2, subtitleY);
+                ctx.fillText('LIVE FARES AVAILABLE NOW', width/2, subtitleY);
                 ctx.globalAlpha = 1.0;
 
                 // --- Draw Fares ---

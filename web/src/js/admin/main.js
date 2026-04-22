@@ -149,7 +149,7 @@ function buildPosterSocialRouteLabel(sector) {
   if (from && to) return `${from} → ${to}`;
   if (from) return from;
   if (to) return to;
-  return 'SPECIAL FARES';
+  return 'FLIGHT DEALS';
 }
 
 function uniquePosterHashtags(...groups) {
@@ -195,7 +195,7 @@ function formatPosterSocialCaption(sector, marketKey, type = 'image', date = new
 
   const lines = [
     `TODAY (${formatPosterSocialDate(date)})`,
-    `${routeLabel} special fares live now!`,
+    `${routeLabel} live fares available now!`,
     `Book now at ${POSTER_SOCIAL_SITE}`,
     `Contact: ${POSTER_SOCIAL_CONTACT}`,
   ];

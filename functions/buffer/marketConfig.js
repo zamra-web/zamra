@@ -4,9 +4,9 @@ const BUFFER_MARKET_CONFIG = {
     label: "Calicut (CCJ)",
     airports: ["CCJ"],
     channels: {
-      instagram: "__SET_CCJ_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_CCJ_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_CCJ_YOUTUBE_CHANNEL_ID__",
+      instagram: "69e896ff031bfa423c2e1de2",
+      facebook: "69e8976f031bfa423c2e1f5b",
+      youtube: "69e89783031bfa423c2e1f9c",
     },
   },
   cok: {
