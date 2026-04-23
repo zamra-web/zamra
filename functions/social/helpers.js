@@ -42,10 +42,8 @@ function getRetryDelayMs(attemptCount) {
 function classifyDispatchError(error) {
   const message = String(error && (error.message || error.error || error) || "").trim();
   const lower = message.toLowerCase();
-  const retryable = [
-    "rate limit",
-    "retry after",
-    "http 429",
+  const rateLimited = ["rate limit", "retry after", "http 429"].some((term) => lower.includes(term));
+  const retryable = rateLimited || [
     "http 408",
     "http 500",
     "http 502",
@@ -64,6 +62,7 @@ function classifyDispatchError(error) {
   return {
     message: message || "Unknown dispatch error",
     retryable,
+    rateLimited,
   };
 }
 

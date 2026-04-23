@@ -507,7 +507,6 @@ exports.purgeOldFaresDaily = onSchedule(
 //   - refreshSocialPublishingHealth: verifies per-airport Buffer channels
 //   - runSocialQueueNow: admin callable to dispatch pending queue work
 //   - socialQueueDispatcher: scheduled queue worker (every minute)
-//   - socialQueueReconciler: confirms final Buffer publish outcomes
 //   Secrets: one Buffer API key per India-airport account.
 // ══════════════════════════════════════════════════════════════════════════════
 const { defineSecret } = require("firebase-functions/params");
@@ -539,15 +538,12 @@ exports.retrySocialJobItem =
 exports.socialQueueDispatcher =
   socialPipeline.buildScheduledDispatcher(BUFFER_API_KEYS_BY_MARKET);
 
-exports.socialQueueReconciler =
-  socialPipeline.buildScheduledReconciler(BUFFER_API_KEYS_BY_MARKET);
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // autoPostDaily (Scheduled, 10:00 Asia/Kolkata)
 //   Renders a simplified daily poster for each sector in
 //   `posting_schedule/daily` and enqueues it into the shared social_queue/job
-//   pipeline. The scheduled dispatcher + reconciler handle Buffer delivery.
+//   pipeline. The scheduled dispatcher handles Buffer delivery.
 //
 //   Also exports `runDailyPostNow` — an admin-only callable that runs the
 //   same logic on demand, for testing without waiting for the cron.

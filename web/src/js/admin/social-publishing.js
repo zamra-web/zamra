@@ -78,7 +78,6 @@ export function createSocialPublishingController(deps) {
     jobsUnsub: null,
     detailUnsub: null,
     isBusy: false,
-    didKickoffRefresh: false,
   };
 
   function getRecentJobs() {
@@ -154,10 +153,6 @@ export function createSocialPublishingController(deps) {
         renderCurrentActivity();
         renderJobs();
       });
-    }
-    if (!state.didKickoffRefresh) {
-      state.didKickoffRefresh = true;
-      Promise.resolve().then(() => refreshHealth(null, { silent: true })).catch(() => {});
     }
   }
 

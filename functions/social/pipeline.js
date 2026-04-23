@@ -6,7 +6,6 @@ const { getStorage } = require("firebase-admin/storage");
 
 const bufferChannels = require("../buffer/channels");
 const bufferCreatePost = require("../buffer/createPost");
-const bufferPostQueries = require("../buffer/posts");
 const {
   BUFFER_MARKET_CONFIG,
   PLATFORM_KEYS,
@@ -19,7 +18,6 @@ const {
   toMillis,
   getRetryDelayMs,
   classifyDispatchError,
-  deriveQueueStatusFromBufferPosts,
   summarizeSocialJobItems,
 } = require("./helpers");
 
@@ -30,13 +28,11 @@ const SOCIAL_QUEUE_COLLECTION = "social_queue";
 
 const RETENTION_MS = 72 * 60 * 60 * 1000;
 const LEASE_MS = 8 * 60 * 1000;
-const STALE_CONFIRMATION_MS = 2 * 60 * 60 * 1000;
 const DISPATCH_BATCH_LIMIT = 6;
 const DISPATCH_CANDIDATE_LIMIT = 20;
 const MAX_ATTEMPTS = 3;
-const HEALTH_MAX_AGE_MS = 30 * 60 * 1000;
+const HEALTH_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const STORY_PLATFORMS = ["instagram", "facebook"];
-const QUEUE_TERMINAL_STATUSES = new Set(["posted", "partial", "failed", "skipped"]);
 
 function db() {
   return getFirestore();
@@ -335,15 +331,9 @@ async function refreshSocialPublishingHealth(bufferApiKeySecretsByMarket, market
   return refreshedMarkets;
 }
 
-async function ensureMarketHealth(bufferApiKeySecretsByMarket, marketKey) {
+async function readCachedMarketHealth(marketKey) {
   const existing = await readSocialPublishingConfig();
-  const market = existing && existing.markets ? existing.markets[marketKey] : null;
-  const ageMs = toMillis(market && market.verifiedAt ? market.verifiedAt : 0);
-  if (!market || !ageMs || (Date.now() - ageMs) > HEALTH_MAX_AGE_MS) {
-    const refreshed = await refreshSocialPublishingHealth(bufferApiKeySecretsByMarket, [marketKey]);
-    return refreshed[marketKey] || null;
-  }
-  return market;
+  return existing && existing.markets ? (existing.markets[marketKey] || null) : null;
 }
 
 function buildQueueCreatePayload(meta = {}) {
@@ -648,7 +638,22 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
 
   const secret = bufferApiKeySecretsByMarket[marketKey];
   const apiKey = secret && typeof secret.value === "function" ? secret.value() : "";
-  const marketHealth = await ensureMarketHealth(bufferApiKeySecretsByMarket, marketKey);
+  const marketHealth = await readCachedMarketHealth(marketKey);
+
+  if (!marketHealth || !marketHealth.channels) {
+    const message = `No cached Buffer channel configuration for ${marketLabel}. Click "Refresh Health" in the admin to verify.`;
+    await ref.update({
+      status: "failed",
+      stage: "failed",
+      lastError: { message, retryable: false },
+      lastMessage: message,
+      processedAt: FieldValue.serverTimestamp(),
+      expiresAt: futureTimestamp(RETENTION_MS),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await syncQueueToJob(ref.id, { ...doc, marketKey, status: "failed", stage: "failed", lastMessage: message });
+    return;
+  }
 
   if (!apiKey) {
     const message = `No Buffer API key configured for ${marketLabel}.`;
@@ -750,25 +755,31 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
 
     if (result.ok) {
       acceptedCount += 1;
+      const acceptedAtIso = new Date().toISOString();
       bufferPosts[target.platform] = {
         platform: target.platform,
         channelId: target.channelId,
         channelName: target.channelName,
         postId: result.postId,
-        state: "queued",
-        acceptedAt: new Date().toISOString(),
+        state: "sent",
+        acceptedAt: acceptedAtIso,
+        sentAt: acceptedAtIso,
         retryable: false,
       };
     } else {
       const classified = classifyDispatchError(result.error);
-      bufferPosts[target.platform] = {
-        platform: target.platform,
-        channelId: target.channelId,
-        channelName: target.channelName,
-        state: "error",
-        error: classified.message,
-        retryable: classified.retryable,
-      };
+      if (!classified.rateLimited) {
+        bufferPosts[target.platform] = {
+          platform: target.platform,
+          channelId: target.channelId,
+          channelName: target.channelName,
+          state: "error",
+          error: classified.message,
+          retryable: classified.retryable,
+        };
+      } else if (bufferPosts[target.platform] && bufferPosts[target.platform].state === "error") {
+        delete bufferPosts[target.platform];
+      }
       if (classified.retryable && !retryableFailure) retryableFailure = { platform: target.platform, ...classified };
       if (!classified.retryable && !terminalFailure) terminalFailure = { platform: target.platform, ...classified };
     }
@@ -788,25 +799,31 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
       });
       if (storyResult.ok) {
         acceptedCount += 1;
+        const storyAcceptedIso = new Date().toISOString();
         bufferPosts[storyKey] = {
           platform: storyKey,
           channelId: target.channelId,
           channelName: target.channelName,
           postId: storyResult.postId,
-          state: "queued",
-          acceptedAt: new Date().toISOString(),
+          state: "sent",
+          acceptedAt: storyAcceptedIso,
+          sentAt: storyAcceptedIso,
           retryable: false,
         };
       } else {
         const classified = classifyDispatchError(storyResult.error);
-        bufferPosts[storyKey] = {
-          platform: storyKey,
-          channelId: target.channelId,
-          channelName: target.channelName,
-          state: "error",
-          error: classified.message,
-          retryable: classified.retryable,
-        };
+        if (!classified.rateLimited) {
+          bufferPosts[storyKey] = {
+            platform: storyKey,
+            channelId: target.channelId,
+            channelName: target.channelName,
+            state: "error",
+            error: classified.message,
+            retryable: classified.retryable,
+          };
+        } else if (bufferPosts[storyKey] && bufferPosts[storyKey].state === "error") {
+          delete bufferPosts[storyKey];
+        }
         if (classified.retryable && !retryableFailure) retryableFailure = { platform: storyKey, ...classified };
         if (!classified.retryable && !terminalFailure) terminalFailure = { platform: storyKey, ...classified };
       }
@@ -830,11 +847,11 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
 
   const lastError = terminalFailure || retryableFailure || null;
   const status = acceptedCount > 0
-    ? (lastError ? "partial" : "queued")
+    ? (lastError ? "partial" : "posted")
     : "failed";
-  const stage = acceptedCount > 0 ? "awaiting_publish_confirmation" : "failed";
+  const stage = acceptedCount > 0 ? "published" : "failed";
   const lastMessage = acceptedCount > 0
-    ? (lastError ? "Queued in Buffer with some channel failures." : "Queued in Buffer. Waiting for publish confirmation.")
+    ? (lastError ? "Posted to Buffer with some channel failures." : "Posted to Buffer.")
     : (lastError ? lastError.message : "Dispatch failed.");
 
   await ref.update({
@@ -846,7 +863,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
     lastError,
     lastMessage,
     lastCheckedAt: FieldValue.serverTimestamp(),
-    processedAt: status === "failed" ? FieldValue.serverTimestamp() : null,
+    processedAt: FieldValue.serverTimestamp(),
     expiresAt: futureTimestamp(RETENTION_MS),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -869,174 +886,6 @@ async function dispatchDueQueueItems(bufferApiKeySecretsByMarket, limit = DISPAT
     await dispatchQueueDoc(bufferApiKeySecretsByMarket, doc);
   }
   return { processed: claimed.length };
-}
-
-async function reconcileQueueDoc(bufferApiKeySecretsByMarket, snap) {
-  if (!snap.exists) return;
-  const doc = { id: snap.id, ...snap.data() };
-  if (doc.status === "partial" && doc.stage !== "awaiting_publish_confirmation") {
-    return;
-  }
-  const normalizedMarketKey = await persistNormalizedQueueMarketKey(snap.ref, doc);
-  if (normalizedMarketKey) doc.marketKey = normalizedMarketKey;
-  const marketKey = normalizeMarketKey(doc.marketKey);
-  if (!marketKey) {
-    const message = "Airport group could not be resolved for this queue item.";
-    await snap.ref.update({
-      status: "failed",
-      stage: "failed",
-      lastError: { message, retryable: false },
-      lastMessage: message,
-      processedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    await syncQueueToJob(snap.id, {
-      ...doc,
-      status: "failed",
-      stage: "failed",
-      lastMessage: message,
-    });
-    return;
-  }
-  const secret = bufferApiKeySecretsByMarket[marketKey];
-  const apiKey = secret && typeof secret.value === "function" ? secret.value() : "";
-  const marketHealth = await ensureMarketHealth(bufferApiKeySecretsByMarket, marketKey);
-  const organizationId = doc.organizationId || (marketHealth && marketHealth.organizationId) || "";
-  if (!apiKey || !organizationId) {
-    const isStale = Date.now() - toMillis(doc.updatedAt || doc.createdAt || 0) > STALE_CONFIRMATION_MS;
-    if (!isStale) return;
-    await snap.ref.update({
-      status: "failed",
-      stage: "failed",
-      lastError: {
-        message: "Buffer organizationId is missing; publish confirmation could not be completed.",
-        retryable: false,
-      },
-      lastMessage: "Buffer organizationId is missing; publish confirmation could not be completed.",
-      processedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    await syncQueueToJob(snap.id, {
-      ...doc,
-      status: "failed",
-      stage: "failed",
-      lastMessage: "Buffer organizationId is missing; publish confirmation could not be completed.",
-    });
-    return;
-  }
-
-  const bufferPosts = { ...(doc.bufferPosts || {}) };
-  const groupedByChannel = {};
-  Object.entries(bufferPosts).forEach(([key, post]) => {
-    if (!post || !post.postId || post.state === "error" || post.state === "sent") return;
-    const channelId = String(post.channelId || "").trim();
-    if (!channelId) return;
-    if (!groupedByChannel[channelId]) groupedByChannel[channelId] = [];
-    groupedByChannel[channelId].push({ key, postId: post.postId });
-  });
-
-  for (const [channelId, posts] of Object.entries(groupedByChannel)) {
-    const states = await bufferPostQueries.getPostStatesById(apiKey, {
-      organizationId,
-      channelId,
-      postIds: posts.map((post) => post.postId),
-    });
-
-    posts.forEach(({ key, postId }) => {
-      const matched = states[postId];
-      if (!matched) return;
-      if (matched.status === "sent") {
-        bufferPosts[key] = {
-          ...bufferPosts[key],
-          state: "sent",
-          sentAt: matched.createdAt || new Date().toISOString(),
-        };
-      } else if (matched.status === "error") {
-        bufferPosts[key] = {
-          ...bufferPosts[key],
-          state: "error",
-          error: "Buffer reported a publish error.",
-          retryable: false,
-        };
-      } else {
-        bufferPosts[key] = {
-          ...bufferPosts[key],
-          state: matched.status,
-        };
-      }
-    });
-  }
-
-  const stale = Date.now() - toMillis(doc.updatedAt || doc.createdAt || 0) > STALE_CONFIRMATION_MS;
-  if (stale) {
-    Object.keys(bufferPosts).forEach((key) => {
-      if (bufferPosts[key] && !["sent", "error"].includes(String(bufferPosts[key].state || "").toLowerCase())) {
-        bufferPosts[key] = {
-          ...bufferPosts[key],
-          state: "error",
-          error: "Publish confirmation timed out after 2 hours.",
-          retryable: false,
-        };
-      }
-    });
-  }
-
-  const outcome = deriveQueueStatusFromBufferPosts(bufferPosts);
-  if (!QUEUE_TERMINAL_STATUSES.has(outcome.status) && !stale) {
-    await snap.ref.update({
-      bufferPosts,
-      lastCheckedAt: FieldValue.serverTimestamp(),
-      lastMessage: "Waiting for Buffer publish confirmation…",
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    await syncQueueToJob(snap.id, {
-      ...doc,
-      bufferPosts,
-      lastMessage: "Waiting for Buffer publish confirmation…",
-    });
-    return;
-  }
-
-  const errorEntry = Object.values(bufferPosts).find((post) => post && post.state === "error");
-  await snap.ref.update({
-    status: outcome.status,
-    stage: outcome.stage,
-    bufferPosts,
-    lastCheckedAt: FieldValue.serverTimestamp(),
-    lastError: errorEntry ? { message: errorEntry.error || "Buffer reported a publish error.", retryable: false } : null,
-    lastMessage: outcome.status === "posted"
-      ? "Publishing completed successfully."
-      : outcome.status === "partial"
-        ? "Publishing completed with some failures."
-        : "Publishing failed.",
-    processedAt: FieldValue.serverTimestamp(),
-    expiresAt: futureTimestamp(RETENTION_MS),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-  await syncQueueToJob(snap.id, {
-    ...doc,
-    status: outcome.status,
-    stage: outcome.stage,
-    bufferPosts,
-    lastMessage: outcome.status === "posted"
-      ? "Publishing completed successfully."
-      : outcome.status === "partial"
-        ? "Publishing completed with some failures."
-        : "Publishing failed.",
-  });
-}
-
-async function reconcileQueuedItems(bufferApiKeySecretsByMarket) {
-  const [queuedSnap, partialSnap] = await Promise.all([
-    socialQueueRef().where("status", "==", "queued").get(),
-    socialQueueRef().where("status", "==", "partial").get(),
-  ]);
-
-  const docs = [...queuedSnap.docs, ...partialSnap.docs];
-  for (const doc of docs) {
-    await reconcileQueueDoc(bufferApiKeySecretsByMarket, doc);
-  }
-  return { processed: docs.length };
 }
 
 async function deleteStorageFiles(paths = []) {
@@ -1236,22 +1085,6 @@ function buildScheduledDispatcher(bufferApiKeySecretsByMarket) {
   );
 }
 
-function buildScheduledReconciler(bufferApiKeySecretsByMarket) {
-  const secrets = Object.values(bufferApiKeySecretsByMarket).filter(Boolean);
-  return onSchedule(
-    {
-      region: "asia-south1",
-      schedule: "every 5 minutes",
-      timeoutSeconds: 540,
-      secrets,
-    },
-    async () => {
-      const result = await reconcileQueuedItems(bufferApiKeySecretsByMarket);
-      logger.info(`socialQueueReconciler: processed ${result.processed}`);
-    },
-  );
-}
-
 function buildPurgeSocialPublishing() {
   return onSchedule(
     {
@@ -1272,7 +1105,6 @@ module.exports = {
   buildRunSocialQueueNow,
   buildRetrySocialJobItem,
   buildScheduledDispatcher,
-  buildScheduledReconciler,
   buildPurgeSocialPublishing,
   createSocialJob,
   createSocialJobItem,
@@ -1281,7 +1113,6 @@ module.exports = {
   enqueueExistingMedia,
   refreshSocialPublishingHealth,
   dispatchDueQueueItems,
-  reconcileQueuedItems,
   purgeExpiredSocialPublishing,
   inspectMarketHealth,
   getConfiguredChannelForMarket,
