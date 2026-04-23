@@ -90,6 +90,7 @@ web/
 - Filters by sector, date, and only shows fares where `isHidden == false` and agent `isActive == true`
 - Deduplicates identical flights (same sector, airline, date, and time), automatically showing only the cheapest rate
 - Displays cheapest fare per sector, sorted by price
+- Search result cards read airline branding from the Firestore `airlines` collection (`logoUrl`, with local asset fallback for legacy entries)
 - Implemented in `web/src/js/web/main.js`
 - **Mobile UI** — live results render as compact card rows with clear price + CTA and extra bottom spacing to avoid overlap with floating actions.
 

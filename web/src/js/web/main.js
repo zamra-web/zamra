@@ -4,6 +4,83 @@ import { getSectors, getFares, getAirlines } from '../admin/db.js';
 import { initSiteChrome } from './site-chrome.js';
 
 const ENQUIRY_WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/enquiry';
+const AIRLINE_LOGO_FALLBACKS = {
+  'INDIGO': '/assets/img/flights/indigo.png',
+  'AIR INDIA EXPRESS': '/assets/img/flights/air-india-express.png',
+  'AIR ARABIA': '/assets/img/flights/air-arabia.png',
+  'FLYNAS': '/assets/img/flights/flynas.png',
+  'OMAN AIR': '/assets/img/flights/oman-air.png',
+  'SALAM AIR': '/assets/img/flights/salam-air.png',
+  'AIR INDIA': '/assets/img/flights/air-india.png',
+  'SAUDIA': '/assets/img/flights/saudia.png'
+};
+
+function normalizeAirlineValue(value = '') {
+  return String(value).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+}
+
+function getFallbackAirlineLogo({ name = '', code = '' } = {}) {
+  const airlineName = normalizeAirlineValue(name);
+  const airlineCode = normalizeAirlineValue(code);
+
+  if (airlineName.includes('EXPRESS') || airlineCode === 'IX') return AIRLINE_LOGO_FALLBACKS['AIR INDIA EXPRESS'];
+  if (airlineName.includes('INDIA') || airlineCode === 'AI') return AIRLINE_LOGO_FALLBACKS['AIR INDIA'];
+  if (airlineName.includes('SAUD') || airlineName.includes('SOUD') || airlineCode === 'SV') return AIRLINE_LOGO_FALLBACKS['SAUDIA'];
+  if (airlineName.includes('INDIGO') || airlineCode === '6E') return AIRLINE_LOGO_FALLBACKS['INDIGO'];
+  if (airlineName.includes('ARABIA') || airlineCode === 'G9') return AIRLINE_LOGO_FALLBACKS['AIR ARABIA'];
+  if (airlineName.includes('FLYNAS') || airlineCode === 'XY') return AIRLINE_LOGO_FALLBACKS['FLYNAS'];
+  if (airlineName.includes('OMAN') || airlineCode === 'WY') return AIRLINE_LOGO_FALLBACKS['OMAN AIR'];
+  if (airlineName.includes('SALAM') || airlineCode === 'OV') return AIRLINE_LOGO_FALLBACKS['SALAM AIR'];
+
+  return '';
+}
+
+function getAirlineInitials(name = '', code = '') {
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  if (normalizedCode) return normalizedCode.slice(0, 3);
+
+  const initials = String(name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
+  return initials.slice(0, 3) || 'AIR';
+}
+
+function resolveAirlineBrand(airline = null) {
+  const fallbackLogoUrl = getFallbackAirlineLogo(airline || {});
+  const primaryLogoUrl = airline?.logoUrl || fallbackLogoUrl || '';
+
+  return {
+    name: airline?.name || 'Unknown Airline',
+    code: String(airline?.code || '').toUpperCase(),
+    logoUrl: primaryLogoUrl,
+    fallbackLogoUrl: airline?.logoUrl && fallbackLogoUrl && airline.logoUrl !== fallbackLogoUrl ? fallbackLogoUrl : '',
+    initials: getAirlineInitials(airline?.name, airline?.code)
+  };
+}
+
+function wireFlightResultLogos(root) {
+  root.querySelectorAll('[data-airline-logo]').forEach((img) => {
+    const handleError = () => {
+      const fallbackSrc = img.dataset.fallbackSrc;
+      if (fallbackSrc && img.src !== fallbackSrc) {
+        img.src = fallbackSrc;
+        img.dataset.fallbackSrc = '';
+        return;
+      }
+
+      img.classList.add('hidden');
+      const fallbackText = img.parentElement?.querySelector('[data-airline-fallback]');
+      if (fallbackText) fallbackText.classList.remove('hidden');
+    };
+
+    img.addEventListener('error', handleError);
+    if (img.complete && img.naturalWidth === 0) handleError();
+  });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -496,8 +573,7 @@ async function searchFlights() {
       });
       
       const airlines = await getAirlines();
-      const airlineMap = {};
-      airlines.forEach(a => airlineMap[a.id] = a.name);
+      const airlineMap = new Map(airlines.map((airline) => [airline.id, airline]));
       
       data = fares.map(fare => {
         const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
@@ -512,9 +588,14 @@ async function searchFlights() {
         const cabinBaggageStr = extraBaggageVal ? `+ ${extraBaggageVal} KG` : '';
         const totalBaggage = baggageVal + extraBaggageVal;
         const baggageLabelStr = totalBaggage > 0 ? `${totalBaggage}KG` : '0KG';
+        const airlineBrand = resolveAirlineBrand(airlineMap.get(fare.airlineId));
 
         return {
-          airline: airlineMap[fare.airlineId] || 'Unknown Airline',
+          airline: airlineBrand.name,
+          airlineCode: airlineBrand.code,
+          airlineLogo: airlineBrand.logoUrl,
+          airlineLogoFallback: airlineBrand.fallbackLogoUrl,
+          airlineInitials: airlineBrand.initials,
           origin: sector.sectorFrom,
           originCode: origin,
           destination: sector.sectorTo,
@@ -560,30 +641,6 @@ async function searchFlights() {
       const waMsg = encodeURIComponent(`Hello Zamra Travels, I'm interested in booking this flight:\n\n✈️ *${item.airline}*\n🛫 From: *${item.origin}*\n🛬 To: *${item.destination}*\n📅 Date: *${item.date}*\n⏰ Dep: ${item.departure} | Arr: ${item.arrival}\n💵 Price: *${item.price}*\n\nPlease confirm availability!`);
       const waLink = `https://wa.me/919846606739?text=${waMsg}`;
 
-      let airlineName = (item.airline || "").toUpperCase().trim();
-      let matchedLogo = "";
-
-      const zamraLogos = {
-        "INDIGO": "/assets/img/flights/indigo.png",
-        "AIR INDIA EXPRESS": "/assets/img/flights/air-india-express.png",
-        "AIR ARABIA": "/assets/img/flights/air-arabia.png",
-        "FLYNAS": "/assets/img/flights/flynas.png",
-        "OMAN AIR": "/assets/img/flights/oman-air.png",
-        "SALAM AIR": "/assets/img/flights/salam-air.png",
-        "AIR INDIA": "/assets/img/flights/air-india.png",
-        "SAUDIA": "/assets/img/flights/saudia.png"
-      };
-
-      if (airlineName.includes("EXPRESS") || airlineName === "IX") matchedLogo = zamraLogos["AIR INDIA EXPRESS"];
-      else if (airlineName.includes("INDIA") || airlineName === "AI") matchedLogo = zamraLogos["AIR INDIA"];
-      else if (airlineName.includes("SAUD") || airlineName.includes("SOUD") || airlineName === "SV") matchedLogo = zamraLogos["SAUDIA"];
-      else if (airlineName.includes("INDIGO") || airlineName === "6E") matchedLogo = zamraLogos["INDIGO"];
-      else if (airlineName.includes("ARABIA") || airlineName === "G9") matchedLogo = zamraLogos["AIR ARABIA"];
-      else if (airlineName.includes("FLYNAS") || airlineName === "XY") matchedLogo = zamraLogos["FLYNAS"];
-      else if (airlineName.includes("OMAN") || airlineName === "WY") matchedLogo = zamraLogos["OMAN AIR"];
-      else if (airlineName.includes("SALAM") || airlineName === "OV") matchedLogo = zamraLogos["SALAM AIR"];
-      else matchedLogo = '';
-
       htmlContent += `
         <div class="bg-white rounded-[18px] max-sm:rounded-[22px] p-4 lg:p-6 shadow-[0_2px_12px_rgba(13,31,60,0.06)] border border-border transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(13,31,60,0.1)] relative overflow-hidden">
           
@@ -592,7 +649,20 @@ async function searchFlights() {
             <div class="flex items-start justify-between gap-3 border-b border-border pb-3">
               <div class="flex items-center gap-3">
                 <div class="w-[54px] h-[54px] shrink-0 bg-[#f8fafc] rounded-2xl border border-border/50 flex items-center justify-center p-2">
-                  <img src="${matchedLogo}" onerror="this.style.display='none'" class="max-h-full max-w-full object-contain">
+                  ${item.airlineLogo
+                    ? `<img
+                        src="${item.airlineLogo}"
+                        data-airline-logo
+                        data-fallback-src="${item.airlineLogoFallback}"
+                        alt="${item.airline} logo"
+                        loading="lazy"
+                        class="max-h-full max-w-full object-contain"
+                      >`
+                    : ''
+                  }
+                  <span data-airline-fallback class="${item.airlineLogo ? 'hidden ' : ''}text-[13px] font-black tracking-[0.16em] text-primary">
+                    ${item.airlineInitials}
+                  </span>
                 </div>
                 <div>
                   <div class="text-[11px] font-bold text-text-muted uppercase tracking-[0.16em] mb-1">${item.airline}</div>
@@ -640,8 +710,21 @@ async function searchFlights() {
                 <div class="text-[20px] font-medium text-navy capitalize">${month}</div>
               </div>
               
-              <div class="w-[100px] shrink-0 text-center flex items-center justify-center">
-                <img src="${matchedLogo}" onerror="this.style.display='none'" class="max-h-[35px] max-w-full object-contain">
+              <div class="w-[100px] shrink-0 text-center flex items-center justify-center min-h-[40px]">
+                ${item.airlineLogo
+                  ? `<img
+                      src="${item.airlineLogo}"
+                      data-airline-logo
+                      data-fallback-src="${item.airlineLogoFallback}"
+                      alt="${item.airline} logo"
+                      loading="lazy"
+                      class="max-h-[35px] max-w-full object-contain"
+                    >`
+                  : ''
+                }
+                <span data-airline-fallback class="${item.airlineLogo ? 'hidden ' : ''}text-[16px] font-black tracking-[0.18em] text-primary">
+                  ${item.airlineInitials}
+                </span>
               </div>
             </div>
 
@@ -702,6 +785,7 @@ async function searchFlights() {
     });
 
     list.innerHTML = htmlContent;
+    wireFlightResultLogos(list);
 
   } catch (error) {
     loader.style.display = 'none';
