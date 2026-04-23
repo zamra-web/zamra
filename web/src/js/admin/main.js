@@ -54,6 +54,7 @@ let _databaseFares = [];
 let _databaseDrafts = {};
 let _databaseSelected = new Set();
 let _databaseEditing = new Set();
+let _lastPosterPreview = null;
 let _activePosterSocialMarketKey = '';
 let _currentAdminUser = null;
 let _socialPublishingController = null;
@@ -1340,12 +1341,133 @@ function releasePosterLogoBlobMap(blobUrlMap = {}) {
   });
 }
 
+async function writeTextToClipboard(text) {
+  if (!text) {
+    throw new Error('Nothing to copy.');
+  }
+
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+
+  if (!copied) {
+    throw new Error('Clipboard access is unavailable.');
+  }
+}
+
 function chunkPosterFares(list, size) {
   const chunks = [];
   for (let i = 0; i < list.length; i += size) {
     chunks.push(list.slice(i, i + size));
   }
   return chunks;
+}
+
+function formatPosterClipboardDate(flightDate) {
+  const dt = flightDate instanceof Date ? flightDate : new Date(flightDate);
+  if (Number.isNaN(dt.getTime())) {
+    return String(flightDate || 'TBA').trim().toUpperCase();
+  }
+  return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase();
+}
+
+function formatPosterClipboardRate(rate) {
+  const numericRate = Number(rate);
+  if (!Number.isFinite(numericRate)) return 'INR 0';
+  if (Number.isInteger(numericRate)) return `INR ${numericRate}`;
+  return `INR ${numericRate.toFixed(2).replace(/\.?0+$/, '')}`;
+}
+
+function getPosterClipboardSectorHeading(sectorId) {
+  const sector = _sectors.find((item) => item.id === sectorId);
+  if (sector) {
+    const origin = String(sector.sectorFrom || '').trim().toUpperCase();
+    const dest = String(sector.sectorTo || '').trim().toUpperCase();
+    if (origin && dest) return `${origin} TO ${dest}`;
+    if (sector.sectorCode) return String(sector.sectorCode).trim().toUpperCase();
+  }
+
+  const raw = String(sectorId || '').trim();
+  const match = raw.match(/^\s*([A-Za-z0-9 ]+)\s*[-→>]\s*([A-Za-z0-9 ]+)\s*$/);
+  if (match) {
+    return `${match[1].trim().toUpperCase()} TO ${match[2].trim().toUpperCase()}`;
+  }
+  return raw.toUpperCase() || 'SECTOR';
+}
+
+function buildPosterClipboardText(fares, selection) {
+  if (!Array.isArray(fares) || !fares.length) return '';
+
+  const { getAirline, toAirlineKey } = buildPosterAirlineHelpers();
+  const sortedFares = dedupeAndSortPosterFares(fares, toAirlineKey);
+  const faresBySector = new Map();
+  sortedFares.forEach((fare) => {
+    const sectorId = fare.sectorId || 'unknown';
+    if (!faresBySector.has(sectorId)) faresBySector.set(sectorId, []);
+    faresBySector.get(sectorId).push(fare);
+  });
+
+  const sectorIds = getPosterSelectionRenderSectorIds(faresBySector, selection);
+  return sectorIds.map((sectorId) => {
+    const sectionFares = faresBySector.get(sectorId) || [];
+    if (!sectionFares.length) return '';
+
+    const heading = getPosterClipboardSectorHeading(sectorId);
+    const lines = sectionFares.map((fare) => {
+      const airline = getAirline(fare.airlineId);
+      const airlineLabel = String(airline?.name || fare.airlineId || 'AIRLINE').trim().toUpperCase();
+      return `${formatPosterClipboardDate(fare.flightDate)}    ${airlineLabel} = ${formatPosterClipboardRate(fare.finalRate)}`;
+    });
+
+    return `${heading}\n\n${lines.join('\n')}`;
+  }).filter(Boolean).join('\n\n');
+}
+
+async function copyPosterText() {
+  if (!_lastPosterPreview?.fares?.length) {
+    toast('warning', 'No Poster', 'Generate a poster first before copying its text.');
+    return;
+  }
+
+  const btn = document.getElementById('poster-copy-text');
+  const originalHtml = btn?.innerHTML || '<i class="bi bi-clipboard"></i> Copy Text';
+  const text = buildPosterClipboardText(_lastPosterPreview.fares, _lastPosterPreview.selection);
+
+  if (!text) {
+    toast('warning', 'No Poster', 'Generate a poster first before copying its text.');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-clipboard-check"></i> Copying…';
+  }
+
+  try {
+    await writeTextToClipboard(text);
+    toast('success', 'Copied!', 'Poster text copied to clipboard.');
+  } catch (err) {
+    toast('error', 'Copy Failed', err.message || 'Clipboard access is unavailable.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
 }
 
 async function populatePosterRenderStack(fares, selection, stack, templateFrame) {
@@ -2458,6 +2580,7 @@ async function renderDashboardTab() {
       try {
         const fares = await getPosterSelectionFares(selection, { startDate, endDate, includeHidden: false });
         if (!fares || !fares.length) {
+          _lastPosterPreview = null;
           toast('warning', 'No Fares', `No live fares found for ${selection.label || 'the selected option'} in the selected date range.`);
           document.getElementById('poster-preview-container').classList.add('hidden');
           return;
@@ -2472,6 +2595,7 @@ async function renderDashboardTab() {
     });
 
     // Wire up download buttons
+    document.getElementById('poster-copy-text')?.addEventListener('click', copyPosterText);
     document.getElementById('poster-download-jpg')?.addEventListener('click', () => downloadPoster('jpeg'));
     document.getElementById('poster-download-pdf')?.addEventListener('click', () => downloadPoster('pdf'));
 
@@ -2633,6 +2757,10 @@ async function renderPoster(fares, selection) {
   if (!container || !stack || !templateFrame) return;
 
   await populatePosterRenderStack(fares, selection, stack, templateFrame);
+  _lastPosterPreview = {
+    fares: Array.isArray(fares) ? [...fares] : [],
+    selection: selection?.kind ? { ...selection, sectorIds: [...(selection.sectorIds || [])] } : selection,
+  };
 
   container.classList.remove('hidden');
   container.classList.add('flex');
@@ -4505,7 +4633,7 @@ function wireDatabaseTableEvents() {
       const waMsg = `Hello Zamra Travels, I'm interested in booking this flight:\n\n✈️ *${airlineName.toUpperCase()}*\n🛫 From: *${originName}*\n🛬 To: *${destName}*\n📅 Date: *${dateStr}*\n⏰ Dep: ${dep} | Arr: ${arr}\n💵 Price: *${price}*\n\nPlease confirm availability!`;
 
       try {
-        await navigator.clipboard.writeText(waMsg);
+        await writeTextToClipboard(waMsg);
         toast('success', 'Copied!', 'Flight details copied to clipboard.');
       } catch (err) {
         toast('error', 'Copy failed', err.message);
