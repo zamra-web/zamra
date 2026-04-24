@@ -11,9 +11,9 @@ export const RATIO_SCENE_PRESETS = {
     safeTop: 56,
     safeBottom: 30,
     topBarHeight: 16,
-    heroHeight: 292,
-    cardInset: 38,
-    cardOverlap: 82,
+    heroHeight: 314,
+    cardInset: 44,
+    cardOverlap: 78,
     cardPadX: 38,
     cardPadTop: 36,
     cardPadBottom: 30,
@@ -32,15 +32,18 @@ export const RATIO_SCENE_PRESETS = {
     rowRadius: 14,
     badgeWidth: 236,
     badgeHeight: 44,
-    badgeY: 68,
+    badgeY: 64,
     badgeTextSize: 15,
     titleBaseSize: 62,
     titleMinSize: 40,
-    titleY: 168,
+    titleY: 170,
     subtitleSize: 22,
-    subtitleY: 224,
+    subtitleY: 222,
+    badgeTitleGap: 22,
+    titleSubtitleGap: 18,
+    subtitleCardGap: 28,
     titleMaxWidthFactor: 0.7,
-    columns: { airline: 0.39, time: 0.62, baggage: 0.79 },
+    columns: { airline: 0.39, time: 0.6, baggage: 0.75 },
     typeScale: {
       tableHead: 18,
       date: 22,
@@ -84,7 +87,7 @@ export const RATIO_SCENE_PRESETS = {
     safeBottom: 48,
     topBarHeight: 16,
     heroHeight: 470,
-    cardInset: 32,
+    cardInset: 40,
     cardOverlap: 96,
     cardPadX: 40,
     cardPadTop: 42,
@@ -111,8 +114,11 @@ export const RATIO_SCENE_PRESETS = {
     titleY: 196,
     subtitleSize: 24,
     subtitleY: 262,
+    badgeTitleGap: 28,
+    titleSubtitleGap: 24,
+    subtitleCardGap: 34,
     titleMaxWidthFactor: 0.74,
-    columns: { airline: 0.39, time: 0.62, baggage: 0.79 },
+    columns: { airline: 0.39, time: 0.595, baggage: 0.748 },
     typeScale: {
       tableHead: 18,
       date: 24,
@@ -155,9 +161,10 @@ export const RATIO_SCENE_PRESETS = {
     safeTop: 42,
     safeBottom: 36,
     topBarHeight: 16,
-    heroHeight: 274,
-    cardInset: 60,
-    cardOverlap: 80,
+    heroHeight: 306,
+    cardInset: 72,
+    maxCardWidth: 1708,
+    cardOverlap: 70,
     cardPadX: 48,
     cardPadTop: 34,
     cardPadBottom: 30,
@@ -176,15 +183,18 @@ export const RATIO_SCENE_PRESETS = {
     rowRadius: 14,
     badgeWidth: 248,
     badgeHeight: 40,
-    badgeY: 50,
+    badgeY: 54,
     badgeTextSize: 15,
-    titleBaseSize: 70,
+    titleBaseSize: 64,
     titleMinSize: 44,
-    titleY: 144,
+    titleY: 154,
     subtitleSize: 22,
-    subtitleY: 198,
+    subtitleY: 212,
+    badgeTitleGap: 20,
+    titleSubtitleGap: 16,
+    subtitleCardGap: 24,
     titleMaxWidthFactor: 0.55,
-    columns: { airline: 0.39, time: 0.62, baggage: 0.79 },
+    columns: { airline: 0.39, time: 0.615, baggage: 0.79 },
     typeScale: {
       tableHead: 17,
       date: 20,
@@ -286,6 +296,10 @@ export function planVideoScene({
     width: width - (preset.safeX * 2),
     height: height - preset.safeTop - preset.safeBottom
   };
+  const availableCardWidth = width - (preset.cardInset * 2);
+  const cardWidth = Math.min(availableCardWidth, preset.maxCardWidth || availableCardWidth);
+  const cardX = Math.round((width - cardWidth) / 2);
+  const cardY = preset.heroHeight - preset.cardOverlap;
 
   const topBar = {
     x: 0,
@@ -306,23 +320,43 @@ export function planVideoScene({
     y: preset.badgeY,
     textSize: preset.badgeTextSize
   };
-  const titleMaxWidth = safe.width * preset.titleMaxWidthFactor;
+  const titleMaxWidth = Math.min(safe.width, cardWidth) * preset.titleMaxWidthFactor;
   const titleSize = fitTitleFontSize(
     titleText,
     titleMaxWidth,
     preset.titleBaseSize,
     preset.titleMinSize
   );
+  const titleHalf = titleSize / 2;
+  const subtitleHalf = preset.subtitleSize / 2;
+  const badgeBottom = badge.y + badge.height;
+  const badgeTitleGap = preset.badgeTitleGap ?? Math.max(20, Math.round(titleSize * 0.3));
+  const titleSubtitleGap = preset.titleSubtitleGap ?? Math.max(16, Math.round(titleSize * 0.16));
+  const subtitleCardGap = preset.subtitleCardGap ?? Math.max(20, Math.round(preset.subtitleSize * 1.1));
+  const titleMinY = badgeBottom + badgeTitleGap + titleHalf;
+  const subtitleMinY = titleMinY + titleHalf + titleSubtitleGap + subtitleHalf;
+  const subtitleMaxY = cardY - subtitleCardGap - subtitleHalf;
+  const subtitleY = clamp(
+    preset.subtitleY,
+    titleMinY + titleHalf + titleSubtitleGap + subtitleHalf,
+    Math.max(subtitleMinY, subtitleMaxY)
+  );
+  const titleMaxY = subtitleY - subtitleHalf - titleSubtitleGap - titleHalf;
+  const titleY = clamp(
+    preset.titleY,
+    titleMinY,
+    Math.max(titleMinY, titleMaxY)
+  );
   const title = {
     text: titleText,
     x: width / 2,
-    y: preset.titleY,
+    y: titleY,
     maxWidth: titleMaxWidth,
     fontSize: titleSize
   };
   const subtitle = {
     x: width / 2,
-    y: preset.subtitleY,
+    y: subtitleY,
     fontSize: preset.subtitleSize
   };
 
@@ -334,10 +368,10 @@ export function planVideoScene({
   };
 
   const card = {
-    x: preset.cardInset,
-    y: preset.heroHeight - preset.cardOverlap,
-    width: width - (preset.cardInset * 2),
-    height: height - (preset.heroHeight - preset.cardOverlap) - preset.footerGap - preset.footerHeight - preset.safeBottom,
+    x: cardX,
+    y: cardY,
+    width: cardWidth,
+    height: height - cardY - preset.footerGap - preset.footerHeight - preset.safeBottom,
     radius: preset.cardRadius
   };
 

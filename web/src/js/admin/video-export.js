@@ -684,6 +684,21 @@ function coverImageSize(image, targetWidth, targetHeight) {
   };
 }
 
+function containImageSize(image, maxWidth, maxHeight) {
+  if (!image?.width || !image?.height) {
+    return {
+      width: 0,
+      height: 0
+    };
+  }
+
+  const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+  return {
+    width: Math.max(0, image.width * scale),
+    height: Math.max(0, image.height * scale)
+  };
+}
+
 function drawImageCover(ctx, image, x, y, width, height) {
   if (!image?.width || !image?.height) return;
   const draw = coverImageSize(image, width, height);
@@ -946,8 +961,11 @@ function drawRow(ctx, fare, rowRect, rowIndex, scene, theme, getAirline, assets,
   ctx.fillText(dateLabel, scene.columns.dateLeft, centerY);
 
   if (airlineLogo?.width > 0) {
-    const logoWidth = Math.min(scene.logo.rowMaxWidth, airlineLogo.width);
-    const logoHeight = scene.logo.rowHeight;
+    const { width: logoWidth, height: logoHeight } = containImageSize(
+      airlineLogo,
+      scene.logo.rowMaxWidth,
+      scene.logo.rowHeight
+    );
     ctx.drawImage(
       airlineLogo,
       scene.columns.airlineCenter - (logoWidth / 2),
@@ -1057,13 +1075,18 @@ function drawFooter(ctx, scene, theme, assets, opacity) {
   ctx.fillStyle = theme.footerBorder;
   ctx.fillRect(scene.footer.x, scene.footer.y, scene.footer.width, 2);
 
+  const footerLogo = containImageSize(
+    assets.logoImg,
+    scene.footerContent.logoSize * 1.8,
+    scene.footerContent.logoSize
+  );
   if (assets.logoImg?.width > 0) {
     ctx.drawImage(
       assets.logoImg,
       scene.footerContent.leftX,
-      scene.footerContent.centerY - (scene.footerContent.logoSize / 2),
-      scene.footerContent.logoSize,
-      scene.footerContent.logoSize
+      scene.footerContent.centerY - (footerLogo.height / 2),
+      footerLogo.width,
+      footerLogo.height
     );
   }
 
@@ -1071,9 +1094,10 @@ function drawFooter(ctx, scene, theme, assets, opacity) {
   ctx.textAlign = 'left';
   ctx.fillStyle = theme.footerText;
   ctx.font = `900 ${scene.typography.footerTitle}px Arial, sans-serif`;
+  const brandStartX = scene.footerContent.leftX + (footerLogo.width > 0 ? footerLogo.width + 18 : 0);
   ctx.fillText(
     'Zamra Travels',
-    scene.footerContent.leftX + scene.footerContent.logoSize + 18,
+    brandStartX,
     scene.footerContent.centerY
   );
 
