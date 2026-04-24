@@ -13,6 +13,8 @@ const WEBM_MIME_CANDIDATES = [
     'video/webm;codecs=vp8',
     'video/webm'
 ];
+const VIDEO_BACKGROUND_MUSIC_URL = '/assets/music/bg_music.mp3';
+const VIDEO_BACKGROUND_MUSIC_GAIN = 0.18;
 
 function normalizeRatioKey(value) {
     const cleaned = String(value || '')
@@ -56,9 +58,98 @@ function attachSilentAudioTrack(stream) {
         oscillator.start();
         const audioTrack = dest.stream.getAudioTracks()[0];
         if (audioTrack) stream.addTrack(audioTrack);
-        return { audioCtx, oscillator, audioTrack };
+        return { audioCtx, oscillator, audioTrack, hasRealAudio: false };
     } catch {
         return null;
+    }
+}
+
+let backgroundMusicDataPromise = null;
+
+async function loadBackgroundMusicData() {
+    if (backgroundMusicDataPromise) return backgroundMusicDataPromise;
+    backgroundMusicDataPromise = (async () => {
+        const response = await fetch(VIDEO_BACKGROUND_MUSIC_URL, { cache: 'force-cache' });
+        if (!response.ok) {
+            throw new Error(`Failed to load background music (${response.status}).`);
+        }
+        return await response.arrayBuffer();
+    })();
+    try {
+        return await backgroundMusicDataPromise;
+    } catch (err) {
+        backgroundMusicDataPromise = null;
+        throw err;
+    }
+}
+
+function decodeAudioDataCompat(audioCtx, arrayBuffer) {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (fn, value) => {
+            if (settled) return;
+            settled = true;
+            fn(value);
+        };
+        try {
+            const promise = audioCtx.decodeAudioData(
+                arrayBuffer.slice(0),
+                (decoded) => finish(resolve, decoded),
+                (err) => finish(reject, err || new Error('Failed to decode audio data.'))
+            );
+            if (promise && typeof promise.then === 'function') {
+                promise.then(
+                    (decoded) => finish(resolve, decoded),
+                    (err) => finish(reject, err)
+                );
+            }
+        } catch (err) {
+            finish(reject, err);
+        }
+    });
+}
+
+async function attachBackgroundAudioTrack(stream, { durationMs, volume = VIDEO_BACKGROUND_MUSIC_GAIN } = {}) {
+    let audioCtx = null;
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return attachSilentAudioTrack(stream);
+        audioCtx = new AudioCtx();
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume().catch(() => {});
+        }
+        const musicData = await loadBackgroundMusicData();
+        const decodedBuffer = await decodeAudioDataCompat(audioCtx, musicData);
+        if (!decodedBuffer) {
+            try { await audioCtx.close(); } catch (_) { }
+            return attachSilentAudioTrack(stream);
+        }
+
+        const source = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        const dest = audioCtx.createMediaStreamDestination();
+        const playDurationSec = Math.max(0.75, Number(durationMs || 0) / 1000);
+        const fadeLeadSec = Math.min(0.75, Math.max(0.2, playDurationSec * 0.1));
+        const fadeStartSec = Math.max(0, playDurationSec - fadeLeadSec);
+
+        source.buffer = decodedBuffer;
+        source.loop = true;
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime + fadeStartSec);
+        gain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + playDurationSec);
+
+        source.connect(gain);
+        gain.connect(dest);
+        source.start(0);
+        source.stop(audioCtx.currentTime + playDurationSec + 0.05);
+
+        const audioTrack = dest.stream.getAudioTracks()[0];
+        if (audioTrack) stream.addTrack(audioTrack);
+        return { audioCtx, source, gain, audioTrack, hasRealAudio: Boolean(audioTrack) };
+    } catch (err) {
+        try { await audioCtx?.close(); } catch (_) { }
+        console.warn('Background music could not be attached. Falling back to silent audio track.', err);
+        return attachSilentAudioTrack(stream);
     }
 }
 
@@ -146,17 +237,6 @@ async function transcodeToMp4(blob, inputMime) {
         ffmpegClient = null;
         throw err;
     }
-}
-
-let mp4MuxerModule = null;
-async function loadMp4Muxer() {
-    if (mp4MuxerModule) return mp4MuxerModule;
-    mp4MuxerModule = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5/build/mp4-muxer.mjs');
-    return mp4MuxerModule;
-}
-
-function canUseWebCodecs() {
-    return typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined';
 }
 
 function getExpectedAspectRatio(ratioKey) {
@@ -886,53 +966,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 }
             }));
 
-            // 3. Start Recording
-            const stream = canvas.captureStream(30); // 30 FPS
-            const audioState = attachSilentAudioTrack(stream);
-            
-            const mimeType = pickMimeType({
-                forceMimeType,
-                candidates: mimeCandidates || getMimeCandidates()
-            });
-            if (!mimeType) {
-                throw new Error('No supported video mime type available for this browser.');
-            }
-            
-            const recorder = new MediaRecorder(stream, { mimeType });
-            const chunks = [];
-            let settled = false;
-            let stopped = false;
-            const safeResolve = (value) => {
-                if (settled) return;
-                settled = true;
-                resolve(value);
-            };
-            const safeReject = (error) => {
-                if (settled) return;
-                settled = true;
-                reject(error);
-            };
-            recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-            const cleanupAudio = () => {
-                try { audioState?.oscillator?.stop(); } catch (_) { }
-                try { audioState?.audioTrack?.stop(); } catch (_) { }
-                try { audioState?.audioCtx?.close(); } catch (_) { }
-            };
-            const stopRecorder = () => {
-                if (stopped) return;
-                stopped = true;
-                try {
-                    if (recorder.state === 'recording') recorder.stop();
-                } catch (err) {
-                    console.error('Error stopping recorder', err);
-                }
-            };
-
-            // Start Recorder
-            const timeslice = 1000;
-            recorder.start(timeslice); // Flush chunks regularly to reduce corruption risk
-
-            // 4. Animation loop
+            // 3. Animation timing + layout
             const headerHeight = preset.headerHeight;
             const footerHeight = preset.footerHeight;
             const startY = headerHeight + preset.headerGap;
@@ -998,6 +1032,54 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             const frameDuration = 1000 / fps;
             let elapsed = 0;
             let lastTick = performance.now();
+
+            // 4. Start recording after the full render duration is known so audio can
+            // loop cleanly across multi-page slideshow exports.
+            const stream = canvas.captureStream(fps);
+            const audioState = await attachBackgroundAudioTrack(stream, { durationMs: totalDuration });
+            const mimeType = pickMimeType({
+                forceMimeType,
+                candidates: mimeCandidates || getMimeCandidates()
+            });
+            if (!mimeType) {
+                throw new Error('No supported video mime type available for this browser.');
+            }
+
+            const recorder = new MediaRecorder(stream, { mimeType });
+            const chunks = [];
+            let settled = false;
+            let stopped = false;
+            const safeResolve = (value) => {
+                if (settled) return;
+                settled = true;
+                resolve(value);
+            };
+            const safeReject = (error) => {
+                if (settled) return;
+                settled = true;
+                reject(error);
+            };
+            recorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) chunks.push(e.data);
+            };
+            const cleanupAudio = () => {
+                try { audioState?.source?.stop(); } catch (_) { }
+                try { audioState?.oscillator?.stop(); } catch (_) { }
+                try { audioState?.audioTrack?.stop(); } catch (_) { }
+                try { audioState?.audioCtx?.close(); } catch (_) { }
+            };
+            const stopRecorder = () => {
+                if (stopped) return;
+                stopped = true;
+                try {
+                    if (recorder.state === 'recording') recorder.stop();
+                } catch (err) {
+                    console.error('Error stopping recorder', err);
+                }
+            };
+
+            const timeslice = 1000;
+            recorder.start(timeslice);
 
             const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
             const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -1379,58 +1461,13 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     if (mimeType.includes('mp4')) {
                         finalMimeType = 'video/mp4';
                     } else {
-                        let converted = false;
-                        if (canUseWebCodecs()) {
-                            try {
-                                if (window.toast) window.toast('info', 'Video Processing', 'Optimizing for WhatsApp…');
-                                const mp4Mod = await loadMp4Muxer();
-                                const target = new mp4Mod.ArrayBufferTarget();
-                                const muxer = new mp4Mod.Muxer({
-                                    target,
-                                    video: { codec: 'avc', width: canvasWidth, height: canvasHeight },
-                                    fastStart: 'in-memory',
-                                });
-                                const encoder = new VideoEncoder({
-                                    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-                                    error: (e) => console.error('VideoEncoder error:', e),
-                                });
-                                encoder.configure({
-                                    codec: 'avc1.420028',
-                                    width: canvasWidth,
-                                    height: canvasHeight,
-                                    bitrate: 4_000_000,
-                                    framerate: fps,
-                                });
-                                const totalFrames = Math.ceil((totalDuration / 1000) * fps);
-                                for (let i = 0; i <= totalFrames; i++) {
-                                    const t = Math.min(i * frameDuration, totalDuration);
-                                    renderFrame(t);
-                                    const vf = new VideoFrame(canvas, { timestamp: Math.round(t * 1000) });
-                                    encoder.encode(vf, { keyFrame: i % 90 === 0 });
-                                    vf.close();
-                                    while (encoder.encodeQueueSize > 10) {
-                                        await new Promise(r => setTimeout(r, 1));
-                                    }
-                                }
-                                await encoder.flush();
-                                encoder.close();
-                                muxer.finalize();
-                                finalBlob = new Blob([target.buffer], { type: 'video/mp4' });
-                                finalMimeType = 'video/mp4';
-                                converted = true;
-                            } catch (wcErr) {
-                                console.warn('WebCodecs MP4 encoding failed:', wcErr);
-                            }
-                        }
-                        if (!converted) {
-                            try {
-                                if (!canUseWebCodecs() && window.toast) window.toast('info', 'Video Processing', 'Converting to MP4…');
-                                finalBlob = await transcodeToMp4(blob, mimeType);
-                                finalMimeType = 'video/mp4';
-                            } catch (err) {
-                                console.error('MP4 optimization failed:', err);
-                                if (window.toast) window.toast('warning', 'Video Processing', 'Could not convert to MP4. Downloading in original format.');
-                            }
+                        try {
+                            if (window.toast) window.toast('info', 'Video Processing', 'Converting to MP4…');
+                            finalBlob = await transcodeToMp4(blob, mimeType);
+                            finalMimeType = 'video/mp4';
+                        } catch (err) {
+                            console.error('MP4 optimization failed:', err);
+                            if (window.toast) window.toast('warning', 'Video Processing', 'Could not convert to MP4. Downloading in original format.');
                         }
                     }
                 }
