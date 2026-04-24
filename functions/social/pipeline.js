@@ -4,7 +4,6 @@ const { logger } = require("firebase-functions/v2");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
 
-const bufferChannels = require("../buffer/channels");
 const bufferCreatePost = require("../buffer/createPost");
 const {
   BUFFER_MARKET_CONFIG,
@@ -31,8 +30,7 @@ const LEASE_MS = 8 * 60 * 1000;
 const DISPATCH_BATCH_LIMIT = 6;
 const DISPATCH_CANDIDATE_LIMIT = 20;
 const MAX_ATTEMPTS = 3;
-const HEALTH_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const STORY_PLATFORMS = ["instagram", "facebook"];
+const STORY_PLATFORMS = ["instagram"];
 
 function db() {
   return getFirestore();
@@ -168,6 +166,33 @@ function getConfiguredChannelForMarket(existingMarket = {}, marketKey, platform)
   return { id: "", source: "missing" };
 }
 
+function buildConfiguredChannelState(existingMarket = {}, marketKey, platform, marketLabel) {
+  const configured = getConfiguredChannelForMarket(existingMarket, marketKey, platform);
+  if (!configured.id) {
+    return {
+      channel: {
+        id: "",
+        configuredId: "",
+        source: configured.source,
+        status: "blocked",
+        message: `No ${platform} channel configured for ${marketLabel}.`,
+      },
+      blocker: `No ${platform} channel configured for ${marketLabel}.`,
+    };
+  }
+
+  return {
+    channel: {
+      id: configured.id,
+      configuredId: configured.source === "firestore" ? configured.id : "",
+      source: configured.source,
+      status: "ready",
+      message: `${marketLabel} ${platform} channel is configured.`,
+    },
+    blocker: null,
+  };
+}
+
 async function inspectMarketHealth(marketKey, apiKey, existingMarket = {}) {
   const market = BUFFER_MARKET_CONFIG[marketKey];
   if (!market) {
@@ -179,112 +204,21 @@ async function inspectMarketHealth(marketKey, apiKey, existingMarket = {}) {
       warnings: [],
       blockers: [`Unknown airport group "${marketKey}"`],
       channels: {},
-      verifiedAt: new Date().toISOString(),
-    };
-  }
-
-  if (!apiKey) {
-    return {
-      key: market.key,
-      label: market.label,
-      airports: market.airports,
-      status: "blocked",
-      message: `Buffer API key secret is missing for ${market.label}.`,
-      warnings: [],
-      blockers: [`Buffer API key secret is missing for ${market.label}.`],
-      channels: {},
-      verifiedAt: new Date().toISOString(),
+      refreshedAt: new Date().toISOString(),
     };
   }
 
   const warnings = [];
   const blockers = [];
   const channels = {};
-  let organizationId = String(existingMarket.organizationId || "").trim();
-
-  try {
-    const organizations = await bufferChannels.fetchOrganizations(apiKey);
-    if (!organizationId && organizations.length === 1) {
-      organizationId = organizations[0];
-    } else if (!organizationId && organizations.length > 1) {
-      blockers.push("Multiple Buffer organizations detected. Set organizationId in config/socialPublishing.");
-    } else if (!organizationId && organizations.length === 0) {
-      blockers.push("No Buffer organizations available for this airport account.");
-    }
-  } catch (error) {
-    blockers.push(`Failed to read Buffer organizations: ${error.message || error}`);
+  if (!apiKey) {
+    blockers.push(`Buffer API key secret is missing for ${market.label}.`);
   }
 
   for (const platform of PLATFORM_KEYS) {
-    const configured = getConfiguredChannelForMarket(existingMarket, marketKey, platform);
-    if (!configured.id) {
-      channels[platform] = {
-        id: "",
-        configuredId: "",
-        source: configured.source,
-        status: "blocked",
-        message: `No ${platform} channel configured for ${market.label}.`,
-      };
-      blockers.push(`No ${platform} channel configured for ${market.label}.`);
-      continue;
-    }
-
-    try {
-      const channel = await bufferChannels.fetchChannelById(apiKey, configured.id);
-      if (!channel) {
-        channels[platform] = {
-          id: configured.id,
-          configuredId: configured.source === "firestore" ? configured.id : "",
-          source: configured.source,
-          status: "blocked",
-          message: `Buffer channel ${configured.id} could not be loaded.`,
-        };
-        blockers.push(`Buffer channel ${configured.id} could not be loaded for ${market.label} ${platform}.`);
-        continue;
-      }
-
-      const service = String(channel.service || "").toLowerCase();
-      if (service !== platform) {
-        channels[platform] = {
-          id: configured.id,
-          configuredId: configured.source === "firestore" ? configured.id : "",
-          source: configured.source,
-          name: channel.displayName || channel.name || "",
-          service,
-          isQueuePaused: !!channel.isQueuePaused,
-          status: "blocked",
-          message: `Expected ${platform} but Buffer returned ${service || "unknown"}.`,
-        };
-        blockers.push(`Configured ${market.label} ${platform} channel is actually ${service || "unknown"}.`);
-        continue;
-      }
-
-      if (channel.isQueuePaused) {
-        warnings.push(`${market.label} ${platform} channel queue is paused in Buffer.`);
-      }
-
-      channels[platform] = {
-        id: configured.id,
-        configuredId: configured.source === "firestore" ? configured.id : "",
-        source: configured.source,
-        name: channel.displayName || channel.name || "",
-        service,
-        isQueuePaused: !!channel.isQueuePaused,
-        status: channel.isQueuePaused ? "warning" : "ready",
-        message: channel.isQueuePaused
-          ? `${market.label} ${platform} queue is paused in Buffer.`
-          : `${market.label} ${platform} channel verified.`,
-      };
-    } catch (error) {
-      channels[platform] = {
-        id: configured.id,
-        configuredId: configured.source === "firestore" ? configured.id : "",
-        source: configured.source,
-        status: "blocked",
-        message: error.message || String(error),
-      };
-      blockers.push(`Failed to validate ${market.label} ${platform}: ${error.message || error}`);
-    }
+    const { channel, blocker } = buildConfiguredChannelState(existingMarket, marketKey, platform, market.label);
+    channels[platform] = channel;
+    if (blocker) blockers.push(blocker);
   }
 
   const status = blockers.length ? "blocked" : warnings.length ? "warning" : "ready";
@@ -292,13 +226,12 @@ async function inspectMarketHealth(marketKey, apiKey, existingMarket = {}) {
     key: market.key,
     label: market.label,
     airports: market.airports,
-    organizationId,
     warnings,
     blockers,
     status,
-    message: blockers[0] || warnings[0] || `${market.label} social publishing is ready.`,
+    message: blockers[0] || warnings[0] || `${market.label} posting setup is ready.`,
     channels,
-    verifiedAt: new Date().toISOString(),
+    refreshedAt: new Date().toISOString(),
   };
 }
 
@@ -321,10 +254,11 @@ async function refreshSocialPublishingHealth(bufferApiKeySecretsByMarket, market
   }
 
   await socialConfigRef().set({
-    version: 1,
+    version: 2,
     retentionHours: RETENTION_MS / (60 * 60 * 1000),
     markets: refreshedMarkets,
     updatedAt: FieldValue.serverTimestamp(),
+    lastSetupRefreshAt: FieldValue.serverTimestamp(),
     lastHealthRefreshAt: FieldValue.serverTimestamp(),
   });
 
@@ -371,7 +305,6 @@ function buildQueueCreatePayload(meta = {}) {
     nextAttemptAt: meta.nextAttemptAt || timestampNow(),
     leaseExpiresAt: null,
     bufferPosts: meta.bufferPosts || {},
-    organizationId: meta.organizationId || "",
     lastError: null,
     lastMessage: meta.lastMessage || "Waiting to dispatch to Buffer.",
     lastCheckedAt: null,
@@ -589,10 +522,6 @@ async function claimDueQueueItems(limit = DISPATCH_BATCH_LIMIT) {
   return claimed;
 }
 
-function getRequiredPlatformState(marketHealth, platform) {
-  return marketHealth && marketHealth.channels ? marketHealth.channels[platform] : null;
-}
-
 async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   const ref = socialQueueRef().doc(queueDoc.id);
   const freshSnap = await ref.get();
@@ -638,22 +567,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
 
   const secret = bufferApiKeySecretsByMarket[marketKey];
   const apiKey = secret && typeof secret.value === "function" ? secret.value() : "";
-  const marketHealth = await readCachedMarketHealth(marketKey);
-
-  if (!marketHealth || !marketHealth.channels) {
-    const message = `No cached Buffer channel configuration for ${marketLabel}. Click "Refresh Health" in the admin to verify.`;
-    await ref.update({
-      status: "failed",
-      stage: "failed",
-      lastError: { message, retryable: false },
-      lastMessage: message,
-      processedAt: FieldValue.serverTimestamp(),
-      expiresAt: futureTimestamp(RETENTION_MS),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    await syncQueueToJob(ref.id, { ...doc, marketKey, status: "failed", stage: "failed", lastMessage: message });
-    return;
-  }
+  const marketSetup = await readCachedMarketHealth(marketKey);
 
   if (!apiKey) {
     const message = `No Buffer API key configured for ${marketLabel}.`;
@@ -676,23 +590,15 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
 
   for (const platform of requestedPlatforms) {
     if (platform === "youtube" && mediaType !== "video") continue;
-    const state = getRequiredPlatformState(marketHealth, platform);
-    if (!state || !isConfiguredChannelId(state.id)) {
-      setupErrors.push({ platform, message: `No configured ${platform} channel for ${marketLabel}.`, retryable: false });
-      continue;
-    }
-    if (state.status === "blocked") {
-      setupErrors.push({ platform, message: state.message || `Blocked ${platform} channel for ${marketLabel}.`, retryable: false });
-      continue;
-    }
-    if (state.isQueuePaused) {
-      setupErrors.push({ platform, message: state.message || `${platform} queue is paused in Buffer.`, retryable: true });
+    const { channel, blocker } = buildConfiguredChannelState(marketSetup || {}, marketKey, platform, marketLabel);
+    if (!channel || !isConfiguredChannelId(channel.id)) {
+      setupErrors.push({ platform, message: blocker || `No configured ${platform} channel for ${marketLabel}.`, retryable: false });
       continue;
     }
     targets.push({
       platform,
-      channelId: state.id,
-      channelName: state.name || "",
+      channelId: channel.id,
+      channelName: channel.name || "",
     });
   }
 
@@ -857,7 +763,6 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   await ref.update({
     status,
     stage,
-    organizationId: doc.organizationId || marketHealth.organizationId || "",
     leaseExpiresAt: null,
     bufferPosts,
     lastError,
@@ -872,7 +777,6 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
     marketKey,
     status,
     stage,
-    organizationId: doc.organizationId || marketHealth.organizationId || "",
     bufferPosts,
     lastError,
     lastMessage,

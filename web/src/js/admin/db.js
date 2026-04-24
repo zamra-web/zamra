@@ -824,8 +824,8 @@ export async function callRetrySocialJobItem(jobId, itemId) {
 
 /**
  * Upload a poster or video blob to Firebase Storage, then enqueue it in
- * the `social_queue` Firestore collection. The scheduled dispatcher +
- * reconciler pick it up and publish/confirm via Buffer.
+ * the `social_queue` Firestore collection. The scheduled dispatcher picks it
+ * up and posts it to Buffer.
  *
  * @param {Blob}   blob     — The JPEG image or MP4 video blob
  * @param {string} filename — Destination filename (e.g. 'ccj-jed-1x1-1234567890.mp4')

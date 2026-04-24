@@ -504,7 +504,7 @@ exports.purgeOldFaresDaily = onSchedule(
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Buffer social publishing pipeline
-//   - refreshSocialPublishingHealth: verifies per-airport Buffer channels
+//   - refreshSocialPublishingHealth: refreshes saved per-airport posting setup
 //   - runSocialQueueNow: admin callable to dispatch pending queue work
 //   - socialQueueDispatcher: scheduled queue worker (every minute)
 //   Secrets: one Buffer API key per India-airport account.

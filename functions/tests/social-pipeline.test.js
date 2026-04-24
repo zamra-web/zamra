@@ -1,21 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const bufferChannels = require("../buffer/channels");
 const {
   inspectMarketHealth,
   getConfiguredChannelForMarket,
   resolveQueueMarketKey,
   buildQueueCreatePayload,
 } = require("../social/pipeline");
-
-const originalFetchOrganizations = bufferChannels.fetchOrganizations;
-const originalFetchChannelById = bufferChannels.fetchChannelById;
-
-test.afterEach(() => {
-  bufferChannels.fetchOrganizations = originalFetchOrganizations;
-  bufferChannels.fetchChannelById = originalFetchChannelById;
-});
 
 test("getConfiguredChannelForMarket prefers Firestore ids and otherwise falls back", () => {
   const explicit = getConfiguredChannelForMarket({
@@ -33,30 +24,13 @@ test("getConfiguredChannelForMarket prefers Firestore ids and otherwise falls ba
 });
 
 test("inspectMarketHealth reports missing config as blocked", async () => {
-  bufferChannels.fetchOrganizations = async () => ["org-1"];
-  bufferChannels.fetchChannelById = async () => {
-    throw new Error("should not fetch channel when no ids are configured");
-  };
-
   const health = await inspectMarketHealth("ccj", "token", {});
   assert.equal(health.status, "blocked");
   assert.match(health.message, /No instagram channel configured/i);
 });
 
-test("inspectMarketHealth marks paused Buffer channels as warnings", async () => {
-  bufferChannels.fetchOrganizations = async () => ["org-1"];
-  bufferChannels.fetchChannelById = async (_apiKey, id) => {
-    const service = id.startsWith("ig") ? "instagram" : id.startsWith("fb") ? "facebook" : "youtube";
-    return {
-      id,
-      service,
-      displayName: `${service} channel`,
-      isQueuePaused: service === "instagram",
-    };
-  };
-
+test("inspectMarketHealth uses configured channels without verification calls", async () => {
   const health = await inspectMarketHealth("ccj", "token", {
-    organizationId: "org-1",
     channels: {
       instagram: { configuredId: "ig-live", source: "firestore" },
       facebook: { configuredId: "fb-live", source: "firestore" },
@@ -64,8 +38,8 @@ test("inspectMarketHealth marks paused Buffer channels as warnings", async () =>
     },
   });
 
-  assert.equal(health.status, "warning");
-  assert.equal(health.channels.instagram.status, "warning");
+  assert.equal(health.status, "ready");
+  assert.equal(health.channels.instagram.status, "ready");
   assert.equal(health.channels.facebook.status, "ready");
 });
 

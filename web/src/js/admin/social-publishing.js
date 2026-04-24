@@ -69,6 +69,40 @@ function isTerminalJobStatus(status = '') {
   return ['completed', 'completed_with_failures', 'failed'].includes(String(status || '').toLowerCase());
 }
 
+function buildFallbackMarketState(deps, marketKey) {
+  const market = deps.getPosterSocialMarket?.(marketKey);
+  const platforms = deps.getPosterSocialMarketPlatforms?.(marketKey);
+  if (!market || !platforms) return null;
+
+  const blockers = [];
+  const channels = {};
+  ['instagram', 'facebook', 'youtube'].forEach((platform) => {
+    const configured = !!platforms[platform];
+    channels[platform] = configured
+      ? {
+        id: `configured-${platform}`,
+        source: 'local',
+        status: 'ready',
+        message: `${market.label} ${platform} channel is configured.`,
+      }
+      : {
+        id: '',
+        source: 'missing',
+        status: 'blocked',
+        message: `No ${platform} channel configured for ${market.label}.`,
+      };
+    if (!configured) blockers.push(`No ${platform} channel configured for ${market.label}.`);
+  });
+
+  return {
+    key: market.key,
+    label: market.label,
+    status: blockers.length ? 'blocked' : 'ready',
+    message: blockers[0] || `${market.label} posting setup is ready.`,
+    channels,
+  };
+}
+
 export function createSocialPublishingController(deps) {
   const state = {
     activeMarketKey: '',
@@ -86,7 +120,8 @@ export function createSocialPublishingController(deps) {
   }
 
   function getMarketState(marketKey) {
-    return state.config && state.config.markets ? state.config.markets[marketKey] : null;
+    const market = state.config && state.config.markets ? state.config.markets[marketKey] : null;
+    return market || buildFallbackMarketState(deps, marketKey);
   }
 
   function getActionReadiness(marketKey, action) {
@@ -94,7 +129,7 @@ export function createSocialPublishingController(deps) {
     if (!market) {
       return {
         ready: false,
-        message: 'Publishing health has not loaded yet.',
+        message: 'Publishing setup is loading.',
       };
     }
 
@@ -120,7 +155,7 @@ export function createSocialPublishingController(deps) {
 
     return {
       ready: issues.length === 0,
-      message: issues[0] || market.message || 'Publishing health is ready.',
+      message: issues[0] || market.message || 'Publishing setup is ready.',
     };
   }
 
@@ -200,7 +235,7 @@ export function createSocialPublishingController(deps) {
                   ${escapeHtml(formatMarketSummary(market))}
                 </span>
                 <span class="mt-2 block text-[11px] leading-5 ${isActive ? 'text-white/82' : 'text-text-muted'}">
-                  ${escapeHtml((marketState && marketState.message) || 'Refreshing Buffer health…')}
+                  ${escapeHtml((marketState && marketState.message) || 'Reading publishing setup…')}
                 </span>
               </button>
             `;
@@ -219,7 +254,7 @@ export function createSocialPublishingController(deps) {
                     <p class="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted">${escapeHtml(formatMarketSummary(activeMarket))}</p>
                   </div>
                 </div>
-                <p class="mt-3 text-sm text-text-muted">${escapeHtml(((getMarketState(activeMarket.key) || {}).message) || 'Refreshing Buffer health…')}</p>
+                <p class="mt-3 text-sm text-text-muted">${escapeHtml(((getMarketState(activeMarket.key) || {}).message) || 'Reading publishing setup…')}</p>
               </div>
               <div class="grid grid-cols-2 gap-2 lg:min-w-[280px]">
                 <button
@@ -386,11 +421,11 @@ export function createSocialPublishingController(deps) {
     try {
       await deps.callRefreshSocialPublishingHealth();
       if (!options.silent) {
-        deps.toast('success', 'Health Refreshed', 'Airport group Buffer health has been refreshed.');
+        deps.toast('success', 'Setup Refreshed', 'Airport group publishing setup has been refreshed.');
       }
     } catch (error) {
       if (!options.silent) {
-        deps.toast('error', 'Refresh Failed', error.message || 'Failed to refresh Buffer health.');
+        deps.toast('error', 'Refresh Failed', error.message || 'Failed to refresh publishing setup.');
       }
     } finally {
       if (triggerButton) {

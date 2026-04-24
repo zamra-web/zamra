@@ -33,6 +33,7 @@ import { getPosterRateDisplay } from './poster-rate-display.js';
 import { createSocialPublishingController } from './social-publishing.js';
 import {
   getPosterSocialMarket,
+  getPosterSocialMarketPlatforms,
   listPosterSocialMarkets,
   resolveSectorMarketKey,
   getSectorRouteCodes,
@@ -1808,6 +1809,7 @@ function getSocialPublishingController() {
     callRunSocialQueueNow,
     callRetrySocialJobItem,
     getPosterSocialMarket,
+    getPosterSocialMarketPlatforms,
     listPosterSocialMarkets,
     resolveSectorMarketKey,
     getPosterSocialDateFilters,

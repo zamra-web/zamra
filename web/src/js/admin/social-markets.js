@@ -6,6 +6,7 @@ export const POSTER_SOCIAL_MARKETS = {
     label: 'Calicut (CCJ)',
     airports: ['CCJ'],
     summary: 'Flights from or to Calicut',
+    platforms: { instagram: true, facebook: true, youtube: true },
     hashtags: ['#CalicutFlights', '#CCJDeals', '#KeralaTravel', '#ZamraTravels'],
   },
   cok: {
@@ -13,6 +14,7 @@ export const POSTER_SOCIAL_MARKETS = {
     label: 'Kochi (COK)',
     airports: ['COK'],
     summary: 'Flights from or to Kochi',
+    platforms: { instagram: true, facebook: true, youtube: true },
     hashtags: ['#KochiFlights', '#COKDeals', '#CochinFlights', '#ZamraTravels'],
   },
   cnn: {
@@ -20,6 +22,7 @@ export const POSTER_SOCIAL_MARKETS = {
     label: 'Kannur (CNN)',
     airports: ['CNN'],
     summary: 'Flights from or to Kannur',
+    platforms: { instagram: false, facebook: false, youtube: false },
     hashtags: ['#KannurFlights', '#CNNDeals', '#NorthKeralaTravel', '#ZamraTravels'],
   },
   trv: {
@@ -27,6 +30,7 @@ export const POSTER_SOCIAL_MARKETS = {
     label: 'Trivandrum (TRV)',
     airports: ['TRV'],
     summary: 'Flights from or to Trivandrum',
+    platforms: { instagram: false, facebook: false, youtube: false },
     hashtags: ['#TrivandrumFlights', '#TRVDeals', '#SouthKeralaTravel', '#ZamraTravels'],
   },
   ixe: {
@@ -34,6 +38,7 @@ export const POSTER_SOCIAL_MARKETS = {
     label: 'Mangalore (IXE)',
     airports: ['IXE'],
     summary: 'Flights from or to Mangalore',
+    platforms: { instagram: false, facebook: false, youtube: false },
     hashtags: ['#MangaloreFlights', '#IXEDeals', '#CoastalTravel', '#ZamraTravels'],
   },
 };
@@ -126,6 +131,10 @@ export function resolveSectorMarketKey(sector = {}) {
 
 export function getPosterSocialMarket(key) {
   return POSTER_SOCIAL_MARKETS[key] || null;
+}
+
+export function getPosterSocialMarketPlatforms(key) {
+  return POSTER_SOCIAL_MARKETS[key]?.platforms || null;
 }
 
 export function listPosterSocialMarkets() {
