@@ -139,9 +139,10 @@ web/
 
 ### 3. 🗺️ Sectors Tab
 - **Full CRUD** — Add / Edit / Delete sectors
+- **Custom Priority Ordering** — a dedicated Reorder Mode exposes the full sector list with drag-and-drop so admins can persist a custom display priority across the dashboard and other sector selectors
 - **Pagination** — 10 sectors per page
 - **Hide Fares / Show Fares** — calls `bulkToggleSectorVisibility` Cloud Function to toggle `isHidden` on all fares for a route
-- Data from Firestore `sectors` collection (fields: `sectorFrom`, `sectorTo`, `sectorCode`)
+- Data from Firestore `sectors` collection (fields: `sectorFrom`, `sectorTo`, `sectorCode`, `sortOrder`)
 
 ### 4. ✈️ Flights Tab (Airlines)
 - **Full CRUD** — Add / Edit / Delete airlines
@@ -280,6 +281,7 @@ web/
 | `sectorFrom` | String | Origin city/airport e.g. `KOZHIKODE` |
 | `sectorTo` | String | Destination e.g. `JEDDAH` |
 | `sectorCode` | String | IATA code e.g. `CCJ JED` |
+| `sortOrder` | Number | Admin-defined display priority; lower values appear first in sector tables and dropdowns |
 
 ### `airlines`
 | Field | Type | Notes |

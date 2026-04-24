@@ -19,7 +19,7 @@ import {
   getPassportServices, addPassportService, updatePassportService, deletePassportService,
   getTours, addTour, updateTour, deleteTour,
   getHajjUmrahPackages, addHajjUmrahPackage, updateHajjUmrahPackage, deleteHajjUmrahPackage,
-  callToggleAgentVisibility, callToggleSectorVisibility,
+  callToggleAgentVisibility, callToggleSectorVisibility, callReorderSectors,
   callGenerateAgentReport,
   uploadAndQueueForSocial, uploadAndQueueCarousel,
   createSocialJob, updateSocialJob,
@@ -60,6 +60,9 @@ let _lastPosterPreview = null;
 let _activePosterSocialMarketKey = '';
 let _currentAdminUser = null;
 let _socialPublishingController = null;
+let _isSectorReorderMode = false;
+let _isSectorReorderSaving = false;
+let _sectorDragState = { draggedId: '', overId: '', position: 'before' };
 
 // ── Theme Toggle ─────────────────────────────────────────────────────────────
 const THEME_STORAGE_KEY = 'zamra-admin-theme';
@@ -158,9 +161,16 @@ function normalizeDamammText(value) {
   });
 }
 
+function normalizeSectorSortOrder(value) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 1) return null;
+  return numeric;
+}
+
 function normalizeSectorRecord(sector = {}) {
   return {
     ...sector,
+    sortOrder: normalizeSectorSortOrder(sector.sortOrder),
     sectorFrom: normalizeDamammText(sector.sectorFrom || ''),
     sectorTo: normalizeDamammText(sector.sectorTo || ''),
     sectorCode: normalizeDamammText(sector.sectorCode || ''),
@@ -324,6 +334,31 @@ function populatePosterSectorSelect(selectEl) {
     ? currentValue
     : '';
   selectEl.value = nextValue;
+}
+
+function populateReportsSectorSelect(selectEl = document.getElementById('reports-sector-sel')) {
+  if (!selectEl) return;
+
+  const currentValue = selectEl.value || 'all';
+  selectEl.innerHTML = '<option value="all">All Sectors</option>' +
+    _sectors.map((sector) =>
+      `<option value="${escapeHtml(sector.id)}">${escapeHtml(sector.sectorCode || sector.id)}</option>`
+    ).join('');
+
+  const nextValue = Array.from(selectEl.options).some((option) => option.value === currentValue)
+    ? currentValue
+    : 'all';
+  selectEl.value = nextValue;
+}
+
+function refreshSectorDrivenControls() {
+  populatePosterSectorSelect(document.getElementById('poster-sector-sel'));
+  populateReportsSectorSelect();
+  populateDatabaseFilterSelects();
+
+  if (document.getElementById('database-tab')?.classList.contains('active') && _databaseFares.length) {
+    renderDatabaseTable();
+  }
 }
 
 function formatPosterSocialDate(date = new Date()) {
@@ -528,7 +563,7 @@ function getPosterDateRange(startInput, endInput) {
 // ── Sorting & Search State ────────────────────────────────────────────────────
 let tableSort = {
   agents: { key: 'id', asc: true },
-  sectors: { key: 'id', asc: true },
+  sectors: { key: 'sortOrder', asc: true },
   airlines: { key: 'name', asc: true },
   visas: { key: 'countryName', asc: true },
   visaStampings: { key: 'country', asc: true },
@@ -620,6 +655,11 @@ function applySortAndFilter(data, tab) {
       let valA = a[key], valB = b[key];
       if (valA instanceof Date) valA = valA.getTime();
       if (valB instanceof Date) valB = valB.getTime();
+      if (key === 'sortOrder') {
+        const sa = normalizeSectorSortOrder(valA) ?? Number.MAX_SAFE_INTEGER;
+        const sb = normalizeSectorSortOrder(valB) ?? Number.MAX_SAFE_INTEGER;
+        if (sa !== sb) return asc ? sa - sb : sb - sa;
+      }
       // Numeric ID sort — treat '1','2'...'27' as numbers
       if (key === 'id') {
         const na = parseInt(valA), nb = parseInt(valB);
@@ -656,6 +696,7 @@ document.addEventListener('click', (e) => {
 
   const tab = th.dataset.sortTab;
   const key = th.dataset.sortKey;
+  if (tab === 'sectors' && _isSectorReorderMode) return;
 
   if (tableSort[tab].key === key) {
     tableSort[tab].asc = !tableSort[tab].asc;
@@ -723,6 +764,7 @@ async function loadGlobalData() {
     _sectors = normalizeSectors(sectors);
     _airlines = airlines;
     _visas = visas;
+    refreshSectorDrivenControls();
   } catch (e) {
     console.error('loadGlobalData error:', e);
   }
@@ -3546,60 +3588,209 @@ async function refreshAgentCommissionViews(agentId, commission) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTORS TAB — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
+function resetSectorDragState() {
+  _sectorDragState = { draggedId: '', overId: '', position: 'before' };
+}
+
+function getSectorDropPosition(row, clientY) {
+  const rect = row.getBoundingClientRect();
+  return clientY > rect.top + rect.height / 2 ? 'after' : 'before';
+}
+
+function reorderSectorList(list, draggedId, targetId, position = 'before') {
+  if (!draggedId || !targetId || draggedId === targetId) return null;
+
+  const nextList = [...list];
+  const fromIndex = nextList.findIndex((sector) => sector.id === draggedId);
+  const targetIndex = nextList.findIndex((sector) => sector.id === targetId);
+  if (fromIndex === -1 || targetIndex === -1) return null;
+
+  const [draggedSector] = nextList.splice(fromIndex, 1);
+  let insertionIndex = targetIndex;
+  if (fromIndex < targetIndex) insertionIndex -= 1;
+  if (position === 'after') insertionIndex += 1;
+  insertionIndex = Math.max(0, Math.min(insertionIndex, nextList.length));
+  nextList.splice(insertionIndex, 0, draggedSector);
+
+  const changed = nextList.some((sector, index) => sector.id !== list[index]?.id);
+  return changed ? nextList : null;
+}
+
+function syncSectorDragClasses(tbody) {
+  if (!tbody) return;
+
+  tbody.querySelectorAll('tr[data-sector-id]').forEach((row) => {
+    const sectorId = row.dataset.sectorId || '';
+    const isDragged = _isSectorReorderMode && sectorId === _sectorDragState.draggedId;
+    const isDropTarget = _isSectorReorderMode &&
+      sectorId === _sectorDragState.overId &&
+      sectorId !== _sectorDragState.draggedId;
+
+    row.classList.toggle('sector-row-dragging', isDragged);
+    row.classList.toggle('sector-row-drop-before', isDropTarget && _sectorDragState.position === 'before');
+    row.classList.toggle('sector-row-drop-after', isDropTarget && _sectorDragState.position === 'after');
+  });
+}
+
+function syncSectorTableUi() {
+  const searchInp = document.getElementById('sectors-search');
+  const limitSel = document.getElementById('sectors-limit');
+  const reorderBtn = document.getElementById('sector-reorder-toggle');
+  const addBtn = document.getElementById('sector-add-btn');
+  const noteEl = document.getElementById('sector-mode-note');
+
+  if (searchInp) {
+    searchInp.disabled = _isSectorReorderMode || _isSectorReorderSaving;
+    searchInp.placeholder = _isSectorReorderMode
+      ? 'Search is paused while reordering'
+      : 'From, to, or code...';
+  }
+
+  if (limitSel) {
+    limitSel.disabled = _isSectorReorderMode || _isSectorReorderSaving;
+  }
+
+  if (reorderBtn) {
+    const canEnterReorderMode = _sectors.length > 1;
+    reorderBtn.disabled = _isSectorReorderSaving || (!_isSectorReorderMode && !canEnterReorderMode);
+    reorderBtn.classList.toggle('admin-btn-primary', !_isSectorReorderMode);
+    reorderBtn.classList.toggle('admin-btn-ghost', _isSectorReorderMode);
+    reorderBtn.innerHTML = _isSectorReorderSaving
+      ? '<i class="bi bi-arrow-repeat animate-spin"></i>Saving Order…'
+      : _isSectorReorderMode
+        ? '<i class="bi bi-check2-square"></i>Done Reordering'
+        : '<i class="bi bi-grip-vertical"></i>Reorder Mode';
+  }
+
+  if (addBtn) {
+    addBtn.disabled = _isSectorReorderSaving;
+  }
+
+  if (noteEl) {
+    noteEl.textContent = _isSectorReorderMode
+      ? (_isSectorReorderSaving
+        ? 'Saving the new sector priority…'
+        : 'Drag rows above or below each other to set the live sector priority.')
+      : 'Custom priority controls how sectors appear across the admin and public sector consumers.';
+  }
+
+  document.querySelectorAll('#sectors-tab th[data-sort-tab="sectors"]').forEach((th) => {
+    th.classList.toggle('admin-table-sort-disabled', _isSectorReorderMode);
+  });
+}
+
+function renderSectorFooter(totalCount, totalPages, start, limit) {
+  const footer = document.getElementById('sectors-pagination-footer');
+  if (!footer) return;
+
+  if (_isSectorReorderMode) {
+    footer.innerHTML = `
+      <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm text-text-muted">
+        <span class="font-semibold text-text-main">Showing the full saved priority list (${totalCount} sector${totalCount !== 1 ? 's' : ''}).</span>
+        <span>${_isSectorReorderSaving ? 'Saving order changes…' : 'Drop a row to persist the new order immediately.'}</span>
+      </div>`;
+    return;
+  }
+
+  renderPaginationFooter('sectors', totalCount, totalPages, start, limit);
+}
+
 async function renderSectorsTab(fetchData = true) {
-  if (fetchData) { _sectors = normalizeSectors(await getSectors()); tablePage.sectors = 1; }
+  if (fetchData) {
+    _sectors = normalizeSectors(await getSectors());
+    tablePage.sectors = 1;
+    refreshSectorDrivenControls();
+  }
 
   // Wire up filter inputs if not already
   const searchInp = document.getElementById('sectors-search');
   const limitSel = document.getElementById('sectors-limit');
+  const reorderBtn = document.getElementById('sector-reorder-toggle');
+  const addBtn = document.getElementById('sector-add-btn');
   if (searchInp && !searchInp.dataset.wired) {
     searchInp.dataset.wired = '1'; limitSel.dataset.wired = '1';
     searchInp.addEventListener('input', (e) => { tableSearch.sectors = e.target.value; tablePage.sectors = 1; renderSectorsTab(false); });
     limitSel.addEventListener('change', (e) => { tableLimit.sectors = parseInt(e.target.value); tablePage.sectors = 1; renderSectorsTab(false); });
   }
-
-  const tbody = document.querySelector('#sectors-tab .admin-table tbody');
-  if (!tbody) return;
-
-  const sorted = applySortAndFilter(_sectors, 'sectors');
-  const limit = tableLimit.sectors;
-  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
-  if (tablePage.sectors > totalPages) tablePage.sectors = totalPages;
-  const start = (tablePage.sectors - 1) * limit;
-  const pageData = sorted.slice(start, start + limit);
-
-  tbody.innerHTML = pageData.length
-    ? pageData.map(s => sectorRow(s)).join('')
-    : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No sectors yet. Click "+ Add Sector".</td></tr>`;
-
-  renderPaginationFooter('sectors', sorted.length, totalPages, start, limit);
-
-  wireSectorActions();
-
-  const addBtn = document.querySelector('#sectors-tab .flex.justify-between button');
+  if (reorderBtn && !reorderBtn.dataset.wired) {
+    reorderBtn.dataset.wired = '1';
+    reorderBtn.addEventListener('click', () => {
+      if (_isSectorReorderSaving) return;
+      _isSectorReorderMode = !_isSectorReorderMode;
+      if (_isSectorReorderMode) {
+        tableSort.sectors.key = 'sortOrder';
+        tableSort.sectors.asc = true;
+      }
+      resetSectorDragState();
+      renderSectorsTab(false);
+    });
+  }
   if (addBtn && !addBtn.dataset.wired) {
     addBtn.dataset.wired = '1';
     addBtn.addEventListener('click', () => openSectorModal(null));
   }
 
+  const tbody = document.querySelector('#sectors-tab .admin-table tbody');
+  if (!tbody) return;
+
+  syncSectorTableUi();
+
+  const sorted = _isSectorReorderMode
+    ? [..._sectors]
+    : applySortAndFilter(_sectors, 'sectors');
+  const limit = tableLimit.sectors;
+  const totalPages = _isSectorReorderMode ? 1 : Math.max(1, Math.ceil(sorted.length / limit));
+  if (tablePage.sectors > totalPages) tablePage.sectors = totalPages;
+  const start = _isSectorReorderMode ? 0 : (tablePage.sectors - 1) * limit;
+  const pageData = _isSectorReorderMode ? sorted : sorted.slice(start, start + limit);
+
+  tbody.innerHTML = pageData.length
+    ? pageData.map((sector, index) => sectorRow(sector, start + index)).join('')
+    : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No sectors yet. Click "+ Add Sector".</td></tr>`;
+
+  renderSectorFooter(sorted.length, totalPages, start, limit);
+
+  wireSectorActions();
+  wireSectorReorderInteractions();
+
   updateSortIcons('sectors');
+  syncSectorTableUi();
+  syncSectorDragClasses(tbody);
 }
 
-function sectorRow(s) {
+function sectorRow(s, rowIndex = 0) {
   const sector = normalizeSectorRecord(s);
-  return `<tr data-sector-id="${s.id}">
+  const priority = sector.sortOrder || rowIndex + 1;
+  const rowClasses = [
+    _isSectorReorderMode ? 'sector-row-draggable' : '',
+    _isSectorReorderSaving ? 'sector-row-reorder-locked' : '',
+  ].filter(Boolean).join(' ');
+
+  return `<tr data-sector-id="${s.id}" class="${rowClasses}" ${_isSectorReorderMode && !_isSectorReorderSaving ? 'draggable="true"' : ''}>
+    <td class="whitespace-nowrap">
+      ${_isSectorReorderMode ? `
+        <div class="sector-priority-cell">
+          <span class="sector-drag-handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+          <span class="sector-priority-pill">#${priority}</span>
+        </div>
+      ` : `<span class="sector-priority-pill">#${priority}</span>`}
+    </td>
     <td class="font-mono text-xs text-text-muted">${s.id || '—'}</td>
     <td class="font-semibold">${sector.sectorFrom}</td>
     <td class="font-semibold">${sector.sectorTo}</td>
     <td><span class="font-mono font-bold text-primary">${sector.sectorCode}</span></td>
     <td>
-      <div class="flex gap-1 items-center">
-        <button data-action="edit-sector" data-id="${s.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
-        <button data-action="delete-sector" data-id="${s.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
-        <button data-action="toggle-sector" data-id="${s.id}" data-hidden="${s.isHidden === true}"
-          class="admin-action-btn ${s.isHidden === true ? 'admin-action-show' : 'admin-action-toggle'}">
-          <i class="bi ${s.isHidden === true ? 'bi-eye' : 'bi-eye-slash'}"></i>${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
-      </div>
+      ${_isSectorReorderMode
+        ? `<span class="text-xs font-semibold ${_isSectorReorderSaving ? 'text-primary' : 'text-text-muted'}">
+            ${_isSectorReorderSaving ? 'Saving updated priority…' : 'Drag to move this sector'}
+          </span>`
+        : `<div class="flex gap-1 items-center">
+            <button data-action="edit-sector" data-id="${s.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+            <button data-action="delete-sector" data-id="${s.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+            <button data-action="toggle-sector" data-id="${s.id}" data-hidden="${s.isHidden === true}"
+              class="admin-action-btn ${s.isHidden === true ? 'admin-action-show' : 'admin-action-toggle'}">
+              <i class="bi ${s.isHidden === true ? 'bi-eye' : 'bi-eye-slash'}"></i>${s.isHidden === true ? 'Show Fares' : 'Hide Fares'}</button>
+          </div>`}
     </td>
   </tr>`;
 }
@@ -3630,6 +3821,96 @@ function wireSectorActions() {
         await renderSectorsTab(); // Auto-refresh UI to fetch isHidden updates
       } catch (e) { toast('error', 'Toggle Failed', e.message); await renderSectorsTab(); }
     }
+  });
+}
+
+function wireSectorReorderInteractions() {
+  const tbody = document.querySelector('#sectors-tab .admin-table tbody');
+  if (!tbody || tbody.dataset.reorderWired) return;
+  tbody.dataset.reorderWired = '1';
+
+  tbody.addEventListener('dragstart', (e) => {
+    if (!_isSectorReorderMode || _isSectorReorderSaving) {
+      e.preventDefault();
+      return;
+    }
+
+    const row = e.target.closest('tr[data-sector-id]');
+    if (!row) return;
+
+    _sectorDragState.draggedId = row.dataset.sectorId || '';
+    _sectorDragState.overId = row.dataset.sectorId || '';
+    _sectorDragState.position = 'before';
+
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', _sectorDragState.draggedId);
+    }
+
+    syncSectorDragClasses(tbody);
+  });
+
+  tbody.addEventListener('dragover', (e) => {
+    if (!_isSectorReorderMode || _isSectorReorderSaving || !_sectorDragState.draggedId) return;
+
+    const row = e.target.closest('tr[data-sector-id]');
+    if (!row) return;
+
+    e.preventDefault();
+    _sectorDragState.overId = row.dataset.sectorId || '';
+    _sectorDragState.position = getSectorDropPosition(row, e.clientY);
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    syncSectorDragClasses(tbody);
+  });
+
+  tbody.addEventListener('drop', async (e) => {
+    if (!_isSectorReorderMode || _isSectorReorderSaving || !_sectorDragState.draggedId) return;
+
+    const row = e.target.closest('tr[data-sector-id]');
+    if (!row) return;
+
+    e.preventDefault();
+    const draggedId = _sectorDragState.draggedId;
+    const targetId = row.dataset.sectorId || '';
+    const position = getSectorDropPosition(row, e.clientY);
+    const previousSectors = _sectors.map((sector) => ({ ...sector }));
+    const reordered = reorderSectorList(previousSectors, draggedId, targetId, position);
+
+    resetSectorDragState();
+    if (!reordered) {
+      syncSectorDragClasses(tbody);
+      renderSectorsTab(false);
+      return;
+    }
+
+    _sectors = reordered.map((sector, index) => ({
+      ...sector,
+      sortOrder: index + 1,
+    }));
+    _isSectorReorderSaving = true;
+    refreshSectorDrivenControls();
+    renderSectorsTab(false);
+
+    try {
+      const res = await callReorderSectors(_sectors.map((sector) => sector.id));
+      _isSectorReorderSaving = false;
+      refreshSectorDrivenControls();
+      renderSectorsTab(false);
+      toast('success', 'Order Saved', res.message || 'Sector order updated.');
+    } catch (err) {
+      _isSectorReorderSaving = false;
+      _sectors = previousSectors;
+      refreshSectorDrivenControls();
+      renderSectorsTab(false);
+      toast('error', 'Reorder Failed', err.message || 'Failed to save the new sector order.');
+      await renderSectorsTab(true);
+    }
+  });
+
+  tbody.addEventListener('dragend', () => {
+    resetSectorDragState();
+    syncSectorDragClasses(tbody);
+    if (_isSectorReorderMode && !_isSectorReorderSaving) renderSectorsTab(false);
   });
 }
 
@@ -3830,14 +4111,13 @@ function openAirlineModal(airline) {
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderReportsTab() {
   const tab = document.getElementById('reports-tab');
-  if (!tab || tab.dataset.wired) return;
-  tab.dataset.wired = '1';
+  if (!tab) return;
 
-  // Populate sector filter
   const sectorSel = document.getElementById('reports-sector-sel');
-  if (sectorSel && sectorSel.options.length <= 1) {
-    _sectors.forEach(s => sectorSel.appendChild(new Option(s.sectorCode, s.id)));
-  }
+  populateReportsSectorSelect(sectorSel);
+
+  if (tab.dataset.wired) return;
+  tab.dataset.wired = '1';
 
   // Populate agent filter (informational only — Cloud Function aggregates all)
   const agentSel = document.getElementById('reports-agent-sel');

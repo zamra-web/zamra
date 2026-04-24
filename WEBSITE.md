@@ -96,6 +96,7 @@ web/
 
 ### ✈️ Sectors Display (Lowest Fare Flight Tickets)
 - Reads `sectors` collection from Firestore
+- Sector reads now honor the admin-defined `sortOrder` priority so any sector selectors that use `getSectors()` stay aligned with the dashboard ordering
 - Groups routes by top-level "Origin" cards (e.g., India to Middle East)
 - Clicking an Origin opens a modal with destination Routes
 - Clicking a Route opens the **Flight Details modal** with live pricing
@@ -263,7 +264,7 @@ cd web && npm run build        # outputs to web/dist/
 
 | Collection | Fields Used |
 |---|---|
-| `sectors` | `sectorFrom`, `sectorTo`, `sectorCode` |
+| `sectors` | `sectorFrom`, `sectorTo`, `sectorCode`, `sortOrder` |
 | `airlines` | `name`, `code`, `logoUrl` |
 | `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `extraBaggage`, `flightTime`, `isHidden` |
 | `services` | `serviceType`, `title`, `basePrice`, `isActive` |

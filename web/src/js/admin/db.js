@@ -15,6 +15,57 @@ import { db, storage, functions } from './firebase-config.js';
 
 const SOCIAL_RETENTION_MS = 72 * 60 * 60 * 1000;
 
+function normalizeSectorSortOrder(value) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 1) return null;
+  return numeric;
+}
+
+function compareLegacySectorOrder(a, b) {
+  const na = parseInt(a.id, 10);
+  const nb = parseInt(b.id, 10);
+  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+
+  const sectorCompare = String(a.sectorCode || '').localeCompare(String(b.sectorCode || ''), undefined, {
+    sensitivity: 'base',
+  });
+  if (sectorCompare !== 0) return sectorCompare;
+
+  return String(a.id || '').localeCompare(String(b.id || ''), undefined, {
+    sensitivity: 'base',
+  });
+}
+
+function resolveSectorDisplayOrder(sectors = []) {
+  const ordered = [...sectors].sort((a, b) => {
+    const sa = normalizeSectorSortOrder(a.sortOrder);
+    const sb = normalizeSectorSortOrder(b.sortOrder);
+
+    if (sa !== null && sb !== null && sa !== sb) return sa - sb;
+    if (sa !== null && sb === null) return -1;
+    if (sa === null && sb !== null) return 1;
+
+    return compareLegacySectorOrder(a, b);
+  });
+
+  const maxExisting = ordered.reduce((max, sector) => {
+    const value = normalizeSectorSortOrder(sector.sortOrder);
+    return value !== null && value > max ? value : max;
+  }, 0);
+
+  let nextFallbackSortOrder = maxExisting;
+
+  return ordered.map((sector) => {
+    const current = normalizeSectorSortOrder(sector.sortOrder);
+    if (current !== null) {
+      return { ...sector, sortOrder: current };
+    }
+
+    nextFallbackSortOrder += 1;
+    return { ...sector, sortOrder: nextFallbackSortOrder };
+  });
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENTS
@@ -90,24 +141,26 @@ export async function toggleAgentActive(agentId, isActive) {
 // SECTORS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Fetch all sectors — sorted by numeric ID with fallback to sectorCode */
+/** Fetch all sectors — sorted by persisted sortOrder with legacy fallback safety */
 export async function getSectors() {
   const snap = await getDocs(collection(db, 'sectors'));
   const sectors = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  // Sort by numeric ID first; fall back to sectorCode alphabetically
-  return sectors.sort((a, b) => {
-    const na = parseInt(a.id), nb = parseInt(b.id);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return (a.sectorCode || '').localeCompare(b.sectorCode || '');
-  });
+  return resolveSectorDisplayOrder(sectors);
 }
 
 /** Add a new sector */
 export async function addSector(data) {
+  const sectors = await getSectors();
+  const nextSortOrder = sectors.reduce((max, sector) => {
+    const value = normalizeSectorSortOrder(sector.sortOrder);
+    return value !== null && value > max ? value : max;
+  }, 0) + 1;
+
   const docRef = await addDoc(collection(db, 'sectors'), {
     sectorFrom: data.sectorFrom || '',
     sectorTo: data.sectorTo || '',
     sectorCode: data.sectorCode || '',
+    sortOrder: nextSortOrder,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -697,6 +750,16 @@ export async function callSyncAgentCommission(agentId, commission) {
 export async function callToggleSectorVisibility(sectorId, isHidden) {
   const fn = httpsCallable(functions, 'bulkToggleSectorVisibility');
   const result = await fn({ sectorId, isHidden });
+  return result.data;
+}
+
+/**
+ * Persist a full custom sector display order.
+ * @param {string[]} sectorIds
+ */
+export async function callReorderSectors(sectorIds = []) {
+  const fn = httpsCallable(functions, 'reorderSectors');
+  const result = await fn({ sectorIds });
   return result.data;
 }
 

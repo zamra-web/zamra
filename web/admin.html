@@ -552,9 +552,14 @@ Example:
                     <h2 class="admin-tab-title">Sector Catalog</h2>
                     <p class="admin-tab-subtitle">Define and maintain active origin-destination sectors used throughout pricing, reports, and tickets.</p>
                 </div>
-                <button
-                    class="admin-btn admin-btn-primary h-[42px] px-5"><i class="bi bi-plus-circle"></i>
-                    Add Sector</button>
+                <div class="flex flex-wrap items-center gap-3">
+                    <button id="sector-reorder-toggle"
+                        class="admin-btn admin-btn-ghost h-[42px] px-5"><i class="bi bi-grip-vertical"></i>
+                        Reorder Mode</button>
+                    <button id="sector-add-btn"
+                        class="admin-btn admin-btn-primary h-[42px] px-5"><i class="bi bi-plus-circle"></i>
+                        Add Sector</button>
+                </div>
             </div>
 
             <div class="admin-panel p-6 text-text-main">
@@ -575,11 +580,13 @@ Example:
                             class="ml-1.5 admin-control admin-control-sm w-[220px]" placeholder="From, to, or code...">
                     </div>
                 </div>
+                <p id="sector-mode-note" class="text-sm text-text-muted mb-4">Custom priority controls how sectors appear across the admin and public sector consumers.</p>
 
                 <div class="admin-table-container">
                     <table class="admin-table">
                         <thead>
                             <tr>
+                                <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sortOrder">Priority <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="id">ID <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorFrom">Sector From <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th class="cursor-pointer group" data-sort-tab="sectors" data-sort-key="sectorTo">Sector To <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>

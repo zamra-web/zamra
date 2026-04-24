@@ -8,6 +8,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
+const { buildSequentialSectorSortUpdates } = require("./sectorOrdering");
 
 initializeApp();
 const db = getFirestore();
@@ -256,7 +257,76 @@ exports.bulkSyncAgentCommission = onCall({ region: "asia-south1" }, async (reque
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 5. generateAgentReport
+// 5. reorderSectors
+//    Persists a custom admin-defined display order for all sectors.
+// ══════════════════════════════════════════════════════════════════════════════
+exports.reorderSectors = onCall({ region: "asia-south1" }, async (request) => {
+  requireAdmin(request);
+
+  const rawSectorIds = Array.isArray(request.data?.sectorIds) ? request.data.sectorIds : [];
+  const sectorIds = rawSectorIds
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+
+  if (!sectorIds.length) {
+    throw new HttpsError("invalid-argument", "sectorIds must be a non-empty array.");
+  }
+
+  const uniqueSectorIds = new Set(sectorIds);
+  if (uniqueSectorIds.size !== sectorIds.length) {
+    throw new HttpsError("invalid-argument", "sectorIds must contain unique values only.");
+  }
+
+  const sectorsSnap = await db.collection("sectors").get();
+  const existingDocs = sectorsSnap.docs;
+  const existingIds = existingDocs.map((doc) => doc.id);
+
+  if (existingIds.length !== sectorIds.length) {
+    throw new HttpsError(
+      "failed-precondition",
+      "The provided sector order is stale. Refresh the sector list and try again.",
+    );
+  }
+
+  const existingIdSet = new Set(existingIds);
+  const unknownIds = sectorIds.filter((id) => !existingIdSet.has(id));
+  const missingIds = existingIds.filter((id) => !uniqueSectorIds.has(id));
+
+  if (unknownIds.length || missingIds.length) {
+    throw new HttpsError(
+      "failed-precondition",
+      "The provided sector order must include every current sector exactly once.",
+    );
+  }
+
+  const docById = new Map(existingDocs.map((doc) => [doc.id, doc]));
+  const updates = buildSequentialSectorSortUpdates(sectorIds);
+  let updated = 0;
+
+  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    updates.slice(i, i + BATCH_SIZE).forEach(({ id, sortOrder }) => {
+      const sectorDoc = docById.get(id);
+      if (!sectorDoc) return;
+      batch.update(sectorDoc.ref, {
+        sortOrder,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+    updated += Math.min(BATCH_SIZE, updates.length - i);
+  }
+
+  return {
+    success: true,
+    updated,
+    message: `Updated display priority for ${updated} sector${updated !== 1 ? "s" : ""}.`,
+  };
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 6. generateAgentReport
 //    Aggregates agent_fares → returns per-agent stats for charts.
 // ══════════════════════════════════════════════════════════════════════════════
 exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) => {
