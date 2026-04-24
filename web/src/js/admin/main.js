@@ -1364,9 +1364,23 @@ function releasePosterLogoBlobMap(blobUrlMap = {}) {
   });
 }
 
-async function writeTextToClipboard(text) {
+async function writeTextToClipboard(text, html = '') {
   if (!text) {
     throw new Error('Nothing to copy.');
+  }
+
+  if (html && navigator?.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        }),
+      ]);
+      return;
+    } catch {
+      // Fall back to plain-text clipboard APIs below.
+    }
   }
 
   if (navigator?.clipboard?.writeText) {
@@ -1410,9 +1424,9 @@ function formatPosterClipboardDate(flightDate) {
 
 function formatPosterClipboardRate(rate) {
   const numericRate = Number(rate);
-  if (!Number.isFinite(numericRate)) return 'INR 0';
-  if (Number.isInteger(numericRate)) return `INR ${numericRate}`;
-  return `INR ${numericRate.toFixed(2).replace(/\.?0+$/, '')}`;
+  if (!Number.isFinite(numericRate)) return '₹0';
+  if (Number.isInteger(numericRate)) return `₹${numericRate.toLocaleString('en-IN')}`;
+  return `₹${numericRate.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 function getPosterClipboardSectorHeading(sectorId) {
@@ -1432,8 +1446,19 @@ function getPosterClipboardSectorHeading(sectorId) {
   return raw.toUpperCase() || 'SECTOR';
 }
 
-function buildPosterClipboardText(fares, selection) {
-  if (!Array.isArray(fares) || !fares.length) return '';
+function formatPosterClipboardAirlineLabel(rawLabel) {
+  const normalized = String(rawLabel || 'AIRLINE')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+
+  if (normalized === 'AIR INDIA EXPRESS') return 'AIR INDIA EX';
+  if (normalized === 'SAUDI AIRLINES') return 'SAUDI AIR';
+  return normalized || 'AIRLINE';
+}
+
+function buildPosterClipboardSections(fares, selection) {
+  if (!Array.isArray(fares) || !fares.length) return [];
 
   const { getAirline, toAirlineKey } = buildPosterAirlineHelpers();
   const sortedFares = dedupeAndSortPosterFares(fares, toAirlineKey);
@@ -1445,19 +1470,50 @@ function buildPosterClipboardText(fares, selection) {
   });
 
   const sectorIds = getPosterSelectionRenderSectorIds(faresBySector, selection);
+  const maxDateLabelLength = Math.max(
+    6,
+    ...sortedFares.map((fare) => formatPosterClipboardDate(fare.flightDate).length),
+  );
+  const maxAirlineLabelLength = Math.max(
+    'AIRLINE'.length,
+    ...sortedFares.map((fare) => {
+      const airline = getAirline(fare.airlineId);
+      return formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE').length;
+    }),
+  );
+
   return sectorIds.map((sectorId) => {
     const sectionFares = faresBySector.get(sectorId) || [];
-    if (!sectionFares.length) return '';
+    if (!sectionFares.length) return null;
 
     const heading = getPosterClipboardSectorHeading(sectorId);
     const lines = sectionFares.map((fare) => {
       const airline = getAirline(fare.airlineId);
-      const airlineLabel = String(airline?.name || fare.airlineId || 'AIRLINE').trim().toUpperCase();
-      return `${formatPosterClipboardDate(fare.flightDate)}    ${airlineLabel} = ${formatPosterClipboardRate(fare.finalRate)}`;
+      const airlineLabel = formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE');
+      const dateLabel = formatPosterClipboardDate(fare.flightDate).padEnd(maxDateLabelLength, ' ');
+      return `${dateLabel}  ${airlineLabel.padEnd(maxAirlineLabelLength, ' ')} = ${formatPosterClipboardRate(fare.finalRate)}`;
     });
 
-    return `${heading}\n\n${lines.join('\n')}`;
-  }).filter(Boolean).join('\n\n');
+    return { heading, lines };
+  }).filter(Boolean);
+}
+
+function buildPosterClipboardPayload(fares, selection) {
+  const sections = buildPosterClipboardSections(fares, selection);
+  if (!sections.length) return { text: '', html: '' };
+
+  const text = sections.map(({ heading, lines }) => {
+    return `*${heading}*\n\`\`\`\n${lines.join('\n')}\n\`\`\``;
+  }).join('\n\n');
+
+  const html = `<div>${sections.map(({ heading, lines }) => `
+    <section style="margin:0 0 16px;">
+      <p style="margin:0 0 6px;font-weight:700;">${escapeHtml(heading)}</p>
+      <pre style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;">${escapeHtml(lines.join('\n'))}</pre>
+    </section>
+  `).join('')}</div>`;
+
+  return { text, html };
 }
 
 async function copyPosterText() {
@@ -1468,7 +1524,7 @@ async function copyPosterText() {
 
   const btn = document.getElementById('poster-copy-text');
   const originalHtml = btn?.innerHTML || '<i class="bi bi-clipboard"></i> Copy Text';
-  const text = buildPosterClipboardText(_lastPosterPreview.fares, _lastPosterPreview.selection);
+  const { text, html } = buildPosterClipboardPayload(_lastPosterPreview.fares, _lastPosterPreview.selection);
 
   if (!text) {
     toast('warning', 'No Poster', 'Generate a poster first before copying its text.');
@@ -1481,7 +1537,7 @@ async function copyPosterText() {
   }
 
   try {
-    await writeTextToClipboard(text);
+    await writeTextToClipboard(text, html);
     toast('success', 'Copied!', 'Poster text copied to clipboard.');
   } catch (err) {
     toast('error', 'Copy Failed', err.message || 'Clipboard access is unavailable.');
