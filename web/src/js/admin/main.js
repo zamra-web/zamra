@@ -1936,12 +1936,16 @@ async function buildPosterVideoFrameSources(fares, selection) {
 }
 
 async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
-  const posterFrames = Array.isArray(options?.posterFrames) && options.posterFrames.length
-    ? options.posterFrames
-    : await buildPosterVideoFrameSources(fares, sectorId);
+  const shouldUsePosterFrames = options?.usePosterFrames === true;
+  const posterFrames = shouldUsePosterFrames
+    ? (Array.isArray(options?.posterFrames) && options.posterFrames.length
+      ? options.posterFrames
+      : await buildPosterVideoFrameSources(fares, sectorId))
+    : [];
 
   return renderVideoPoster(ratio, fares, sectorId, sectors, airlines, {
     ...options,
+    usePosterFrames: shouldUsePosterFrames,
     posterFrames,
   });
 }

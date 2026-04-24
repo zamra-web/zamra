@@ -1046,9 +1046,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             width: 1080,
             height: 1080,
             headerHeight: 280,
-            headerGap: 44,
-            footerHeight: 100,
-            footerGap: 14,
+            headerGap: 28,
+            footerHeight: 110,
+            footerGap: 22,
             marginX: 90,
             rowHeight: 86,
             rowInset: 10,
@@ -1061,14 +1061,18 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             table: { headSize: 18, headOffset: 20, dateSize: 24, bagSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 96, h: 36 },
             footer: { logo: 44, titleSize: 22, infoSize: 18 },
+            card: { overlap: 26, sideInset: 24, padX: 34, padTop: 36, padBottom: 28, radius: 28, summaryHeight: 84, summaryGap: 26 },
             columns: { airline: 0.4, time: 0.62, baggage: 0.78 },
             minDuration: 9000,
             motion: {
-                rowsStart: 1300,
+                cardStart: 520,
+                cardReveal: 520,
+                cardFloat: 28,
+                rowsStart: 1160,
                 rowStagger: 700,
                 rowReveal: 650,
                 rowSlide: 18,
-                footerDelay: 600,
+                footerDelay: 560,
                 footerReveal: 700,
                 hold: 2000,
                 parallaxAmp: 4,
@@ -1085,30 +1089,34 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         '9x16': {
             width: 1080,
             height: 1920,
-            headerHeight: 400,
-            headerGap: 60,
-            footerHeight: 110,
-            footerGap: 18,
+            headerHeight: 460,
+            headerGap: 30,
+            footerHeight: 144,
+            footerGap: 26,
             marginX: 70,
-            rowHeight: 92,
+            rowHeight: 96,
             rowInset: 10,
             maxRows: VIDEO_MAX_ROWS,
             minRowHeight: 54,
             topBarHeight: 16,
-            badge: { w: 240, h: 44, y: 76, textSize: 16 },
-            title: { size: 58, offset: 92 },
-            subtitle: { size: 22, offset: 148 },
-            table: { headSize: 19, headOffset: 24, dateSize: 26, bagSize: 22, timeSize: 22, fareSize: 26 },
+            badge: { w: 258, h: 46, y: 88, textSize: 16 },
+            title: { size: 62, offset: 104 },
+            subtitle: { size: 22, offset: 166 },
+            table: { headSize: 19, headOffset: 22, dateSize: 26, bagSize: 22, timeSize: 22, fareSize: 26 },
             logo: { maxW: 110, h: 40 },
-            footer: { logo: 48, titleSize: 24, infoSize: 20 },
+            footer: { logo: 50, titleSize: 24, infoSize: 20 },
+            card: { overlap: 82, sideInset: 30, padX: 38, padTop: 42, padBottom: 36, radius: 34, summaryHeight: 144, summaryGap: 30 },
             columns: { airline: 0.4, time: 0.62, baggage: 0.78 },
             minDuration: 10000,
             motion: {
-                rowsStart: 1500,
-                rowStagger: 760,
-                rowReveal: 700,
+                cardStart: 580,
+                cardReveal: 560,
+                cardFloat: 34,
+                rowsStart: 1140,
+                rowStagger: 660,
+                rowReveal: 620,
                 rowSlide: 20,
-                footerDelay: 650,
+                footerDelay: 620,
                 footerReveal: 760,
                 hold: 2200,
                 parallaxAmp: 5,
@@ -1126,9 +1134,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             width: 1920,
             height: 1080,
             headerHeight: 260,
-            headerGap: 44,
-            footerHeight: 88,
-            footerGap: 14,
+            headerGap: 28,
+            footerHeight: 96,
+            footerGap: 18,
             marginX: 200,
             rowHeight: 78,
             rowInset: 10,
@@ -1141,14 +1149,18 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             table: { headSize: 18, headOffset: 18, dateSize: 22, bagSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 110, h: 36 },
             footer: { logo: 42, titleSize: 22, infoSize: 18 },
+            card: { overlap: 28, sideInset: 44, padX: 44, padTop: 32, padBottom: 28, radius: 28, summaryHeight: 88, summaryGap: 26 },
             columns: { airline: 0.4, time: 0.62, baggage: 0.78 },
             minDuration: 8000,
             motion: {
-                rowsStart: 1100,
+                cardStart: 460,
+                cardReveal: 460,
+                cardFloat: 24,
+                rowsStart: 980,
                 rowStagger: 620,
                 rowReveal: 600,
                 rowSlide: 16,
-                footerDelay: 520,
+                footerDelay: 480,
                 footerReveal: 650,
                 hold: 1800,
                 parallaxAmp: 3,
@@ -1419,7 +1431,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 posterFrameAssets = (await Promise.all(providedPosterFrames.map((frame) => loadPosterFrameAsset(frame))))
                     .filter(Boolean);
             }
-            const usePosterFrameSlideshow = posterFrameAssets.length > 0;
+            const usePosterFrameSlideshow = options?.usePosterFrames === true && posterFrameAssets.length > 0;
 
             const arrow = '→';
             const maxTitleWidth = width - (preset.marginX * 1.4);
@@ -1563,8 +1575,26 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             } else {
                 const headerHeight = preset.headerHeight;
                 const footerHeight = preset.footerHeight;
-                const startY = headerHeight + preset.headerGap;
-                const availableHeight = height - startY - footerHeight - preset.footerGap;
+                const cardConfig = preset.card || {};
+                const cardSideInset = Math.max(24, Number(cardConfig.sideInset || Math.round(preset.marginX * 0.55)));
+                const cardPadX = Number(cardConfig.padX || 36);
+                const cardPadTop = Number(cardConfig.padTop || 32);
+                const cardPadBottom = Number(cardConfig.padBottom || 28);
+                const cardRadius = Number(cardConfig.radius || 28);
+                const cardSummaryHeight = Number(cardConfig.summaryHeight || 88);
+                const cardSummaryGap = Number(cardConfig.summaryGap || 24);
+                const cardX = cardSideInset;
+                const cardWidth = width - (cardX * 2);
+                const cardY = Math.max(preset.topBarHeight + 24, headerHeight - Number(cardConfig.overlap || 0));
+                const cardHeight = Math.max(260, height - cardY - footerHeight - preset.footerGap - 24);
+                const contentTop = cardY + cardPadTop;
+                const contentBottom = cardY + cardHeight - cardPadBottom;
+                const tableInsetX = cardX + cardPadX;
+                const tableWidth = cardWidth - (cardPadX * 2);
+                const headBand = ratioKey === '9x16' ? 58 : ratioKey === '16x9' ? 44 : 48;
+                const summaryY = contentBottom - cardSummaryHeight;
+                const listStartY = contentTop + headBand;
+                const availableHeight = Math.max(160, summaryY - listStartY - cardSummaryGap);
                 const desiredRows = Math.min(sortedFares.length || 1, preset.maxRows || VIDEO_MAX_ROWS);
                 const minRowHeight = preset.minRowHeight || 44;
                 let rowsPerPage = Math.max(1, desiredRows);
@@ -1602,10 +1632,13 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     padX: Math.max(14, Math.round(20 * rowScale))
                 };
                 const rowTextOffset = Math.round(5 * rowScale);
+                const summaryTitleSize = ratioKey === '9x16' ? 28 : ratioKey === '16x9' ? 24 : 22;
+                const summaryMetaSize = ratioKey === '9x16' ? 16 : 15;
+                const footerInfoSize = preset.footer.infoSize;
 
                 const rowsStart = motion.rowsStart;
                 const pageMeta = [];
-                pages.forEach((page) => {
+                pages.forEach((page, pageIndex) => {
                     const rowCount = Math.max(1, page.length);
                     const footerEntryTime = rowsStart + (rowCount * motion.rowStagger) + motion.footerDelay;
                     const duration = Math.max(
@@ -1616,6 +1649,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         page,
                         rowCount,
                         footerEntryTime,
+                        pageIndex: pageIndex + 1,
+                        pageTotal: pages.length,
                         start: totalDuration,
                         end: totalDuration + duration
                     });
@@ -1627,9 +1662,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     const pageElapsed = elapsedMs - (activePage?.start || 0);
                     const visibleFares = activePage?.page || [];
                     const footerEntryTime = activePage?.footerEntryTime || 0;
-                    const rowCount = activePage?.rowCount || 1;
-                    const listOffset = Math.max(0, (availableHeight - (rowCount * rowHeight)) / 2);
-                    const listStartY = startY + listOffset;
+                    const pageNumber = activePage?.pageIndex || 1;
+                    const pageTotal = activePage?.pageTotal || 1;
 
                     ctx.fillStyle = theme.bodyBg;
                     ctx.fillRect(0, 0, width, height);
@@ -1637,8 +1671,20 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     const wash = ctx.createLinearGradient(0, 0, width, height);
                     wash.addColorStop(0, 'rgba(255,255,255,0.35)');
                     wash.addColorStop(0.5, 'rgba(255,255,255,0)');
-                    wash.addColorStop(1, 'rgba(37,99,235,0.06)');
+                    wash.addColorStop(1, rgbaFromHex(theme.accent, 0.08));
                     ctx.fillStyle = wash;
+                    ctx.fillRect(0, 0, width, height);
+
+                    const orbA = ctx.createRadialGradient(width * 0.14, height * 0.16, 0, width * 0.14, height * 0.16, width * 0.34);
+                    orbA.addColorStop(0, 'rgba(255,255,255,0.88)');
+                    orbA.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.fillStyle = orbA;
+                    ctx.fillRect(0, 0, width, height);
+
+                    const orbB = ctx.createRadialGradient(width * 0.88, height * 0.84, 0, width * 0.88, height * 0.84, width * 0.4);
+                    orbB.addColorStop(0, rgbaFromHex(theme.accent, 0.13));
+                    orbB.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.fillStyle = orbB;
                     ctx.fillRect(0, 0, width, height);
 
                     ctx.fillStyle = theme.headerBg;
@@ -1734,21 +1780,70 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.fillText('LIVE FARES AVAILABLE NOW', width / 2, subtitleY);
                     ctx.globalAlpha = 1.0;
 
-                    const marginX = preset.marginX;
-                    const listWidth = width - (marginX * 2);
+                    const cardT = easeOutCubic(Math.min(1, Math.max(0, (pageElapsed - (motion.cardStart || 420)) / (motion.cardReveal || 480))));
+                    const cardShiftY = (motion.cardFloat || 24) * (1 - cardT);
+                    const cardCurrentY = cardY + cardShiftY;
 
+                    if (cardT > 0) {
+                        ctx.save();
+                        ctx.globalAlpha = cardT;
+                        ctx.shadowColor = 'rgba(15, 23, 42, 0.16)';
+                        ctx.shadowBlur = ratioKey === '9x16' ? 56 : 44;
+                        ctx.shadowOffsetY = ratioKey === '9x16' ? 24 : 18;
+                        ctx.fillStyle = 'rgba(255,255,255,0.985)';
+                        drawRoundedRect(cardX, cardCurrentY, cardWidth, cardHeight, cardRadius);
+                        ctx.fill();
+                        ctx.restore();
+
+                        ctx.save();
+                        ctx.globalAlpha = cardT;
+                        const cardStroke = ctx.createLinearGradient(cardX, cardCurrentY, cardX + cardWidth, cardCurrentY);
+                        cardStroke.addColorStop(0, rgbaFromHex(theme.accent, 0.22));
+                        cardStroke.addColorStop(1, 'rgba(255,255,255,0.92)');
+                        ctx.strokeStyle = cardStroke;
+                        ctx.lineWidth = 1.5;
+                        drawRoundedRect(cardX, cardCurrentY, cardWidth, cardHeight, cardRadius);
+                        ctx.stroke();
+
+                        const accentStrip = ctx.createLinearGradient(cardX, cardCurrentY, cardX + cardWidth, cardCurrentY);
+                        accentStrip.addColorStop(0, theme.topBar[0]);
+                        accentStrip.addColorStop(0.5, theme.topBar[1]);
+                        accentStrip.addColorStop(1, theme.topBar[2]);
+                        ctx.fillStyle = accentStrip;
+                        drawRoundedRect(cardX + 20, cardCurrentY + 18, cardWidth - 40, 8, 999);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+
+                    const tableHeadY = contentTop + cardShiftY;
+
+                    ctx.globalAlpha = cardT;
                     ctx.fillStyle = theme.tableHeadText;
                     ctx.font = `bold ${tableSizes.headSize}px Arial, sans-serif`;
                     ctx.textAlign = 'left';
-                    ctx.fillText('DATE', marginX + 20, listStartY - tableSizes.headOffset);
+                    ctx.fillText('DATE', tableInsetX + 8, tableHeadY);
 
                     ctx.textAlign = 'center';
-                    ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), listStartY - tableSizes.headOffset);
-                    ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), listStartY - tableSizes.headOffset);
-                    ctx.fillText('BAGGAGE', marginX + (listWidth * preset.columns.baggage), listStartY - tableSizes.headOffset);
+                    ctx.fillText('AIRLINE', tableInsetX + (tableWidth * preset.columns.airline), tableHeadY);
+                    ctx.fillText('TIME', tableInsetX + (tableWidth * preset.columns.time), tableHeadY);
+                    ctx.fillText('BAGGAGE', tableInsetX + (tableWidth * preset.columns.baggage), tableHeadY);
 
                     ctx.textAlign = 'right';
-                    ctx.fillText('FARE', marginX + listWidth - 20, listStartY - tableSizes.headOffset);
+                    ctx.fillText('FARE', tableInsetX + tableWidth - 8, tableHeadY);
+
+                    ctx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(tableInsetX, tableHeadY + 18);
+                    ctx.lineTo(tableInsetX + tableWidth, tableHeadY + 18);
+                    ctx.stroke();
+
+                    const summaryLabel = pageTotal > 1
+                        ? `PAGE ${pageNumber} OF ${pageTotal}`
+                        : 'FRESH FARES READY TO SHARE';
+                    const summaryCaption = pageTotal > 1
+                        ? 'Swipe-worthy export with live pricing motion.'
+                        : 'Built for instant status and story posting.';
 
                     for (let i = 0; i < visibleFares.length; i++) {
                         const f = visibleFares[i];
@@ -1759,14 +1854,19 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         const progress = Math.min(1, (pageElapsed - entryTime) / fadeDuration);
                         const opacity = easeInOut(progress);
                         const slideOffset = motion.rowSlide * (1 - opacity);
-                        const rowY = listStartY + (i * rowHeight) + slideOffset;
+                        const rowY = listStartY + cardShiftY + (i * rowHeight) + slideOffset;
 
                         ctx.globalAlpha = opacity;
 
                         const rowBg = i % 2 === 0 ? '#ffffff' : theme.rowAlt;
                         ctx.fillStyle = rowBg;
-                        drawRoundedRect(marginX, rowY, listWidth, rowHeight - rowInset, cornerRadius);
+                        drawRoundedRect(tableInsetX, rowY, tableWidth, rowHeight - rowInset, cornerRadius);
                         ctx.fill();
+
+                        ctx.strokeStyle = 'rgba(148, 163, 184, 0.1)';
+                        ctx.lineWidth = 1;
+                        drawRoundedRect(tableInsetX, rowY, tableWidth, rowHeight - rowInset, cornerRadius);
+                        ctx.stroke();
 
                         ctx.fillStyle = '#0f172a';
                         ctx.textBaseline = 'middle';
@@ -1776,9 +1876,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                             : f.flightDate;
                         ctx.textAlign = 'left';
                         ctx.font = `900 ${tableSizes.dateSize}px Arial, sans-serif`;
-                        ctx.fillText(dt, marginX + 20, rowY + (rowHeight / 2) - rowTextOffset);
+                        ctx.fillText(dt, tableInsetX + 18, rowY + (rowHeight / 2) - rowTextOffset);
 
-                        const centerX = marginX + (listWidth * preset.columns.airline);
+                        const centerX = tableInsetX + (tableWidth * preset.columns.airline);
                         const airlineObj = getAirline(f.airlineId);
                         const logo = airlineObj ? loadedLogos[airlineObj.id] : null;
                         if (logo && logo.width > 0) {
@@ -1795,13 +1895,13 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         const timeText = normalizeFlightTime(f.flightTime) || '—';
                         ctx.font = `800 ${tableSizes.timeSize}px Arial, sans-serif`;
                         ctx.textAlign = 'center';
-                        ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), rowY + (rowHeight / 2) - rowTextOffset);
+                        ctx.fillText(timeText, tableInsetX + (tableWidth * preset.columns.time), rowY + (rowHeight / 2) - rowTextOffset);
 
                         const baggageText = formatPosterBaggageDisplay(f.baggage, f.extraBaggage);
                         ctx.font = `700 ${tableSizes.bagSize}px Arial, sans-serif`;
                         ctx.textAlign = 'center';
                         ctx.fillStyle = baggageText === '—' ? '#94a3b8' : theme.sectorText;
-                        ctx.fillText(baggageText, marginX + (listWidth * preset.columns.baggage), rowY + (rowHeight / 2) - rowTextOffset);
+                        ctx.fillText(baggageText, tableInsetX + (tableWidth * preset.columns.baggage), rowY + (rowHeight / 2) - rowTextOffset);
                         ctx.fillStyle = '#0f172a';
 
                         const posterRate = getPosterRateDisplay(f.finalRate, f.flightDate);
@@ -1810,7 +1910,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         ctx.textAlign = 'right';
 
                         const textW = ctx.measureText(fareText).width;
-                        const badgeRight = marginX + listWidth - 20;
+                        const badgeRight = tableInsetX + tableWidth - 18;
                         const badgeW = textW + (fareBadge.padX * 2);
                         const badgeH = fareBadge.height;
 
@@ -1828,30 +1928,65 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         const footerOpacity = easeInOut(Math.min(1, (pageElapsed - footerEntryTime) / motion.footerReveal));
                         ctx.globalAlpha = footerOpacity;
 
+                        const summaryBoxY = summaryY + cardShiftY + (18 * (1 - footerOpacity));
+                        const summaryBg = ctx.createLinearGradient(tableInsetX, summaryBoxY, tableInsetX + tableWidth, summaryBoxY);
+                        summaryBg.addColorStop(0, rgbaFromHex(theme.accent, 0.12));
+                        summaryBg.addColorStop(1, 'rgba(255,255,255,0.96)');
+                        ctx.fillStyle = summaryBg;
+                        drawRoundedRect(tableInsetX, summaryBoxY, tableWidth, cardSummaryHeight, Math.max(18, cornerRadius + 8));
+                        ctx.fill();
+
+                        ctx.strokeStyle = rgbaFromHex(theme.accent, 0.16);
+                        ctx.lineWidth = 1;
+                        drawRoundedRect(tableInsetX, summaryBoxY, tableWidth, cardSummaryHeight, Math.max(18, cornerRadius + 8));
+                        ctx.stroke();
+
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'alphabetic';
+                        ctx.fillStyle = theme.footerAccent;
+                        ctx.font = `800 ${summaryMetaSize}px Arial, sans-serif`;
+                        ctx.fillText(summaryLabel, tableInsetX + 24, summaryBoxY + 32);
+
+                        ctx.fillStyle = '#0f172a';
+                        ctx.font = `900 ${summaryTitleSize}px Arial, sans-serif`;
+                        ctx.fillText('Book now with Zamra Travels', tableInsetX + 24, summaryBoxY + 70);
+
+                        ctx.fillStyle = '#475569';
+                        ctx.font = `700 ${summaryMetaSize}px Arial, sans-serif`;
+                        ctx.fillText(summaryCaption, tableInsetX + 24, summaryBoxY + 102);
+
+                        ctx.textAlign = 'right';
+                        ctx.fillStyle = '#0f172a';
+                        ctx.font = `900 ${summaryTitleSize}px Arial, sans-serif`;
+                        ctx.fillText('+91 9846606739', tableInsetX + tableWidth - 24, summaryBoxY + 64);
+
+                        ctx.fillStyle = '#475569';
+                        ctx.font = `700 ${summaryMetaSize}px Arial, sans-serif`;
+                        ctx.fillText('zamratravels.com', tableInsetX + tableWidth - 24, summaryBoxY + 100);
+
                         const fHeight = footerHeight;
                         const fY = height - fHeight + (20 * (1 - footerOpacity));
 
                         ctx.fillStyle = theme.footerBg;
-                        ctx.fillRect(0, height - fHeight, width, fHeight);
                         ctx.fillRect(0, fY, width, fHeight);
 
                         ctx.fillStyle = theme.footerBorder;
-                        ctx.fillRect(0, height - fHeight, width, 2);
+                        ctx.fillRect(0, fY, width, 2);
 
                         if (logoImg?.complete && logoImg.width > 0) {
-                            ctx.drawImage(logoImg, marginX, height - (fHeight / 2) - 24, preset.footer.logo, preset.footer.logo);
+                            ctx.drawImage(logoImg, cardX, fY + (fHeight / 2) - (preset.footer.logo / 2), preset.footer.logo, preset.footer.logo);
                         }
 
                         ctx.fillStyle = theme.footerText;
                         ctx.font = `900 ${preset.footer.titleSize}px Arial, sans-serif`;
                         ctx.textAlign = 'left';
                         ctx.textBaseline = 'middle';
-                        ctx.fillText('Zamra Travels', marginX + (preset.footer.logo + 16), height - (fHeight / 2));
+                        ctx.fillText('Zamra Travels', cardX + (preset.footer.logo + 18), fY + (fHeight / 2));
 
-                        ctx.font = `700 ${preset.footer.infoSize}px Arial, sans-serif`;
+                        ctx.font = `700 ${footerInfoSize}px Arial, sans-serif`;
                         ctx.textAlign = 'right';
                         ctx.fillStyle = theme.footerText;
-                        ctx.fillText('zamratravels.com  |  +91 9846606739', width - marginX, height - (fHeight / 2));
+                        ctx.fillText('zamratravels.com  |  +91 9846606739', width - cardX, fY + (fHeight / 2));
 
                         ctx.globalAlpha = 1.0;
                     }

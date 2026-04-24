@@ -110,7 +110,7 @@ web/
   - **Dynamic brand themes** — each generation creates a brand‑safe palette on the fly (effectively infinite variety) so posters feel fresh when shared
   - **Footer contact** — poster footer phone is `+91 9846606739`
   - **Video slideshow** — if a route spans multiple pages, the video export merges them into a single slideshow (same animation style per page)
-  - **Video motion follows the live poster layout** — exports now sample the rendered poster’s actual hero/table/footer geometry so refreshed spacing stays intact while the header, rows, and footer still animate in sequence
+  - **Video exports are full-frame and ratio-aware** — the canvas renderer now composes 1:1 / 9:16 / 16:9 scenes natively so the content fills the aspect ratio cleanly instead of nesting a smaller poster inside the video frame
   - **Video progress** — inline status pill updates during rendering (e.g. `Rendering 3/8 · CCJ DXB`)
   - **Copy Text** — copies the currently generated poster fares into a plain-text share format grouped by route (for quick WhatsApp/status posting)
   - **Download JPEG** — renders poster(s) to canvas at 2× resolution and triggers a `.jpg` download (downloads one file per sector for All Sectors)
