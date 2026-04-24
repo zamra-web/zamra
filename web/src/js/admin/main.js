@@ -1754,6 +1754,7 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame)
       frameEl.dataset.sectorCode = sectorMap[sid] || sid;
       frameEl.dataset.posterPage = String(page);
       frameEl.dataset.posterPageCount = String(pages);
+      frameEl.dataset.posterRowCount = String(frameFares.length);
 
       const theme = themeBySector.get(sid) || themePool[0];
       renderIntoFrame(frameEl, frameFares, sid, theme);
@@ -1836,6 +1837,70 @@ async function renderPosterFrameToBlob(posterEl) {
   }
 }
 
+function posterLayoutBoxFromElement(el, frameRect) {
+  if (!el || !frameRect?.width || !frameRect?.height) return null;
+  const rect = el.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return {
+    x: (rect.left - frameRect.left) / frameRect.width,
+    y: (rect.top - frameRect.top) / frameRect.height,
+    width: rect.width / frameRect.width,
+    height: rect.height / frameRect.height,
+  };
+}
+
+function unionPosterLayoutBoxes(boxes = []) {
+  const valid = boxes.filter(Boolean);
+  if (!valid.length) return null;
+  const left = Math.min(...valid.map((box) => box.x));
+  const top = Math.min(...valid.map((box) => box.y));
+  const right = Math.max(...valid.map((box) => box.x + box.width));
+  const bottom = Math.max(...valid.map((box) => box.y + box.height));
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+function extractPosterFrameLayout(frameEl) {
+  if (!frameEl) return null;
+  const frameRect = frameEl.getBoundingClientRect();
+  if (!frameRect.width || !frameRect.height) return null;
+
+  const topBarEl = frameEl.querySelector('[data-poster-top-bar]');
+  const headerEl = frameEl.querySelector('[data-poster-header]');
+  const bodyEl = frameEl.querySelector('[data-poster-body]');
+  const cardEl = frameEl.querySelector('[data-poster-card]');
+  const tableHeadEl = frameEl.querySelector('[data-poster-table-head]');
+  const footerEl = frameEl.querySelector('[data-poster-footer]');
+  const rowCount = Math.max(0, Number(frameEl.dataset.posterRowCount || 0));
+  const rowEls = Array.from(frameEl.querySelectorAll('[data-poster-tbody] tr')).slice(0, rowCount);
+
+  const frameStyles = window.getComputedStyle(frameEl);
+  const cardStyles = cardEl ? window.getComputedStyle(cardEl) : null;
+
+  return {
+    base: {
+      width: frameRect.width,
+      height: frameRect.height,
+      frameRadius: parseFloat(frameStyles.borderTopLeftRadius) || 24,
+      cardRadius: parseFloat(cardStyles?.borderTopLeftRadius || '') || 16,
+    },
+    hero: unionPosterLayoutBoxes([
+      posterLayoutBoxFromElement(topBarEl, frameRect),
+      posterLayoutBoxFromElement(headerEl, frameRect),
+    ]),
+    body: posterLayoutBoxFromElement(bodyEl, frameRect),
+    card: posterLayoutBoxFromElement(cardEl, frameRect),
+    tableHead: posterLayoutBoxFromElement(tableHeadEl, frameRect),
+    footer: posterLayoutBoxFromElement(footerEl, frameRect),
+    rows: rowEls.map((rowEl) => posterLayoutBoxFromElement(rowEl, frameRect)).filter(Boolean),
+    rowCount,
+  };
+}
+
 async function buildPosterVideoFrameSources(fares, selection) {
   const workspace = createOffscreenPosterWorkspace();
   try {
@@ -1851,6 +1916,7 @@ async function buildPosterVideoFrameSources(fares, selection) {
 
     const renderedFrames = [];
     for (const frame of sortedFrames) {
+      const layout = extractPosterFrameLayout(frame);
       const blob = await renderPosterFrameToBlob(frame);
       if (!blob) continue;
       renderedFrames.push({
@@ -1859,6 +1925,7 @@ async function buildPosterVideoFrameSources(fares, selection) {
         sectorCode: frame.dataset.sectorCode || '',
         page: Number(frame.dataset.posterPage || 1),
         pageCount: Number(frame.dataset.posterPageCount || 1),
+        layout,
       });
     }
 

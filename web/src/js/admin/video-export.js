@@ -454,8 +454,12 @@ function drawPosterVideoBackdrop(ctx, width, height, elapsedMs) {
     ctx.fillRect(0, 0, width, 14);
 }
 
-function drawPosterFrameScene(ctx, asset, ratioKey, width, height, elapsedMs, alpha = 1) {
-    if (!asset?.image || alpha <= 0) return;
+function clampUnit(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
+function getPosterFrameSceneGeometry(asset, ratioKey, width, height, elapsedMs) {
+    if (!asset?.image) return null;
 
     const layout = getPosterFrameSlideshowLayout(ratioKey, width, height);
     const fitted = fitDimensionsWithin(asset.width, asset.height, layout.maxWidth, layout.maxHeight);
@@ -470,26 +474,290 @@ function drawPosterFrameScene(ctx, asset, ratioKey, width, height, elapsedMs, al
     const frameY = y - layout.framePad;
     const frameWidth = drawWidth + (layout.framePad * 2);
     const frameHeight = drawHeight + (layout.framePad * 2);
+    const baseWidth = Math.max(1, Number(asset?.layout?.base?.width || asset.width || 1));
+    const scale = drawWidth / baseWidth;
+
+    return {
+        layout,
+        x,
+        y,
+        drawWidth,
+        drawHeight,
+        frameX,
+        frameY,
+        frameWidth,
+        frameHeight,
+        scale,
+        posterRadius: Math.max(18, (Number(asset?.layout?.base?.frameRadius || 24) * scale)),
+        cardRadius: Math.max(12, (Number(asset?.layout?.base?.cardRadius || 16) * scale))
+    };
+}
+
+function drawPosterFrameBase(ctx, scene, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    ctx.save();
+    ctx.shadowColor = `rgba(15, 23, 42, ${0.18 * alpha})`;
+    ctx.shadowBlur = scene.layout.shadowBlur;
+    ctx.shadowOffsetY = scene.layout.shadowOffsetY;
+    ctx.fillStyle = 'rgba(255,255,255,0.94)';
+    drawRoundedRectPath(ctx, scene.frameX, scene.frameY, scene.frameWidth, scene.frameHeight, scene.layout.frameRadius);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#ffffff';
+    drawRoundedRectPath(ctx, scene.x, scene.y, scene.drawWidth, scene.drawHeight, scene.posterRadius);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 2;
+    drawRoundedRectPath(ctx, scene.frameX, scene.frameY, scene.frameWidth, scene.frameHeight, scene.layout.frameRadius);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function clipPosterImage(ctx, scene) {
+    drawRoundedRectPath(ctx, scene.x, scene.y, scene.drawWidth, scene.drawHeight, scene.posterRadius);
+    ctx.clip();
+}
+
+function scalePosterLayoutBox(scene, box) {
+    if (!box) return null;
+    return {
+        x: scene.x + (box.x * scene.drawWidth),
+        y: scene.y + (box.y * scene.drawHeight),
+        width: box.width * scene.drawWidth,
+        height: box.height * scene.drawHeight
+    };
+}
+
+function drawPosterFillBox(ctx, scene, box, {
+    fillStyle = '#ffffff',
+    strokeStyle = '',
+    alpha = 1,
+    translateY = 0,
+    shadowAlpha = 0,
+    radius = 0
+} = {}) {
+    const rect = scalePosterLayoutBox(scene, box);
+    if (!rect || alpha <= 0) return;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    clipPosterImage(ctx, scene);
+    if (shadowAlpha > 0) {
+        ctx.shadowColor = `rgba(15, 23, 42, ${shadowAlpha * alpha})`;
+        ctx.shadowBlur = Math.max(18, 28 * scene.scale);
+        ctx.shadowOffsetY = Math.max(6, 10 * scene.scale);
+    }
+    ctx.fillStyle = fillStyle;
+    drawRoundedRectPath(ctx, rect.x, rect.y + translateY, rect.width, rect.height, radius);
+    ctx.fill();
+    if (strokeStyle) {
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = Math.max(1, 1.2 * scene.scale);
+        drawRoundedRectPath(ctx, rect.x, rect.y + translateY, rect.width, rect.height, radius);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawPosterAssetRegion(ctx, asset, scene, box, {
+    alpha = 1,
+    translateY = 0,
+    scale = 1
+} = {}) {
+    const rect = scalePosterLayoutBox(scene, box);
+    if (!rect || alpha <= 0) return;
+
+    const srcX = box.x * asset.width;
+    const srcY = box.y * asset.height;
+    const srcW = box.width * asset.width;
+    const srcH = box.height * asset.height;
+    const destW = rect.width * scale;
+    const destH = rect.height * scale;
+    const destX = rect.x + ((rect.width - destW) / 2);
+    const destY = rect.y + ((rect.height - destH) / 2) + translateY;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    clipPosterImage(ctx, scene);
+    ctx.drawImage(asset.image, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
+    ctx.restore();
+}
+
+function drawPosterSheen(ctx, scene, elapsedMs, alpha = 1) {
+    if (alpha <= 0) return;
+    const cycle = 2200;
+    const progress = (elapsedMs % cycle) / cycle;
+    const sweepWidth = scene.drawWidth * 0.28;
+    const startX = scene.x - sweepWidth;
+    const sweepX = startX + ((scene.drawWidth + (sweepWidth * 2)) * progress);
+    const gradient = ctx.createLinearGradient(sweepX, scene.y, sweepX + sweepWidth, scene.y + scene.drawHeight);
+    gradient.addColorStop(0, 'rgba(255,255,255,0)');
+    gradient.addColorStop(0.45, `rgba(255,255,255,${0.18 * alpha})`);
+    gradient.addColorStop(0.6, `rgba(255,255,255,${0.3 * alpha})`);
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+    ctx.save();
+    clipPosterImage(ctx, scene);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(scene.x, scene.y, scene.drawWidth, scene.drawHeight);
+    ctx.restore();
+}
+
+function getPosterFrameAnimationConfig(asset, ratioKey) {
+    const rowCount = Math.max(1, Number(asset?.layout?.rowCount || asset?.layout?.rows?.length || 1));
+    const isPortrait = ratioKey === '9x16';
+    const isWide = ratioKey === '16x9';
+    const rowStagger = isPortrait ? 128 : isWide ? 104 : 116;
+    const rowReveal = isPortrait ? 260 : 230;
+    const rowStart = isPortrait ? 760 : 680;
+    const footerGap = isPortrait ? 180 : 150;
+    const footerReveal = isPortrait ? 460 : 400;
+    const footerStart = rowStart + ((rowCount - 1) * rowStagger) + rowReveal + footerGap;
+    return {
+        posterIntro: isPortrait ? 520 : 460,
+        heroStart: 110,
+        heroReveal: isPortrait ? 620 : 540,
+        bodyStart: 220,
+        bodyReveal: 360,
+        cardStart: 360,
+        cardReveal: 380,
+        headStart: 520,
+        headReveal: 260,
+        rowStart,
+        rowStagger,
+        rowReveal,
+        footerStart,
+        footerReveal,
+        sheenStart: footerStart - 260,
+        settle: isPortrait ? 980 : 860,
+        minDuration: footerStart + footerReveal + (isPortrait ? 1150 : 980)
+    };
+}
+
+function drawPosterFrameAnimatedScene(ctx, asset, ratioKey, width, height, elapsedMs, alpha = 1) {
+    if (!asset?.image || alpha <= 0) return;
+
+    const scene = getPosterFrameSceneGeometry(asset, ratioKey, width, height, elapsedMs);
+    if (!scene) return;
+    const animation = getPosterFrameAnimationConfig(asset, ratioKey);
+    const layout = asset.layout || {};
+
+    drawPosterFrameBase(ctx, scene, alpha);
+
+    const introT = clampUnit(elapsedMs / animation.posterIntro);
+    const heroT = clampUnit((elapsedMs - animation.heroStart) / animation.heroReveal);
+    const bodyT = clampUnit((elapsedMs - animation.bodyStart) / animation.bodyReveal);
+    const cardT = clampUnit((elapsedMs - animation.cardStart) / animation.cardReveal);
+    const headT = clampUnit((elapsedMs - animation.headStart) / animation.headReveal);
+    const footerT = clampUnit((elapsedMs - animation.footerStart) / animation.footerReveal);
+    const easedHero = 1 - Math.pow(1 - heroT, 3);
+    const easedBody = 1 - Math.pow(1 - bodyT, 3);
+    const easedCard = 1 - Math.pow(1 - cardT, 3);
+    const easedHead = 1 - Math.pow(1 - headT, 3);
+    const easedFooter = 1 - Math.pow(1 - footerT, 3);
+
+    if (layout.body) {
+        drawPosterFillBox(ctx, scene, layout.body, {
+            fillStyle: '#f8fafc',
+            alpha: alpha * easedBody,
+            translateY: 14 * (1 - easedBody),
+            radius: 0
+        });
+    }
+
+    if (layout.hero) {
+        drawPosterAssetRegion(ctx, asset, scene, layout.hero, {
+            alpha: alpha * easedHero,
+            translateY: 20 * (1 - easedHero),
+            scale: 1.02 - (0.02 * easedHero)
+        });
+    }
+
+    if (layout.card) {
+        drawPosterFillBox(ctx, scene, layout.card, {
+            fillStyle: 'rgba(255,255,255,0.985)',
+            strokeStyle: 'rgba(241,245,249,0.95)',
+            alpha: alpha * easedCard,
+            translateY: 18 * (1 - easedCard),
+            shadowAlpha: 0.08,
+            radius: scene.cardRadius
+        });
+    }
+
+    if (layout.tableHead) {
+        drawPosterAssetRegion(ctx, asset, scene, layout.tableHead, {
+            alpha: alpha * easedHead,
+            translateY: 10 * (1 - easedHead),
+            scale: 1.006
+        });
+    }
+
+    const rows = Array.isArray(layout.rows) ? layout.rows : [];
+    rows.forEach((rowBox, index) => {
+        const rowT = clampUnit((elapsedMs - (animation.rowStart + (index * animation.rowStagger))) / animation.rowReveal);
+        const easedRow = rowT < 0.5
+            ? 4 * rowT * rowT * rowT
+            : 1 - Math.pow(-2 * rowT + 2, 3) / 2;
+        if (easedRow <= 0) return;
+        drawPosterAssetRegion(ctx, asset, scene, rowBox, {
+            alpha: alpha * easedRow,
+            translateY: 16 * (1 - easedRow),
+            scale: 1.008 - (0.008 * easedRow)
+        });
+    });
+
+    if (layout.footer) {
+        drawPosterAssetRegion(ctx, asset, scene, layout.footer, {
+            alpha: alpha * easedFooter,
+            translateY: 24 * (1 - easedFooter),
+            scale: 1
+        });
+    }
+
+    const sheenT = clampUnit((elapsedMs - animation.sheenStart) / (animation.settle + 340));
+    if (sheenT > 0 && introT > 0.5) {
+        drawPosterSheen(ctx, scene, elapsedMs, alpha * sheenT);
+    }
+}
+
+function drawPosterFrameStaticScene(ctx, asset, ratioKey, width, height, elapsedMs, alpha = 1) {
+    if (!asset?.image || alpha <= 0) return;
+
+    const scene = getPosterFrameSceneGeometry(asset, ratioKey, width, height, elapsedMs);
+    if (!scene) return;
 
     ctx.save();
     ctx.globalAlpha = alpha;
 
     ctx.save();
     ctx.shadowColor = `rgba(15, 23, 42, ${0.18 * alpha})`;
-    ctx.shadowBlur = layout.shadowBlur;
-    ctx.shadowOffsetY = layout.shadowOffsetY;
+    ctx.shadowBlur = scene.layout.shadowBlur;
+    ctx.shadowOffsetY = scene.layout.shadowOffsetY;
     ctx.fillStyle = 'rgba(255,255,255,0.94)';
-    drawRoundedRectPath(ctx, frameX, frameY, frameWidth, frameHeight, layout.frameRadius);
+    drawRoundedRectPath(ctx, scene.frameX, scene.frameY, scene.frameWidth, scene.frameHeight, scene.layout.frameRadius);
     ctx.fill();
     ctx.restore();
 
     ctx.strokeStyle = 'rgba(255,255,255,0.8)';
     ctx.lineWidth = 2;
-    drawRoundedRectPath(ctx, frameX, frameY, frameWidth, frameHeight, layout.frameRadius);
+    drawRoundedRectPath(ctx, scene.frameX, scene.frameY, scene.frameWidth, scene.frameHeight, scene.layout.frameRadius);
     ctx.stroke();
 
-    ctx.drawImage(asset.image, x, y, drawWidth, drawHeight);
+    ctx.drawImage(asset.image, scene.x, scene.y, scene.drawWidth, scene.drawHeight);
     ctx.restore();
+}
+
+function drawPosterFrameScene(ctx, asset, ratioKey, width, height, elapsedMs, alpha = 1) {
+    if (asset?.layout?.hero || asset?.layout?.rows?.length || asset?.layout?.footer) {
+        drawPosterFrameAnimatedScene(ctx, asset, ratioKey, width, height, elapsedMs, alpha);
+        return;
+    }
+    drawPosterFrameStaticScene(ctx, asset, ratioKey, width, height, elapsedMs, alpha);
 }
 
 function drawPosterFramePagination(ctx, width, height, count, activeProgress, ratioKey) {
@@ -1230,8 +1498,13 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             if (usePosterFrameSlideshow) {
                 const slideshowLayout = getPosterFrameSlideshowLayout(ratioKey, width, height);
+                const animatedMinDuration = posterFrameAssets.reduce(
+                    (max, asset) => Math.max(max, getPosterFrameAnimationConfig(asset, ratioKey).minDuration),
+                    0
+                );
                 const pageDuration = Math.max(
                     slideshowLayout.pageDuration,
+                    animatedMinDuration,
                     Math.ceil((preset.minDuration || slideshowLayout.pageDuration) / posterFrameAssets.length)
                 );
                 const transitionDuration = Math.min(
