@@ -283,6 +283,239 @@ function validateVideoBlob(blob, ratioKey, { timeoutMs = 8000 } = {}) {
     });
 }
 
+function drawRoundedRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+}
+
+async function loadPosterFrameAsset(frame = {}) {
+    const blob = frame?.blob;
+    if (!blob) return null;
+
+    if (typeof createImageBitmap === 'function') {
+        try {
+            const bitmap = await createImageBitmap(blob);
+            return {
+                ...frame,
+                image: bitmap,
+                width: bitmap.width,
+                height: bitmap.height,
+                cleanup() {
+                    try { bitmap.close?.(); } catch (_) { }
+                }
+            };
+        } catch (_) { }
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+        const image = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Failed to load poster frame image.'));
+            img.src = objectUrl;
+        });
+        return {
+            ...frame,
+            image,
+            width: image.naturalWidth || image.width,
+            height: image.naturalHeight || image.height,
+            cleanup() {
+                try { URL.revokeObjectURL(objectUrl); } catch (_) { }
+            }
+        };
+    } catch (err) {
+        try { URL.revokeObjectURL(objectUrl); } catch (_) { }
+        console.warn('Poster frame image could not be prepared for video export.', err);
+        return null;
+    }
+}
+
+function cleanupPosterFrameAssets(assets = []) {
+    assets.forEach((asset) => {
+        try { asset?.cleanup?.(); } catch (_) { }
+    });
+}
+
+function fitDimensionsWithin(sourceWidth, sourceHeight, maxWidth, maxHeight) {
+    const safeWidth = Math.max(1, Number(sourceWidth || 0));
+    const safeHeight = Math.max(1, Number(sourceHeight || 0));
+    const scale = Math.min(maxWidth / safeWidth, maxHeight / safeHeight);
+    return {
+        width: safeWidth * scale,
+        height: safeHeight * scale
+    };
+}
+
+function getPosterFrameSlideshowLayout(ratioKey, width, height) {
+    if (ratioKey === '9x16') {
+        return {
+            pageDuration: 5200,
+            transition: 540,
+            maxWidth: width * 0.91,
+            maxHeight: height * 0.84,
+            yBias: -height * 0.015,
+            floatY: 18,
+            floatSpeed: 1800,
+            zoomStart: 0.985,
+            zoomEnd: 1.015,
+            framePad: 12,
+            frameRadius: 34,
+            shadowBlur: 72,
+            shadowOffsetY: 28,
+            indicatorY: height - 84
+        };
+    }
+    if (ratioKey === '16x9') {
+        return {
+            pageDuration: 4200,
+            transition: 500,
+            maxWidth: width * 0.54,
+            maxHeight: height * 0.9,
+            yBias: 0,
+            floatY: 14,
+            floatSpeed: 1700,
+            zoomStart: 0.987,
+            zoomEnd: 1.012,
+            framePad: 14,
+            frameRadius: 30,
+            shadowBlur: 64,
+            shadowOffsetY: 22,
+            indicatorY: height - 58
+        };
+    }
+    return {
+        pageDuration: 4800,
+        transition: 520,
+        maxWidth: width * 0.84,
+        maxHeight: height * 0.9,
+        yBias: 0,
+        floatY: 12,
+        floatSpeed: 1700,
+        zoomStart: 0.988,
+        zoomEnd: 1.012,
+        framePad: 12,
+        frameRadius: 32,
+        shadowBlur: 66,
+        shadowOffsetY: 24,
+        indicatorY: height - 66
+    };
+}
+
+function drawPosterVideoBackdrop(ctx, width, height, elapsedMs) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#dde8f5');
+    gradient.addColorStop(0.32, '#f7faff');
+    gradient.addColorStop(1, '#e9eff6');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    const drift = Math.sin(elapsedMs / 2200);
+    const glowA = ctx.createRadialGradient(
+        width * (0.18 + drift * 0.015),
+        height * 0.14,
+        0,
+        width * 0.18,
+        height * 0.14,
+        width * 0.42
+    );
+    glowA.addColorStop(0, 'rgba(255,255,255,0.92)');
+    glowA.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glowA;
+    ctx.fillRect(0, 0, width, height);
+
+    const glowB = ctx.createRadialGradient(
+        width * 0.82,
+        height * (0.82 - drift * 0.02),
+        0,
+        width * 0.82,
+        height * 0.82,
+        width * 0.48
+    );
+    glowB.addColorStop(0, 'rgba(203, 213, 225, 0.42)');
+    glowB.addColorStop(1, 'rgba(203, 213, 225, 0)');
+    ctx.fillStyle = glowB;
+    ctx.fillRect(0, 0, width, height);
+
+    const accentBar = ctx.createLinearGradient(0, 0, width, 0);
+    accentBar.addColorStop(0, '#2563eb');
+    accentBar.addColorStop(0.5, '#60a5fa');
+    accentBar.addColorStop(1, '#0f172a');
+    ctx.fillStyle = accentBar;
+    ctx.fillRect(0, 0, width, 14);
+}
+
+function drawPosterFrameScene(ctx, asset, ratioKey, width, height, elapsedMs, alpha = 1) {
+    if (!asset?.image || alpha <= 0) return;
+
+    const layout = getPosterFrameSlideshowLayout(ratioKey, width, height);
+    const fitted = fitDimensionsWithin(asset.width, asset.height, layout.maxWidth, layout.maxHeight);
+    const t = Math.max(0, Math.min(1, elapsedMs / Math.max(1, layout.pageDuration - layout.transition)));
+    const zoom = layout.zoomStart + ((layout.zoomEnd - layout.zoomStart) * t);
+    const floatOffset = layout.floatY * Math.sin((elapsedMs / layout.floatSpeed) + (Number(asset.page || 1) * 0.65));
+    const drawWidth = fitted.width * zoom;
+    const drawHeight = fitted.height * zoom;
+    const x = (width - drawWidth) / 2;
+    const y = ((height - drawHeight) / 2) + layout.yBias + floatOffset;
+    const frameX = x - layout.framePad;
+    const frameY = y - layout.framePad;
+    const frameWidth = drawWidth + (layout.framePad * 2);
+    const frameHeight = drawHeight + (layout.framePad * 2);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    ctx.save();
+    ctx.shadowColor = `rgba(15, 23, 42, ${0.18 * alpha})`;
+    ctx.shadowBlur = layout.shadowBlur;
+    ctx.shadowOffsetY = layout.shadowOffsetY;
+    ctx.fillStyle = 'rgba(255,255,255,0.94)';
+    drawRoundedRectPath(ctx, frameX, frameY, frameWidth, frameHeight, layout.frameRadius);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 2;
+    drawRoundedRectPath(ctx, frameX, frameY, frameWidth, frameHeight, layout.frameRadius);
+    ctx.stroke();
+
+    ctx.drawImage(asset.image, x, y, drawWidth, drawHeight);
+    ctx.restore();
+}
+
+function drawPosterFramePagination(ctx, width, height, count, activeProgress, ratioKey) {
+    if (!Number.isFinite(count) || count <= 1) return;
+
+    const layout = getPosterFrameSlideshowLayout(ratioKey, width, height);
+    const dotWidth = ratioKey === '9x16' ? 24 : 20;
+    const dotGap = 12;
+    const inactiveWidth = 10;
+    const totalWidth = (count * inactiveWidth) + ((count - 1) * dotGap);
+    const startX = (width - totalWidth) / 2;
+    const y = layout.indicatorY;
+
+    for (let index = 0; index < count; index += 1) {
+        const distance = Math.abs(activeProgress - index);
+        const strength = Math.max(0, 1 - Math.min(distance, 1));
+        const currentWidth = inactiveWidth + ((dotWidth - inactiveWidth) * strength);
+        const x = startX + (index * (inactiveWidth + dotGap)) - ((currentWidth - inactiveWidth) / 2);
+        ctx.fillStyle = strength > 0.12
+            ? `rgba(15, 23, 42, ${0.28 + (strength * 0.42)})`
+            : 'rgba(148, 163, 184, 0.36)';
+        drawRoundedRectPath(ctx, x, y, currentWidth, 10, 999);
+        ctx.fill();
+    }
+}
+
 export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
     const ratioKey = normalizeRatioKey(ratio);
     const ratioLabel = ratioKey.replace('x', ':');
@@ -792,6 +1025,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
     }
 
     return new Promise(async (resolve, reject) => {
+        let safeResolve = resolve;
+        let safeReject = reject;
+        let cleanupPosterAssets = () => { };
         try {
             // 1. Dimensions setup
             const preset = getPreset(ratioKey);
@@ -802,7 +1038,8 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 forceMimeType,
                 mimeCandidates,
                 retryAttempt = 0,
-                requireMp4 = false
+                requireMp4 = false,
+                posterFrames = []
             } = options || {};
             const { width, height } = preset;
 
@@ -906,6 +1143,16 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 sectorSlug = fileSafe(raw) || fileSafe(sectorId) || 'sector';
             }
 
+            const providedPosterFrames = Array.isArray(posterFrames)
+                ? posterFrames.filter((frame) => frame?.blob)
+                : [];
+            let posterFrameAssets = [];
+            if (providedPosterFrames.length) {
+                posterFrameAssets = (await Promise.all(providedPosterFrames.map((frame) => loadPosterFrameAsset(frame))))
+                    .filter(Boolean);
+            }
+            const usePosterFrameSlideshow = posterFrameAssets.length > 0;
+
             const arrow = '→';
             const maxTitleWidth = width - (preset.marginX * 1.4);
             let fittedTitleSize = preset.title.size;
@@ -940,98 +1187,403 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 } catch { return null; }
             }
 
-            // Load hero background
-            const bgImg = new Image();
-            await new Promise((res) => {
-                bgImg.onload = res;
-                bgImg.onerror = res;
-                bgImg.src = '/assets/img/hero-banner-bg.png';
-            });
-
-            // Load Zamra logo
-            const logoImg = new Image();
-            await new Promise((res) => {
-                logoImg.onload = res;
-                logoImg.onerror = res;
-                logoImg.src = '/assets/img/logo.webp';
-            });
-
-            // Preload Airline Logos
+            let bgImg = null;
+            let logoImg = null;
             const loadedLogos = {};
-            const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))].map(id => getAirline(id)).filter(a => a && a.logoUrl);
-            await Promise.all(uniqueAirlines.map(async a => {
-                const img = await fetchLogoImage(a.logoUrl);
-                if (img) {
-                    loadedLogos[a.id] = img;
-                }
-            }));
+            if (!usePosterFrameSlideshow) {
+                bgImg = new Image();
+                await new Promise((res) => {
+                    bgImg.onload = res;
+                    bgImg.onerror = res;
+                    bgImg.src = '/assets/img/hero-banner-bg.png';
+                });
+
+                logoImg = new Image();
+                await new Promise((res) => {
+                    logoImg.onload = res;
+                    logoImg.onerror = res;
+                    logoImg.src = '/assets/img/logo.webp';
+                });
+
+                const uniqueAirlines = [...new Set(sortedFares.map(f => f.airlineId))]
+                    .map(id => getAirline(id))
+                    .filter(a => a && a.logoUrl);
+                await Promise.all(uniqueAirlines.map(async a => {
+                    const img = await fetchLogoImage(a.logoUrl);
+                    if (img) {
+                        loadedLogos[a.id] = img;
+                    }
+                }));
+            }
 
             // 3. Animation timing + layout
-            const headerHeight = preset.headerHeight;
-            const footerHeight = preset.footerHeight;
-            const startY = headerHeight + preset.headerGap;
-            const availableHeight = height - startY - footerHeight - preset.footerGap;
-            const desiredRows = Math.min(sortedFares.length || 1, preset.maxRows || VIDEO_MAX_ROWS);
-            const minRowHeight = preset.minRowHeight || 44;
-            let rowsPerPage = Math.max(1, desiredRows);
-            let rawRowHeight = Math.floor(availableHeight / rowsPerPage);
-            if (rawRowHeight < minRowHeight) {
-                rowsPerPage = Math.max(1, Math.floor(availableHeight / minRowHeight));
-                rowsPerPage = Math.min(rowsPerPage, desiredRows);
-                rawRowHeight = Math.floor(availableHeight / rowsPerPage);
-            }
-            const rowHeight = Math.min(preset.rowHeight, rawRowHeight);
-            const rowScale = Math.min(1, rowHeight / preset.rowHeight);
-            const rowInset = Math.max(6, Math.round(preset.rowInset * rowScale));
-            const cornerRadius = Math.max(8, Math.round(12 * rowScale));
-            const maxRows = Math.max(1, Math.min(rowsPerPage, Math.floor(availableHeight / rowHeight)));
-            rowsPerPage = maxRows;
-            const pages = [];
-            for (let i = 0; i < sortedFares.length; i += rowsPerPage) {
-                pages.push(sortedFares.slice(i, i + rowsPerPage));
-            }
-            if (!pages.length) pages.push([]);
-            const tableSizes = {
-                headSize: Math.max(12, Math.round(preset.table.headSize * rowScale)),
-                headOffset: Math.round(preset.table.headOffset * rowScale),
-                dateSize: Math.max(14, Math.round(preset.table.dateSize * rowScale)),
-                bagSize: Math.max(12, Math.round(preset.table.bagSize * rowScale)),
-                timeSize: Math.max(12, Math.round(preset.table.timeSize * rowScale)),
-                fareSize: Math.max(14, Math.round(preset.table.fareSize * rowScale))
-            };
-            const logoDims = {
-                maxW: Math.max(70, Math.round(preset.logo.maxW * rowScale)),
-                h: Math.max(22, Math.round(preset.logo.h * rowScale))
-            };
-            const fareBadge = {
-                height: Math.max(30, Math.round(50 * rowScale)),
-                padX: Math.max(14, Math.round(20 * rowScale))
-            };
-            const rowTextOffset = Math.round(5 * rowScale);
-
-            const rowsStart = motion.rowsStart;
-            const pageMeta = [];
             let totalDuration = 0;
-            pages.forEach((page) => {
-                const rowCount = Math.max(1, page.length);
-                const footerEntryTime = rowsStart + (rowCount * motion.rowStagger) + motion.footerDelay;
-                const duration = Math.max(
-                    footerEntryTime + motion.footerReveal + motion.hold,
-                    preset.minDuration || 0
-                );
-                pageMeta.push({
-                    page,
-                    rowCount,
-                    footerEntryTime,
-                    start: totalDuration,
-                    end: totalDuration + duration
-                });
-                totalDuration += duration;
-            });
+            let renderFrame = () => { };
             const fps = 30;
             const frameDuration = 1000 / fps;
             let elapsed = 0;
             let lastTick = performance.now();
+
+            const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+            const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+            const drawRoundedRect = (x, y, w, h, r) => drawRoundedRectPath(ctx, x, y, w, h, r);
+
+            if (usePosterFrameSlideshow) {
+                const slideshowLayout = getPosterFrameSlideshowLayout(ratioKey, width, height);
+                const pageDuration = Math.max(
+                    slideshowLayout.pageDuration,
+                    Math.ceil((preset.minDuration || slideshowLayout.pageDuration) / posterFrameAssets.length)
+                );
+                const transitionDuration = Math.min(
+                    slideshowLayout.transition,
+                    Math.max(360, Math.floor(pageDuration * 0.22))
+                );
+                totalDuration = pageDuration * posterFrameAssets.length;
+
+                renderFrame = (elapsedMs) => {
+                    const safeElapsed = Math.max(0, Math.min(elapsedMs, Math.max(0, totalDuration - 1)));
+                    const currentIndex = Math.min(
+                        posterFrameAssets.length - 1,
+                        Math.floor(safeElapsed / pageDuration)
+                    );
+                    const currentStart = currentIndex * pageDuration;
+                    const pageElapsed = safeElapsed - currentStart;
+                    const nextIndex = currentIndex + 1;
+                    const hasNext = nextIndex < posterFrameAssets.length;
+                    const transitionStart = pageDuration - transitionDuration;
+                    const transitionProgress = hasNext && pageElapsed >= transitionStart
+                        ? Math.max(0, Math.min(1, (pageElapsed - transitionStart) / transitionDuration))
+                        : 0;
+
+                    drawPosterVideoBackdrop(ctx, width, height, safeElapsed);
+                    drawPosterFrameScene(
+                        ctx,
+                        posterFrameAssets[currentIndex],
+                        ratioKey,
+                        width,
+                        height,
+                        pageElapsed,
+                        1 - transitionProgress
+                    );
+
+                    if (hasNext && transitionProgress > 0) {
+                        drawPosterFrameScene(
+                            ctx,
+                            posterFrameAssets[nextIndex],
+                            ratioKey,
+                            width,
+                            height,
+                            pageElapsed - transitionStart,
+                            transitionProgress
+                        );
+                    }
+
+                    drawPosterFramePagination(
+                        ctx,
+                        width,
+                        height,
+                        posterFrameAssets.length,
+                        currentIndex + transitionProgress,
+                        ratioKey
+                    );
+                };
+            } else {
+                const headerHeight = preset.headerHeight;
+                const footerHeight = preset.footerHeight;
+                const startY = headerHeight + preset.headerGap;
+                const availableHeight = height - startY - footerHeight - preset.footerGap;
+                const desiredRows = Math.min(sortedFares.length || 1, preset.maxRows || VIDEO_MAX_ROWS);
+                const minRowHeight = preset.minRowHeight || 44;
+                let rowsPerPage = Math.max(1, desiredRows);
+                let rawRowHeight = Math.floor(availableHeight / rowsPerPage);
+                if (rawRowHeight < minRowHeight) {
+                    rowsPerPage = Math.max(1, Math.floor(availableHeight / minRowHeight));
+                    rowsPerPage = Math.min(rowsPerPage, desiredRows);
+                    rawRowHeight = Math.floor(availableHeight / rowsPerPage);
+                }
+                const rowHeight = Math.min(preset.rowHeight, rawRowHeight);
+                const rowScale = Math.min(1, rowHeight / preset.rowHeight);
+                const rowInset = Math.max(6, Math.round(preset.rowInset * rowScale));
+                const cornerRadius = Math.max(8, Math.round(12 * rowScale));
+                const maxRows = Math.max(1, Math.min(rowsPerPage, Math.floor(availableHeight / rowHeight)));
+                rowsPerPage = maxRows;
+                const pages = [];
+                for (let i = 0; i < sortedFares.length; i += rowsPerPage) {
+                    pages.push(sortedFares.slice(i, i + rowsPerPage));
+                }
+                if (!pages.length) pages.push([]);
+                const tableSizes = {
+                    headSize: Math.max(12, Math.round(preset.table.headSize * rowScale)),
+                    headOffset: Math.round(preset.table.headOffset * rowScale),
+                    dateSize: Math.max(14, Math.round(preset.table.dateSize * rowScale)),
+                    bagSize: Math.max(12, Math.round(preset.table.bagSize * rowScale)),
+                    timeSize: Math.max(12, Math.round(preset.table.timeSize * rowScale)),
+                    fareSize: Math.max(14, Math.round(preset.table.fareSize * rowScale))
+                };
+                const logoDims = {
+                    maxW: Math.max(70, Math.round(preset.logo.maxW * rowScale)),
+                    h: Math.max(22, Math.round(preset.logo.h * rowScale))
+                };
+                const fareBadge = {
+                    height: Math.max(30, Math.round(50 * rowScale)),
+                    padX: Math.max(14, Math.round(20 * rowScale))
+                };
+                const rowTextOffset = Math.round(5 * rowScale);
+
+                const rowsStart = motion.rowsStart;
+                const pageMeta = [];
+                pages.forEach((page) => {
+                    const rowCount = Math.max(1, page.length);
+                    const footerEntryTime = rowsStart + (rowCount * motion.rowStagger) + motion.footerDelay;
+                    const duration = Math.max(
+                        footerEntryTime + motion.footerReveal + motion.hold,
+                        preset.minDuration || 0
+                    );
+                    pageMeta.push({
+                        page,
+                        rowCount,
+                        footerEntryTime,
+                        start: totalDuration,
+                        end: totalDuration + duration
+                    });
+                    totalDuration += duration;
+                });
+
+                renderFrame = (elapsedMs) => {
+                    const activePage = pageMeta.find(meta => elapsedMs <= meta.end) || pageMeta[pageMeta.length - 1];
+                    const pageElapsed = elapsedMs - (activePage?.start || 0);
+                    const visibleFares = activePage?.page || [];
+                    const footerEntryTime = activePage?.footerEntryTime || 0;
+                    const rowCount = activePage?.rowCount || 1;
+                    const listOffset = Math.max(0, (availableHeight - (rowCount * rowHeight)) / 2);
+                    const listStartY = startY + listOffset;
+
+                    ctx.fillStyle = theme.bodyBg;
+                    ctx.fillRect(0, 0, width, height);
+
+                    const wash = ctx.createLinearGradient(0, 0, width, height);
+                    wash.addColorStop(0, 'rgba(255,255,255,0.35)');
+                    wash.addColorStop(0.5, 'rgba(255,255,255,0)');
+                    wash.addColorStop(1, 'rgba(37,99,235,0.06)');
+                    ctx.fillStyle = wash;
+                    ctx.fillRect(0, 0, width, height);
+
+                    ctx.fillStyle = theme.headerBg;
+                    ctx.fillRect(0, 0, width, headerHeight);
+                    if (bgImg?.complete && bgImg.width > 0) {
+                        const parallax = motion.parallaxAmp * Math.sin(pageElapsed / motion.parallaxSpeed);
+                        ctx.globalAlpha = 0.22;
+                        const bgScale = Math.max(width / bgImg.width, headerHeight / bgImg.height);
+                        const dw = bgImg.width * bgScale;
+                        const dh = bgImg.height * bgScale;
+                        const dx = (width - dw) / 2;
+                        const dy = (headerHeight - dh) / 2 + parallax;
+                        ctx.drawImage(bgImg, dx, dy, dw, dh);
+                        ctx.globalAlpha = 1.0;
+                    }
+
+                    const grad = ctx.createLinearGradient(0, 0, 0, headerHeight);
+                    grad.addColorStop(0, theme.headerOverlayFrom);
+                    grad.addColorStop(1, theme.headerOverlayTo);
+                    ctx.fillStyle = grad;
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillRect(0, 0, width, headerHeight);
+                    ctx.globalAlpha = 1.0;
+
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    const topShift = (Math.sin(pageElapsed / motion.topShiftSpeed) + 1) / 2;
+                    const topGrad = ctx.createLinearGradient(
+                        -width * motion.topShiftAmp * topShift,
+                        0,
+                        width * (1 + motion.topShiftAmp * topShift),
+                        0
+                    );
+                    topGrad.addColorStop(0, theme.topBar[0]);
+                    topGrad.addColorStop(0.5, theme.topBar[1]);
+                    topGrad.addColorStop(1, theme.topBar[2]);
+                    ctx.fillStyle = topGrad;
+                    ctx.fillRect(0, 0, width, preset.topBarHeight);
+
+                    const badgeW = preset.badge.w;
+                    const badgeH = preset.badge.h;
+                    const badgeY = preset.badge.y;
+                    const badgePulse = 1 + motion.badgePulseAmp * Math.sin(pageElapsed / motion.badgePulseSpeed);
+                    const badgeWidth = badgeW * badgePulse;
+                    const badgeX = (width / 2) - (badgeWidth / 2);
+                    ctx.fillStyle = theme.badgeBg;
+                    drawRoundedRect(badgeX, badgeY, badgeWidth, badgeH, 20);
+                    ctx.fill();
+                    ctx.strokeStyle = theme.badgeBorder;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    ctx.fillStyle = theme.badgeText;
+                    ctx.font = `bold ${preset.badge.textSize}px Arial, sans-serif`;
+                    ctx.fillText('EXCLUSIVE DEALS', width / 2, badgeY + (badgeH / 2));
+
+                    const titleSize = fittedTitleSize;
+                    ctx.font = `900 ${titleSize}px Arial, sans-serif`;
+                    ctx.textBaseline = 'middle';
+                    const headerT = easeOutCubic(Math.min(1, pageElapsed / motion.headerFade));
+                    if (titleText.includes(arrow)) {
+                        const parts = titleText.split(arrow);
+                        const left = parts[0].trim();
+                        const right = parts[1].trim();
+                        const arrowText = ` ${arrow} `;
+                        ctx.textAlign = 'left';
+                        const leftWidth = ctx.measureText(left).width;
+                        const arrowWidth = ctx.measureText(arrowText).width;
+                        const rightWidth = ctx.measureText(right).width;
+                        const totalWidth = leftWidth + arrowWidth + rightWidth;
+                        const startX = (width - totalWidth) / 2;
+                        const titleY = badgeY + preset.title.offset - (motion.titleRise * (1 - headerT));
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(left, startX, titleY);
+                        ctx.fillStyle = theme.accent;
+                        ctx.fillText(arrowText, startX + leftWidth, titleY);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(right, startX + leftWidth + arrowWidth, titleY);
+                        ctx.textAlign = 'center';
+                    } else {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.textAlign = 'center';
+                        const titleY = badgeY + preset.title.offset - (motion.titleRise * (1 - headerT));
+                        ctx.fillText(titleText, width / 2, titleY);
+                    }
+
+                    const subtitleT = easeOutCubic(Math.min(1, Math.max(0, (pageElapsed - 120) / (motion.headerFade + 200))));
+                    ctx.fillStyle = theme.subtitle;
+                    ctx.font = `700 ${preset.subtitle.size}px Arial, sans-serif`;
+                    const subtitleY = badgeY + preset.subtitle.offset - (motion.subtitleRise * (1 - subtitleT));
+                    ctx.globalAlpha = subtitleT;
+                    ctx.fillText('LIVE FARES AVAILABLE NOW', width / 2, subtitleY);
+                    ctx.globalAlpha = 1.0;
+
+                    const marginX = preset.marginX;
+                    const listWidth = width - (marginX * 2);
+
+                    ctx.fillStyle = theme.tableHeadText;
+                    ctx.font = `bold ${tableSizes.headSize}px Arial, sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText('DATE', marginX + 20, listStartY - tableSizes.headOffset);
+
+                    ctx.textAlign = 'center';
+                    ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), listStartY - tableSizes.headOffset);
+                    ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), listStartY - tableSizes.headOffset);
+                    ctx.fillText('BAGGAGE', marginX + (listWidth * preset.columns.baggage), listStartY - tableSizes.headOffset);
+
+                    ctx.textAlign = 'right';
+                    ctx.fillText('FARE', marginX + listWidth - 20, listStartY - tableSizes.headOffset);
+
+                    for (let i = 0; i < visibleFares.length; i++) {
+                        const f = visibleFares[i];
+                        const entryTime = rowsStart + (i * motion.rowStagger);
+                        if (pageElapsed < entryTime) continue;
+
+                        const fadeDuration = motion.rowReveal;
+                        const progress = Math.min(1, (pageElapsed - entryTime) / fadeDuration);
+                        const opacity = easeInOut(progress);
+                        const slideOffset = motion.rowSlide * (1 - opacity);
+                        const rowY = listStartY + (i * rowHeight) + slideOffset;
+
+                        ctx.globalAlpha = opacity;
+
+                        const rowBg = i % 2 === 0 ? '#ffffff' : theme.rowAlt;
+                        ctx.fillStyle = rowBg;
+                        drawRoundedRect(marginX, rowY, listWidth, rowHeight - rowInset, cornerRadius);
+                        ctx.fill();
+
+                        ctx.fillStyle = '#0f172a';
+                        ctx.textBaseline = 'middle';
+
+                        const dt = f.flightDate instanceof Date
+                            ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
+                            : f.flightDate;
+                        ctx.textAlign = 'left';
+                        ctx.font = `900 ${tableSizes.dateSize}px Arial, sans-serif`;
+                        ctx.fillText(dt, marginX + 20, rowY + (rowHeight / 2) - rowTextOffset);
+
+                        const centerX = marginX + (listWidth * preset.columns.airline);
+                        const airlineObj = getAirline(f.airlineId);
+                        const logo = airlineObj ? loadedLogos[airlineObj.id] : null;
+                        if (logo && logo.width > 0) {
+                            const logoW = Math.min(logoDims.maxW, logo.width);
+                            const logoH = logoDims.h;
+                            ctx.drawImage(logo, centerX - (logoW / 2), rowY + (rowHeight / 2) - rowTextOffset - (logoH / 2), logoW, logoH);
+                        } else {
+                            ctx.font = `700 ${Math.max(14, tableSizes.bagSize - 2)}px Arial, sans-serif`;
+                            ctx.textAlign = 'center';
+                            const aName = airlineObj?.name || f.airlineId || '—';
+                            ctx.fillText(aName, centerX, rowY + (rowHeight / 2) - rowTextOffset);
+                        }
+
+                        const timeText = normalizeFlightTime(f.flightTime) || '—';
+                        ctx.font = `800 ${tableSizes.timeSize}px Arial, sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), rowY + (rowHeight / 2) - rowTextOffset);
+
+                        const baggageText = formatPosterBaggageDisplay(f.baggage, f.extraBaggage);
+                        ctx.font = `700 ${tableSizes.bagSize}px Arial, sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = baggageText === '—' ? '#94a3b8' : theme.sectorText;
+                        ctx.fillText(baggageText, marginX + (listWidth * preset.columns.baggage), rowY + (rowHeight / 2) - rowTextOffset);
+                        ctx.fillStyle = '#0f172a';
+
+                        const posterRate = getPosterRateDisplay(f.finalRate, f.flightDate);
+                        const fareText = posterRate.displayLabel;
+                        ctx.font = `900 ${tableSizes.fareSize}px Arial, sans-serif`;
+                        ctx.textAlign = 'right';
+
+                        const textW = ctx.measureText(fareText).width;
+                        const badgeRight = marginX + listWidth - 20;
+                        const badgeW = textW + (fareBadge.padX * 2);
+                        const badgeH = fareBadge.height;
+
+                        ctx.fillStyle = theme.fareBadgeBg;
+                        drawRoundedRect(badgeRight - badgeW, rowY + (rowHeight / 2) - rowTextOffset - (badgeH / 2), badgeW, badgeH, cornerRadius);
+                        ctx.fill();
+
+                        ctx.fillStyle = theme.fareBadgeText;
+                        ctx.fillText(fareText, badgeRight - fareBadge.padX, rowY + (rowHeight / 2) - rowTextOffset);
+
+                        ctx.globalAlpha = 1.0;
+                    }
+
+                    if (pageElapsed > footerEntryTime) {
+                        const footerOpacity = easeInOut(Math.min(1, (pageElapsed - footerEntryTime) / motion.footerReveal));
+                        ctx.globalAlpha = footerOpacity;
+
+                        const fHeight = footerHeight;
+                        const fY = height - fHeight + (20 * (1 - footerOpacity));
+
+                        ctx.fillStyle = theme.footerBg;
+                        ctx.fillRect(0, height - fHeight, width, fHeight);
+                        ctx.fillRect(0, fY, width, fHeight);
+
+                        ctx.fillStyle = theme.footerBorder;
+                        ctx.fillRect(0, height - fHeight, width, 2);
+
+                        if (logoImg?.complete && logoImg.width > 0) {
+                            ctx.drawImage(logoImg, marginX, height - (fHeight / 2) - 24, preset.footer.logo, preset.footer.logo);
+                        }
+
+                        ctx.fillStyle = theme.footerText;
+                        ctx.font = `900 ${preset.footer.titleSize}px Arial, sans-serif`;
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('Zamra Travels', marginX + (preset.footer.logo + 16), height - (fHeight / 2));
+
+                        ctx.font = `700 ${preset.footer.infoSize}px Arial, sans-serif`;
+                        ctx.textAlign = 'right';
+                        ctx.fillStyle = theme.footerText;
+                        ctx.fillText('zamratravels.com  |  +91 9846606739', width - marginX, height - (fHeight / 2));
+
+                        ctx.globalAlpha = 1.0;
+                    }
+                };
+            }
 
             // 4. Start recording after the full render duration is known so audio can
             // loop cleanly across multi-page slideshow exports.
@@ -1049,12 +1601,12 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             const chunks = [];
             let settled = false;
             let stopped = false;
-            const safeResolve = (value) => {
+            safeResolve = (value) => {
                 if (settled) return;
                 settled = true;
                 resolve(value);
             };
-            const safeReject = (error) => {
+            safeReject = (error) => {
                 if (settled) return;
                 settled = true;
                 reject(error);
@@ -1068,6 +1620,10 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 try { audioState?.audioTrack?.stop(); } catch (_) { }
                 try { audioState?.audioCtx?.close(); } catch (_) { }
             };
+            cleanupPosterAssets = () => {
+                cleanupPosterFrameAssets(posterFrameAssets);
+                posterFrameAssets = [];
+            };
             const stopRecorder = () => {
                 if (stopped) return;
                 stopped = true;
@@ -1080,285 +1636,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
 
             const timeslice = 1000;
             recorder.start(timeslice);
-
-            const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
-            const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-            function drawRoundedRect(x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.arcTo(x + w, y, x + w, y + r, r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-                ctx.lineTo(x + r, y + h);
-                ctx.arcTo(x, y + h, x, y + h - r, r);
-                ctx.lineTo(x, y + r);
-                ctx.arcTo(x, y, x + r, y, r);
-                ctx.closePath();
-            }
-
-            function renderFrame(elapsedMs) {
-                const activePage = pageMeta.find(meta => elapsedMs <= meta.end) || pageMeta[pageMeta.length - 1];
-                const pageElapsed = elapsedMs - (activePage?.start || 0);
-                const visibleFares = activePage?.page || [];
-                const footerEntryTime = activePage?.footerEntryTime || 0;
-                const rowCount = activePage?.rowCount || 1;
-                const listOffset = Math.max(0, (availableHeight - (rowCount * rowHeight)) / 2);
-                const listStartY = startY + listOffset;
-
-                // --- Draw Background ---
-                ctx.fillStyle = theme.bodyBg;
-                ctx.fillRect(0, 0, width, height);
-
-                // Ambient gradient wash for premium depth
-                const wash = ctx.createLinearGradient(0, 0, width, height);
-                wash.addColorStop(0, 'rgba(255,255,255,0.35)');
-                wash.addColorStop(0.5, 'rgba(255,255,255,0)');
-                wash.addColorStop(1, 'rgba(37,99,235,0.06)');
-                ctx.fillStyle = wash;
-                ctx.fillRect(0, 0, width, height);
-
-                // --- Draw Header Area ---
-                // Depending on ratio, header height changes
-                // Use precomputed headerHeight
-                
-                // Draw Hero Image with overlay
-                ctx.fillStyle = theme.headerBg;
-                ctx.fillRect(0, 0, width, headerHeight);
-                if (bgImg.complete && bgImg.width > 0) {
-                    const parallax = motion.parallaxAmp * Math.sin(pageElapsed / motion.parallaxSpeed);
-                    ctx.globalAlpha = 0.22;
-                    // Cover logic
-                    const scale = Math.max(width / bgImg.width, headerHeight / bgImg.height);
-                    const dw = bgImg.width * scale;
-                    const dh = bgImg.height * scale;
-                    const dx = (width - dw) / 2;
-                    const dy = (headerHeight - dh) / 2 + parallax;
-                    ctx.drawImage(bgImg, dx, dy, dw, dh);
-                    ctx.globalAlpha = 1.0;
-                }
-
-                // Gradient overlay
-                const grad = ctx.createLinearGradient(0, 0, 0, headerHeight);
-                grad.addColorStop(0, theme.headerOverlayFrom);
-                grad.addColorStop(1, theme.headerOverlayTo);
-                ctx.fillStyle = grad;
-                ctx.globalAlpha = 0.8;
-                ctx.fillRect(0, 0, width, headerHeight);
-                ctx.globalAlpha = 1.0;
-
-                // Header Text
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                
-                // Top Decor
-                const topShift = (Math.sin(pageElapsed / motion.topShiftSpeed) + 1) / 2;
-                const topGrad = ctx.createLinearGradient(-width * motion.topShiftAmp * topShift, 0, width * (1 + motion.topShiftAmp * topShift), 0);
-                topGrad.addColorStop(0, theme.topBar[0]);
-                topGrad.addColorStop(0.5, theme.topBar[1]);
-                topGrad.addColorStop(1, theme.topBar[2]);
-                ctx.fillStyle = topGrad;
-                ctx.fillRect(0, 0, width, preset.topBarHeight);
-
-                // Badge
-                const badgeW = preset.badge.w, badgeH = preset.badge.h;
-                const badgeY = preset.badge.y;
-                const badgePulse = 1 + motion.badgePulseAmp * Math.sin(pageElapsed / motion.badgePulseSpeed);
-                const badgeWidth = badgeW * badgePulse;
-                const badgeX = (width / 2) - (badgeWidth / 2);
-                ctx.fillStyle = theme.badgeBg;
-                drawRoundedRect(badgeX, badgeY, badgeWidth, badgeH, 20);
-                ctx.fill();
-                ctx.strokeStyle = theme.badgeBorder;
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                
-                ctx.fillStyle = theme.badgeText;
-                ctx.font = `bold ${preset.badge.textSize}px Arial, sans-serif`;
-                ctx.fillText('EXCLUSIVE DEALS', width/2, badgeY + (badgeH/2));
-
-                // Title
-                const titleSize = fittedTitleSize;
-                ctx.font = `900 ${titleSize}px Arial, sans-serif`;
-                ctx.textBaseline = 'middle';
-                const headerT = easeOutCubic(Math.min(1, pageElapsed / motion.headerFade));
-                if (titleText.includes(arrow)) {
-                    const parts = titleText.split(arrow);
-                    const left = parts[0].trim();
-                    const right = parts[1].trim();
-                    const arrowText = ` ${arrow} `;
-                    ctx.textAlign = 'left';
-                    const leftWidth = ctx.measureText(left).width;
-                    const arrowWidth = ctx.measureText(arrowText).width;
-                    const rightWidth = ctx.measureText(right).width;
-                    const totalWidth = leftWidth + arrowWidth + rightWidth;
-                    const startX = (width - totalWidth) / 2;
-                    const titleY = badgeY + preset.title.offset - (motion.titleRise * (1 - headerT));
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillText(left, startX, titleY);
-                    ctx.fillStyle = theme.accent;
-                    ctx.fillText(arrowText, startX + leftWidth, titleY);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillText(right, startX + leftWidth + arrowWidth, titleY);
-                    ctx.textAlign = 'center';
-                } else {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.textAlign = 'center';
-                    const titleY = badgeY + preset.title.offset - (motion.titleRise * (1 - headerT));
-                    ctx.fillText(titleText, width/2, titleY);
-                }
-                
-                // Subtitle
-                const subtitleT = easeOutCubic(Math.min(1, Math.max(0, (pageElapsed - 120) / (motion.headerFade + 200))));
-                ctx.fillStyle = theme.subtitle;
-                ctx.font = `700 ${preset.subtitle.size}px Arial, sans-serif`;
-                const subtitleY = badgeY + preset.subtitle.offset - (motion.subtitleRise * (1 - subtitleT));
-                ctx.globalAlpha = subtitleT;
-                ctx.fillText('LIVE FARES AVAILABLE NOW', width/2, subtitleY);
-                ctx.globalAlpha = 1.0;
-
-                // --- Draw Fares ---
-                // Layout calculations
-                const marginX = preset.marginX;
-                const listWidth = width - (marginX * 2);
-
-                // Draw Table Header
-                ctx.fillStyle = theme.tableHeadText;
-                ctx.font = `bold ${tableSizes.headSize}px Arial, sans-serif`;
-                ctx.textAlign = 'left';
-                ctx.fillText('DATE', marginX + 20, listStartY - tableSizes.headOffset);
-                
-                ctx.textAlign = 'center';
-                ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), listStartY - tableSizes.headOffset);
-                ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), listStartY - tableSizes.headOffset);
-                ctx.fillText('BAGGAGE', marginX + (listWidth * preset.columns.baggage), listStartY - tableSizes.headOffset);
-                
-                ctx.textAlign = 'right';
-                ctx.fillText('FARE', marginX + listWidth - 20, listStartY - tableSizes.headOffset);
-
-                // Draw rows (animated entrance)
-                for (let i = 0; i < visibleFares.length; i++) {
-                    const f = visibleFares[i];
-                    const entryTime = rowsStart + (i * motion.rowStagger);
-                    
-                    if (pageElapsed < entryTime) continue; // Not yet visible
-                    
-                    // Fade in effect
-                    const fadeDuration = motion.rowReveal;
-                    const progress = Math.min(1, (pageElapsed - entryTime) / fadeDuration);
-                    const opacity = easeInOut(progress);
-                    
-                    // Slide up effect
-                    const slideOffset = motion.rowSlide * (1 - opacity);
-                    const y = listStartY + (i * rowHeight) + slideOffset;
-                    
-                    ctx.globalAlpha = opacity;
-                    
-                    // Row Background
-                    const rowBg = i % 2 === 0 ? '#ffffff' : theme.rowAlt;
-                    ctx.fillStyle = rowBg;
-                    drawRoundedRect(marginX, y, listWidth, rowHeight - rowInset, cornerRadius);
-                    ctx.fill();
-
-                    // Content
-                    ctx.fillStyle = '#0f172a';
-                    ctx.textBaseline = 'middle';
-                    
-                    // Date
-                    const dt = f.flightDate instanceof Date
-                        ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
-                        : f.flightDate;
-                    ctx.textAlign = 'left';
-                    ctx.font = `900 ${tableSizes.dateSize}px Arial, sans-serif`;
-                    ctx.fillText(dt, marginX + 20, y + (rowHeight/2) - rowTextOffset);
-
-                    // Airline Logo/Text
-                    const centerX = marginX + (listWidth * preset.columns.airline);
-                    const airlineObj = getAirline(f.airlineId);
-                    const logo = airlineObj ? loadedLogos[airlineObj.id] : null;
-                    if (logo && logo.width > 0) {
-                        const logoW = Math.min(logoDims.maxW, logo.width);
-                        const logoH = logoDims.h;
-                        ctx.drawImage(logo, centerX - (logoW/2), y + (rowHeight/2) - rowTextOffset - (logoH/2), logoW, logoH);
-                    } else {
-                        ctx.font = `700 ${Math.max(14, tableSizes.bagSize - 2)}px Arial, sans-serif`;
-                        ctx.textAlign = 'center';
-                        const aName = airlineObj?.name || f.airlineId || '—';
-                        ctx.fillText(aName, centerX, y + (rowHeight/2) - rowTextOffset);
-                    }
-
-                    // Time
-                    let timeText = normalizeFlightTime(f.flightTime) || '—';
-                    ctx.font = `800 ${tableSizes.timeSize}px Arial, sans-serif`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - rowTextOffset);
-
-                    const baggageText = formatPosterBaggageDisplay(f.baggage, f.extraBaggage);
-                    ctx.font = `700 ${tableSizes.bagSize}px Arial, sans-serif`;
-                    ctx.textAlign = 'center';
-                    ctx.fillStyle = baggageText === '—' ? '#94a3b8' : theme.sectorText;
-                    ctx.fillText(baggageText, marginX + (listWidth * preset.columns.baggage), y + (rowHeight/2) - rowTextOffset);
-                    ctx.fillStyle = '#0f172a';
-
-                    // Fare Badge
-                    const posterRate = getPosterRateDisplay(f.finalRate, f.flightDate);
-                    const fareText = posterRate.displayLabel;
-                    ctx.font = `900 ${tableSizes.fareSize}px Arial, sans-serif`;
-                    ctx.textAlign = 'right';
-                    
-                    const textW = ctx.measureText(fareText).width;
-                    const badgeRight = marginX + listWidth - 20;
-                    const badgeW = textW + (fareBadge.padX * 2);
-                    const badgeH = fareBadge.height;
-                    
-                    ctx.fillStyle = theme.fareBadgeBg;
-                    drawRoundedRect(badgeRight - badgeW, y + (rowHeight/2) - rowTextOffset - (badgeH/2), badgeW, badgeH, cornerRadius);
-                    ctx.fill();
-                    
-                    ctx.fillStyle = theme.fareBadgeText;
-                    ctx.fillText(fareText, badgeRight - fareBadge.padX, y + (rowHeight/2) - rowTextOffset);
-
-                    ctx.globalAlpha = 1.0;
-                }
-
-                // --- Draw Footer ---
-                // Slide up footer at the very end
-                if (pageElapsed > footerEntryTime) {
-                    const footerOpacity = easeInOut(Math.min(1, (pageElapsed - footerEntryTime) / motion.footerReveal));
-                    ctx.globalAlpha = footerOpacity;
-                    
-                    const fHeight = footerHeight;
-                    const fY = height - fHeight + (20 * (1 - footerOpacity));
-                    
-                    ctx.fillStyle = theme.footerBg;
-                    ctx.fillRect(0, height - fHeight, width, fHeight); // Fixed bg
-                    ctx.fillRect(0, fY, width, fHeight); // Moving bg inside
-                    
-                    ctx.fillStyle = theme.footerBorder;
-                    ctx.fillRect(0, height - fHeight, width, 2);
-
-                    // Logo
-                    if (logoImg.complete && logoImg.width > 0) {
-                        ctx.drawImage(logoImg, marginX, height - (fHeight/2) - 24, preset.footer.logo, preset.footer.logo);
-                    }
-                    
-                    ctx.fillStyle = theme.footerText;
-                    ctx.font = `900 ${preset.footer.titleSize}px Arial, sans-serif`;
-                    ctx.textAlign = 'left';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('Zamra Travels', marginX + (preset.footer.logo + 16), height - (fHeight/2));
-                    
-                    // Contact
-                    ctx.font = `700 ${preset.footer.infoSize}px Arial, sans-serif`;
-                    ctx.textAlign = 'right';
-                    ctx.fillStyle = theme.footerText;
-                    ctx.fillText('zamratravels.com  |  +91 9846606739', width - marginX, height - (fHeight/2));
-
-                    ctx.globalAlpha = 1.0;
-                }
-
-            }
 
             function drawFrame(now) {
                 if (stopped) return;
@@ -1402,6 +1679,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                             try {
                                 stream.getTracks().forEach(track => track.stop());
                             } catch (_) { }
+                            cleanupPosterAssets();
                             const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
                                 ...options,
                                 renderScale: Math.min(scale, 0.8),
@@ -1420,6 +1698,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     try {
                         stream.getTracks().forEach(track => track.stop());
                     } catch (_) { }
+                    cleanupPosterAssets();
                     safeReject(new Error('No video data generated.'));
                     return;
                 }
@@ -1433,6 +1712,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                                 try {
                                     stream.getTracks().forEach(track => track.stop());
                                 } catch (_) { }
+                                cleanupPosterAssets();
                                 const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
                                     ...options,
                                     renderScale: Math.min(scale, 0.8),
@@ -1451,6 +1731,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         try {
                             stream.getTracks().forEach(track => track.stop());
                         } catch (_) { }
+                        cleanupPosterAssets();
                         safeReject(new Error('Video validation failed.'));
                         return;
                     }
@@ -1494,6 +1775,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     stream.getTracks().forEach(track => track.stop());
                 } catch (_) { }
                 cleanupAudio();
+                cleanupPosterAssets();
 
                 safeResolve(returnBlob ? { blob: finalBlob, filename, mimeType: finalMimeType } : undefined);
             };
@@ -1504,6 +1786,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 if (retryAttempt < 1) {
                     if (window.toast) window.toast('warning', 'Video Retry', 'Video export failed. Retrying at a smaller size…');
                     try {
+                        cleanupPosterAssets();
                         const retry = await downloadVideoPoster(ratioKey, fares, sectorId, sectors, airlines, {
                             ...options,
                             renderScale: Math.min(scale, 0.8),
@@ -1522,12 +1805,14 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 try {
                     stream.getTracks().forEach(track => track.stop());
                 } catch (_) { }
+                cleanupPosterAssets();
                 safeReject(e);
             };
 
         } catch (error) {
             console.error(error);
             if (window.toast) window.toast('error', 'Generation Failed', error.message);
+            cleanupPosterAssets();
             safeReject(error);
         }
     });

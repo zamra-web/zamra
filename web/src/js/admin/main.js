@@ -28,7 +28,7 @@ import {
   callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
 } from './db.js';
 
-import { downloadVideoPoster } from './video-export.js';
+import { downloadVideoPoster as renderVideoPoster } from './video-export.js';
 import { formatPosterBaggageDisplay } from './poster-baggage-display.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
 import { createSocialPublishingController } from './social-publishing.js';
@@ -1834,6 +1834,49 @@ async function renderPosterFrameToBlob(posterEl) {
   } finally {
     posterEl.style.transform = origTransform;
   }
+}
+
+async function buildPosterVideoFrameSources(fares, selection) {
+  const workspace = createOffscreenPosterWorkspace();
+  try {
+    const frames = await populatePosterRenderStack(fares, selection, workspace.stack, workspace.templateFrame);
+    if (!frames.length) return [];
+
+    const sortedFrames = [...frames].sort((a, b) => {
+      const sectorCompare = String(a.dataset.sectorCode || a.dataset.sectorId || '')
+        .localeCompare(String(b.dataset.sectorCode || b.dataset.sectorId || ''));
+      if (sectorCompare !== 0) return sectorCompare;
+      return Number(a.dataset.posterPage || 1) - Number(b.dataset.posterPage || 1);
+    });
+
+    const renderedFrames = [];
+    for (const frame of sortedFrames) {
+      const blob = await renderPosterFrameToBlob(frame);
+      if (!blob) continue;
+      renderedFrames.push({
+        blob,
+        sectorId: frame.dataset.sectorId || '',
+        sectorCode: frame.dataset.sectorCode || '',
+        page: Number(frame.dataset.posterPage || 1),
+        pageCount: Number(frame.dataset.posterPageCount || 1),
+      });
+    }
+
+    return renderedFrames;
+  } finally {
+    workspace.destroy();
+  }
+}
+
+async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
+  const posterFrames = Array.isArray(options?.posterFrames) && options.posterFrames.length
+    ? options.posterFrames
+    : await buildPosterVideoFrameSources(fares, sectorId);
+
+  return renderVideoPoster(ratio, fares, sectorId, sectors, airlines, {
+    ...options,
+    posterFrames,
+  });
 }
 
 async function composePosterStoryImage(feedBlob) {
