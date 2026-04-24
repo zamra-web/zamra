@@ -162,7 +162,8 @@ export function createSocialPublishingController(deps) {
   }
 
   function setInlineProgress(message = '') {
-    const el = document.getElementById('poster-video-progress');
+    const el = document.getElementById('social-publishing-progress')
+      || document.getElementById('poster-video-progress');
     if (!el) return;
     if (message) {
       el.textContent = message;

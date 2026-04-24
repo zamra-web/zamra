@@ -35,8 +35,8 @@
     <!-- Navigation Bar -->
     <nav class="glass-effect border-b border-white/20 sticky top-0 z-[1000] shadow-[var(--shadow-premium-soft)]">
         <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center space-x-8">
+            <div class="flex justify-between h-16 gap-4">
+                <div class="flex min-w-0 items-center gap-6 xl:gap-8">
                     <!-- Logo -->
                     <div class="shrink-0 flex items-center">
                         <a href="/admin.html">
@@ -46,38 +46,36 @@
                     </div>
 
                     <!-- Main Navigation Links -->
-                    <div class="hidden sm:flex space-x-5 h-full items-center">
+                    <div class="admin-nav-scroll hidden sm:flex h-full min-w-0 items-center gap-3 xl:gap-4 overflow-x-auto">
                         <a href="#" data-tab="dashboard-tab" data-title="Poster"
-                            class="nav-link active text-primary hover:text-primary font-medium text-[14px]"><i class="bi bi-image"></i><span>Poster</span></a>
+                            class="nav-link active text-primary hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-image"></i><span>Poster</span></a>
+                        <a href="#" data-tab="socials-tab" data-title="Socials"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-share-fill"></i><span>Socials</span></a>
                         <a href="#" data-tab="agent-sheets-tab" data-title="Rate Upload"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-cloud-arrow-up"></i><span>Rate Upload</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-cloud-arrow-up"></i><span>Rate Upload</span></a>
                         <a href="#" data-tab="eticket-tab" data-title="E-Ticket"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-ticket-perforated"></i><span>E-Ticket</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-ticket-perforated"></i><span>E-Ticket</span></a>
                         <a href="#" data-tab="reports-tab" data-title="Reports"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-bar-chart-line"></i><span>Reports</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-bar-chart-line"></i><span>Reports</span></a>
                         <a href="#" data-tab="database-tab" data-title="Database"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-table"></i><span>Database</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-table"></i><span>Database</span></a>
                         <a href="#" data-tab="agents-tab" data-title="Agents"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-people"></i><span>Agents</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-people"></i><span>Agents</span></a>
                         <a href="#" data-tab="sectors-tab" data-title="Sectors"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-signpost-split"></i><span>Sectors</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-signpost-split"></i><span>Sectors</span></a>
                         <a href="#" data-tab="flights-tab" data-title="Flights"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-airplane"></i><span>Flights</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-airplane"></i><span>Flights</span></a>
                         <a href="#" data-tab="visas-tab" data-title="Visas"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-passport"></i><span>Visas</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-passport"></i><span>Visas</span></a>
                         <a href="#" data-tab="tours-tab" data-title="Tours"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-map"></i><span>Tours</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-map"></i><span>Tours</span></a>
                         <a href="#" data-tab="hajjumrah-tab" data-title="Hajj/Umrah"
-                            class="nav-link text-text-muted hover:text-primary font-medium text-[14px]"><i class="bi bi-moon-stars"></i><span>Hajj/Umrah</span></a>
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-moon-stars"></i><span>Hajj/Umrah</span></a>
                     </div>
                 </div>
 
-                <!-- Admin Profile & Logout -->
+                <!-- Theme & Logout -->
                 <div class="admin-nav-actions">
-                    <div class="admin-user-chip">
-                        <i class="bi bi-person-circle text-primary text-base"></i>
-                        <span id="admin-user-name" class="text-text-muted font-medium">Admin</span>
-                    </div>
                     <button id="admin-theme-toggle" type="button" class="admin-theme-toggle" aria-label="Switch to dark mode"
                         title="Toggle light/dark">
                         <span class="admin-theme-icon admin-theme-icon-moon"><i class="bi bi-moon-stars-fill"></i></span>
@@ -97,6 +95,7 @@
             <label class="sr-only" for="admin-tab-select">Navigate</label>
             <select id="admin-tab-select" class="admin-control w-full" aria-label="Select admin section">
                 <option value="dashboard-tab">Poster Generator</option>
+                <option value="socials-tab">Socials</option>
                 <option value="agent-sheets-tab">Rate Upload</option>
                 <option value="eticket-tab">E-Ticket</option>
                 <option value="reports-tab">Reports</option>
@@ -147,26 +146,6 @@
                             Poster</button>
                     </div>
                 </div>
-            </div>
-
-            <div class="admin-panel p-5 sm:p-6 text-text-main mb-8">
-                <div class="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-primary/10 text-primary text-lg">
-                            <i class="bi bi-share-fill"></i>
-                        </span>
-                        <div>
-                            <h3 class="text-xl font-bold text-navy">Social Publishing</h3>
-                            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted mt-1">Posting setup, queue progress, and publishing history</p>
-                        </div>
-                    </div>
-                    <button id="poster-social-refresh-btn" type="button" class="admin-btn admin-btn-soft justify-center sm:min-w-[170px]">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh Setup
-                    </button>
-                </div>
-                <div id="poster-social-market-grid" class="min-h-[92px]"></div>
-                <div id="poster-social-current-activity" class="mt-4"></div>
-                <div id="poster-social-jobs" class="mt-4"></div>
             </div>
 
             <!-- Poster Preview Area -->
@@ -263,6 +242,46 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- SOCIALS TAB -->
+        <div id="socials-tab" class="tab-content">
+            <div class="admin-tab-head mb-6">
+                <div>
+                    <span class="admin-tab-kicker"><i class="bi bi-share-fill"></i> Publishing</span>
+                    <h2 class="admin-tab-title">Social Publishing</h2>
+                    <p class="admin-tab-subtitle">Queue airport-group image and video batches, monitor active jobs, and review recent publishing history from one place.</p>
+                </div>
+                <button id="poster-social-refresh-btn" type="button" class="admin-btn admin-btn-soft h-[42px] px-5 justify-center">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Setup
+                </button>
+            </div>
+
+            <div class="admin-panel p-6 text-text-main mb-8">
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                    <div>
+                        <label class="admin-label text-[11px]">Start Date</label>
+                        <input id="social-publishing-start-date" type="date" class="admin-control">
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">End Date</label>
+                        <input id="social-publishing-end-date" type="date" class="admin-control">
+                    </div>
+                    <div class="flex items-end">
+                        <div class="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">Batch Scope</p>
+                            <p class="mt-1 text-sm font-semibold text-navy">Uses the selected date range for all airport-group image and video queues.</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="social-publishing-progress" class="hidden text-xs font-semibold text-text-muted bg-slate-50 border border-slate-200 rounded-full px-3 py-1.5 mt-5" aria-live="polite">
+                    Rendering…
+                </div>
+            </div>
+
+            <div id="poster-social-market-grid" class="min-h-[92px]"></div>
+            <div id="poster-social-current-activity" class="mt-4"></div>
+            <div id="poster-social-jobs" class="mt-4"></div>
         </div>
 
         <!-- AGENTS TAB -->

@@ -822,6 +822,7 @@ async function renderActiveTab() {
   else if (id === 'sectors-tab') await renderSectorsTab();
   else if (id === 'flights-tab') await renderFlightsTab();
   else if (id === 'dashboard-tab') await renderDashboardTab();
+  else if (id === 'socials-tab') await renderSocialsTab();
   else if (id === 'reports-tab') await renderReportsTab();
   else if (id === 'database-tab') await renderDatabaseTab();
   else if (id === 'visas-tab') await renderVisasTab();
@@ -1956,8 +1957,10 @@ function getSocialPublishingController() {
 }
 
 function getPosterSocialDateFilters() {
-  const startInput = document.getElementById('poster-start-date');
-  const endInput = document.getElementById('poster-end-date');
+  const startInput = document.getElementById('social-publishing-start-date')
+    || document.getElementById('poster-start-date');
+  const endInput = document.getElementById('social-publishing-end-date')
+    || document.getElementById('poster-end-date');
   return getPosterDateRange(startInput, endInput);
 }
 
@@ -2678,7 +2681,6 @@ async function renderDashboardTab() {
   const endInput = document.getElementById('poster-end-date');
   getPosterDateRange(startInput, endInput);
   wirePosterVideoMenu();
-  getSocialPublishingController().render();
 
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');
@@ -2729,6 +2731,16 @@ async function renderDashboardTab() {
     document.getElementById('poster-download-vid-9x16')?.addEventListener('click', () => handleVideoPoster('9x16'));
     document.getElementById('poster-download-vid-16x9')?.addEventListener('click', () => handleVideoPoster('16x9'));
   }
+}
+
+async function renderSocialsTab() {
+  const tab = document.getElementById('socials-tab');
+  if (!tab) return;
+
+  const startInput = document.getElementById('social-publishing-start-date');
+  const endInput = document.getElementById('social-publishing-end-date');
+  getPosterDateRange(startInput, endInput);
+  getSocialPublishingController().render();
 }
 
 async function handleVideoPoster(ratio) {

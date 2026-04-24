@@ -77,7 +77,7 @@ web/
         ├── auth.js                     # onAuthChange(), logoutUser()
         ├── login.js                    # Login page logic
         ├── db.js                       # ★ Firestore + Storage service layer (all CRUD)
-        ├── social-publishing.js        # Social publishing UI/controller for the Poster tab
+        ├── social-publishing.js        # Social publishing UI/controller for the Socials tab
         ├── video-export.js             # Video poster export (Canvas + MediaRecorder)
         └── main.js                     # ★ All tab controllers + modal + toast system
 ```
@@ -88,7 +88,7 @@ web/
 
 - Desktop uses the top nav links (`.nav-link`) to switch tabs.
 - Mobile uses the `#admin-tab-select` dropdown (shown only on small screens) to switch tabs.
-- A light/dark **theme toggle** sits beside the admin user chip and persists to `localStorage` (defaults to system theme if no preference set).
+- A light/dark **theme toggle** sits beside Logout and persists to `localStorage` (defaults to system theme if no preference set).
 - `initTabs()` in `web/src/js/admin/main.js` keeps the dropdown and active tab in sync. If you add/remove tabs, update both the nav links and the dropdown options in `web/admin.html`.
 - Small-screen spacing, controls, and tables are tuned in `web/src/styles/admin/style.css` to keep the dashboard usable on mobile with touch-friendly controls and smooth horizontal scrolling for wide tables.
 
@@ -116,19 +116,23 @@ web/
   - **Download PDF** — converts poster canvas to a mm-based jsPDF page exactly sized to the poster dimensions (downloads one file per sector for All Sectors)
   - **Create Video** — generates animated poster slideshow sequences of static screens in 1:1, 9:16, or 16:9 formats. Uses the same deduping logic as posters. Randomizes the color theme per export. When a route spans multiple pages, merges them into a single slideshow video. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively. (Downloads one video per sector for All Sectors.)
   - Export buttons disable during generation and re-enable once done
-  - **Social Publishing panel** — five compact airport-group buttons (`Calicut (CCJ)`, `Kochi (COK)`, `Kannur (CNN)`, `Trivandrum (TRV)`, `Mangalore (IXE)`) sit below the poster filters; selecting one reveals a minimal Images/Videos action dock that uses the selected date range rather than the current preview
-  - **Setup-aware publishing controls** — the panel reads the saved posting setup from Firestore `config/socialPublishing`; action buttons disable automatically when the required airport-specific channel IDs are missing
-  - **Current Activity card** — shows the live stage, current route/ratio, and running counters while a publishing batch is rendering/uploading/dispatching
-  - **Recent Publishing Jobs** — last 25 jobs from the past 3 days are listed inline with success/failure counts; opening a job shows item-level status and retry actions
-  - **Queue Images** — batches eligible India ↔ international sectors by India-side airport group into Instagram/Facebook feed posts and also creates one 9:16 Instagram story image per sector
-  - **Queue Videos** — batches eligible India ↔ international sectors by India-side airport group into two uploads per sector: `9:16` for Instagram/Facebook/YouTube Shorts and `16:9` for YouTube only
-  - **Airport routing** — social queueing always groups by the India-side airport in either direction (for example `CCJ DMM` and `DMM CCJ` both publish under `Calicut (CCJ)`), and still excludes non-India routes like `DOH DXB`
-  - **Durable queue pipeline** — every batch creates a `social_jobs/{jobId}` record plus `social_jobs/{jobId}/items/*`; uploaded media is written to `social_queue` with retry/lease metadata, then dispatched by scheduled workers
-  - **Final success = Buffer create-post acceptance** — queue docs move to `posted`/`partial` as soon as Buffer accepts the create-post mutation; there is no follow-up verification pass
+- Social queueing now lives in the dedicated **Socials** tab so poster generation stays focused on preview/export work
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
 - All data from Firestore `agent_fares` + `airlines`
 
-### 2. 👥 Agents Tab
+### 2. 📣 Socials Tab
+- **Social Publishing workspace** — five airport-group cards (`Calicut (CCJ)`, `Kochi (COK)`, `Kannur (CNN)`, `Trivandrum (TRV)`, `Mangalore (IXE)`) drive the publishing queue from a dedicated tab instead of the Poster screen
+- **Independent date range controls** — image and video queue actions use the Socials tab’s selected start/end dates rather than the current poster preview
+- **Setup-aware publishing controls** — the tab reads the saved posting setup from Firestore `config/socialPublishing`; action buttons disable automatically when the required airport-specific channel IDs are missing
+- **Current Activity card** — shows the live stage, current route/ratio, and running counters while a publishing batch is rendering/uploading/dispatching
+- **Recent Publishing Jobs** — last 25 jobs from the past 3 days are listed inline with success/failure counts; opening a job shows item-level status and retry actions
+- **Queue Images** — batches eligible India ↔ international sectors by India-side airport group into Instagram/Facebook feed posts and also creates one 9:16 Instagram story image per sector
+- **Queue Videos** — batches eligible India ↔ international sectors by India-side airport group into two uploads per sector: `9:16` for Instagram/Facebook/YouTube Shorts and `16:9` for YouTube only
+- **Airport routing** — social queueing always groups by the India-side airport in either direction (for example `CCJ DMM` and `DMM CCJ` both publish under `Calicut (CCJ)`), and still excludes non-India routes like `DOH DXB`
+- **Durable queue pipeline** — every batch creates a `social_jobs/{jobId}` record plus `social_jobs/{jobId}/items/*`; uploaded media is written to `social_queue` with retry/lease metadata, then dispatched by scheduled workers
+- **Final success = Buffer create-post acceptance** — queue docs move to `posted`/`partial` as soon as Buffer accepts the create-post mutation; there is no follow-up verification pass
+
+### 3. 👥 Agents Tab
 - **Full CRUD** — Add / Edit (modal form) / Delete agents
 - **Commission field** — Each agent has a `commission` (₹) value set via the Add/Edit modal. This value is automatically stamped onto every fare ingested for that agent via `ingestFaresFromN8n`. Default is ₹500 if not specified.
 - **Table Controls** — "Show N entries" dropdown (10, 25, 50, 100, All) and a real-time Search bar (filters by name, email, phone, or ID).
@@ -137,20 +141,20 @@ web/
 - Data from Firestore `agents` collection
 - **Table columns:** ID · Name · Email · Phone · **Commission** · Status · Actions
 
-### 3. 🗺️ Sectors Tab
+### 4. 🗺️ Sectors Tab
 - **Full CRUD** — Add / Edit / Delete sectors
 - **Custom Priority Ordering** — a dedicated Reorder Mode exposes the full sector list with drag-and-drop so admins can persist a custom display priority across the dashboard and other sector selectors
 - **Pagination** — 10 sectors per page
 - **Hide Fares / Show Fares** — calls `bulkToggleSectorVisibility` Cloud Function to toggle `isHidden` on all fares for a route
 - Data from Firestore `sectors` collection (fields: `sectorFrom`, `sectorTo`, `sectorCode`, `sortOrder`)
 
-### 4. ✈️ Flights Tab (Airlines)
+### 5. ✈️ Flights Tab (Airlines)
 - **Full CRUD** — Add / Edit / Delete airlines
 - **Pagination** — 10 airlines per page
 - **Logo upload** — uploads to Firebase Storage (`/airline_logos/`), stores URL in Firestore
 - Data from Firestore `airlines` collection (fields: `name`, `code`, `logoUrl`)
 
-### 5. 📈 Reports Tab
+### 6. 📈 Reports Tab
 - **Filter Bar** — premium card with icon header. Fields: Sector (optional), Agent (optional), From Date (optional), To Date (optional), and a gradient **Generate Report** button with a lightning icon.
 - **All filters are fully optional** — leave everything at their defaults (`All Sectors`, `All Agents`, no dates) to generate a full-dataset report across the entire timeline. Any combination of filters is valid.
 - Calls `generateAgentReport` Cloud Function for summary stats (charts), then fetches raw fares via `getFares()` for the full table.
@@ -180,7 +184,7 @@ web/
 
 > **Implementation note:** `renderReportCharts()` populates the stat cards and both charts, then wires the CSV button via `cloneNode` to avoid duplicate listeners. `renderReportFaresTable()` injects only the `<table>` + pagination footer into `#report-fares-results` — it does **not** wrap in its own card (the outer HTML card in `admin.html` already wraps it).
 
-### 6. 🗃️ Database Tab
+### 7. 🗃️ Database Tab
 - **Spreadsheet View for `agent_fares`** — dedicated sheet-style table for admins to manage all fare rows in one place.
 - **Read-Only Default View** — Rows default to a concise, plain-text view (similar to the Reports tab) to avoid horizontal scrolling and improve readability.
 - **Togglable Inline Editing** — Admins can click the **Edit** button on any row to seamlessly swap the row into edit mode, revealing dropdowns and input fields for date, time, agent, sector, airline, **SP Rate + Commission**, baggage, extra baggage, and status.
@@ -191,7 +195,7 @@ web/
 - **Filters + Search** — filter by agent, sector, airline, status, and date range; plus free-text search.
 - **Add Fare** — opens a modal form to insert a brand-new fare row into Firestore.
 
-### 7. 📋 Rate Upload Tab
+### 8. 📋 Rate Upload Tab
 - **AI Rate Intake** — premium step-by-step UI for agent selection and raw fare submission
 - **Agent selector** — chips populated from live Firestore `agents` list (manual override supported)
 - **Paste raw rate text** — WhatsApp, email, or plain-text fare dumps
@@ -201,7 +205,7 @@ web/
 - **Session cards** — local browser stats (submissions + entries) and recent submissions list stored in `localStorage` (last 15 sessions)
 - **Staggered reveal** — cards animate in on tab activation for a premium feel (respects `prefers-reduced-motion`)
 
-### 8. 🎟️ E-Ticket Tab
+### 9. 🎟️ E-Ticket Tab
 - **Manual E-Ticket Generator** — issue professional, branded e-tickets directly from the dashboard.
 - **Premium Layout System** — ticket output now uses a structured document layout (header meta, route summary cards, flight table, passenger manifest, advisory block) optimized for both on-screen preview and A4 print/PDF.
 - **Dynamic Selectors** — pulls active airlines, origins, and destinations from Firestore to pre-populate dropdowns.
@@ -211,7 +215,7 @@ web/
 - **Print / PDF Export** — specifically engineered with strict CSS `@media print` overrides (removing borders, shadows, and rounded corners) to guarantee a clean, borderless A4-native document generation via the browser's native print dialog.
 - **Download PDF** — one-click PDF download using html2canvas + jsPDF for quick saves, while the Print button remains the crisp, vector-quality option.
 
-### 9. 🛂 Visas Tab
+### 10. 🛂 Visas Tab
 - **Comprehensive Visa Services Management** — Full CRUD management for four distinct service types via isolated inner tabs:
   - **Visas** — standard tourist/business visas (Country, Type, Rate, Processing Time, Optional Flag Image stored in Storage).
   - **Visa Stamping** — country-specific stamping services.
@@ -220,7 +224,7 @@ web/
 - **Live Sync** — data drives the dynamic tables and modal inquiries directly on the public `visa.html` page.
 - **Sub-Tabs** — seamless client-side toggling between the 4 sub-collections without page reload.
 
-### 10. 🗺️ Tours Tab
+### 11. 🗺️ Tours Tab
 - **Full CRUD for tour packages** — Add / Edit (modal form) / Delete.
 - **Table columns:** Cover Image · Title · Category · Duration · Price · Status (Active / Hidden) · Actions
 - **Add/Edit modal fields:**
@@ -239,7 +243,7 @@ web/
 - **Live Sync** — data drives `/tours.html` public pages (details open in modal).
 - Data from Firestore `tours` collection.
 
-### 11. 🕋 Hajj & Umrah Tab
+### 12. 🕋 Hajj & Umrah Tab
 - **Full CRUD for Hajj & Umrah packages** — Add / Edit (modal form) / Delete.
 - **Table columns:** Cover Image · Title · Type · Days/Nights · Price · Status (Active / Hidden) · Actions
 - **Add/Edit modal fields:**
