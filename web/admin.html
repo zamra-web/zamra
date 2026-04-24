@@ -122,15 +122,15 @@
                 <div class="flex items-center justify-between mb-6">
                     <div>
                         <h2 class="text-xl font-bold text-navy">Poster Generator</h2>
-                        <p class="text-sm text-text-muted mt-1">Select a sector or country and date range to generate a promotional poster.</p>
+                        <p class="text-sm text-text-muted mt-1">Select a sector, country, or airport and date range to generate a promotional poster.</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                     <div class="md:col-span-1">
-                        <label class="admin-label text-[11px]">Select Sector / Country *</label>
+                        <label class="admin-label text-[11px]">Select Sector / Country / Airport *</label>
                         <select id="poster-sector-sel"
                             class="admin-control">
-                            <option value="">Choose Sector or Country</option>
+                            <option value="">Choose Sector, Country, or Airport</option>
                             <option value="all">All Sectors</option>
                         </select>
                     </div>
@@ -229,9 +229,9 @@
                                     <thead>
                                         <tr data-poster-table-head style="border-bottom: 2px solid #f1f5f9;">
                                             <th data-poster-th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
-                                            <th data-poster-col="sector" data-poster-th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Sector</th>
                                             <th data-poster-th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Airline</th>
                                             <th data-poster-th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Time</th>
+                                            <th data-poster-th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Baggage</th>
                                             <th data-poster-th style="padding: 8px; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Fare</th>
                                         </tr>
                                     </thead>

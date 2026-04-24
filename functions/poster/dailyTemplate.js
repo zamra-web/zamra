@@ -23,6 +23,18 @@ function formatRate(n) {
   return "₹" + Math.round(num).toLocaleString("en-IN");
 }
 
+function formatBaggage(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const raw = String(value).trim();
+  if (!raw) return "—";
+  const isNumericKg = /^\d+(\.\d+)?(\s*kg)?$/i.test(raw);
+  if (isNumericKg) {
+    const parsed = parseFloat(raw.replace(/[^\d.]/g, ""));
+    return Number.isFinite(parsed) ? `${parsed} Kg` : "—";
+  }
+  return raw.toUpperCase();
+}
+
 function formatCaptionDate(date = new Date()) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Kolkata",
@@ -57,11 +69,17 @@ function buildDailyPosterHtml({ sector, fares, airlineMap, logoMap }) {
       timeCell = `<span style="font-weight:700;font-size:16px;color:#0f172a;white-space:nowrap;">${escapeHtml(parts.join(" - "))}</span>`;
     }
 
+    const baggageLabel = formatBaggage(f.baggage);
+    const baggageCell = baggageLabel === "—"
+      ? `<span style="color:#94a3b8;">—</span>`
+      : `<span style="display:inline-block;background:rgba(37,99,235,0.12);color:#2563eb;padding:6px 12px;border-radius:9999px;font-weight:800;font-size:15px;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;
+
     return `
       <tr style="background-color:${bg};border-bottom:1px solid #f1f5f9;">
         <td style="padding:16px 14px;font-weight:800;color:#0f172a;font-size:17px;white-space:nowrap;">${dateLabel}</td>
         <td style="padding:16px 14px;text-align:center;vertical-align:middle;">${airlineCell}</td>
         <td style="padding:16px 14px;text-align:center;vertical-align:middle;">${timeCell}</td>
+        <td style="padding:16px 14px;text-align:center;vertical-align:middle;">${baggageCell}</td>
         <td style="padding:16px 14px;text-align:right;vertical-align:middle;">
           <span style="display:inline-block;color:#0f172a;font-weight:900;font-size:20px;white-space:nowrap;">${formatRate(f.finalRate)}</span>
         </td>
@@ -99,6 +117,7 @@ function buildDailyPosterHtml({ sector, fares, airlineMap, logoMap }) {
               <th style="padding:12px 14px;color:#64748b;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.08em;">Date</th>
               <th style="padding:12px 14px;color:#64748b;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.08em;text-align:center;">Airline</th>
               <th style="padding:12px 14px;color:#64748b;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.08em;text-align:center;">Time</th>
+              <th style="padding:12px 14px;color:#64748b;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.08em;text-align:center;">Baggage</th>
               <th style="padding:12px 14px;color:#64748b;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.08em;text-align:right;">Fare</th>
             </tr>
           </thead>

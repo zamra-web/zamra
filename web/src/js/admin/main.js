@@ -67,17 +67,31 @@ const POSTER_SOCIAL_TIME_ZONE = 'Asia/Kolkata';
 const POSTER_SOCIAL_SITE = 'zamratravels.com';
 const POSTER_SOCIAL_CONTACT = '9846606739';
 const POSTER_SOCIAL_MARKET_LABEL = 'Zamra Travels';
-const POSTER_COUNTRY_SELECTION_PREFIX = 'country:';
-const POSTER_SECTOR_COUNTRY_SHORTCUTS = [
-  { key: 'saudi', label: 'Saudi', airportCodes: ['JED', 'RUH', 'DMM'], keywords: ['SAUDI', 'SAUDI ARABIA'] },
-  { key: 'uae', label: 'UAE', airportCodes: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'], keywords: ['UAE', 'UNITED ARAB EMIRATES', 'DUBAI', 'SHARJAH', 'ABU DHABI', 'RAS AL KHAIMAH', 'AL AIN', 'FUJAIRAH'] },
-  { key: 'qatar', label: 'Qatar', airportCodes: ['DOH'], keywords: ['QATAR', 'DOHA'] },
-  { key: 'oman', label: 'Oman', airportCodes: ['MCT'], keywords: ['OMAN', 'MUSCAT'] },
-  { key: 'kuwait', label: 'Kuwait', airportCodes: ['KWI'], keywords: ['KUWAIT'] },
-  { key: 'bahrain', label: 'Bahrain', airportCodes: ['BAH'], keywords: ['BAHRAIN'] },
+const POSTER_SHORTCUT_SELECTION_PREFIX = 'shortcut:';
+const POSTER_AIRPORT_SHORTCUT_KEYWORDS = {
+  ccj: ['CALICUT', 'KOZHIKODE'],
+  cok: ['KOCHI', 'COCHIN'],
+  cnn: ['KANNUR'],
+  trv: ['TRIVANDRUM', 'THIRUVANANTHAPURAM'],
+  ixe: ['MANGALORE'],
+};
+const POSTER_SECTOR_SHORTCUTS = [
+  { key: 'saudi', label: 'Saudi', groupLabel: 'Country Shortcuts', airportCodes: ['JED', 'RUH', 'DMM'], keywords: ['SAUDI', 'SAUDI ARABIA'] },
+  { key: 'uae', label: 'UAE', groupLabel: 'Country Shortcuts', airportCodes: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'], keywords: ['UAE', 'UNITED ARAB EMIRATES', 'DUBAI', 'SHARJAH', 'ABU DHABI', 'RAS AL KHAIMAH', 'AL AIN', 'FUJAIRAH'] },
+  { key: 'qatar', label: 'Qatar', groupLabel: 'Country Shortcuts', airportCodes: ['DOH'], keywords: ['QATAR', 'DOHA'] },
+  { key: 'oman', label: 'Oman', groupLabel: 'Country Shortcuts', airportCodes: ['MCT'], keywords: ['OMAN', 'MUSCAT'] },
+  { key: 'kuwait', label: 'Kuwait', groupLabel: 'Country Shortcuts', airportCodes: ['KWI'], keywords: ['KUWAIT'] },
+  { key: 'bahrain', label: 'Bahrain', groupLabel: 'Country Shortcuts', airportCodes: ['BAH'], keywords: ['BAHRAIN'] },
+  ...listPosterSocialMarkets().map((market) => ({
+    key: `airport-${market.key}`,
+    label: market.label,
+    groupLabel: 'Airport Shortcuts',
+    airportCodes: Array.isArray(market.airports) ? market.airports : [],
+    keywords: POSTER_AIRPORT_SHORTCUT_KEYWORDS[market.key] || [],
+  })),
 ];
-const POSTER_SECTOR_COUNTRY_SHORTCUT_BY_KEY = new Map(
-  POSTER_SECTOR_COUNTRY_SHORTCUTS.map((shortcut) => [
+const POSTER_SECTOR_SHORTCUT_BY_KEY = new Map(
+  POSTER_SECTOR_SHORTCUTS.map((shortcut) => [
     shortcut.key,
     {
       ...shortcut,
@@ -156,12 +170,12 @@ function normalizeSectors(list = []) {
   return list.map((sector) => normalizeSectorRecord(sector));
 }
 
-function getPosterCountryShortcutValue(key) {
-  return `${POSTER_COUNTRY_SELECTION_PREFIX}${key}`;
+function getPosterShortcutValue(key) {
+  return `${POSTER_SHORTCUT_SELECTION_PREFIX}${key}`;
 }
 
-function getPosterCountryShortcut(countryKey = '') {
-  return POSTER_SECTOR_COUNTRY_SHORTCUT_BY_KEY.get(String(countryKey || '').trim().toLowerCase()) || null;
+function getPosterShortcut(shortcutKey = '') {
+  return POSTER_SECTOR_SHORTCUT_BY_KEY.get(String(shortcutKey || '').trim().toLowerCase()) || null;
 }
 
 function sortPosterSectorIds(sectorIds = []) {
@@ -181,7 +195,7 @@ function sortPosterSectorIds(sectorIds = []) {
   });
 }
 
-function sectorMatchesPosterCountryShortcut(sector, shortcut) {
+function sectorMatchesPosterShortcut(sector, shortcut) {
   if (!sector || !shortcut) return false;
 
   const { fromCode, toCode } = getSectorRouteCodes(sector);
@@ -201,12 +215,12 @@ function sectorMatchesPosterCountryShortcut(sector, shortcut) {
   return haystack.some((value) => shortcut.keywordList.some((keyword) => value.includes(keyword)));
 }
 
-function getPosterCountrySectorIds(countryKey) {
-  const shortcut = getPosterCountryShortcut(countryKey);
+function getPosterShortcutSectorIds(shortcutKey) {
+  const shortcut = getPosterShortcut(shortcutKey);
   if (!shortcut) return [];
   return sortPosterSectorIds(
     _sectors
-      .filter((sector) => sectorMatchesPosterCountryShortcut(sector, shortcut))
+      .filter((sector) => sectorMatchesPosterShortcut(sector, shortcut))
       .map((sector) => sector.id)
   );
 }
@@ -226,15 +240,15 @@ function resolvePosterSectorSelection(rawValue) {
     };
   }
 
-  if (value.startsWith(POSTER_COUNTRY_SELECTION_PREFIX)) {
-    const key = value.slice(POSTER_COUNTRY_SELECTION_PREFIX.length);
-    const shortcut = getPosterCountryShortcut(key);
+  if (value.startsWith(POSTER_SHORTCUT_SELECTION_PREFIX)) {
+    const key = value.slice(POSTER_SHORTCUT_SELECTION_PREFIX.length);
+    const shortcut = getPosterShortcut(key);
     return {
       rawValue: value,
-      kind: 'country',
+      kind: 'shortcut',
       key,
-      label: shortcut?.label || 'Country',
-      sectorIds: getPosterCountrySectorIds(key),
+      label: shortcut?.label || 'Shortcut',
+      sectorIds: getPosterShortcutSectorIds(key),
     };
   }
 
@@ -281,11 +295,18 @@ function populatePosterSectorSelect(selectEl) {
 
   const currentValue = selectEl.value;
   const fragment = document.createDocumentFragment();
-  fragment.appendChild(new Option('Choose Sector or Country', ''));
+  fragment.appendChild(new Option('Choose Sector, Country, or Airport', ''));
   fragment.appendChild(new Option('All Sectors', 'all'));
 
-  POSTER_SECTOR_COUNTRY_SHORTCUTS.forEach((shortcut) => {
-    fragment.appendChild(new Option(shortcut.label, getPosterCountryShortcutValue(shortcut.key)));
+  ['Country Shortcuts', 'Airport Shortcuts'].forEach((groupLabel) => {
+    const shortcuts = POSTER_SECTOR_SHORTCUTS.filter((shortcut) => shortcut.groupLabel === groupLabel);
+    if (!shortcuts.length) return;
+    const group = document.createElement('optgroup');
+    group.label = groupLabel;
+    shortcuts.forEach((shortcut) => {
+      group.appendChild(new Option(shortcut.label, getPosterShortcutValue(shortcut.key)));
+    });
+    fragment.appendChild(group);
   });
 
   const sectorGroup = document.createElement('optgroup');
@@ -1535,8 +1556,6 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame)
           ? `<img src="${logoSrc}" style="height:22px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
           : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:12px;white-space:nowrap;">${airline?.name || fare.airlineId || '—'}</span>`;
 
-        const sectorCell = `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:3px 7px;border-radius:6px;font-size:11px;text-align:center;white-space:nowrap;">${sectorMap[fare.sectorId] || fare.sectorId}</span>`;
-
         let timeCell = '<span style="color:#94a3b8;font-size:12px;">—</span>';
         if (fare.flightTime) {
           const parts = fare.flightTime.split('-').map((part) => part.trim());
@@ -1547,14 +1566,19 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame)
           }
         }
 
+        const baggageLabel = toKgDisplay(fare.baggage);
+        const baggageCell = baggageLabel === '—'
+          ? '<span style="color:#94a3b8;font-size:12px;">—</span>'
+          : `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:3px 7px;border-radius:6px;font-size:11px;text-align:center;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;
+
         const posterRate = getPosterRateDisplay(fare.finalRate, fare.flightDate);
 
         rows.push(`
           <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
             <td style="padding:6px 8px;font-weight:700;color:#0f172a;font-size:12px;white-space:nowrap;">${dt}</td>
-            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${sectorCell}</td>
             <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
             <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
+            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${baggageCell}</td>
             <td style="padding:6px 8px;text-align:right;vertical-align:middle;">
               <div
                 data-rate-mode="${posterRate.isMasked ? 'masked' : 'live'}"
@@ -2436,11 +2460,11 @@ async function queueVideoForSocial(ratio) {
   const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
   if (selection.kind === 'none') {
-    toast('warning', 'Validation Error', 'Please select a sector or country before queuing a video.');
+    toast('warning', 'Validation Error', 'Please select a sector, country, or airport before queuing a video.');
     return;
   }
 
-  if (selection.kind === 'country' && !selection.sectorIds.length) {
+  if (selection.kind === 'shortcut' && !selection.sectorIds.length) {
     toast('warning', 'No Sectors', `No sectors are mapped to ${selection.label} yet.`);
     return;
   }
@@ -2568,11 +2592,11 @@ async function renderDashboardTab() {
       const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
       if (selection.kind === 'none') {
-        toast('warning', 'Validation Error', 'Please select a sector or country to generate the poster.');
+        toast('warning', 'Validation Error', 'Please select a sector, country, or airport to generate the poster.');
         return;
       }
 
-      if (selection.kind === 'country' && !selection.sectorIds.length) {
+      if (selection.kind === 'shortcut' && !selection.sectorIds.length) {
         toast('warning', 'No Sectors', `No sectors are mapped to ${selection.label} yet.`);
         return;
       }
@@ -2616,11 +2640,11 @@ async function handleVideoPoster(ratio) {
   const { startDate, endDate } = getPosterDateRange(startInput, endInput);
 
   if (selection.kind === 'none') {
-    toast('warning', 'Validation Error', 'Please select a sector or country to generate the poster.');
+    toast('warning', 'Validation Error', 'Please select a sector, country, or airport to generate the poster.');
     return;
   }
 
-  if (selection.kind === 'country' && !selection.sectorIds.length) {
+  if (selection.kind === 'shortcut' && !selection.sectorIds.length) {
     toast('warning', 'No Sectors', `No sectors are mapped to ${selection.label} yet.`);
     return;
   }

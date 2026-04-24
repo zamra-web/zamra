@@ -476,10 +476,10 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             badge: { w: 220, h: 42, y: 64, textSize: 15 },
             title: { size: 56, offset: 82 },
             subtitle: { size: 21, offset: 132 },
-            table: { headSize: 18, headOffset: 20, dateSize: 24, sectorSize: 20, timeSize: 20, fareSize: 24 },
+            table: { headSize: 18, headOffset: 20, dateSize: 24, bagSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 96, h: 36 },
             footer: { logo: 44, titleSize: 22, infoSize: 18 },
-            columns: { sector: 0.22, airline: 0.42, time: 0.6 },
+            columns: { airline: 0.4, time: 0.62, baggage: 0.78 },
             minDuration: 9000,
             motion: {
                 rowsStart: 1300,
@@ -516,10 +516,10 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             badge: { w: 240, h: 44, y: 76, textSize: 16 },
             title: { size: 58, offset: 92 },
             subtitle: { size: 22, offset: 148 },
-            table: { headSize: 19, headOffset: 24, dateSize: 26, sectorSize: 22, timeSize: 22, fareSize: 26 },
+            table: { headSize: 19, headOffset: 24, dateSize: 26, bagSize: 22, timeSize: 22, fareSize: 26 },
             logo: { maxW: 110, h: 40 },
             footer: { logo: 48, titleSize: 24, infoSize: 20 },
-            columns: { sector: 0.22, airline: 0.42, time: 0.6 },
+            columns: { airline: 0.4, time: 0.62, baggage: 0.78 },
             minDuration: 10000,
             motion: {
                 rowsStart: 1500,
@@ -556,10 +556,10 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
             badge: { w: 240, h: 40, y: 48, textSize: 15 },
             title: { size: 64, offset: 70 },
             subtitle: { size: 20, offset: 118 },
-            table: { headSize: 18, headOffset: 18, dateSize: 22, sectorSize: 20, timeSize: 20, fareSize: 24 },
+            table: { headSize: 18, headOffset: 18, dateSize: 22, bagSize: 20, timeSize: 20, fareSize: 24 },
             logo: { maxW: 110, h: 36 },
             footer: { logo: 42, titleSize: 22, infoSize: 18 },
-            columns: { sector: 0.22, airline: 0.42, time: 0.6 },
+            columns: { airline: 0.4, time: 0.62, baggage: 0.78 },
             minDuration: 8000,
             motion: {
                 rowsStart: 1100,
@@ -701,6 +701,18 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         const parts = cleaned.split('-').map(p => p.trim()).filter(Boolean);
         if (parts.length >= 2) return `${parts[0]} - ${parts[1]}`;
         return parts[0] || cleaned;
+    }
+
+    function formatBaggage(value) {
+        if (value === null || value === undefined || value === '') return '—';
+        const raw = String(value).trim();
+        if (!raw) return '—';
+        const isNumericKg = /^\d+(\.\d+)?(\s*kg)?$/i.test(raw);
+        if (isNumericKg) {
+            const parsed = parseFloat(raw.replace(/[^\d.]/g, ''));
+            return Number.isFinite(parsed) ? `${parsed} Kg` : '—';
+        }
+        return raw.toUpperCase();
     }
 
     function pickRandomTheme() {
@@ -960,7 +972,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 headSize: Math.max(12, Math.round(preset.table.headSize * rowScale)),
                 headOffset: Math.round(preset.table.headOffset * rowScale),
                 dateSize: Math.max(14, Math.round(preset.table.dateSize * rowScale)),
-                sectorSize: Math.max(12, Math.round(preset.table.sectorSize * rowScale)),
+                bagSize: Math.max(12, Math.round(preset.table.bagSize * rowScale)),
                 timeSize: Math.max(12, Math.round(preset.table.timeSize * rowScale)),
                 fareSize: Math.max(14, Math.round(preset.table.fareSize * rowScale))
             };
@@ -1147,9 +1159,9 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                 ctx.fillText('DATE', marginX + 20, listStartY - tableSizes.headOffset);
                 
                 ctx.textAlign = 'center';
-                ctx.fillText('SECTOR', marginX + (listWidth * preset.columns.sector), listStartY - tableSizes.headOffset);
                 ctx.fillText('AIRLINE', marginX + (listWidth * preset.columns.airline), listStartY - tableSizes.headOffset);
                 ctx.fillText('TIME', marginX + (listWidth * preset.columns.time), listStartY - tableSizes.headOffset);
+                ctx.fillText('BAGGAGE', marginX + (listWidth * preset.columns.baggage), listStartY - tableSizes.headOffset);
                 
                 ctx.textAlign = 'right';
                 ctx.fillText('FARE', marginX + listWidth - 20, listStartY - tableSizes.headOffset);
@@ -1190,14 +1202,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.font = `900 ${tableSizes.dateSize}px Arial, sans-serif`;
                     ctx.fillText(dt, marginX + 20, y + (rowHeight/2) - rowTextOffset);
 
-                    // Sector
-                    ctx.font = `700 ${tableSizes.sectorSize}px Arial, sans-serif`;
-                    ctx.fillStyle = theme.sectorText;
-                    ctx.textAlign = 'center';
-                    const sName = sectorMap[f.sectorId] || f.sectorId;
-                    ctx.fillText(sName, marginX + (listWidth * preset.columns.sector), y + (rowHeight/2) - rowTextOffset);
-                    ctx.fillStyle = '#0f172a'; // reset
-
                     // Airline Logo/Text
                     const centerX = marginX + (listWidth * preset.columns.airline);
                     const airlineObj = getAirline(f.airlineId);
@@ -1207,7 +1211,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                         const logoH = logoDims.h;
                         ctx.drawImage(logo, centerX - (logoW/2), y + (rowHeight/2) - rowTextOffset - (logoH/2), logoW, logoH);
                     } else {
-                        ctx.font = `700 ${Math.max(14, tableSizes.sectorSize - 2)}px Arial, sans-serif`;
+                        ctx.font = `700 ${Math.max(14, tableSizes.bagSize - 2)}px Arial, sans-serif`;
                         ctx.textAlign = 'center';
                         const aName = airlineObj?.name || f.airlineId || '—';
                         ctx.fillText(aName, centerX, y + (rowHeight/2) - rowTextOffset);
@@ -1218,6 +1222,13 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.font = `800 ${tableSizes.timeSize}px Arial, sans-serif`;
                     ctx.textAlign = 'center';
                     ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - rowTextOffset);
+
+                    const baggageText = formatBaggage(f.baggage);
+                    ctx.font = `700 ${tableSizes.bagSize}px Arial, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = baggageText === '—' ? '#94a3b8' : theme.sectorText;
+                    ctx.fillText(baggageText, marginX + (listWidth * preset.columns.baggage), y + (rowHeight/2) - rowTextOffset);
+                    ctx.fillStyle = '#0f172a';
 
                     // Fare Badge
                     const posterRate = getPosterRateDisplay(f.finalRate, f.flightDate);
