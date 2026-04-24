@@ -19,12 +19,12 @@ test("getConfiguredChannelForMarket prefers Firestore ids and otherwise falls ba
   }, "ccj", "instagram");
   assert.deepEqual(explicit, { id: "ig-live-channel", source: "firestore" });
 
-  const missing = getConfiguredChannelForMarket({}, "ccj", "instagram");
+  const missing = getConfiguredChannelForMarket({}, "cnn", "instagram");
   assert.equal(missing.id, "");
 });
 
 test("inspectMarketHealth reports missing config as blocked", async () => {
-  const health = await inspectMarketHealth("ccj", "token", {});
+  const health = await inspectMarketHealth("cnn", "token", {});
   assert.equal(health.status, "blocked");
   assert.match(health.message, /No instagram channel configured/i);
 });

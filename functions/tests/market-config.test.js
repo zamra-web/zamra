@@ -16,6 +16,8 @@ test("resolveSectorMarketKey only matches India-linked airport routes", () => {
 });
 
 test("fallback Buffer channel ids stay unconfigured until real ids are supplied", () => {
-  assert.equal(isConfiguredChannelId(getFallbackChannelId("ccj", "instagram")), false);
-  assert.equal(isConfiguredChannelId(getFallbackChannelId("cok", "youtube")), false);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("ccj", "instagram")), true);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("cok", "youtube")), true);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("cnn", "instagram")), false);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("trv", "youtube")), false);
 });
