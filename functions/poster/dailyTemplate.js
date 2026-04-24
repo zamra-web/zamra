@@ -24,15 +24,20 @@ function formatRate(n) {
 }
 
 function formatBaggage(value) {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "";
   const raw = String(value).trim();
-  if (!raw) return "—";
+  if (!raw || /^[-–—]+$/.test(raw)) return "";
   const isNumericKg = /^\d+(\.\d+)?(\s*kg)?$/i.test(raw);
   if (isNumericKg) {
     const parsed = parseFloat(raw.replace(/[^\d.]/g, ""));
-    return Number.isFinite(parsed) ? `${parsed} Kg` : "—";
+    return Number.isFinite(parsed) && parsed > 0 ? `${parsed}Kg` : "";
   }
-  return raw.toUpperCase();
+  return raw.replace(/\s*kg\b/ig, "Kg").replace(/\s+/g, " ").trim();
+}
+
+function formatPosterBaggage(baggage, extraBaggage) {
+  const parts = [formatBaggage(baggage), formatBaggage(extraBaggage)].filter(Boolean);
+  return parts.length ? parts.join(" + ") : "—";
 }
 
 function formatCaptionDate(date = new Date()) {
@@ -69,7 +74,7 @@ function buildDailyPosterHtml({ sector, fares, airlineMap, logoMap }) {
       timeCell = `<span style="font-weight:700;font-size:16px;color:#0f172a;white-space:nowrap;">${escapeHtml(parts.join(" - "))}</span>`;
     }
 
-    const baggageLabel = formatBaggage(f.baggage);
+    const baggageLabel = formatPosterBaggage(f.baggage, f.extraBaggage);
     const baggageCell = baggageLabel === "—"
       ? `<span style="color:#94a3b8;">—</span>`
       : `<span style="display:inline-block;background:rgba(37,99,235,0.12);color:#2563eb;padding:6px 12px;border-radius:9999px;font-weight:800;font-size:15px;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;

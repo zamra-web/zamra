@@ -29,6 +29,7 @@ import {
 } from './db.js';
 
 import { downloadVideoPoster } from './video-export.js';
+import { formatPosterBaggageDisplay } from './poster-baggage-display.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
 import { createSocialPublishingController } from './social-publishing.js';
 import {
@@ -1566,7 +1567,7 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame)
           }
         }
 
-        const baggageLabel = toKgDisplay(fare.baggage);
+        const baggageLabel = formatPosterBaggageDisplay(fare.baggage, fare.extraBaggage);
         const baggageCell = baggageLabel === '—'
           ? '<span style="color:#94a3b8;font-size:12px;">—</span>'
           : `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:3px 7px;border-radius:6px;font-size:11px;text-align:center;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;

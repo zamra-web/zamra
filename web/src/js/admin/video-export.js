@@ -1,4 +1,5 @@
 import { getPosterRateDisplay } from './poster-rate-display.js';
+import { formatPosterBaggageDisplay } from './poster-baggage-display.js';
 
 let lastVideoThemeHue = null;
 const VIDEO_MAX_ROWS = 12;
@@ -703,18 +704,6 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
         return parts[0] || cleaned;
     }
 
-    function formatBaggage(value) {
-        if (value === null || value === undefined || value === '') return '—';
-        const raw = String(value).trim();
-        if (!raw) return '—';
-        const isNumericKg = /^\d+(\.\d+)?(\s*kg)?$/i.test(raw);
-        if (isNumericKg) {
-            const parsed = parseFloat(raw.replace(/[^\d.]/g, ''));
-            return Number.isFinite(parsed) ? `${parsed} Kg` : '—';
-        }
-        return raw.toUpperCase();
-    }
-
     function pickRandomTheme() {
         const seed = randomSeed();
         const theme = generateVideoTheme(seed, lastVideoThemeHue);
@@ -1223,7 +1212,7 @@ export async function downloadVideoPoster(ratio, fares, sectorId, sectors, airli
                     ctx.textAlign = 'center';
                     ctx.fillText(timeText, marginX + (listWidth * preset.columns.time), y + (rowHeight/2) - rowTextOffset);
 
-                    const baggageText = formatBaggage(f.baggage);
+                    const baggageText = formatPosterBaggageDisplay(f.baggage, f.extraBaggage);
                     ctx.font = `700 ${tableSizes.bagSize}px Arial, sans-serif`;
                     ctx.textAlign = 'center';
                     ctx.fillStyle = baggageText === '—' ? '#94a3b8' : theme.sectorText;
