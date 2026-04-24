@@ -755,12 +755,59 @@ export async function callToggleSectorVisibility(sectorId, isHidden) {
 
 /**
  * Persist a full custom sector display order.
+ * Uses direct batched Firestore writes so sector reordering does not depend
+ * on a separately deployed callable function.
  * @param {string[]} sectorIds
  */
 export async function callReorderSectors(sectorIds = []) {
-  const fn = httpsCallable(functions, 'reorderSectors');
-  const result = await fn({ sectorIds });
-  return result.data;
+  const normalizedSectorIds = Array.isArray(sectorIds)
+    ? sectorIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : [];
+
+  if (!normalizedSectorIds.length) {
+    throw new Error('sectorIds must be a non-empty array.');
+  }
+
+  if (new Set(normalizedSectorIds).size !== normalizedSectorIds.length) {
+    throw new Error('sectorIds must contain unique values only.');
+  }
+
+  const currentSectors = await getSectors();
+  const existingIds = currentSectors
+    .map((sector) => String(sector.id || '').trim())
+    .filter(Boolean);
+
+  if (existingIds.length !== normalizedSectorIds.length) {
+    throw new Error('The provided sector order is stale. Refresh the sector list and try again.');
+  }
+
+  const existingIdSet = new Set(existingIds);
+  const requestedIdSet = new Set(normalizedSectorIds);
+  const unknownIds = normalizedSectorIds.filter((id) => !existingIdSet.has(id));
+  const missingIds = existingIds.filter((id) => !requestedIdSet.has(id));
+
+  if (unknownIds.length || missingIds.length) {
+    throw new Error('The provided sector order must include every current sector exactly once.');
+  }
+
+  const CHUNK = 400;
+
+  for (let i = 0; i < normalizedSectorIds.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    normalizedSectorIds.slice(i, i + CHUNK).forEach((id, offset) => {
+      batch.update(doc(db, 'sectors', id), {
+        sortOrder: i + offset + 1,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  }
+
+  return {
+    success: true,
+    updated: normalizedSectorIds.length,
+    message: `Updated display priority for ${normalizedSectorIds.length} sector${normalizedSectorIds.length !== 1 ? 's' : ''}.`,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

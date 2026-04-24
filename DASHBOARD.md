@@ -56,7 +56,7 @@ zamra/                          # Firebase project root
 └── functions/                  # Cloud Functions (Node.js 22, 2nd Gen)
     ├── index.js                # Core callable + scheduled exports (reports, fare ops, social pipeline)
     ├── .eslintrc.js             # Functions lint config
-    ├── buffer/                  # Buffer API client + market/channel helpers
+    ├── buffer/                  # Buffer create-post client + static market helpers
     ├── poster/                  # Server-side daily poster render/upload helpers
     ├── scheduled/               # Cron-driven jobs (daily poster generation)
     ├── social/                  # Social publishing pipeline helpers + queue logic
@@ -551,4 +551,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-04-24 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer create-post dispatch, Instagram-only stories for image batches, retryable retained media, inline activity/history UI in the Poster tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, and merged slideshow exports; poster footer contact remains +91 9846606739._
+_Last audited: 2026-04-25 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer create-post dispatch only (no Buffer polling/channel-discovery helpers in code), Instagram-only stories for image batches, retryable retained media, inline activity/history UI in the Poster tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, and merged slideshow exports; poster footer contact remains +91 9846606739._

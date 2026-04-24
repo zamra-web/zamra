@@ -148,9 +148,6 @@ export function createSocialPublishingController(deps) {
         issues.push(channel.message || `${platform} channel is blocked.`);
         return;
       }
-      if (channel.isQueuePaused || channel.status === 'warning') {
-        issues.push(channel.message || `${platform} queue is paused in Buffer.`);
-      }
     });
 
     return {
