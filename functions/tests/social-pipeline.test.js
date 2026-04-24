@@ -30,7 +30,7 @@ test("inspectMarketHealth reports missing config as blocked", async () => {
   assert.match(health.message, /No instagram channel configured/i);
 });
 
-test("inspectMarketHealth uses configured channels without verification calls", async () => {
+test("inspectMarketHealth uses configured channels without any Buffer verification calls", async () => {
   const health = await inspectMarketHealth("ccj", "token", {
     channels: {
       instagram: { configuredId: "ig-live", source: "firestore" },

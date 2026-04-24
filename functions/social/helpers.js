@@ -5,14 +5,9 @@ const RETRY_DELAYS_MS = [
 ];
 
 const QUEUE_TERMINAL_STATUSES = new Set(["posted", "partial", "failed", "skipped"]);
-const JOB_TERMINAL_STATUSES = new Set(["completed", "completed_with_failures", "failed"]);
 
-function isTerminalQueueState(status, stage) {
+function isTerminalQueueState(status) {
   const normalizedStatus = String(status || "").toLowerCase();
-  const normalizedStage = String(stage || "").toLowerCase();
-  if (normalizedStatus === "partial" && normalizedStage === "awaiting_publish_confirmation") {
-    return false;
-  }
   return QUEUE_TERMINAL_STATUSES.has(normalizedStatus);
 }
 
@@ -66,50 +61,6 @@ function classifyDispatchError(error) {
   };
 }
 
-function deriveQueueStatusFromBufferPosts(bufferPosts = {}) {
-  const posts = Object.values(bufferPosts || {}).filter(Boolean);
-  if (!posts.length) {
-    return {
-      status: "failed",
-      stage: "failed",
-      unresolvedCount: 0,
-      sentCount: 0,
-      errorCount: 0,
-    };
-  }
-
-  let unresolvedCount = 0;
-  let sentCount = 0;
-  let errorCount = 0;
-
-  posts.forEach((post) => {
-    const state = String(post.state || "").toLowerCase();
-    if (state === "sent") sentCount += 1;
-    else if (state === "error") errorCount += 1;
-    else unresolvedCount += 1;
-  });
-
-  if (unresolvedCount > 0) {
-    return {
-      status: errorCount > 0 || sentCount > 0 ? "partial" : "queued",
-      stage: "awaiting_publish_confirmation",
-      unresolvedCount,
-      sentCount,
-      errorCount,
-    };
-  }
-
-  if (sentCount > 0 && errorCount === 0) {
-    return { status: "posted", stage: "published", unresolvedCount, sentCount, errorCount };
-  }
-
-  if (sentCount > 0 && errorCount > 0) {
-    return { status: "partial", stage: "published", unresolvedCount, sentCount, errorCount };
-  }
-
-  return { status: "failed", stage: "failed", unresolvedCount, sentCount, errorCount };
-}
-
 function isRenderedItem(item = {}) {
   if (item.renderedAt) return true;
   const stage = String(item.stage || "").toLowerCase();
@@ -117,7 +68,6 @@ function isRenderedItem(item = {}) {
     "uploading",
     "waiting_dispatch",
     "dispatching",
-    "awaiting_publish_confirmation",
     "published",
   ].includes(stage);
 }
@@ -131,6 +81,7 @@ function summarizeSocialJobItems(items = []) {
   const list = Array.isArray(items) ? items : [];
   const counters = {
     plannedItems: list.length,
+    createdItems: 0,
     renderedItems: 0,
     uploadedItems: 0,
     queuedItems: 0,
@@ -161,18 +112,10 @@ function summarizeSocialJobItems(items = []) {
       latest = item;
     }
   });
-
-  let status = "pending";
-  if (list.length) {
-    const allTerminal = list.every((item) => isTerminalQueueState(item.status, item.stage));
-    if (allTerminal) {
-      if (counters.postedItems === list.length) status = "completed";
-      else if (counters.failedItems === list.length && counters.postedItems === 0) status = "failed";
-      else status = "completed_with_failures";
-    } else if (active) {
-      status = "processing";
-    }
-  }
+  counters.createdItems = Math.max(list.length - counters.postedItems, 0);
+  const status = list.length
+    ? (counters.postedItems === list.length ? "posted" : "created")
+    : (active ? "created" : "pending");
 
   return {
     ...counters,
@@ -186,12 +129,10 @@ function summarizeSocialJobItems(items = []) {
 module.exports = {
   RETRY_DELAYS_MS,
   QUEUE_TERMINAL_STATUSES,
-  JOB_TERMINAL_STATUSES,
   toIsoString,
   toMillis,
   getRetryDelayMs,
   classifyDispatchError,
-  deriveQueueStatusFromBufferPosts,
   isTerminalQueueState,
   summarizeSocialJobItems,
 };

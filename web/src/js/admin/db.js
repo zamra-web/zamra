@@ -815,21 +815,25 @@ export async function callReorderSectors(sectorIds = []) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function createSocialJob(data = {}) {
+  const plannedItems = Number(data.plannedItems || 0);
+  const postedItems = Number(data.postedItems || 0);
+  const createdItems = data.createdItems ?? Math.max(plannedItems - postedItems, 0);
   const docRef = await addDoc(collection(db, 'social_jobs'), {
     source: data.source || 'admin',
     marketKey: data.marketKey || '',
     mediaType: data.mediaType || 'image',
     filters: data.filters || {},
     requestedBy: data.requestedBy || {},
-    status: data.status || 'pending',
+    status: data.status || 'created',
     currentStage: data.currentStage || 'rendering',
     currentItemLabel: data.currentItemLabel || '',
     lastMessage: data.lastMessage || 'Preparing social publishing job.',
-    plannedItems: Number(data.plannedItems || 0),
+    plannedItems,
+    createdItems: Number(createdItems || 0),
     renderedItems: Number(data.renderedItems || 0),
     uploadedItems: Number(data.uploadedItems || 0),
     queuedItems: Number(data.queuedItems || 0),
-    postedItems: Number(data.postedItems || 0),
+    postedItems,
     failedItems: Number(data.failedItems || 0),
     partialItems: Number(data.partialItems || 0),
     expiresAt: Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS)),

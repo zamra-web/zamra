@@ -4,7 +4,6 @@ const assert = require("node:assert/strict");
 const {
   getRetryDelayMs,
   classifyDispatchError,
-  deriveQueueStatusFromBufferPosts,
   summarizeSocialJobItems,
 } = require("../social/helpers");
 
@@ -21,44 +20,14 @@ test("classifyDispatchError marks transient Buffer/network failures as retryable
   assert.equal(classifyDispatchError(new Error("Invalid media URL")).retryable, false);
 });
 
-test("deriveQueueStatusFromBufferPosts maps final publish states correctly", () => {
-  assert.equal(deriveQueueStatusFromBufferPosts({
-    instagram: { state: "sent" },
-    facebook: { state: "sent" },
-  }).status, "posted");
-
-  const partial = deriveQueueStatusFromBufferPosts({
-    instagram: { state: "sent" },
-    facebook: { state: "error" },
-  });
-  assert.equal(partial.status, "partial");
-  assert.equal(partial.stage, "published");
-
-  const waiting = deriveQueueStatusFromBufferPosts({
-    instagram: { state: "queued" },
-  });
-  assert.equal(waiting.status, "queued");
-  assert.equal(waiting.stage, "awaiting_publish_confirmation");
-});
-
-test("summarizeSocialJobItems keeps awaiting confirmation jobs active and finalizes mixed outcomes", () => {
-  const processing = summarizeSocialJobItems([
+test("summarizeSocialJobItems collapses mixed queue outcomes into created", () => {
+  const created = summarizeSocialJobItems([
     {
-      status: "partial",
-      stage: "awaiting_publish_confirmation",
+      status: "pending",
+      stage: "waiting_dispatch",
       label: "CCJ JED",
-      lastMessage: "Waiting for Buffer publish confirmation…",
+      lastMessage: "Waiting to dispatch to Buffer.",
       updatedAt: new Date(),
-    },
-  ]);
-  assert.equal(processing.status, "processing");
-
-  const completed = summarizeSocialJobItems([
-    {
-      status: "posted",
-      stage: "published",
-      label: "CCJ JED",
-      updatedAt: new Date("2026-04-19T00:00:00Z"),
     },
     {
       status: "failed",
@@ -68,7 +37,28 @@ test("summarizeSocialJobItems keeps awaiting confirmation jobs active and finali
       updatedAt: new Date("2026-04-19T00:01:00Z"),
     },
   ]);
-  assert.equal(completed.status, "completed_with_failures");
-  assert.equal(completed.failedItems, 1);
-  assert.equal(completed.postedItems, 1);
+  assert.equal(created.status, "created");
+  assert.equal(created.createdItems, 2);
+  assert.equal(created.postedItems, 0);
+  assert.equal(created.failedItems, 1);
+});
+
+test("summarizeSocialJobItems reports posted only when every item is accepted", () => {
+  const posted = summarizeSocialJobItems([
+    {
+      status: "posted",
+      stage: "published",
+      label: "CCJ JED",
+      updatedAt: new Date("2026-04-19T00:00:00Z"),
+    },
+    {
+      status: "posted",
+      stage: "published",
+      label: "COK DXB",
+      updatedAt: new Date("2026-04-19T00:01:00Z"),
+    },
+  ]);
+  assert.equal(posted.status, "posted");
+  assert.equal(posted.createdItems, 0);
+  assert.equal(posted.postedItems, 2);
 });

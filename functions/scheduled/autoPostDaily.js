@@ -112,11 +112,12 @@ async function runDailyPost() {
   const jobId = await createSocialJob({
     source: "autoPostDaily",
     mediaType: "image",
-    status: "processing",
+    status: "created",
     currentStage: "rendering",
     lastMessage: `Rendering ${jobs.length} scheduled poster${jobs.length > 1 ? "s" : ""}.`,
     requestedBy: { type: "system", label: "autoPostDaily" },
     plannedItems: jobs.length,
+    createdItems: jobs.length,
   });
 
   const itemIds = [];
@@ -141,7 +142,7 @@ async function runDailyPost() {
 
   const buffers = await renderHtmlBatch(jobs.map((j) => j.html));
 
-  // Step 3: upload each + enqueue to social_queue. Existing trigger does the rest.
+  // Step 3: upload each + enqueue to social_queue. The dispatcher handles posting.
   const ts = Date.now();
   for (let i = 0; i < jobs.length; i++) {
     const { sector, caption } = jobs[i];

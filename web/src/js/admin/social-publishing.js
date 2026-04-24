@@ -41,9 +41,11 @@ function formatRelativeTime(value) {
 function statusBadgeClass(status = '') {
   const key = String(status || '').toLowerCase();
   if (key === 'ready' || key === 'posted' || key === 'completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-  if (key === 'warning' || key === 'partial' || key === 'completed_with_failures') return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (key === 'warning') return 'bg-amber-50 text-amber-700 border-amber-200';
   if (key === 'blocked' || key === 'failed') return 'bg-rose-50 text-rose-700 border-rose-200';
-  if (key === 'processing' || key === 'queued' || key === 'pending') return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (['created', 'processing', 'queued', 'pending', 'partial', 'completed_with_failures'].includes(key)) {
+    return 'bg-blue-50 text-blue-700 border-blue-200';
+  }
   return 'bg-slate-100 text-slate-600 border-slate-200';
 }
 
@@ -65,8 +67,57 @@ function formatMarketSummary(market = null) {
   return market.summary || (Array.isArray(market.airports) ? market.airports.join(' · ') : '');
 }
 
-function isTerminalJobStatus(status = '') {
-  return ['completed', 'completed_with_failures', 'failed'].includes(String(status || '').toLowerCase());
+function getCreatedCount(record = {}) {
+  const explicit = Number(record.createdItems);
+  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+  const planned = Number(record.plannedItems || 0);
+  const posted = Number(record.postedItems || 0);
+  return Math.max(planned - posted, 0);
+}
+
+function normalizeJobStatus(job = {}) {
+  const raw = String(job.status || '').toLowerCase();
+  const planned = Number(job.plannedItems || 0);
+  const posted = Number(job.postedItems || 0);
+  const created = getCreatedCount(job);
+  if (raw === 'posted' || raw === 'completed' || (planned > 0 && posted >= planned && created === 0)) {
+    return 'posted';
+  }
+  if (!planned && !raw) return 'pending';
+  return 'created';
+}
+
+function normalizeItemStatus(item = {}) {
+  return String(item.status || '').toLowerCase() === 'posted' ? 'posted' : 'created';
+}
+
+function hasRetainedMedia(item = {}) {
+  return !!(
+    item.queueId ||
+    item.mediaUrl ||
+    (Array.isArray(item.mediaUrls) && item.mediaUrls.length) ||
+    item.filename ||
+    (Array.isArray(item.filenames) && item.filenames.length)
+  );
+}
+
+function canRetryJobItem(item = {}) {
+  return normalizeItemStatus(item) !== 'posted'
+    && hasRetainedMedia(item)
+    && !!(item.lastError && item.lastError.message);
+}
+
+function isTerminalJobStatus(job = {}) {
+  return normalizeJobStatus(job) === 'posted';
+}
+
+function isActiveJob(job = {}) {
+  if (isTerminalJobStatus(job)) return false;
+  const raw = String(job.status || '').toLowerCase();
+  if (['failed', 'completed_with_failures'].includes(raw)) return false;
+  const stage = String(job.currentStage || job.stage || '').toLowerCase();
+  if (!stage) return ['created', 'processing', 'pending', 'queued', 'partial'].includes(raw);
+  return !['failed', 'published', 'skipped'].includes(stage);
 }
 
 function buildFallbackMarketState(deps, marketKey) {
@@ -295,7 +346,7 @@ export function createSocialPublishingController(deps) {
     const root = document.getElementById('poster-social-current-activity');
     if (!root) return;
 
-    const activeJob = getRecentJobs().find((job) => !isTerminalJobStatus(job.status));
+    const activeJob = getRecentJobs().find((job) => isActiveJob(job));
     if (!activeJob) {
       root.innerHTML = `
         <div class="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-[0_18px_34px_rgba(15,23,42,0.08)]">
@@ -311,6 +362,9 @@ export function createSocialPublishingController(deps) {
       return;
     }
 
+    const activeStatus = normalizeJobStatus(activeJob);
+    const createdCount = getCreatedCount(activeJob);
+
     root.innerHTML = `
       <div class="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-[0_18px_34px_rgba(15,23,42,0.08)]">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -319,14 +373,11 @@ export function createSocialPublishingController(deps) {
             <p class="mt-1 text-base font-bold text-navy">${escapeHtml(activeJob.lastMessage || 'Processing social publishing job')}</p>
             <p class="mt-1 text-sm text-text-muted">${escapeHtml(formatMarketLabel(deps, activeJob.marketKey, 'Multiple airports'))} · ${titleCaseStatus(activeJob.mediaType || 'image')} · ${escapeHtml(activeJob.currentItemLabel || 'Preparing')}</p>
           </div>
-          <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(activeJob.status)}">${titleCaseStatus(activeJob.status)}</span>
+          <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(activeStatus)}">${titleCaseStatus(activeStatus)}</span>
         </div>
-        <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
           ${[
-            ['Planned', activeJob.plannedItems || 0],
-            ['Rendered', activeJob.renderedItems || 0],
-            ['Uploaded', activeJob.uploadedItems || 0],
-            ['Queued', activeJob.queuedItems || 0],
+            ['Created', createdCount],
             ['Posted', activeJob.postedItems || 0],
           ].map(([label, value]) => `
             <div class="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-3">
@@ -354,23 +405,24 @@ export function createSocialPublishingController(deps) {
           <p class="text-sm text-text-muted">${jobs.length} job${jobs.length === 1 ? '' : 's'} tracked</p>
         </div>
         <div class="mt-4 flex flex-col gap-3">
-          ${jobs.length ? jobs.map((job) => `
+          ${jobs.length ? jobs.map((job) => {
+            const displayStatus = normalizeJobStatus(job);
+            const createdCount = getCreatedCount(job);
+            return `
             <div class="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4">
               <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
-                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(job.status)}">${titleCaseStatus(job.status)}</span>
+                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(displayStatus)}">${titleCaseStatus(displayStatus)}</span>
                     <span class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">${escapeHtml(formatMarketLabel(deps, job.marketKey, 'Multiple airports'))} · ${escapeHtml(job.mediaType || 'image')}</span>
                   </div>
                   <p class="mt-2 text-sm font-bold text-navy">${escapeHtml(job.lastMessage || 'No status message recorded.')}</p>
                   <p class="mt-1 text-xs text-text-muted">${formatDateTime(job.createdAt)} · ${formatRelativeTime(job.createdAt)}</p>
                 </div>
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-2">
                   ${[
-                    ['Planned', job.plannedItems || 0],
-                    ['Queued', job.queuedItems || 0],
+                    ['Created', createdCount],
                     ['Posted', job.postedItems || 0],
-                    ['Failed', job.failedItems || 0],
                   ].map(([label, value]) => `
                     <div class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
                       <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">${label}</p>
@@ -385,7 +437,8 @@ export function createSocialPublishingController(deps) {
                 </button>
               </div>
             </div>
-          `).join('') : `
+          `;
+          }).join('') : `
             <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-10 text-center text-sm text-text-muted">
               No publishing jobs yet. Queue images or videos for any airport group to start tracking.
             </div>
@@ -396,10 +449,15 @@ export function createSocialPublishingController(deps) {
   }
 
   function syncJobSnapshot(jobId, counts, overrides = {}) {
-    return deps.updateSocialJob(jobId, {
+    const snapshot = {
       ...counts,
       ...overrides,
-    });
+    };
+    snapshot.createdItems = getCreatedCount(snapshot);
+    if (!snapshot.status || snapshot.status !== 'posted') {
+      snapshot.status = 'created';
+    }
+    return deps.updateSocialJob(jobId, snapshot);
   }
 
   async function runDispatcherSoon() {
@@ -481,12 +539,13 @@ export function createSocialPublishingController(deps) {
         source: 'admin',
         marketKey,
         mediaType: 'image',
-        status: 'processing',
+        status: 'created',
         currentStage: 'rendering',
         lastMessage: `Rendering ${eligibleSectors.length} ${market.label} image batch${eligibleSectors.length > 1 ? 'es' : ''}.`,
         requestedBy: deps.getRequestedBy(),
         filters: { startDate, endDate, marketKey, sectorIds },
         plannedItems: eligibleSectors.length,
+        createdItems: eligibleSectors.length,
       });
 
       const counts = {
@@ -526,7 +585,7 @@ export function createSocialPublishingController(deps) {
               currentStage: 'rendering',
               currentItemLabel: sectorCode,
               lastMessage: `Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode}`,
-              status: 'processing',
+              status: 'created',
             });
 
             const frames = await deps.populatePosterRenderStack(
@@ -627,7 +686,7 @@ export function createSocialPublishingController(deps) {
       }
 
       await syncJobSnapshot(jobId, counts, {
-        status: counts.failedItems >= counts.plannedItems ? 'failed' : 'processing',
+        status: 'created',
         currentStage: counts.queuedItems ? 'waiting_dispatch' : 'failed',
         lastMessage: counts.queuedItems
           ? `Queued ${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} for dispatch.`
@@ -702,12 +761,13 @@ export function createSocialPublishingController(deps) {
         source: 'admin',
         marketKey,
         mediaType: 'video',
-        status: 'processing',
+        status: 'created',
         currentStage: 'rendering',
         lastMessage: `Rendering ${totalPlanned} ${market.label} video uploads.`,
         requestedBy: deps.getRequestedBy(),
         filters: { startDate, endDate, marketKey, sectorIds },
         plannedItems: totalPlanned,
+        createdItems: totalPlanned,
       });
       const counts = {
         plannedItems: totalPlanned,
@@ -842,7 +902,7 @@ export function createSocialPublishingController(deps) {
       }
 
       await syncJobSnapshot(jobId, counts, {
-        status: counts.failedItems >= counts.plannedItems ? 'failed' : 'processing',
+        status: 'created',
         currentStage: counts.queuedItems ? 'waiting_dispatch' : 'failed',
         lastMessage: counts.queuedItems
           ? `Queued ${counts.queuedItems} ${market.label} video upload${counts.queuedItems > 1 ? 's' : ''} for dispatch.`
@@ -870,6 +930,7 @@ export function createSocialPublishingController(deps) {
   }
 
   function renderJobDetail(job, items) {
+    const jobStatus = normalizeJobStatus(job);
     return `
       <div class="space-y-4">
         <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
@@ -879,25 +940,26 @@ export function createSocialPublishingController(deps) {
               <p class="mt-1 text-lg font-bold text-navy">${escapeHtml(job.lastMessage || 'No status message recorded.')}</p>
               <p class="mt-1 text-sm text-text-muted">${formatDateTime(job.createdAt)}</p>
             </div>
-            <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(job.status)}">${titleCaseStatus(job.status)}</span>
+            <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(jobStatus)}">${titleCaseStatus(jobStatus)}</span>
           </div>
         </div>
         <div class="space-y-3">
-          ${items.map((item) => `
+          ${items.map((item) => {
+            const itemStatus = normalizeItemStatus(item);
+            return `
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
               <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
                     <span class="text-sm font-bold text-navy">${escapeHtml(item.label || item.sectorCode || item.id)}</span>
-                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(item.status)}">${titleCaseStatus(item.status)}</span>
-                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(item.stage)}">${titleCaseStatus(item.stage || 'pending')}</span>
+                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(itemStatus)}">${titleCaseStatus(itemStatus)}</span>
                   </div>
                   <p class="mt-2 text-sm text-text-muted">${escapeHtml(item.lastMessage || 'No status message recorded.')}</p>
                   <p class="mt-2 text-[12px] text-text-muted">${escapeHtml((item.platforms || []).join(', ') || 'No platforms')}</p>
                   ${item.lastError && item.lastError.message ? `<p class="mt-2 text-[12px] font-semibold text-rose-600">${escapeHtml(item.lastError.message)}</p>` : ''}
                 </div>
                 <div class="flex flex-wrap gap-2 lg:justify-end">
-                  ${['failed', 'partial'].includes(String(item.status || '').toLowerCase()) ? `
+                  ${canRetryJobItem(item) ? `
                     <button type="button" class="admin-btn admin-btn-soft" data-action="retry-job-item" data-job-id="${job.id}" data-item-id="${item.id}">
                       <i class="bi bi-arrow-repeat"></i> Retry
                     </button>
@@ -905,7 +967,8 @@ export function createSocialPublishingController(deps) {
                 </div>
               </div>
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </div>
     `;

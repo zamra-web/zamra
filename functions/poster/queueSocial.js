@@ -1,7 +1,7 @@
 /**
  * Server-side port of web/src/js/admin/db.js `uploadAndQueueForSocial`.
  * Uploads a JPEG buffer to Firebase Storage and writes a `social_queue` doc.
- * The shared scheduled dispatcher + reconciler pick it up from there.
+ * The shared scheduled dispatcher picks it up from there.
  */
 
 const { getStorage } = require("firebase-admin/storage");

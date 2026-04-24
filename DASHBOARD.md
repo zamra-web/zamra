@@ -124,13 +124,13 @@ web/
 - **Social Publishing workspace** — five airport-group cards (`Calicut (CCJ)`, `Kochi (COK)`, `Kannur (CNN)`, `Trivandrum (TRV)`, `Mangalore (IXE)`) drive the publishing queue from a dedicated tab instead of the Poster screen
 - **Independent date range controls** — image and video queue actions use the Socials tab’s selected start/end dates rather than the current poster preview
 - **Setup-aware publishing controls** — the tab reads the saved posting setup from Firestore `config/socialPublishing`; action buttons disable automatically when the required airport-specific channel IDs are missing
-- **Current Activity card** — shows the live stage, current route/ratio, and running counters while a publishing batch is rendering/uploading/dispatching
-- **Recent Publishing Jobs** — last 25 jobs from the past 3 days are listed inline with success/failure counts; opening a job shows item-level status and retry actions
+- **Current Activity card** — shows the live stage, current route/ratio, and `Created` / `Posted` counters while a publishing batch is rendering/uploading/dispatching
+- **Recent Publishing Jobs** — last 25 jobs from the past 3 days are listed inline with `Created` / `Posted` counts; opening a job shows item-level status, error details, and retry actions
 - **Queue Images** — batches eligible India ↔ international sectors by India-side airport group into Instagram/Facebook feed posts and also creates one 9:16 Instagram story image per sector
 - **Queue Videos** — batches eligible India ↔ international sectors by India-side airport group into two uploads per sector: `9:16` for Instagram/Facebook/YouTube Shorts and `16:9` for YouTube only
 - **Airport routing** — social queueing always groups by the India-side airport in either direction (for example `CCJ DMM` and `DMM CCJ` both publish under `Calicut (CCJ)`), and still excludes non-India routes like `DOH DXB`
 - **Durable queue pipeline** — every batch creates a `social_jobs/{jobId}` record plus `social_jobs/{jobId}/items/*`; uploaded media is written to `social_queue` with retry/lease metadata, then dispatched by scheduled workers
-- **Final success = Buffer create-post acceptance** — queue docs move to `posted`/`partial` as soon as Buffer accepts the create-post mutation; there is no follow-up verification pass
+- **Operator-facing status stays simple** — Social job cards and detail views now show only `Created` and `Posted`. Internal queue retry/failure states remain behind the scenes for recovery, and final success is still Buffer `createPost` acceptance only.
 
 ### 3. 👥 Agents Tab
 - **Full CRUD** — Add / Edit (modal form) / Delete agents
@@ -422,9 +422,9 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
 | `generateAgentReport` | Aggregates fares with fully optional filters (sector, agent, date range). **All filters are optional** — passing no filters returns stats across the entire dataset. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
 | `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, and **`agents`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. Batch-writes to `agent_fares`. |
-| `refreshSocialPublishingHealth` | Admin callable. Rebuilds the saved posting setup snapshot from configured/fallback channel IDs and API-key presence without calling Buffer for verification. |
+| `refreshSocialPublishingHealth` | Admin callable. Rebuilds the saved posting setup snapshot from configured/fallback channel IDs and API-key presence without making any Buffer API calls. |
 | `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next minute cron. |
-| `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a failed/partial job item without mutating the old queue record. |
+| `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a non-posted errored job item without mutating the old queue record. |
 | `purgeOldFaresDaily` | Scheduled cleanup. Deletes `agent_fares` with `flightDate` earlier than **today − 2 days** (UTC midnight). Keeps the most recent two days of fares plus today. |
 
 **Social publishing scheduled workers**
@@ -555,4 +555,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-04-25 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer create-post dispatch only (no Buffer polling/channel-discovery helpers in code), Instagram-only stories for image batches, retryable retained media, inline activity/history UI in the Poster tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, and merged slideshow exports; poster footer contact remains +91 9846606739._
+_Last audited: 2026-04-25 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer `createPost` dispatch only, `Created` / `Posted` operator-facing job states, Instagram-only stories for image batches, retryable retained media, inline activity/history UI in the Socials tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, and merged slideshow exports; poster footer contact remains +91 9846606739._
