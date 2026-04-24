@@ -30,7 +30,8 @@ const LEASE_MS = 8 * 60 * 1000;
 const DISPATCH_BATCH_LIMIT = 6;
 const DISPATCH_CANDIDATE_LIMIT = 20;
 const MAX_ATTEMPTS = 3;
-const STORY_PLATFORMS = ["instagram"];
+// Image stories are intentionally Instagram-only; Facebook remains feed-only.
+const STORY_PLATFORMS = Object.freeze(["instagram"]);
 
 function db() {
   return getFirestore();
@@ -125,6 +126,10 @@ function getMarketLabel(marketKey = "") {
 
 function resolveQueueMarketKey(data = {}) {
   return resolveNormalizedMarketKey(data);
+}
+
+function shouldDispatchStoryToPlatform(platform) {
+  return STORY_PLATFORMS.includes(String(platform || "").trim().toLowerCase());
 }
 
 function filterKnownMarkets(markets = {}) {
@@ -690,7 +695,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
       if (!classified.retryable && !terminalFailure) terminalFailure = { platform: target.platform, ...classified };
     }
 
-    if (doc.includeStories === true && mediaType === "image" && STORY_PLATFORMS.includes(target.platform)) {
+    if (doc.includeStories === true && mediaType === "image" && shouldDispatchStoryToPlatform(target.platform)) {
       const storyUrl = doc.storyMediaUrl || mediaUrls[0];
       const storyKey = `${target.platform}_story`;
       const storyResult = await bufferCreatePost.createPostOnChannel({
@@ -1021,5 +1026,6 @@ module.exports = {
   inspectMarketHealth,
   getConfiguredChannelForMarket,
   resolveQueueMarketKey,
+  shouldDispatchStoryToPlatform,
   buildQueueCreatePayload,
 };

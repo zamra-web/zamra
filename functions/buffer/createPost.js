@@ -5,7 +5,8 @@
  *
  * Each platform requires its own `metadata` shape:
  *   - instagram: { type: post|reel, shouldShareToFeed: true }
- *   - facebook:  { type: post }
+ *                { type: story, shouldShareToFeed: false }
+ *   - facebook:  { type: post } // story publishing intentionally disabled
  *   - youtube:   { title, categoryId }
  */
 
@@ -53,21 +54,20 @@ function buildAssets({ mediaType, mediaUrls }) {
  * "16x9"); null for images. `postType` is "feed" (default) or "story".
  */
 function buildMetadata({ platform, mediaType, text, postType, youtubeTitle }) {
-  if (platform === "instagram") {
+  const normalizedPlatform = String(platform || "").trim().toLowerCase();
+
+  if (normalizedPlatform === "instagram") {
     if (postType === "story") {
-      return { instagram: { type: "story" } };
+      return { instagram: { type: "story", shouldShareToFeed: false } };
     }
     // All IG videos publish as Reels; images as feed posts.
     const type = mediaType === "video" ? "reel" : "post";
     return { instagram: { type, shouldShareToFeed: true } };
   }
-  if (platform === "facebook") {
-    if (postType === "story") {
-      return { facebook: { type: "story" } };
-    }
+  if (normalizedPlatform === "facebook") {
     return { facebook: { type: "post" } };
   }
-  if (platform === "youtube") {
+  if (normalizedPlatform === "youtube") {
     // YouTube requires title + categoryId. Fall back to a sensible title.
     const title = (youtubeTitle || text || "").trim().slice(0, 100) || "Zamra Travels";
     return {
@@ -106,11 +106,17 @@ async function createPostOnChannel({
   postType = "feed",
   youtubeTitle = "",
 }) {
+  const normalizedPlatform = String(platform || "").trim().toLowerCase();
+
+  if (normalizedPlatform === "facebook" && postType === "story") {
+    return { ok: false, error: "Facebook story publishing is disabled for Zamra social jobs." };
+  }
+
   const variables = {
     channelId,
     text: text || "",
     assets: buildAssets({ mediaType, mediaUrls }),
-    metadata: buildMetadata({ platform, mediaType, text, postType, youtubeTitle }),
+    metadata: buildMetadata({ platform: normalizedPlatform, mediaType, text, postType, youtubeTitle }),
   };
 
   try {
@@ -139,4 +145,4 @@ async function runWithRateLimitRetry(apiKey, variables) {
   }
 }
 
-module.exports = { createPostOnChannel };
+module.exports = { createPostOnChannel, buildMetadata };

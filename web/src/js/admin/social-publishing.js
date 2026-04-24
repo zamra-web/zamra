@@ -642,7 +642,7 @@ export function createSocialPublishingController(deps) {
       }
 
       const failureNote = counts.failedItems ? ` ${counts.failedItems} sector${counts.failedItems > 1 ? 's' : ''} failed.` : '';
-      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} queued.${failureNote}`);
+      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} queued for Instagram/Facebook feed posts with Instagram stories.${failureNote}`);
     } catch (error) {
       console.error('queueMarketImagesForSocial:', error);
       deps.toast('error', 'Queue Failed', error.message || 'Failed to queue airport images.');

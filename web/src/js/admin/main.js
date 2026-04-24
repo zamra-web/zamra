@@ -2165,7 +2165,7 @@ async function queueMarketImagesForSocial(marketKey, triggerButton) {
     const carouselLabel = queuedCarousels === 1 ? 'sector batch' : 'sector batches';
     const imageLabel = totalImages === 1 ? 'image' : 'images';
     const failureNote = failedSectors ? ` ${failedSectors} sector${failedSectors > 1 ? 's' : ''} failed.` : '';
-    toast('success', 'Queued for Social', `${queuedCarousels} ${market.label} ${carouselLabel} (${totalImages} ${imageLabel}) queued with stories.${failureNote}`);
+    toast('success', 'Queued for Social', `${queuedCarousels} ${market.label} ${carouselLabel} (${totalImages} ${imageLabel}) queued for Instagram/Facebook feed posts with Instagram stories.${failureNote}`);
   } catch (error) {
     console.error('Market image queue failed:', error);
     toast('error', 'Queue Failed', error.message || 'Failed to queue airport images.');
@@ -2519,7 +2519,7 @@ async function queuePosterForSocial() {
       }
       if (!items.length) continue;
 
-      // Stories: compose a 9:16 variant from the first page only.
+      // Instagram stories: compose a 9:16 variant from the first page only.
       let storyItem = null;
       const storyBlob = await composeStoryImage(items[0].blob).catch((e) => {
         console.warn('Story composition failed; falling back to feed image:', e);
