@@ -414,6 +414,36 @@ function drawSlideCard(ctx, layout, image) {
   ctx.restore();
 }
 
+function renderFullFrameSlideCanvas(preset, image) {
+  const canvas = document.createElement('canvas');
+  canvas.width = preset.width;
+  canvas.height = preset.height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#081120';
+  ctx.fillRect(0, 0, preset.width, preset.height);
+
+  const targetRatio = preset.width / preset.height;
+  const sourceRatio = image.width / image.height;
+  if (Math.abs(sourceRatio - targetRatio) <= 0.01) {
+    ctx.drawImage(image, 0, 0, preset.width, preset.height);
+    return canvas;
+  }
+
+  const crop = coverImageRect(image.width, image.height, preset.width, preset.height);
+  ctx.drawImage(
+    image,
+    crop.sx,
+    crop.sy,
+    crop.sw,
+    crop.sh,
+    0,
+    0,
+    preset.width,
+    preset.height,
+  );
+  return canvas;
+}
+
 function renderSlideCanvas(layout, image) {
   const canvas = document.createElement('canvas');
   canvas.width = layout.canvas.width;
@@ -439,11 +469,14 @@ async function prepareSlides(ratioKey, slides = []) {
         slideWidth: asset.image.width,
         slideHeight: asset.image.height,
       });
+      const isFullFrame = slide?.fullFrame || slide?.renderMode === 'full-frame';
       preparedSlides.push({
         ...slide,
         image: asset.image,
-        canvas: renderSlideCanvas(layout, asset.image),
-        layout,
+        canvas: isFullFrame
+          ? renderFullFrameSlideCanvas(preset, asset.image)
+          : renderSlideCanvas(layout, asset.image),
+        layout: isFullFrame ? null : layout,
         cleanup: asset.cleanup,
       });
     }

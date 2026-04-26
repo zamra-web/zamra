@@ -111,7 +111,7 @@ web/
   - **Dynamic brand themes** — each generation creates a brand‑safe palette on the fly (effectively infinite variety) so posters feel fresh when shared
   - **Footer contact** — poster footer phone is `+91 9846606739`
   - **Video slideshow** — if a route spans multiple pages, the video export merges them into a single poster-page slideshow
-  - **Video exports are full-frame and ratio-aware** — the canvas renderer now places each rendered poster page onto a ratio-aware slideshow stage for 1:1 / 9:16 / 16:9 exports, using adaptive poster framing, bounded safe-area cropping, and a softened full-frame backdrop so each ratio feels fuller without row-level animation
+  - **Video exports are native to each ratio** — `1:1`, `9:16`, and `16:9` videos now render dedicated poster compositions sized specifically for that aspect ratio before encoding, so the slideshow fades between full-frame layouts instead of boxing the standard portrait poster inside a blurred backdrop
   - **Video progress** — inline status pill updates during rendering (e.g. `Rendering 3/8 · CCJ DXB`)
   - **Copy Text** — copies the currently generated poster fares into a plain-text share format grouped by route (for quick WhatsApp/status posting). Airport-shortcut previews also expose country-specific copy targets such as `CCJ → Saudi` or `CCJ → UAE` so teams can copy only the relevant subset.
   - **Download JPEG** — renders poster(s) to canvas at 2× resolution and triggers a `.jpg` download (downloads one file per sector for All Sectors)
