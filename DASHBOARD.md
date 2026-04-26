@@ -104,7 +104,7 @@ web/
   - **All Sectors** renders **one poster per sector** (instead of mixing sectors into a single table)
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
   - **Consistent canvas, adaptive composition** — posters keep a fixed export size, but the fare card/header/footer spacing now rebalance to give the table more room instead of relying on large dead zones
-  - **12-row image/poster capacity profile** — preview, JPEG, and PDF posters switch to an extra-tight composition so 12 fares still fit on one image without breaking the cleaner spacing on lighter pages
+  - **15-row image/poster capacity profile** — preview, JPEG, and PDF posters switch to an extra-tight composition so up to 15 fares still fit on one image, and the visible poster preview rebalances row heights after mount so exports use the fuller vertical spacing
   - **Ratio-aware video pagination** — slideshow videos now paginate independently from static posters: `9:16` portrait videos can carry up to 16 fares per slide, while `16:9` widescreen videos favor a tighter 9-row cap with rebalanced header/footer sizing for cleaner composition
   - **Auto-page** — sectors split into additional poster/video pages automatically once the active format’s row cap is reached
   - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown — airline + time are normalized so duplicates across agents collapse reliably

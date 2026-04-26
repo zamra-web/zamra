@@ -872,7 +872,7 @@ function openModal(title, bodyHtml, wide = false) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD TAB — Poster Generator
 // ══════════════════════════════════════════════════════════════════════════════
-const POSTER_MAX_ROWS = 12;
+const POSTER_MAX_ROWS = 15;
 const VIDEO_POSTER_MAX_ROWS = Object.freeze({
   '1x1': POSTER_MAX_ROWS,
   '9x16': 16,
@@ -890,38 +890,38 @@ function getPosterLayoutProfile(rowCount = 0) {
     return {
       key: 'capacity',
       topBarHeight: 12,
-      headerHeight: 212,
-      headerPadX: 30,
+      headerHeight: 198,
+      headerPadX: 28,
       badgePadding: '6px 18px',
-      badgeFont: 13,
-      badgeMarginBottom: 12,
-      titleFont: 48,
-      titleLineHeight: 1.06,
+      badgeFont: 12,
+      badgeMarginBottom: 10,
+      titleFont: 46,
+      titleLineHeight: 1.05,
       titleMarginBottom: 6,
-      subtitleFont: 16,
-      bodyPadding: '22px 24px 18px',
-      cardPadding: 18,
+      subtitleFont: 15,
+      bodyPadding: '18px 20px 14px',
+      cardPadding: 16,
       cardRadius: 18,
-      thPadding: '10px 8px',
+      thPadding: '9px 7px',
       thFont: 12,
-      rowPadY: 7,
-      rowPadX: 8,
-      dateFont: 13,
+      rowPadY: 5,
+      rowPadX: 7,
+      dateFont: 12,
       airlineTextFont: 12,
-      logoHeight: 24,
-      logoMaxWidth: 88,
-      timeFont: 13,
-      baggageFont: 12,
-      baggagePadding: '4px 8px',
-      fareFont: 17,
-      footerPadding: '18px 24px',
-      footerGap: 12,
-      footerBrandGap: 12,
-      footerLogoHeight: 38,
-      footerDividerHeight: 30,
-      footerTitleFont: 18,
-      footerMetaFont: 15,
-      footerMetaGap: 16,
+      logoHeight: 22,
+      logoMaxWidth: 84,
+      timeFont: 12,
+      baggageFont: 11,
+      baggagePadding: '4px 7px',
+      fareFont: 16,
+      footerPadding: '14px 20px',
+      footerGap: 10,
+      footerBrandGap: 10,
+      footerLogoHeight: 34,
+      footerDividerHeight: 26,
+      footerTitleFont: 17,
+      footerMetaFont: 14,
+      footerMetaGap: 12,
     };
   }
 
@@ -1504,6 +1504,56 @@ const VIDEO_POSTER_LAYOUT_PRESETS = Object.freeze({
   }),
 });
 
+function scalePosterMetric(value, factor, min = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return Math.max(min, numeric, Math.round(numeric * factor));
+}
+
+function tunePosterVideoLayoutTypography(layout, rowCount = 0) {
+  if (!layout?.ratioKey) return layout;
+
+  const pageSize = getPosterPageSize('video', layout.ratioKey);
+  const density = pageSize > 0 ? clamp(rowCount / pageSize, 0, 1) : 1;
+  const ratioTextScale = layout.ratioKey === '16x9'
+    ? 1.18
+    : layout.ratioKey === '9x16'
+      ? 1.14
+      : 1.1;
+  const densityBonus = density <= 0.65
+    ? 0.08
+    : density <= 0.82
+      ? 0.04
+      : 0.02;
+  const textScale = ratioTextScale + densityBonus;
+  const fareScale = textScale + (layout.ratioKey === '16x9' ? 0.07 : 0.05);
+  const logoScale = layout.ratioKey === '16x9'
+    ? 1.18
+    : layout.ratioKey === '9x16'
+      ? 1.12
+      : 1.08;
+  const footerScale = layout.ratioKey === '16x9' ? 1.1 : 1.06;
+  const subtitleScale = layout.ratioKey === '16x9' ? 1.1 : 1.08;
+
+  return {
+    ...layout,
+    badgeFont: scalePosterMetric(layout.badgeFont, 1.04),
+    subtitleFont: scalePosterMetric(layout.subtitleFont, subtitleScale),
+    thFont: scalePosterMetric(layout.thFont, textScale),
+    dateFont: scalePosterMetric(layout.dateFont, textScale),
+    airlineTextFont: scalePosterMetric(layout.airlineTextFont, textScale),
+    logoHeight: scalePosterMetric(layout.logoHeight, logoScale),
+    logoMaxWidth: scalePosterMetric(layout.logoMaxWidth, logoScale),
+    timeFont: scalePosterMetric(layout.timeFont, textScale),
+    baggageFont: scalePosterMetric(layout.baggageFont, textScale),
+    fareFont: scalePosterMetric(layout.fareFont, fareScale),
+    footerLogoHeight: scalePosterMetric(layout.footerLogoHeight, 1.08),
+    footerDividerHeight: scalePosterMetric(layout.footerDividerHeight, 1.08),
+    footerTitleFont: scalePosterMetric(layout.footerTitleFont, footerScale),
+    footerMetaFont: scalePosterMetric(layout.footerMetaFont, footerScale),
+  };
+}
+
 function getPosterVideoLayoutProfile(ratioKey, rowCount = 0) {
   const normalizedRatio = normalizeRatioKey(ratioKey);
   const preset = getSlideshowPreset(normalizedRatio);
@@ -1511,7 +1561,7 @@ function getPosterVideoLayoutProfile(ratioKey, rowCount = 0) {
   const ratioPreset = VIDEO_POSTER_LAYOUT_PRESETS[normalizedRatio] || VIDEO_POSTER_LAYOUT_PRESETS['1x1'];
   const variant = ratioPreset[layout.key] || ratioPreset.capacity;
 
-  return {
+  return tunePosterVideoLayoutTypography({
     ...layout,
     ...variant,
     ratioKey: normalizedRatio,
@@ -1523,7 +1573,7 @@ function getPosterVideoLayoutProfile(ratioKey, rowCount = 0) {
     heroOpacity: ratioPreset.heroOpacity ?? 0.2,
     headerContentMaxWidth: ratioPreset.headerContentMaxWidth ?? layout.headerContentMaxWidth,
     titleMaxWidth: ratioPreset.titleMaxWidth ?? layout.titleMaxWidth,
-  };
+  }, rowCount);
 }
 
 function getPosterRowHeightCap(layout, rowCount = 0) {
@@ -1607,6 +1657,27 @@ function balancePosterTableRows(frameEl, layout, rowCount, renderMode = 'preview
     row.querySelectorAll('td').forEach((cell) => {
       cell.style.verticalAlign = 'middle';
     });
+  });
+}
+
+function getPosterFrameLayout(frameEl) {
+  if (!frameEl) return null;
+  const rowCount = Number(frameEl.dataset.posterRowCount || 0);
+  const renderMode = frameEl.dataset.posterRenderMode === 'video' ? 'video' : 'preview';
+  const ratioKey = frameEl.dataset.posterRatio || '';
+  return renderMode === 'video'
+    ? getPosterVideoLayoutProfile(ratioKey, rowCount)
+    : getPosterLayoutProfile(rowCount);
+}
+
+function rebalancePosterStackFrames(stack) {
+  const frames = stack ? Array.from(stack.querySelectorAll('[data-poster-frame="1"]')) : [];
+  frames.forEach((frameEl) => {
+    const layout = getPosterFrameLayout(frameEl);
+    const rowCount = Number(frameEl.dataset.posterRowCount || 0);
+    const renderMode = frameEl.dataset.posterRenderMode === 'video' ? 'video' : 'preview';
+    if (!layout || !rowCount) return;
+    balancePosterTableRows(frameEl, layout, rowCount, renderMode);
   });
 }
 
@@ -3922,6 +3993,8 @@ async function renderPoster(fares, selection) {
 
   container.classList.remove('hidden');
   container.classList.add('flex');
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  rebalancePosterStackFrames(stack);
 }
 
 const COLOR_FUNC_RE = /(oklch|oklab|lab|lch|color-mix|color\()/i;
