@@ -1515,28 +1515,28 @@ function buildPosterClipboardSections(fares, selection) {
   });
 
   const sectorIds = getPosterSelectionRenderSectorIds(faresBySector, selection);
-  const maxDateLabelLength = Math.max(
-    6,
-    ...sortedFares.map((fare) => formatPosterClipboardDate(fare.flightDate).length),
-  );
-  const maxAirlineLabelLength = Math.max(
-    'AIRLINE'.length,
-    ...sortedFares.map((fare) => {
-      const airline = getAirline(fare.airlineId);
-      return formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE').length;
-    }),
-  );
 
   return sectorIds.map((sectorId) => {
     const sectionFares = faresBySector.get(sectorId) || [];
     if (!sectionFares.length) return null;
 
     const heading = getPosterClipboardSectorHeading(sectorId);
+    const maxDateLabelLength = Math.max(
+      6,
+      ...sectionFares.map((fare) => formatPosterClipboardDate(fare.flightDate).length),
+    );
+    const maxAirlineLabelLength = Math.max(
+      'AIRLINE'.length,
+      ...sectionFares.map((fare) => {
+        const airline = getAirline(fare.airlineId);
+        return formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE').length;
+      }),
+    );
     const lines = sectionFares.map((fare) => {
       const airline = getAirline(fare.airlineId);
       const airlineLabel = formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE');
       const dateLabel = formatPosterClipboardDate(fare.flightDate).padEnd(maxDateLabelLength, ' ');
-      return `${dateLabel}  ${airlineLabel.padEnd(maxAirlineLabelLength, ' ')} = ${formatPosterClipboardRate(fare.finalRate)}`;
+      return `${dateLabel} ${airlineLabel.padEnd(maxAirlineLabelLength, ' ')} = ${formatPosterClipboardRate(fare.finalRate)}`;
     });
 
     return { heading, lines };
