@@ -6,7 +6,7 @@
  * Each platform requires its own `metadata` shape:
  *   - instagram: { type: post|reel, shouldShareToFeed: true }
  *                { type: story, shouldShareToFeed: false }
- *   - facebook:  { type: post } // story publishing intentionally disabled
+ *   - facebook:  { type: post|reel } // story publishing intentionally disabled
  *   - youtube:   { title, categoryId }
  */
 
@@ -53,8 +53,12 @@ function buildAssets({ mediaType, mediaUrls }) {
  * Build per-platform metadata. `ratio` is the video aspect ("1x1", "9x16",
  * "16x9"); null for images. `postType` is "feed" (default) or "story".
  */
-function buildMetadata({ platform, mediaType, text, postType, youtubeTitle }) {
+function buildMetadata({ platform, mediaType, text, postType, youtubeTitle, ratio }) {
   const normalizedPlatform = String(platform || "").trim().toLowerCase();
+  const normalizedRatio = String(ratio || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[x:×]/g, "x");
 
   if (normalizedPlatform === "instagram") {
     if (postType === "story") {
@@ -65,7 +69,8 @@ function buildMetadata({ platform, mediaType, text, postType, youtubeTitle }) {
     return { instagram: { type, shouldShareToFeed: true } };
   }
   if (normalizedPlatform === "facebook") {
-    return { facebook: { type: "post" } };
+    const type = mediaType === "video" && normalizedRatio === "9x16" ? "reel" : "post";
+    return { facebook: { type } };
   }
   if (normalizedPlatform === "youtube") {
     // YouTube requires title + categoryId. Fall back to a sensible title.
@@ -92,6 +97,7 @@ function buildMetadata({ platform, mediaType, text, postType, youtubeTitle }) {
  * @param {string} params.text
  * @param {string[]} params.mediaUrls — one or more media URLs
  * @param {'image'|'video'} params.mediaType
+ * @param {string} [params.ratio]
  * @param {'feed'|'story'} [params.postType='feed']
  * @param {string} [params.youtubeTitle]
  * @returns {Promise<{ ok: boolean, postId?: string, error?: string }>}
@@ -103,6 +109,7 @@ async function createPostOnChannel({
   text,
   mediaUrls,
   mediaType,
+  ratio = "",
   postType = "feed",
   youtubeTitle = "",
 }) {
@@ -116,7 +123,7 @@ async function createPostOnChannel({
     channelId,
     text: text || "",
     assets: buildAssets({ mediaType, mediaUrls }),
-    metadata: buildMetadata({ platform: normalizedPlatform, mediaType, text, postType, youtubeTitle }),
+    metadata: buildMetadata({ platform: normalizedPlatform, mediaType, text, postType, youtubeTitle, ratio }),
   };
 
   try {

@@ -41,6 +41,7 @@ import {
   resolveSectorMarketKey,
   getSectorRouteCodes,
 } from './social-markets.js';
+import { appendVideoSlidesLimited } from './social-image-carousels.js';
 import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
 
 // ── Global State ──────────────────────────────────────────────────────────────
@@ -2679,6 +2680,9 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame,
 
   const renderMode = options?.renderMode === 'video' ? 'video' : 'preview';
   const renderRatioKey = renderMode === 'video' ? normalizeRatioKey(options?.ratioKey) : '';
+  const pageSizeOverride = Number.isFinite(Number(options?.pageSizeOverride)) && Number(options?.pageSizeOverride) > 0
+    ? Math.max(1, Math.floor(Number(options.pageSizeOverride)))
+    : 0;
 
   if (stack.__posterLogoBlobMap) {
     releasePosterLogoBlobMap(stack.__posterLogoBlobMap);
@@ -2795,7 +2799,7 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame,
     const sectorIdsToRender = getPosterSelectionRenderSectorIds(faresBySector, selection);
 
     const framesToRender = [];
-    const pageSize = getPosterPageSize(renderMode, renderRatioKey);
+    const pageSize = pageSizeOverride || getPosterPageSize(renderMode, renderRatioKey);
     sectorIdsToRender.forEach((sid) => {
       const frameFares = faresBySector.get(sid) || [];
       if (!frameFares.length) return;
@@ -2939,26 +2943,41 @@ function getVideoProgressMessage(progress = {}) {
   }
 }
 
-async function buildVideoPosterSlides(ratio, fares, sectorId, sectors, { onProgress } = {}) {
+async function buildVideoPosterSlides(ratio, fares, selection, sectors, {
+  onProgress,
+  pageSizeOverride = 0,
+  maxSlides = 0,
+  sectorSlugOverride = '',
+} = {}) {
   const ratioKey = normalizeRatioKey(ratio);
   const preset = getSlideshowPreset(ratioKey);
   const workspace = createOffscreenPosterWorkspace({ frameWidth: preset.width });
   try {
     const frames = await populatePosterRenderStack(
       fares,
-      sectorId,
+      selection,
       workspace.stack,
       workspace.templateFrame,
-      { renderMode: 'video', ratioKey }
+      {
+        renderMode: 'video',
+        ratioKey,
+        pageSizeOverride,
+      }
     );
-    if (!frames.length) {
+    const limitedFrames = maxSlides > 0
+      ? appendVideoSlidesLimited([], frames, maxSlides)
+      : frames;
+    if (!limitedFrames.length) {
       throw new Error('No poster slides were generated for this video.');
     }
 
-    const sectorCode = frames[0]?.dataset.sectorCode
-      || sectors?.find?.((sector) => sector.id === sectorId)?.sectorCode
-      || sectorId;
-    const total = frames.length;
+    const selectionId = typeof selection === 'string' ? selection : selection?.rawValue || '';
+    const sectorCode = sectorSlugOverride
+      || limitedFrames[0]?.dataset.sectorCode
+      || sectors?.find?.((sector) => sector.id === selectionId)?.sectorCode
+      || selectionId
+      || 'sector';
+    const total = limitedFrames.length;
     const slides = [];
 
     reportVideoProgress(onProgress, {
@@ -2969,7 +2988,7 @@ async function buildVideoPosterSlides(ratio, fares, sectorId, sectors, { onProgr
     });
 
     for (let index = 0; index < total; index += 1) {
-      const frame = frames[index];
+      const frame = limitedFrames[index];
       reportVideoProgress(onProgress, {
         phase: 'preparing',
         current: index + 1,
@@ -2985,7 +3004,7 @@ async function buildVideoPosterSlides(ratio, fares, sectorId, sectors, { onProgr
         fullFrame: true,
         page: Number(frame.dataset.posterPage || index + 1),
         pageTotal: Number(frame.dataset.posterPageCount || total),
-        sectorId: frame.dataset.sectorId || sectorId,
+        sectorId: frame.dataset.sectorId || selectionId,
         sectorCode: frame.dataset.sectorCode || sectorCode,
       });
     }
@@ -3004,8 +3023,19 @@ function reportVideoProgress(callback, payload) {
 }
 
 async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
-  const { onProgress, ...videoOptions } = options || {};
-  const preparedSlides = await buildVideoPosterSlides(ratio, fares, sectorId, sectors, { onProgress });
+  const {
+    onProgress,
+    pageSizeOverride = 0,
+    maxSlides = 0,
+    sectorSlugOverride = '',
+    ...videoOptions
+  } = options || {};
+  const preparedSlides = await buildVideoPosterSlides(ratio, fares, sectorId, sectors, {
+    onProgress,
+    pageSizeOverride,
+    maxSlides,
+    sectorSlugOverride,
+  });
   return renderVideoPoster({
     ratio,
     slides: preparedSlides.slides,

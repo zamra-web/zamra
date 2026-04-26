@@ -658,6 +658,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
       text: doc.caption || "",
       mediaUrls,
       mediaType,
+      ratio: doc.ratio || "",
       postType: "feed",
       youtubeTitle: doc.youtubeTitle || "",
     });

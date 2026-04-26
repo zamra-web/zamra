@@ -34,3 +34,37 @@ test("buildMetadata includes shouldShareToFeed false for instagram stories", () 
     },
   });
 });
+
+test("buildMetadata publishes 9x16 facebook videos as reels", () => {
+  const metadata = buildMetadata({
+    platform: "facebook",
+    mediaType: "video",
+    ratio: "9x16",
+    text: "Saudi reels",
+    postType: "feed",
+    youtubeTitle: "",
+  });
+
+  assert.deepEqual(metadata, {
+    facebook: {
+      type: "reel",
+    },
+  });
+});
+
+test("buildMetadata keeps non-9x16 facebook videos as regular posts", () => {
+  const metadata = buildMetadata({
+    platform: "facebook",
+    mediaType: "video",
+    ratio: "16x9",
+    text: "Saudi widescreen video",
+    postType: "feed",
+    youtubeTitle: "",
+  });
+
+  assert.deepEqual(metadata, {
+    facebook: {
+      type: "post",
+    },
+  });
+});

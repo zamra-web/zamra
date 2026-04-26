@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 
 import {
   appendCarouselItemsLimited,
+  appendVideoSlidesLimited,
   buildMarketCountryGroups,
   formatCountryCarouselCaption,
+  formatCountryVideoCaption,
+  formatCountryVideoYouTubeTitle,
   POSTER_SOCIAL_IMAGE_MAX_ITEMS,
+  POSTER_SOCIAL_VIDEO_MAX_SLIDES,
 } from '../src/js/admin/social-image-carousels.js';
 import {
   resolveSectorCountryKey,
@@ -82,6 +86,40 @@ test('appendCarouselItemsLimited preserves order and caps at ten images', () => 
   ]);
 });
 
+test('appendVideoSlidesLimited preserves slide order and caps country reels at nineteen slides', () => {
+  const saudiSlides = Array.from({ length: 11 }, (_, index) => `saudi-p${index + 1}`);
+  const uaeSlides = Array.from({ length: 12 }, (_, index) => `uae-p${index + 1}`);
+
+  const combined = appendVideoSlidesLimited(
+    appendVideoSlidesLimited([], saudiSlides, POSTER_SOCIAL_VIDEO_MAX_SLIDES),
+    uaeSlides,
+    POSTER_SOCIAL_VIDEO_MAX_SLIDES,
+  );
+
+  assert.equal(combined.length, POSTER_SOCIAL_VIDEO_MAX_SLIDES);
+  assert.deepEqual(combined, [
+    'saudi-p1',
+    'saudi-p2',
+    'saudi-p3',
+    'saudi-p4',
+    'saudi-p5',
+    'saudi-p6',
+    'saudi-p7',
+    'saudi-p8',
+    'saudi-p9',
+    'saudi-p10',
+    'saudi-p11',
+    'uae-p1',
+    'uae-p2',
+    'uae-p3',
+    'uae-p4',
+    'uae-p5',
+    'uae-p6',
+    'uae-p7',
+    'uae-p8',
+  ]);
+});
+
 test('formatCountryCarouselCaption uses the professional India-time template', () => {
   const caption = formatCountryCarouselCaption(
     'ccj',
@@ -96,4 +134,45 @@ test('formatCountryCarouselCaption uses the professional India-time template', (
     'Book now at zamratravels.com',
     'Contact: +91 9846606739',
   ].join('\n'));
+});
+
+test('formatCountryVideoCaption uses country-level copy for reels and widescreen videos', () => {
+  const reelsCaption = formatCountryVideoCaption(
+    'ccj',
+    'saudi',
+    'video9x16',
+    new Date('2026-04-18T06:00:00.000Z'),
+  );
+  const widescreenCaption = formatCountryVideoCaption(
+    'ccj',
+    'saudi',
+    'video16x9',
+    new Date('2026-04-18T06:00:00.000Z'),
+  );
+
+  assert.equal(reelsCaption, [
+    'TODAY (18.04.2026)',
+    'Special fares from Calicut to Saudi!',
+    'Reels + Shorts ready from Zamra Travels.',
+    'Book now at zamratravels.com',
+    'Contact: +91 9846606739',
+  ].join('\n'));
+
+  assert.equal(widescreenCaption, [
+    'Calicut to Saudi flight deals from Zamra Travels.',
+    'Fresh fares for 18.04.2026.',
+    'Book now at zamratravels.com.',
+    'Contact: +91 9846606739',
+  ].join('\n\n'));
+});
+
+test('formatCountryVideoYouTubeTitle creates country-level shorts and widescreen titles', () => {
+  assert.equal(
+    formatCountryVideoYouTubeTitle('ccj', 'saudi', 'video9x16'),
+    'Calicut to Saudi Shorts | Zamra Travels',
+  );
+  assert.equal(
+    formatCountryVideoYouTubeTitle('ccj', 'saudi', 'video16x9'),
+    'Calicut to Saudi Flight Deals | Zamra Travels',
+  );
 });

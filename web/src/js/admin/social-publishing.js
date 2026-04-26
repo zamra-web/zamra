@@ -2,7 +2,11 @@ import {
   appendCarouselItemsLimited,
   buildMarketCountryGroups,
   formatCountryCarouselCaption,
+  formatCountryVideoCaption,
+  formatCountryVideoYouTubeTitle,
   POSTER_SOCIAL_IMAGE_MAX_ITEMS,
+  POSTER_SOCIAL_VIDEO_MAX_SLIDES,
+  POSTER_SOCIAL_VIDEO_SHARED_PAGE_SIZE,
 } from './social-image-carousels.js';
 
 function escapeHtml(value = '') {
@@ -757,23 +761,28 @@ export function createSocialPublishingController(deps) {
         faresBySector.get(fare.sectorId).push(fare);
       });
 
-      const eligibleSectors = sectorIds
+      const marketSectors = sectorIds
         .map((sid) => deps.getSectors().find((sector) => sector.id === sid))
-        .filter((sector) => sector && (faresBySector.get(sector.id)?.length || 0) > 0);
+        .filter(Boolean);
+      const countryGroups = buildMarketCountryGroups({
+        marketKey,
+        sectors: marketSectors,
+        faresBySector,
+      });
 
-      if (!eligibleSectors.length) {
+      if (!countryGroups.length) {
         deps.toast('warning', 'No Fares', `No live ${market.label} fares found for the selected date range.`);
         return;
       }
 
-      const totalPlanned = eligibleSectors.length * 2;
+      const totalPlanned = countryGroups.length * 2;
       const jobId = await deps.createSocialJob({
         source: 'admin',
         marketKey,
         mediaType: 'video',
         status: 'created',
         currentStage: 'rendering',
-        lastMessage: `Rendering ${totalPlanned} ${market.label} video uploads.`,
+        lastMessage: `Rendering ${countryGroups.length} ${market.label} country video batches.`,
         requestedBy: deps.getRequestedBy(),
         filters: { startDate, endDate, marketKey, sectorIds },
         plannedItems: totalPlanned,
@@ -789,31 +798,44 @@ export function createSocialPublishingController(deps) {
         partialItems: 0,
       };
 
-      for (let index = 0; index < eligibleSectors.length; index += 1) {
-        const sector = eligibleSectors[index];
-        const sectorCode = sector.sectorCode || sector.id;
-        const sectorFares = faresBySector.get(sector.id) || [];
+      for (let index = 0; index < countryGroups.length; index += 1) {
+        const group = countryGroups[index];
+        const countryLabel = group.countryLabel;
+        const countrySelection = {
+          rawValue: '',
+          kind: 'country',
+          label: countryLabel,
+          sectorIds: group.sectors.map((sector) => sector.id),
+        };
+        let countryFares = [];
+        group.sectors.forEach((sector) => {
+          const sectorFares = faresBySector.get(sector.id) || [];
+          countryFares = countryFares.concat(sectorFares);
+        });
+        const slugBase = deps.fileSafeSlug(`${market.key}-${group.countryKey}`) || `${market.key}-${group.countryKey}`;
         const variants = [
           {
             ratio: '9x16',
-            label: `${sectorCode} · 9:16`,
+            label: `${countryLabel} · 9:16`,
             platforms: ['instagram', 'facebook', 'youtube'],
             captionType: 'video9x16',
           },
           {
             ratio: '16x9',
-            label: `${sectorCode} · 16:9`,
+            label: `${countryLabel} · 16:9`,
             platforms: ['youtube'],
             captionType: 'video16x9',
           },
         ];
 
         for (const variant of variants) {
+          const caption = formatCountryVideoCaption(marketKey, group.countryKey, variant.captionType);
+          const youtubeTitle = formatCountryVideoYouTubeTitle(marketKey, group.countryKey, variant.captionType);
           const itemId = await deps.createSocialJobItem(jobId, {
             source: 'admin',
             label: variant.label,
-            sectorId: sector.id,
-            sectorCode,
+            sectorId: '',
+            sectorCode: '',
             marketKey,
             mediaType: 'video',
             ratio: variant.ratio,
@@ -821,12 +843,12 @@ export function createSocialPublishingController(deps) {
             stage: 'rendering',
             lastMessage: `Rendering ${variant.label}…`,
             platforms: variant.platforms,
-            caption: deps.formatPosterSocialCaption(sector, marketKey, variant.captionType),
-            youtubeTitle: deps.formatPosterSocialYouTubeTitle(sector, marketKey, variant.captionType),
+            caption,
+            youtubeTitle,
           });
 
           try {
-            setInlineProgress(`Rendering ${index + 1}/${eligibleSectors.length} · ${variant.label}`);
+            setInlineProgress(`Rendering ${index + 1}/${countryGroups.length} · ${variant.label}`);
             await syncJobSnapshot(jobId, counts, {
               currentStage: 'rendering',
               currentItemLabel: variant.label,
@@ -834,17 +856,20 @@ export function createSocialPublishingController(deps) {
             });
             const result = await deps.downloadVideoPoster(
               variant.ratio,
-              sectorFares,
-              sector.id,
+              countryFares,
+              countrySelection,
               deps.getSectors(),
               deps.getAirlines(),
               {
                 autoDownload: false,
                 returnBlob: true,
                 requireMp4: true,
+                pageSizeOverride: POSTER_SOCIAL_VIDEO_SHARED_PAGE_SIZE,
+                maxSlides: POSTER_SOCIAL_VIDEO_MAX_SLIDES,
+                sectorSlugOverride: slugBase,
                 onProgress: (progress) => {
                   const detail = progress?.message || 'Processing video…';
-                  setInlineProgress(`${index + 1}/${eligibleSectors.length} · ${variant.label} · ${detail}`);
+                  setInlineProgress(`${index + 1}/${countryGroups.length} · ${variant.label} · ${detail}`);
                 },
               },
             );
@@ -864,20 +889,19 @@ export function createSocialPublishingController(deps) {
               lastMessage: `Uploading ${variant.label} to Firebase Storage…`,
             });
 
-            const filename = `${deps.fileSafeSlug(sectorCode)}-${variant.ratio}-${Date.now()}.mp4`;
-            const caption = deps.formatPosterSocialCaption(sector, marketKey, variant.captionType);
+            const filename = `${slugBase}-${variant.ratio}-${Date.now()}.mp4`;
             const upload = await deps.uploadAndQueueForSocial(result.blob, filename, {
               source: 'admin',
               jobId,
               jobItemId: itemId,
               label: variant.label,
-              sectorId: sector.id,
-              sectorCode,
+              sectorId: '',
+              sectorCode: '',
               marketKey,
               mediaType: 'video',
               ratio: variant.ratio,
               caption,
-              youtubeTitle: deps.formatPosterSocialYouTubeTitle(sector, marketKey, variant.captionType),
+              youtubeTitle,
               platforms: variant.platforms,
               lastMessage: 'Uploaded and waiting for Buffer dispatch.',
             });
@@ -893,7 +917,7 @@ export function createSocialPublishingController(deps) {
               mediaUrls: upload.mediaUrl ? [upload.mediaUrl] : [],
               filename,
               caption,
-              youtubeTitle: deps.formatPosterSocialYouTubeTitle(sector, marketKey, variant.captionType),
+              youtubeTitle,
               lastMessage: 'Uploaded and waiting for Buffer dispatch.',
             });
             await syncJobSnapshot(jobId, counts, {
@@ -923,19 +947,19 @@ export function createSocialPublishingController(deps) {
         status: 'created',
         currentStage: counts.queuedItems ? 'waiting_dispatch' : 'failed',
         lastMessage: counts.queuedItems
-          ? `Queued ${counts.queuedItems} ${market.label} video upload${counts.queuedItems > 1 ? 's' : ''} for dispatch.`
-          : `No ${market.label} videos were queued.`,
+          ? `Queued ${counts.queuedItems} ${market.label} country video upload${counts.queuedItems > 1 ? 's' : ''} for dispatch.`
+          : `No ${market.label} country videos were queued.`,
       });
 
       await runDispatcherSoon();
 
       if (!counts.queuedItems) {
-        deps.toast('warning', 'Queue Failed', `No ${market.label} videos were queued.`);
+        deps.toast('warning', 'Queue Failed', `No ${market.label} country videos were queued.`);
         return;
       }
 
       const failureNote = counts.failedItems ? ` ${counts.failedItems} render${counts.failedItems > 1 ? 's' : ''} failed.` : '';
-      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} video upload${counts.queuedItems > 1 ? 's' : ''} queued.${failureNote}`);
+      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} country video upload${counts.queuedItems > 1 ? 's' : ''} queued.${failureNote}`);
     } catch (error) {
       console.error('queueMarketVideosForSocial:', error);
       deps.toast('error', 'Queue Failed', error.message || 'Failed to queue airport videos.');
