@@ -1526,6 +1526,90 @@ function getPosterVideoLayoutProfile(ratioKey, rowCount = 0) {
   };
 }
 
+function getPosterRowHeightCap(layout, rowCount = 0) {
+  const rowPadY = Number(layout?.rowPadY) || 0;
+  const logoHeight = Number(layout?.logoHeight) || 0;
+  const fareFont = Number(layout?.fareFont) || 0;
+  const timeFont = Number(layout?.timeFont) || 0;
+  const baggageFont = Number(layout?.baggageFont) || 0;
+  const contentBase = Math.max(
+    logoHeight + (rowPadY * 2) + 6,
+    fareFont + (rowPadY * 2) + 10,
+    timeFont + (rowPadY * 2) + 10,
+    baggageFont + (rowPadY * 2) + 16,
+    40,
+  );
+
+  const ratioBonus = layout?.ratioKey === '9x16'
+    ? 10
+    : layout?.ratioKey === '16x9'
+      ? 4
+      : layout?.ratioKey === '1x1'
+        ? 8
+        : 6;
+
+  const sparseBonus = rowCount <= 4
+    ? 28
+    : rowCount <= 7
+      ? 16
+      : 10;
+
+  return Math.round(contentBase + ratioBonus + sparseBonus);
+}
+
+function balancePosterTableRows(frameEl, layout, rowCount, renderMode = 'preview') {
+  if (!frameEl || !layout || !rowCount) return;
+
+  const tableShell = frameEl.querySelector('[data-poster-table-shell]');
+  const table = tableShell?.querySelector('table');
+  const tbody = frameEl.querySelector('[data-poster-tbody]') || frameEl.querySelector('#poster-fares-tbody');
+  if (!tableShell || !table || !tbody) return;
+
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (!rows.length) return;
+
+  const headerHeight = table.querySelector('thead')?.getBoundingClientRect().height || 0;
+  const shellHeight = tableShell.getBoundingClientRect().height || 0;
+  if (!shellHeight) return;
+
+  const naturalHeights = rows
+    .map((row) => row.getBoundingClientRect().height)
+    .filter((height) => height > 0);
+  const naturalRowHeight = naturalHeights.length
+    ? naturalHeights.reduce((sum, height) => sum + height, 0) / naturalHeights.length
+    : 0;
+
+  const pageSize = getPosterPageSize(renderMode, layout?.ratioKey || '');
+  const density = pageSize > 0 ? rowCount / pageSize : 1;
+  const bottomReserve = density >= 0.92 ? 0 : density >= 0.75 ? 8 : 16;
+  const availableBodyHeight = Math.max(0, shellHeight - headerHeight - bottomReserve);
+  if (!availableBodyHeight) return;
+
+  const idealRowHeight = availableBodyHeight / rows.length;
+  const minRowHeight = Math.max(
+    naturalRowHeight,
+    Number(layout?.logoHeight || 0) + (Number(layout?.rowPadY || 0) * 2),
+    38,
+  );
+  const maxRowHeight = getPosterRowHeightCap(layout, rowCount);
+  const shouldFullyFill = density >= 0.8;
+  const targetRowHeight = shouldFullyFill
+    ? Math.max(minRowHeight, idealRowHeight)
+    : Math.max(minRowHeight, Math.min(idealRowHeight, maxRowHeight));
+
+  if (!Number.isFinite(targetRowHeight) || targetRowHeight <= 0) return;
+
+  table.style.width = '100%';
+  table.style.height = shouldFullyFill ? '100%' : 'auto';
+
+  rows.forEach((row) => {
+    row.style.height = `${Math.round(targetRowHeight)}px`;
+    row.querySelectorAll('td').forEach((cell) => {
+      cell.style.verticalAlign = 'middle';
+    });
+  });
+}
+
 function resolvePosterTitleFontSize(originName, destName, layout) {
   const compactOrigin = String(originName || '').replace(/\s+/g, '');
   const compactDest = String(destName || '').replace(/\s+/g, '');
@@ -2627,6 +2711,7 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame,
       });
 
       tbody.innerHTML = rows.join('');
+      balancePosterTableRows(frameEl, layout, frameFares.length, renderMode);
     };
 
     const faresBySector = new Map();
