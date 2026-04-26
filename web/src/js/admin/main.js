@@ -37,6 +37,7 @@ import {
   getPosterSocialMarket,
   getPosterSocialMarketPlatforms,
   listPosterSocialMarkets,
+  resolveSectorCountryKey,
   resolveSectorMarketKey,
   getSectorRouteCodes,
 } from './social-markets.js';
@@ -1561,7 +1562,111 @@ function buildPosterClipboardPayload(fares, selection) {
   return { text, html };
 }
 
-async function copyPosterText() {
+function countPosterClipboardRoutes(fares = []) {
+  return new Set(
+    fares
+      .map((fare) => String(fare?.sectorId || '').trim())
+      .filter(Boolean)
+  ).size;
+}
+
+function buildPosterClipboardScopes(preview = _lastPosterPreview) {
+  if (!preview?.fares?.length) return [];
+
+  const fares = Array.isArray(preview.fares) ? preview.fares.filter(Boolean) : [];
+  if (!fares.length) return [];
+
+  const selection = preview.selection?.kind ? preview.selection : resolvePosterSectorSelection(preview.selection);
+  const routeCount = countPosterClipboardRoutes(fares);
+  const scopes = [{
+    key: 'all',
+    label: 'Copy All Routes',
+    meta: `${routeCount} route${routeCount === 1 ? '' : 's'} · ${fares.length} fare${fares.length === 1 ? '' : 's'}`,
+    successMessage: 'Poster text copied to clipboard.',
+    fares,
+    selection,
+  }];
+
+  const shortcutKey = String(selection?.key || '').trim().toLowerCase();
+  if (selection?.kind !== 'shortcut' || !shortcutKey.startsWith('airport-')) {
+    return scopes;
+  }
+
+  const marketKey = shortcutKey.slice('airport-'.length);
+  const airportCode = String(getPosterSocialMarket(marketKey)?.airports?.[0] || '').trim().toUpperCase();
+  if (!marketKey || !airportCode) return scopes;
+
+  const sectorById = new Map(_sectors.map((sector) => [sector.id, sector]));
+  listPosterSocialCountries().forEach((country) => {
+    const scopedFares = fares.filter((fare) => {
+      const sector = sectorById.get(fare.sectorId);
+      if (!sector) return false;
+      return resolveSectorMarketKey(sector) === marketKey && resolveSectorCountryKey(sector) === country.key;
+    });
+    if (!scopedFares.length) return;
+
+    const scopedRouteCount = countPosterClipboardRoutes(scopedFares);
+    if (scopedRouteCount === routeCount && scopedFares.length === fares.length) return;
+
+    scopes.push({
+      key: `country:${country.key}`,
+      label: `Copy ${airportCode} to ${country.label}`,
+      meta: `${scopedRouteCount} route${scopedRouteCount === 1 ? '' : 's'} · ${scopedFares.length} fare${scopedFares.length === 1 ? '' : 's'}`,
+      successMessage: `${airportCode} to ${country.label} text copied to clipboard.`,
+      fares: scopedFares,
+      selection,
+    });
+  });
+
+  return scopes;
+}
+
+function renderPosterCopyMenu() {
+  const wrapper = document.querySelector('[data-poster-copy-menu]');
+  const toggle = wrapper?.querySelector('[data-poster-copy-toggle]');
+  const caret = wrapper?.querySelector('[data-poster-copy-caret]');
+  const menu = wrapper?.querySelector('[data-poster-copy-options]');
+  const scopes = buildPosterClipboardScopes();
+  const hasScopedOptions = scopes.length > 1;
+
+  if (toggle) {
+    toggle.setAttribute('aria-haspopup', hasScopedOptions ? 'menu' : 'false');
+    if (!hasScopedOptions) toggle.setAttribute('aria-expanded', 'false');
+  }
+  if (caret) caret.classList.toggle('hidden', !hasScopedOptions);
+
+  if (!menu) return scopes;
+
+  if (!hasScopedOptions) {
+    menu.classList.add('hidden');
+    menu.innerHTML = '';
+    return scopes;
+  }
+
+  const [allScope, ...countryScopes] = scopes;
+  const renderScopeButton = (scope) => `
+    <button type="button"
+      class="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0"
+      data-poster-copy-scope="${escapeHtml(scope.key)}">
+      <span class="block text-sm font-semibold text-navy">${escapeHtml(scope.label)}</span>
+      <span class="block text-[11px] font-medium text-slate-500 mt-0.5">${escapeHtml(scope.meta)}</span>
+    </button>
+  `;
+
+  menu.innerHTML = `
+    <div class="py-1">
+      ${renderScopeButton(allScope)}
+      <div class="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        Country Copy
+      </div>
+      ${countryScopes.map(renderScopeButton).join('')}
+    </div>
+  `;
+
+  return scopes;
+}
+
+async function copyPosterText(scopeKey = 'all') {
   if (!_lastPosterPreview?.fares?.length) {
     toast('warning', 'No Poster', 'Generate a poster first before copying its text.');
     return;
@@ -1569,7 +1674,9 @@ async function copyPosterText() {
 
   const btn = document.getElementById('poster-copy-text');
   const originalHtml = btn?.innerHTML || '<i class="bi bi-clipboard"></i> Copy Text';
-  const { text, html } = buildPosterClipboardPayload(_lastPosterPreview.fares, _lastPosterPreview.selection);
+  const scopes = buildPosterClipboardScopes();
+  const scope = scopes.find((item) => item.key === scopeKey) || scopes[0];
+  const { text, html } = buildPosterClipboardPayload(scope?.fares || [], scope?.selection || _lastPosterPreview.selection);
 
   if (!text) {
     toast('warning', 'No Poster', 'Generate a poster first before copying its text.');
@@ -1583,7 +1690,7 @@ async function copyPosterText() {
 
   try {
     await writeTextToClipboard(text, html);
-    toast('success', 'Copied!', 'Poster text copied to clipboard.');
+    toast('success', 'Copied!', scope?.successMessage || 'Poster text copied to clipboard.');
   } catch (err) {
     toast('error', 'Copy Failed', err.message || 'Clipboard access is unavailable.');
   } finally {
@@ -1591,6 +1698,7 @@ async function copyPosterText() {
       btn.disabled = false;
       btn.innerHTML = originalHtml;
     }
+    renderPosterCopyMenu();
   }
 }
 
@@ -2261,6 +2369,60 @@ function wirePosterVideoMenu() {
   });
 }
 
+function wirePosterCopyMenu() {
+  const wrapper = document.querySelector('[data-poster-copy-menu]');
+  if (!wrapper || wrapper.dataset.wired) return;
+  wrapper.dataset.wired = '1';
+
+  const toggle = wrapper.querySelector('[data-poster-copy-toggle]');
+  const menu = wrapper.querySelector('[data-poster-copy-options]');
+  if (!toggle || !menu) return;
+
+  const isOpen = () => !menu.classList.contains('hidden');
+  const closeMenu = () => {
+    menu.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
+  renderPosterCopyMenu();
+
+  toggle.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const scopes = renderPosterCopyMenu();
+    if (scopes.length <= 1) {
+      closeMenu();
+      await copyPosterText();
+      return;
+    }
+
+    if (isOpen()) closeMenu();
+    else {
+      menu.classList.remove('hidden');
+      toggle.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  menu.addEventListener('click', async (e) => {
+    const actionBtn = e.target?.closest?.('[data-poster-copy-scope]');
+    if (!actionBtn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    closeMenu();
+    await copyPosterText(actionBtn.dataset.posterCopyScope || 'all');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!wrapper.contains(e.target)) closeMenu();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMenu();
+  });
+}
+
 function wirePosterSocialMenu() {
   const wrapper = document.querySelector('[data-poster-social-menu]');
   if (!wrapper || wrapper.dataset.wired) return;
@@ -2524,6 +2686,8 @@ async function renderDashboardTab() {
   const endInput = document.getElementById('poster-end-date');
   getPosterDateRange(startInput, endInput);
   wirePosterVideoMenu();
+  wirePosterCopyMenu();
+  renderPosterCopyMenu();
 
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');
@@ -2551,6 +2715,7 @@ async function renderDashboardTab() {
         const fares = await getPosterSelectionFares(selection, { startDate, endDate, includeHidden: false });
         if (!fares || !fares.length) {
           _lastPosterPreview = null;
+          renderPosterCopyMenu();
           toast('warning', 'No Fares', `No live fares found for ${selection.label || 'the selected option'} in the selected date range.`);
           document.getElementById('poster-preview-container').classList.add('hidden');
           return;
@@ -2565,7 +2730,6 @@ async function renderDashboardTab() {
     });
 
     // Wire up download buttons
-    document.getElementById('poster-copy-text')?.addEventListener('click', copyPosterText);
     document.getElementById('poster-download-jpg')?.addEventListener('click', () => downloadPoster('jpeg'));
     document.getElementById('poster-download-pdf')?.addEventListener('click', () => downloadPoster('pdf'));
 
@@ -2741,6 +2905,7 @@ async function renderPoster(fares, selection) {
     fares: Array.isArray(fares) ? [...fares] : [],
     selection: selection?.kind ? { ...selection, sectorIds: [...(selection.sectorIds || [])] } : selection,
   };
+  renderPosterCopyMenu();
 
   container.classList.remove('hidden');
   container.classList.add('flex');
