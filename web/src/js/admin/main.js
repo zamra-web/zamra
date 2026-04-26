@@ -873,6 +873,17 @@ function openModal(title, bodyHtml, wide = false) {
 // DASHBOARD TAB — Poster Generator
 // ══════════════════════════════════════════════════════════════════════════════
 const POSTER_MAX_ROWS = 12;
+const VIDEO_POSTER_MAX_ROWS = Object.freeze({
+  '1x1': POSTER_MAX_ROWS,
+  '9x16': 16,
+  '16x9': 9,
+});
+
+function getPosterPageSize(renderMode = 'preview', ratioKey = '') {
+  if (renderMode !== 'video') return POSTER_MAX_ROWS;
+  const normalizedRatio = normalizeRatioKey(ratioKey);
+  return VIDEO_POSTER_MAX_ROWS[normalizedRatio] || POSTER_MAX_ROWS;
+}
 
 function getPosterLayoutProfile(rowCount = 0) {
   if (rowCount >= POSTER_MAX_ROWS) {
@@ -1186,19 +1197,21 @@ const VIDEO_POSTER_LAYOUT_PRESETS = Object.freeze({
     frameShadow: 'none',
     frameBackground: '#f8fafc',
     heroOpacity: 0.22,
+    headerContentMaxWidth: 940,
+    titleMaxWidth: 900,
     sparse: Object.freeze({
       topBarHeight: 18,
-      headerHeight: 408,
-      headerPadX: 68,
+      headerHeight: 388,
+      headerPadX: 62,
       badgePadding: '12px 34px',
       badgeFont: 24,
-      badgeMarginBottom: 24,
-      titleFont: 104,
+      badgeMarginBottom: 20,
+      titleFont: 96,
       titleLineHeight: 1.02,
-      titleMarginBottom: 12,
-      subtitleFont: 30,
-      bodyPadding: '40px 48px 32px',
-      cardPadding: 32,
+      titleMarginBottom: 10,
+      subtitleFont: 28,
+      bodyPadding: '34px 40px 26px',
+      cardPadding: 30,
       cardRadius: 32,
       thPadding: '18px 14px',
       thFont: 18,
@@ -1212,32 +1225,34 @@ const VIDEO_POSTER_LAYOUT_PRESETS = Object.freeze({
       baggageFont: 18,
       baggagePadding: '8px 14px',
       fareFont: 32,
-      footerPadding: '24px 36px',
-      footerGap: 20,
-      footerBrandGap: 18,
-      footerLogoHeight: 52,
-      footerDividerHeight: 40,
-      footerTitleFont: 28,
-      footerMetaFont: 22,
-      footerMetaGap: 24,
+      footerPadding: '20px 28px',
+      footerGap: 18,
+      footerBrandGap: 16,
+      footerLogoHeight: 48,
+      footerDividerHeight: 38,
+      footerTitleFont: 25,
+      footerMetaFont: 20,
+      footerMetaGap: 18,
+      footerMinHeight: 92,
+      tableJustify: 'center',
     }),
     balanced: Object.freeze({
       topBarHeight: 18,
-      headerHeight: 388,
-      headerPadX: 64,
+      headerHeight: 360,
+      headerPadX: 58,
       badgePadding: '11px 32px',
       badgeFont: 23,
-      badgeMarginBottom: 22,
-      titleFont: 100,
+      badgeMarginBottom: 18,
+      titleFont: 92,
       titleLineHeight: 1.02,
-      titleMarginBottom: 12,
-      subtitleFont: 28,
-      bodyPadding: '36px 42px 30px',
-      cardPadding: 30,
+      titleMarginBottom: 10,
+      subtitleFont: 26,
+      bodyPadding: '30px 36px 24px',
+      cardPadding: 28,
       cardRadius: 30,
       thPadding: '17px 13px',
       thFont: 17,
-      rowPadY: 17,
+      rowPadY: 16,
       rowPadX: 13,
       dateFont: 20,
       airlineTextFont: 20,
@@ -1246,85 +1261,89 @@ const VIDEO_POSTER_LAYOUT_PRESETS = Object.freeze({
       timeFont: 20,
       baggageFont: 17,
       baggagePadding: '8px 13px',
-      fareFont: 30,
-      footerPadding: '22px 34px',
-      footerGap: 18,
-      footerBrandGap: 16,
-      footerLogoHeight: 50,
-      footerDividerHeight: 38,
-      footerTitleFont: 26,
-      footerMetaFont: 21,
-      footerMetaGap: 22,
+      fareFont: 29,
+      footerPadding: '18px 24px',
+      footerGap: 16,
+      footerBrandGap: 15,
+      footerLogoHeight: 46,
+      footerDividerHeight: 36,
+      footerTitleFont: 23,
+      footerMetaFont: 18,
+      footerMetaGap: 16,
+      footerMinHeight: 86,
+      tableJustify: 'center',
     }),
     dense: Object.freeze({
       topBarHeight: 16,
-      headerHeight: 360,
-      headerPadX: 58,
+      headerHeight: 330,
+      headerPadX: 52,
       badgePadding: '10px 28px',
       badgeFont: 21,
-      badgeMarginBottom: 18,
-      titleFont: 92,
-      titleLineHeight: 1.03,
-      titleMarginBottom: 10,
-      subtitleFont: 26,
-      bodyPadding: '30px 34px 24px',
-      cardPadding: 24,
-      cardRadius: 28,
-      thPadding: '15px 12px',
-      thFont: 16,
-      rowPadY: 14,
-      rowPadX: 12,
-      dateFont: 18,
-      airlineTextFont: 18,
-      logoHeight: 44,
-      logoMaxWidth: 142,
-      timeFont: 18,
-      baggageFont: 16,
-      baggagePadding: '7px 12px',
-      fareFont: 27,
-      footerPadding: '20px 28px',
-      footerGap: 16,
-      footerBrandGap: 14,
-      footerLogoHeight: 46,
-      footerDividerHeight: 34,
-      footerTitleFont: 24,
-      footerMetaFont: 19,
-      footerMetaGap: 18,
-    }),
-    capacity: Object.freeze({
-      topBarHeight: 16,
-      headerHeight: 330,
-      headerPadX: 54,
-      badgePadding: '9px 26px',
-      badgeFont: 19,
       badgeMarginBottom: 16,
-      titleFont: 84,
+      titleFont: 86,
       titleLineHeight: 1.03,
       titleMarginBottom: 8,
       subtitleFont: 24,
       bodyPadding: '24px 28px 20px',
-      cardPadding: 20,
-      cardRadius: 26,
-      thPadding: '13px 10px',
-      thFont: 15,
-      rowPadY: 11,
-      rowPadX: 10,
-      dateFont: 16,
-      airlineTextFont: 16,
-      logoHeight: 40,
-      logoMaxWidth: 130,
-      timeFont: 16,
+      cardPadding: 22,
+      cardRadius: 28,
+      thPadding: '15px 12px',
+      thFont: 16,
+      rowPadY: 13,
+      rowPadX: 12,
+      dateFont: 17,
+      airlineTextFont: 17,
+      logoHeight: 42,
+      logoMaxWidth: 138,
+      timeFont: 17,
       baggageFont: 15,
-      baggagePadding: '6px 11px',
-      fareFont: 24,
-      footerPadding: '18px 24px',
+      baggagePadding: '7px 12px',
+      fareFont: 25,
+      footerPadding: '16px 20px',
       footerGap: 14,
       footerBrandGap: 14,
       footerLogoHeight: 42,
       footerDividerHeight: 32,
-      footerTitleFont: 22,
-      footerMetaFont: 18,
-      footerMetaGap: 14,
+      footerTitleFont: 21,
+      footerMetaFont: 17,
+      footerMetaGap: 15,
+      footerMinHeight: 80,
+    }),
+    capacity: Object.freeze({
+      topBarHeight: 16,
+      headerHeight: 300,
+      headerPadX: 48,
+      badgePadding: '9px 26px',
+      badgeFont: 18,
+      badgeMarginBottom: 14,
+      titleFont: 78,
+      titleLineHeight: 1.03,
+      titleMarginBottom: 8,
+      subtitleFont: 22,
+      bodyPadding: '18px 20px 16px',
+      cardPadding: 18,
+      cardRadius: 26,
+      thPadding: '12px 10px',
+      thFont: 14,
+      rowPadY: 10,
+      rowPadX: 10,
+      dateFont: 15,
+      airlineTextFont: 15,
+      logoHeight: 36,
+      logoMaxWidth: 122,
+      timeFont: 15,
+      baggageFont: 14,
+      baggagePadding: '5px 10px',
+      fareFont: 22,
+      footerPadding: '14px 16px',
+      footerGap: 12,
+      footerBrandGap: 12,
+      footerLogoHeight: 38,
+      footerDividerHeight: 28,
+      footerTitleFont: 19,
+      footerMetaFont: 15,
+      footerMetaGap: 12,
+      footerMinHeight: 72,
     }),
   }),
   '16x9': Object.freeze({
@@ -1334,145 +1353,153 @@ const VIDEO_POSTER_LAYOUT_PRESETS = Object.freeze({
     frameShadow: 'none',
     frameBackground: '#f8fafc',
     heroOpacity: 0.18,
+    headerContentMaxWidth: 1600,
+    titleMaxWidth: 1540,
     sparse: Object.freeze({
       topBarHeight: 16,
-      headerHeight: 230,
-      headerPadX: 120,
+      headerHeight: 246,
+      headerPadX: 96,
       badgePadding: '10px 32px',
-      badgeFont: 22,
-      badgeMarginBottom: 18,
-      titleFont: 118,
+      badgeFont: 20,
+      badgeMarginBottom: 14,
+      titleFont: 100,
       titleLineHeight: 1.02,
-      titleMarginBottom: 10,
-      subtitleFont: 30,
-      bodyPadding: '28px 58px 20px',
-      cardPadding: 30,
+      titleMarginBottom: 8,
+      subtitleFont: 24,
+      bodyPadding: '18px 42px 14px',
+      cardPadding: 24,
       cardRadius: 30,
-      thPadding: '15px 14px',
-      thFont: 18,
-      rowPadY: 15,
+      thPadding: '14px 12px',
+      thFont: 16,
+      rowPadY: 14,
       rowPadX: 14,
-      dateFont: 20,
-      airlineTextFont: 20,
-      logoHeight: 44,
-      logoMaxWidth: 158,
-      timeFont: 20,
-      baggageFont: 17,
-      baggagePadding: '8px 14px',
-      fareFont: 32,
-      footerPadding: '18px 40px',
-      footerGap: 18,
-      footerBrandGap: 18,
-      footerLogoHeight: 46,
-      footerDividerHeight: 36,
-      footerTitleFont: 28,
-      footerMetaFont: 22,
-      footerMetaGap: 26,
+      dateFont: 18,
+      airlineTextFont: 18,
+      logoHeight: 38,
+      logoMaxWidth: 144,
+      timeFont: 18,
+      baggageFont: 15,
+      baggagePadding: '7px 12px',
+      fareFont: 27,
+      footerPadding: '14px 28px',
+      footerGap: 16,
+      footerBrandGap: 16,
+      footerLogoHeight: 40,
+      footerDividerHeight: 32,
+      footerTitleFont: 23,
+      footerMetaFont: 17,
+      footerMetaGap: 16,
+      footerMinHeight: 72,
+      tableJustify: 'center',
     }),
     balanced: Object.freeze({
       topBarHeight: 16,
-      headerHeight: 220,
-      headerPadX: 110,
+      headerHeight: 230,
+      headerPadX: 92,
       badgePadding: '9px 30px',
-      badgeFont: 20,
-      badgeMarginBottom: 16,
-      titleFont: 110,
-      titleLineHeight: 1.02,
-      titleMarginBottom: 10,
-      subtitleFont: 28,
-      bodyPadding: '24px 52px 18px',
-      cardPadding: 28,
-      cardRadius: 28,
-      thPadding: '14px 13px',
-      thFont: 17,
-      rowPadY: 14,
-      rowPadX: 12,
-      dateFont: 19,
-      airlineTextFont: 19,
-      logoHeight: 42,
-      logoMaxWidth: 150,
-      timeFont: 19,
-      baggageFont: 16,
-      baggagePadding: '7px 13px',
-      fareFont: 30,
-      footerPadding: '18px 36px',
-      footerGap: 16,
-      footerBrandGap: 16,
-      footerLogoHeight: 44,
-      footerDividerHeight: 34,
-      footerTitleFont: 26,
-      footerMetaFont: 21,
-      footerMetaGap: 22,
-    }),
-    dense: Object.freeze({
-      topBarHeight: 14,
-      headerHeight: 208,
-      headerPadX: 100,
-      badgePadding: '8px 26px',
       badgeFont: 18,
       badgeMarginBottom: 14,
-      titleFont: 98,
-      titleLineHeight: 1.03,
+      titleFont: 96,
+      titleLineHeight: 1.02,
       titleMarginBottom: 8,
-      subtitleFont: 25,
-      bodyPadding: '20px 42px 16px',
+      subtitleFont: 23,
+      bodyPadding: '18px 38px 14px',
       cardPadding: 22,
-      cardRadius: 26,
-      thPadding: '12px 11px',
-      thFont: 16,
-      rowPadY: 11,
-      rowPadX: 10,
+      cardRadius: 28,
+      thPadding: '13px 12px',
+      thFont: 15,
+      rowPadY: 12,
+      rowPadX: 12,
       dateFont: 17,
       airlineTextFont: 17,
-      logoHeight: 38,
+      logoHeight: 36,
       logoMaxWidth: 136,
       timeFont: 17,
       baggageFont: 15,
-      baggagePadding: '6px 12px',
-      fareFont: 26,
-      footerPadding: '16px 30px',
+      baggagePadding: '7px 13px',
+      fareFont: 25,
+      footerPadding: '14px 24px',
       footerGap: 14,
       footerBrandGap: 14,
-      footerLogoHeight: 40,
-      footerDividerHeight: 32,
-      footerTitleFont: 24,
-      footerMetaFont: 18,
-      footerMetaGap: 18,
+      footerLogoHeight: 38,
+      footerDividerHeight: 30,
+      footerTitleFont: 21,
+      footerMetaFont: 16,
+      footerMetaGap: 14,
+      footerMinHeight: 68,
+      tableJustify: 'center',
+    }),
+    dense: Object.freeze({
+      topBarHeight: 14,
+      headerHeight: 212,
+      headerPadX: 88,
+      badgePadding: '8px 26px',
+      badgeFont: 17,
+      badgeMarginBottom: 12,
+      titleFont: 88,
+      titleLineHeight: 1.03,
+      titleMarginBottom: 8,
+      subtitleFont: 21,
+      bodyPadding: '16px 28px 12px',
+      cardPadding: 18,
+      cardRadius: 26,
+      thPadding: '11px 10px',
+      thFont: 14,
+      rowPadY: 10,
+      rowPadX: 10,
+      dateFont: 15,
+      airlineTextFont: 15,
+      logoHeight: 32,
+      logoMaxWidth: 120,
+      timeFont: 15,
+      baggageFont: 13,
+      baggagePadding: '6px 12px',
+      fareFont: 22,
+      footerPadding: '12px 20px',
+      footerGap: 12,
+      footerBrandGap: 12,
+      footerLogoHeight: 34,
+      footerDividerHeight: 28,
+      footerTitleFont: 19,
+      footerMetaFont: 14,
+      footerMetaGap: 12,
+      footerMinHeight: 60,
     }),
     capacity: Object.freeze({
       topBarHeight: 14,
       headerHeight: 196,
-      headerPadX: 92,
+      headerPadX: 82,
       badgePadding: '7px 24px',
-      badgeFont: 17,
+      badgeFont: 15,
       badgeMarginBottom: 12,
-      titleFont: 90,
+      titleFont: 80,
       titleLineHeight: 1.03,
       titleMarginBottom: 8,
-      subtitleFont: 23,
-      bodyPadding: '18px 34px 14px',
-      cardPadding: 18,
+      subtitleFont: 18,
+      bodyPadding: '14px 22px 10px',
+      cardPadding: 16,
       cardRadius: 24,
-      thPadding: '11px 9px',
-      thFont: 15,
-      rowPadY: 9,
+      thPadding: '10px 8px',
+      thFont: 13,
+      rowPadY: 8,
       rowPadX: 9,
-      dateFont: 15,
-      airlineTextFont: 15,
-      logoHeight: 34,
-      logoMaxWidth: 124,
-      timeFont: 15,
-      baggageFont: 14,
+      dateFont: 13,
+      airlineTextFont: 13,
+      logoHeight: 28,
+      logoMaxWidth: 110,
+      timeFont: 13,
+      baggageFont: 12,
       baggagePadding: '5px 10px',
-      fareFont: 23,
-      footerPadding: '14px 24px',
+      fareFont: 19,
+      footerPadding: '10px 16px',
       footerGap: 12,
       footerBrandGap: 12,
-      footerLogoHeight: 36,
-      footerDividerHeight: 28,
-      footerTitleFont: 21,
-      footerMetaFont: 16,
-      footerMetaGap: 14,
+      footerLogoHeight: 30,
+      footerDividerHeight: 24,
+      footerTitleFont: 17,
+      footerMetaFont: 13,
+      footerMetaGap: 10,
+      footerMinHeight: 54,
     }),
   }),
 });
@@ -1494,15 +1521,35 @@ function getPosterVideoLayoutProfile(ratioKey, rowCount = 0) {
     frameShadow: ratioPreset.frameShadow ?? 'none',
     frameBackground: ratioPreset.frameBackground || '#f8fafc',
     heroOpacity: ratioPreset.heroOpacity ?? 0.2,
+    headerContentMaxWidth: ratioPreset.headerContentMaxWidth ?? layout.headerContentMaxWidth,
+    titleMaxWidth: ratioPreset.titleMaxWidth ?? layout.titleMaxWidth,
   };
 }
 
 function resolvePosterTitleFontSize(originName, destName, layout) {
-  const totalLength = `${originName || ''}${destName || ''}`.replace(/\s+/g, '').length;
-  if (totalLength >= 24) return Math.max(layout.titleFont - 12, 40);
-  if (totalLength >= 18) return Math.max(layout.titleFont - 8, 44);
-  if (totalLength >= 14) return Math.max(layout.titleFont - 4, 46);
-  return layout.titleFont;
+  const compactOrigin = String(originName || '').replace(/\s+/g, '');
+  const compactDest = String(destName || '').replace(/\s+/g, '');
+  const totalLength = `${compactOrigin}${compactDest}`.length;
+  const longestWordLength = Math.max(compactOrigin.length, compactDest.length, 0);
+  const minFont = layout?.minTitleFont ?? 40;
+  let reduction = 0;
+
+  if (totalLength >= 24) reduction = 12;
+  else if (totalLength >= 18) reduction = 8;
+  else if (totalLength >= 14) reduction = 4;
+
+  if (layout?.ratioKey === '16x9') {
+    if (totalLength >= 20) reduction = Math.max(reduction, 20);
+    else if (totalLength >= 16) reduction = Math.max(reduction, 14);
+    else if (totalLength >= 12) reduction = Math.max(reduction, 8);
+    if (longestWordLength >= 10) reduction = Math.max(reduction, 10);
+  } else if (layout?.ratioKey === '9x16') {
+    if (totalLength >= 18) reduction = Math.max(reduction, 10);
+    else if (totalLength >= 14) reduction = Math.max(reduction, 6);
+    if (longestWordLength >= 10) reduction = Math.max(reduction, 8);
+  }
+
+  return Math.max(layout.titleFont - reduction, minFont);
 }
 const POSTER_THEMES = [
   {
@@ -1932,8 +1979,11 @@ function applyPosterLayout(frameEl, layout) {
 
   const headerContent = frameEl.querySelector('[data-poster-header-content]');
   if (headerContent) {
+    headerContent.style.width = '100%';
+    headerContent.style.boxSizing = 'border-box';
     headerContent.style.paddingLeft = `${layout.headerPadX}px`;
     headerContent.style.paddingRight = `${layout.headerPadX}px`;
+    headerContent.style.maxWidth = layout.headerContentMaxWidth ? `${layout.headerContentMaxWidth}px` : 'none';
   }
 
   const badge = frameEl.querySelector('[data-poster-badge]');
@@ -1947,12 +1997,16 @@ function applyPosterLayout(frameEl, layout) {
   if (title) {
     title.style.lineHeight = String(layout.titleLineHeight ?? 1.08);
     title.style.marginBottom = `${layout.titleMarginBottom ?? 8}px`;
+    title.style.marginLeft = 'auto';
+    title.style.marginRight = 'auto';
+    title.style.maxWidth = layout.titleMaxWidth ? `${layout.titleMaxWidth}px` : 'none';
   }
 
   const subtitle = frameEl.querySelector('[data-poster-subtitle]');
   if (subtitle) {
     subtitle.style.fontSize = `${layout.subtitleFont}px`;
     subtitle.style.fontWeight = '600';
+    subtitle.style.lineHeight = String(layout.subtitleLineHeight ?? 1.08);
   }
 
   const body = frameEl.querySelector('[data-poster-body]');
@@ -1960,6 +2014,7 @@ function applyPosterLayout(frameEl, layout) {
     body.style.padding = layout.bodyPadding;
     body.style.display = 'flex';
     body.style.flexDirection = 'column';
+    body.style.minHeight = '0';
   }
 
   const card = frameEl.querySelector('[data-poster-card]');
@@ -1969,6 +2024,7 @@ function applyPosterLayout(frameEl, layout) {
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
     card.style.flex = '1';
+    card.style.minHeight = '0';
   }
 
   const tableShell = frameEl.querySelector('[data-poster-table-shell]');
@@ -1976,7 +2032,8 @@ function applyPosterLayout(frameEl, layout) {
     tableShell.style.display = 'flex';
     tableShell.style.flexDirection = 'column';
     tableShell.style.flex = '1';
-    tableShell.style.justifyContent = 'flex-start';
+    tableShell.style.minHeight = '0';
+    tableShell.style.justifyContent = layout.tableJustify || 'flex-start';
   }
 
   frameEl.querySelectorAll('[data-poster-th]').forEach((th) => {
@@ -1990,10 +2047,16 @@ function applyPosterLayout(frameEl, layout) {
     footer.style.gap = `${layout.footerGap}px`;
     footer.style.alignItems = 'center';
     footer.style.justifyContent = 'space-between';
+    footer.style.flexWrap = layout.footerWrap || 'nowrap';
+    footer.style.minHeight = layout.footerMinHeight ? `${layout.footerMinHeight}px` : '0';
   }
 
   const footerBrand = frameEl.querySelector('[data-poster-footer-brand]');
-  if (footerBrand) footerBrand.style.gap = `${layout.footerBrandGap}px`;
+  if (footerBrand) {
+    footerBrand.style.gap = `${layout.footerBrandGap}px`;
+    footerBrand.style.flex = layout.footerBrandFlex || '0 1 auto';
+    footerBrand.style.minWidth = '0';
+  }
 
   const footerLogo = frameEl.querySelector('[data-poster-footer-logo]');
   if (footerLogo) footerLogo.style.height = `${layout.footerLogoHeight}px`;
@@ -2002,12 +2065,25 @@ function applyPosterLayout(frameEl, layout) {
   if (footerDivider) footerDivider.style.height = `${layout.footerDividerHeight}px`;
 
   const footerTitle = frameEl.querySelector('[data-poster-footer-title]');
-  if (footerTitle) footerTitle.style.fontSize = `${layout.footerTitleFont}px`;
+  if (footerTitle) {
+    footerTitle.style.fontSize = `${layout.footerTitleFont}px`;
+    footerTitle.style.lineHeight = String(layout.footerTitleLineHeight ?? 1);
+    footerTitle.style.whiteSpace = 'nowrap';
+  }
 
   const footerMeta = frameEl.querySelector('[data-poster-footer-meta]');
   if (footerMeta) {
+    footerMeta.style.flex = layout.footerMetaFlex || '1 1 auto';
+    footerMeta.style.minWidth = '0';
+    footerMeta.style.justifyContent = layout.footerMetaJustify || 'flex-end';
+    footerMeta.style.flexWrap = layout.footerMetaWrap || 'nowrap';
     footerMeta.style.gap = `${layout.footerMetaGap}px`;
     footerMeta.style.fontSize = `${layout.footerMetaFont}px`;
+    footerMeta.style.rowGap = `${layout.footerMetaRowGap ?? layout.footerGap ?? 12}px`;
+    footerMeta.querySelectorAll('[data-poster-footer-item]').forEach((item) => {
+      item.style.gap = `${layout.footerItemGap ?? 8}px`;
+      item.style.whiteSpace = 'nowrap';
+    });
   }
 }
 
@@ -2563,10 +2639,11 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame,
     const sectorIdsToRender = getPosterSelectionRenderSectorIds(faresBySector, selection);
 
     const framesToRender = [];
+    const pageSize = getPosterPageSize(renderMode, renderRatioKey);
     sectorIdsToRender.forEach((sid) => {
       const frameFares = faresBySector.get(sid) || [];
       if (!frameFares.length) return;
-      const chunks = chunkPosterFares(frameFares, POSTER_MAX_ROWS);
+      const chunks = chunkPosterFares(frameFares, pageSize);
       const totalPages = chunks.length || 1;
       chunks.forEach((chunk, idx) => {
         framesToRender.push({ sid, fares: chunk, page: idx + 1, pages: totalPages });
