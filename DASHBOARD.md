@@ -78,7 +78,7 @@ web/
         ├── login.js                    # Login page logic
         ├── db.js                       # ★ Firestore + Storage service layer (all CRUD)
         ├── social-publishing.js        # Social publishing UI/controller for the Socials tab
-        ├── video-export.js             # Video poster export (Canvas + MediaRecorder, shared scene renderer)
+        ├── video-export.js             # Video poster export (Canvas + MediaRecorder, shared poster-page slideshow renderer)
         └── main.js                     # ★ All tab controllers + modal + toast system
 ```
 
@@ -109,13 +109,13 @@ web/
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Dynamic brand themes** — each generation creates a brand‑safe palette on the fly (effectively infinite variety) so posters feel fresh when shared
   - **Footer contact** — poster footer phone is `+91 9846606739`
-  - **Video slideshow** — if a route spans multiple pages, the video export merges them into a single slideshow (same animation style per page)
-  - **Video exports are full-frame and ratio-aware** — the canvas renderer now uses one shared scene planner for 1:1 / 9:16 / 16:9 exports, with adaptive hero/card spacing and a centered widescreen card so each ratio stays bounded, readable, and visually balanced
+  - **Video slideshow** — if a route spans multiple pages, the video export merges them into a single poster-page slideshow
+  - **Video exports are full-frame and ratio-aware** — the canvas renderer now places each rendered poster page onto a ratio-aware slideshow stage for 1:1 / 9:16 / 16:9 exports, using a contained poster card over a softened full-frame backdrop so each ratio stays readable without row-level animation
   - **Video progress** — inline status pill updates during rendering (e.g. `Rendering 3/8 · CCJ DXB`)
   - **Copy Text** — copies the currently generated poster fares into a plain-text share format grouped by route (for quick WhatsApp/status posting). Airport-shortcut previews also expose country-specific copy targets such as `CCJ → Saudi` or `CCJ → UAE` so teams can copy only the relevant subset.
   - **Download JPEG** — renders poster(s) to canvas at 2× resolution and triggers a `.jpg` download (downloads one file per sector for All Sectors)
   - **Download PDF** — converts poster canvas to a mm-based jsPDF page exactly sized to the poster dimensions (downloads one file per sector for All Sectors)
-  - **Create Video** — generates cinematic poster slideshow sequences in 1:1, 9:16, or 16:9 formats from a shared renderer used by both direct downloads and social-queued videos. Uses the same deduping logic as posters. Randomizes the color theme per export. When a route spans multiple pages, merges them into a single slideshow video. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively, and layers in the bundled `/assets/music/bg_music.mp3` track across all rendered video exports. (Downloads one video per sector for All Sectors.)
+  - **Create Video** — generates simple poster-page slideshow videos in 1:1, 9:16, or 16:9 formats from the same rendered poster frames used by preview/export work, so direct downloads and social-queued videos stay visually consistent and cleaner to encode. Uses the same deduping logic as posters. When a route spans multiple pages, merges them into a single slideshow video. Relies on `Canvas` rendering iteratively and `MediaRecorder` dumping streams to `.mp4` format natively, and layers in the bundled `/assets/music/bg_music.mp3` track across all rendered video exports. (Downloads one video per sector for All Sectors.)
   - Export buttons disable during generation and re-enable once done
 - Social queueing now lives in the dedicated **Socials** tab so poster generation stays focused on preview/export work
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
@@ -557,4 +557,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-04-26 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer `createPost` dispatch only, `Created` / `Posted` operator-facing job states, airport-country feed-only image carousels capped at 6 queue items / 12 Buffer calls per airport run, retryable retained media, inline activity/history UI in the Socials tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, and merged slideshow exports; poster footer contact remains +91 9846606739._
+_Last audited: 2026-04-26 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer `createPost` dispatch only, `Created` / `Posted` operator-facing job states, airport-country feed-only image carousels capped at 6 queue items / 12 Buffer calls per airport run, retryable retained media, inline activity/history UI in the Socials tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, clean poster-page slideshow exports, and merged multi-page videos; poster footer contact remains +91 9846606739._

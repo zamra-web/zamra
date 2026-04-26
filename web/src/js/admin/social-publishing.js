@@ -838,7 +838,15 @@ export function createSocialPublishingController(deps) {
               sector.id,
               deps.getSectors(),
               deps.getAirlines(),
-              { autoDownload: false, returnBlob: true, requireMp4: true },
+              {
+                autoDownload: false,
+                returnBlob: true,
+                requireMp4: true,
+                onProgress: (progress) => {
+                  const detail = progress?.message || 'Processing video…';
+                  setInlineProgress(`${index + 1}/${eligibleSectors.length} · ${variant.label} · ${detail}`);
+                },
+              },
             );
             if (!result || !result.blob) {
               throw new Error(`No video data was produced for ${variant.label}.`);

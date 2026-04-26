@@ -1498,7 +1498,8 @@ function formatPosterClipboardAirlineLabel(rawLabel) {
     .replace(/\s+/g, ' ')
     .toUpperCase();
 
-  if (normalized === 'AIR INDIA EXPRESS') return 'AIR INDIA EX';
+  if (normalized === 'AIR INDIA EXPRESS') return 'AIR IN X';
+  if (normalized === 'SRILANKAN AIRLINES') return 'SRILANKAN AIR';
   if (normalized === 'SAUDI AIRLINES') return 'SAUDI AIR';
   return normalized || 'AIRLINE';
 }
@@ -1947,8 +1948,87 @@ async function renderPosterFrameToBlob(posterEl) {
   }
 }
 
+function getVideoProgressMessage(progress = {}) {
+  if (progress?.message) return progress.message;
+  switch (progress?.phase) {
+    case 'preparing':
+      return 'Preparing slides…';
+    case 'converting':
+      return 'Converting to MP4…';
+    case 'encoding':
+      return 'Encoding slideshow…';
+    default:
+      return 'Processing video…';
+  }
+}
+
+async function buildVideoPosterSlides(fares, sectorId, sectors, { onProgress } = {}) {
+  const workspace = createOffscreenPosterWorkspace();
+  try {
+    const frames = await populatePosterRenderStack(fares, sectorId, workspace.stack, workspace.templateFrame);
+    if (!frames.length) {
+      throw new Error('No poster slides were generated for this video.');
+    }
+
+    const sectorCode = frames[0]?.dataset.sectorCode
+      || sectors?.find?.((sector) => sector.id === sectorId)?.sectorCode
+      || sectorId;
+    const total = frames.length;
+    const slides = [];
+
+    reportVideoProgress(onProgress, {
+      phase: 'preparing',
+      current: 0,
+      total,
+      message: total > 1 ? `Preparing slides 0/${total}…` : 'Preparing slide…',
+    });
+
+    for (let index = 0; index < total; index += 1) {
+      const frame = frames[index];
+      reportVideoProgress(onProgress, {
+        phase: 'preparing',
+        current: index + 1,
+        total,
+        message: total > 1 ? `Preparing slides ${index + 1}/${total}…` : 'Preparing slide…',
+      });
+      const blob = await renderPosterFrameToBlob(frame);
+      if (!blob) {
+        throw new Error(`Failed to render poster slide ${index + 1}.`);
+      }
+      slides.push({
+        blob,
+        page: Number(frame.dataset.posterPage || index + 1),
+        pageTotal: Number(frame.dataset.posterPageCount || total),
+        sectorId: frame.dataset.sectorId || sectorId,
+        sectorCode: frame.dataset.sectorCode || sectorCode,
+      });
+    }
+
+    return {
+      sectorSlug: fileSafeSlug(sectorCode) || fileSafeSlug(sectorId) || 'sector',
+      slides,
+    };
+  } finally {
+    workspace.destroy();
+  }
+}
+
+function reportVideoProgress(callback, payload) {
+  if (typeof callback === 'function') callback(payload);
+}
+
 async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, options = {}) {
-  return renderVideoPoster(ratio, fares, sectorId, sectors, airlines, options);
+  const { onProgress, ...videoOptions } = options || {};
+  const preparedSlides = await buildVideoPosterSlides(fares, sectorId, sectors, { onProgress });
+  return renderVideoPoster({
+    ratio,
+    slides: preparedSlides.slides,
+    sectorSlug: preparedSlides.sectorSlug,
+    options: {
+      ...videoOptions,
+      onProgress,
+    },
+  });
 }
 
 function getRequestedBy() {
@@ -2267,11 +2347,13 @@ async function queueMarketVideosForSocial(marketKey, triggerButton) {
         const sectorFares = faresBySector.get(sector.id) || [];
         const sectorCode = sector.sectorCode || sector.id;
 
-        setProgress(`Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode} · 9:16`);
+        const shortPrefix = `Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode} · 9:16`;
+        setProgress(shortPrefix);
         const shortResult = await downloadVideoPoster('9x16', sectorFares, sector.id, _sectors, _airlines, {
           autoDownload: false,
           returnBlob: true,
           requireMp4: true,
+          onProgress: (progress) => setProgress(`${shortPrefix} · ${getVideoProgressMessage(progress)}`),
         });
         if (shortResult?.blob) {
           await uploadAndQueueForSocial(shortResult.blob, `${fileSafeSlug(sectorCode)}-9x16-${Date.now()}.mp4`, {
@@ -2287,11 +2369,13 @@ async function queueMarketVideosForSocial(marketKey, triggerButton) {
           queuedVideos += 1;
         }
 
-        setProgress(`Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode} · 16:9`);
+        const widePrefix = `Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode} · 16:9`;
+        setProgress(widePrefix);
         const widescreenResult = await downloadVideoPoster('16x9', sectorFares, sector.id, _sectors, _airlines, {
           autoDownload: false,
           returnBlob: true,
           requireMp4: true,
+          onProgress: (progress) => setProgress(`${widePrefix} · ${getVideoProgressMessage(progress)}`),
         });
         if (widescreenResult?.blob) {
           await uploadAndQueueForSocial(widescreenResult.blob, `${fileSafeSlug(sectorCode)}-16x9-${Date.now()}.mp4`, {
@@ -2619,10 +2703,12 @@ async function queueVideoForSocial(ratio) {
         if (!sectorFares.length) continue;
         const sector = _sectors.find(s => s.id === sid);
         const sectorLabel = sector?.sectorCode || sid;
-        setProgress(`Rendering ${idx + 1}/${sectorIds.length} · ${sectorLabel}`);
+        const prefix = `Rendering ${idx + 1}/${sectorIds.length} · ${sectorLabel}`;
+        setProgress(prefix);
         try {
           const result = await downloadVideoPoster(ratio, sectorFares, sid, _sectors, _airlines, {
             autoDownload: false, returnBlob: true, requireMp4: true,
+            onProgress: (progress) => setProgress(`${prefix} · ${getVideoProgressMessage(progress)}`),
           });
           if (result?.blob) {
             const filename = `${fileSafe(sectorLabel)}-${ratio}-${Date.now()}.mp4`;
@@ -2647,9 +2733,11 @@ async function queueVideoForSocial(ratio) {
       const sectorId = selection.rawValue;
       const sector = _sectors.find(s => s.id === sectorId);
       const sectorLabel = sector?.sectorCode || selection.label || sectorId;
-      setProgress(`Rendering ${ratioLabel} video…`);
+      const prefix = `Rendering ${ratioLabel} video`;
+      setProgress(`${prefix}…`);
       const result = await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines, {
         autoDownload: false, returnBlob: true, requireMp4: true,
+        onProgress: (progress) => setProgress(`${prefix} · ${getVideoProgressMessage(progress)}`),
       });
       if (result?.blob) {
         const filename = `${fileSafe(sectorLabel)}-${ratio}-${Date.now()}.mp4`;
@@ -2818,7 +2906,8 @@ async function handleVideoPoster(ratio) {
         const sectorFares = faresBySector.get(sid) || [];
         if (!sectorFares.length) continue;
         const sectorLabel = _sectors.find(s => s.id === sid)?.sectorCode || sid;
-        setProgress(`Rendering ${idx + 1}/${sectorIds.length} · ${sectorLabel}`);
+        const prefix = `Rendering ${idx + 1}/${sectorIds.length} · ${sectorLabel}`;
+        setProgress(prefix);
         try {
           const result = await downloadVideoPoster(
             ratio,
@@ -2826,7 +2915,12 @@ async function handleVideoPoster(ratio) {
             sid,
             _sectors,
             _airlines,
-            { autoDownload: true, returnBlob: true, requireMp4: true }
+            {
+              autoDownload: true,
+              returnBlob: true,
+              requireMp4: true,
+              onProgress: (progress) => setProgress(`${prefix} · ${getVideoProgressMessage(progress)}`),
+            },
           );
           if (result?.blob) downloads.push(result);
           ok += 1;
@@ -2880,8 +2974,12 @@ async function handleVideoPoster(ratio) {
 
     const sectorId = selection.rawValue;
     const singleLabel = _sectors.find(s => s.id === sectorId)?.sectorCode || selection.label || sectorId;
-    setProgress(`Rendering 1/1 · ${singleLabel}`);
-    await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines, { requireMp4: true });
+    const prefix = `Rendering 1/1 · ${singleLabel}`;
+    setProgress(prefix);
+    await downloadVideoPoster(ratio, fares, sectorId, _sectors, _airlines, {
+      requireMp4: true,
+      onProgress: (progress) => setProgress(`${prefix} · ${getVideoProgressMessage(progress)}`),
+    });
   } catch (e) {
     console.error('Video generation failed', e);
     toast('error', 'Generation Failed', e.message || 'Video generation failed.');
