@@ -30,8 +30,6 @@ const LEASE_MS = 8 * 60 * 1000;
 const DISPATCH_BATCH_LIMIT = 6;
 const DISPATCH_CANDIDATE_LIMIT = 20;
 const MAX_ATTEMPTS = 3;
-// Image stories are intentionally Instagram-only; Facebook remains feed-only.
-const STORY_PLATFORMS = Object.freeze(["instagram"]);
 
 function db() {
   return getFirestore();
@@ -126,10 +124,6 @@ function getMarketLabel(marketKey = "") {
 
 function resolveQueueMarketKey(data = {}) {
   return resolveNormalizedMarketKey(data);
-}
-
-function shouldDispatchStoryToPlatform(platform) {
-  return STORY_PLATFORMS.includes(String(platform || "").trim().toLowerCase());
 }
 
 function filterKnownMarkets(markets = {}) {
@@ -299,8 +293,8 @@ function buildQueueCreatePayload(meta = {}) {
     filenames: Array.isArray(meta.filenames) ? meta.filenames : (meta.filename ? [meta.filename] : []),
     caption: meta.caption || "",
     youtubeTitle: meta.youtubeTitle || "",
-    storyMediaUrl: meta.storyMediaUrl || "",
-    includeStories: mediaType === "image" ? meta.includeStories === true : false,
+    storyMediaUrl: "",
+    includeStories: false,
     platforms: Array.isArray(meta.platforms) && meta.platforms.length
       ? meta.platforms
       : (mediaType === "video" ? ["instagram", "facebook", "youtube"] : ["instagram", "facebook"]),
@@ -699,50 +693,6 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
       if (!classified.retryable && !terminalFailure) terminalFailure = { platform: target.platform, ...classified };
     }
 
-    if (doc.includeStories === true && mediaType === "image" && shouldDispatchStoryToPlatform(target.platform)) {
-      const storyUrl = doc.storyMediaUrl || mediaUrls[0];
-      const storyKey = `${target.platform}_story`;
-      const storyResult = await bufferCreatePost.createPostOnChannel({
-        apiKey,
-        channelId: target.channelId,
-        platform: target.platform,
-        text: doc.caption || "",
-        mediaUrls: [storyUrl],
-        mediaType,
-        postType: "story",
-        youtubeTitle: doc.youtubeTitle || "",
-      });
-      if (storyResult.ok) {
-        acceptedCount += 1;
-        const storyAcceptedIso = new Date().toISOString();
-        bufferPosts[storyKey] = {
-          platform: storyKey,
-          channelId: target.channelId,
-          channelName: target.channelName,
-          postId: storyResult.postId,
-          state: "sent",
-          acceptedAt: storyAcceptedIso,
-          sentAt: storyAcceptedIso,
-          retryable: false,
-        };
-      } else {
-        const classified = classifyDispatchError(storyResult.error);
-        if (!classified.rateLimited) {
-          bufferPosts[storyKey] = {
-            platform: storyKey,
-            channelId: target.channelId,
-            channelName: target.channelName,
-            state: "error",
-            error: classified.message,
-            retryable: classified.retryable,
-          };
-        } else if (bufferPosts[storyKey] && bufferPosts[storyKey].state === "error") {
-          delete bufferPosts[storyKey];
-        }
-        if (classified.retryable && !retryableFailure) retryableFailure = { platform: storyKey, ...classified };
-        if (!classified.retryable && !terminalFailure) terminalFailure = { platform: storyKey, ...classified };
-      }
-    }
   }
 
   if (acceptedCount === 0 && retryableFailure && Number(doc.attemptCount || 0) < MAX_ATTEMPTS) {
@@ -941,13 +891,11 @@ function buildRetrySocialJobItem(requireAdmin, bufferApiKeySecretsByMarket) {
         stage: "waiting_dispatch",
         lastMessage: "Retry queued and waiting for dispatch.",
         platforms: Array.isArray(item.platforms) ? item.platforms : [],
-        includeStories: item.includeStories === true,
         caption: item.caption || "",
         youtubeTitle: item.youtubeTitle || "",
         retryOfItemId: itemId,
         mediaUrl: item.mediaUrl || "",
         mediaUrls,
-        storyMediaUrl: item.storyMediaUrl || "",
         filename: item.filename || "",
         filenames: Array.isArray(item.filenames) ? item.filenames : [],
         uploadedAt: FieldValue.serverTimestamp(),
@@ -966,12 +914,10 @@ function buildRetrySocialJobItem(requireAdmin, bufferApiKeySecretsByMarket) {
         label: item.label || item.sectorCode || "",
         mediaUrl: item.mediaUrl || mediaUrls[0] || "",
         mediaUrls,
-        storyMediaUrl: item.storyMediaUrl || "",
         filename: item.filename || "",
         filenames: Array.isArray(item.filenames) ? item.filenames : [],
         caption: item.caption || "",
         youtubeTitle: item.youtubeTitle || "",
-        includeStories: item.includeStories === true,
         platforms: Array.isArray(item.platforms) ? item.platforms : [],
         lastMessage: "Retry queued and waiting for dispatch.",
       });
@@ -1030,6 +976,5 @@ module.exports = {
   inspectMarketHealth,
   getConfiguredChannelForMarket,
   resolveQueueMarketKey,
-  shouldDispatchStoryToPlatform,
   buildQueueCreatePayload,
 };

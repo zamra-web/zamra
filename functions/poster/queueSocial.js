@@ -11,7 +11,7 @@ const { enqueueExistingMedia } = require("../social/pipeline");
  * @param {Buffer} jpegBuffer
  * @param {string} filename  e.g. "daily-ccj-jed-1x1-1729834200000.jpg"
  * @param {{ sectorId: string, sectorCode: string, ratio: string,
- *            caption: string, platforms: string[], includeStories?: boolean,
+ *            caption: string, platforms: string[],
  *            marketKey?: string, youtubeTitle?: string }} meta
  * @returns {Promise<{ mediaUrl: string, queueId: string }>}
  */
@@ -50,8 +50,6 @@ async function uploadAndQueue(jpegBuffer, filename, meta) {
     platforms: meta.platforms && meta.platforms.length
       ? meta.platforms
       : ["instagram", "facebook"],
-    includeStories: meta.includeStories !== false,
-    storyMediaUrl: null,
     lastMessage: "Uploaded and waiting for Buffer dispatch.",
   });
 

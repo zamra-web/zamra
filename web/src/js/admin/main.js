@@ -1841,75 +1841,6 @@ async function downloadVideoPoster(ratio, fares, sectorId, sectors, airlines, op
   return renderVideoPoster(ratio, fares, sectorId, sectors, airlines, options);
 }
 
-async function composePosterStoryImage(feedBlob) {
-  if (!feedBlob) return null;
-  const url = URL.createObjectURL(feedBlob);
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = reject;
-      image.src = url;
-    });
-
-    const width = 1080;
-    const height = 1920;
-    const padX = 48;
-    const padY = 160;
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-
-    const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, '#0b1120');
-    grad.addColorStop(1, '#1e293b');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, width, height);
-
-    const availW = width - padX * 2;
-    const availH = height - padY * 2;
-    const scale = Math.min(availW / img.width, availH / img.height);
-    const drawW = img.width * scale;
-    const drawH = img.height * scale;
-    const drawX = (width - drawW) / 2;
-    const drawY = (height - drawH) / 2;
-
-    ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = 30;
-    ctx.shadowOffsetY = 10;
-    ctx.fillStyle = '#ffffff';
-    const radius = 24;
-    ctx.beginPath();
-    ctx.moveTo(drawX + radius, drawY);
-    ctx.arcTo(drawX + drawW, drawY, drawX + drawW, drawY + drawH, radius);
-    ctx.arcTo(drawX + drawW, drawY + drawH, drawX, drawY + drawH, radius);
-    ctx.arcTo(drawX, drawY + drawH, drawX, drawY, radius);
-    ctx.arcTo(drawX, drawY, drawX + drawW, drawY, radius);
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(drawX + radius, drawY);
-    ctx.arcTo(drawX + drawW, drawY, drawX + drawW, drawY + drawH, radius);
-    ctx.arcTo(drawX + drawW, drawY + drawH, drawX, drawY + drawH, radius);
-    ctx.arcTo(drawX, drawY + drawH, drawX, drawY, radius);
-    ctx.arcTo(drawX, drawY, drawX + drawW, drawY, radius);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
-    ctx.restore();
-
-    return await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 function getRequestedBy() {
   return {
     type: 'user',
@@ -1948,7 +1879,6 @@ function getSocialPublishingController() {
     createOffscreenPosterWorkspace,
     populatePosterRenderStack,
     renderPosterFrameToBlob,
-    composePosterStoryImage,
     downloadVideoPoster,
     fileSafeSlug,
     getSectors: () => _sectors,
@@ -2129,26 +2059,12 @@ async function queueMarketImagesForSocial(marketKey, triggerButton) {
           }
           if (!items.length) continue;
 
-          let storyItem = null;
-          const storyBlob = await composePosterStoryImage(items[0].blob).catch((error) => {
-            console.warn('Story composition failed; using feed image only.', error);
-            return null;
-          });
-          if (storyBlob) {
-            storyItem = {
-              blob: storyBlob,
-              filename: `${fileSafeSlug(sector.sectorCode || sector.id) || 'poster'}-story-9x16-${Date.now()}.jpg`,
-            };
-          }
-
           await uploadAndQueueCarousel(items, {
             sectorId: sector.id,
             sectorCode: sector.sectorCode || sector.id,
             marketKey,
             caption: formatPosterSocialCaption(sector, marketKey, 'image'),
             platforms: ['instagram', 'facebook'],
-            includeStories: true,
-            storyItem,
           });
 
           queuedCarousels += 1;
@@ -2170,7 +2086,7 @@ async function queueMarketImagesForSocial(marketKey, triggerButton) {
     const carouselLabel = queuedCarousels === 1 ? 'sector batch' : 'sector batches';
     const imageLabel = totalImages === 1 ? 'image' : 'images';
     const failureNote = failedSectors ? ` ${failedSectors} sector${failedSectors > 1 ? 's' : ''} failed.` : '';
-    toast('success', 'Queued for Social', `${queuedCarousels} ${market.label} ${carouselLabel} (${totalImages} ${imageLabel}) queued for Instagram/Facebook feed posts with Instagram stories.${failureNote}`);
+    toast('success', 'Queued for Social', `${queuedCarousels} ${market.label} ${carouselLabel} (${totalImages} ${imageLabel}) queued for Instagram/Facebook feed posts.${failureNote}`);
   } catch (error) {
     console.error('Market image queue failed:', error);
     toast('error', 'Queue Failed', error.message || 'Failed to queue airport images.');
@@ -2436,74 +2352,6 @@ async function queuePosterForSocial() {
     }
   };
 
-  // Compose a 1080x1920 (9:16) story image from a feed poster blob.
-  // Letterboxes the poster on a navy gradient matching the header.
-  const composeStoryImage = async (feedBlob) => {
-    if (!feedBlob) return null;
-    const url = URL.createObjectURL(feedBlob);
-    try {
-      const img = await new Promise((resolve, reject) => {
-        const i = new Image();
-        i.onload = () => resolve(i);
-        i.onerror = reject;
-        i.src = url;
-      });
-
-      const W = 1080, H = 1920, PAD_X = 48, PAD_Y = 160;
-      const canvas = document.createElement('canvas');
-      canvas.width = W;
-      canvas.height = H;
-      const ctx = canvas.getContext('2d');
-
-      const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, '#0b1120');
-      grad.addColorStop(1, '#1e293b');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
-
-      const availW = W - PAD_X * 2;
-      const availH = H - PAD_Y * 2;
-      const scale = Math.min(availW / img.width, availH / img.height);
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-      const drawX = (W - drawW) / 2;
-      const drawY = (H - drawH) / 2;
-
-      ctx.shadowColor = 'rgba(0,0,0,0.35)';
-      ctx.shadowBlur = 30;
-      ctx.shadowOffsetY = 10;
-      ctx.fillStyle = '#ffffff';
-      const r = 24;
-      ctx.beginPath();
-      ctx.moveTo(drawX + r, drawY);
-      ctx.arcTo(drawX + drawW, drawY, drawX + drawW, drawY + drawH, r);
-      ctx.arcTo(drawX + drawW, drawY + drawH, drawX, drawY + drawH, r);
-      ctx.arcTo(drawX, drawY + drawH, drawX, drawY, r);
-      ctx.arcTo(drawX, drawY, drawX + drawW, drawY, r);
-      ctx.closePath();
-      ctx.fill();
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(drawX + r, drawY);
-      ctx.arcTo(drawX + drawW, drawY, drawX + drawW, drawY + drawH, r);
-      ctx.arcTo(drawX + drawW, drawY + drawH, drawX, drawY + drawH, r);
-      ctx.arcTo(drawX, drawY + drawH, drawX, drawY, r);
-      ctx.arcTo(drawX, drawY, drawX + drawW, drawY, r);
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(img, drawX, drawY, drawW, drawH);
-      ctx.restore();
-
-      return await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  };
-
   let carousels = 0;
   let totalImages = 0;
   try {
@@ -2524,23 +2372,11 @@ async function queuePosterForSocial() {
       }
       if (!items.length) continue;
 
-      // Instagram stories: compose a 9:16 variant from the first page only.
-      let storyItem = null;
-      const storyBlob = await composeStoryImage(items[0].blob).catch((e) => {
-        console.warn('Story composition failed; falling back to feed image:', e);
-        return null;
-      });
-      if (storyBlob) {
-        const storyFilename = `${fileSafe(sectorCode) || 'poster'}-story-9x16-${Date.now()}.jpg`;
-        storyItem = { blob: storyBlob, filename: storyFilename };
-      }
-
       await uploadAndQueueCarousel(items, {
         sectorId: sidRaw,
         sectorCode,
         caption,
         platforms: ['instagram', 'facebook'],
-        storyItem,
       });
       carousels++;
       totalImages += items.length;

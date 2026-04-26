@@ -958,15 +958,6 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
   const mediaType = meta.mediaType || 'image';
   const expiresAt = Timestamp.fromDate(new Date(Date.now() + SOCIAL_RETENTION_MS));
 
-  let storyMediaUrl = null;
-  if (mediaType === 'image' && meta.storyItem && meta.storyItem.blob) {
-    const storyRef = ref(storage, `generated_posters/${meta.storyItem.filename}`);
-    await uploadBytes(storyRef, meta.storyItem.blob, {
-      contentType: meta.storyItem.blob.type || 'image/jpeg',
-    });
-    storyMediaUrl = await getDownloadURL(storyRef);
-  }
-
   const docRef = await addDoc(collection(db, 'social_queue'), {
     source: meta.source || 'admin',
     jobId: meta.jobId || '',
@@ -993,14 +984,14 @@ export async function uploadAndQueueForSocial(blob, filename, meta) {
     lastCheckedAt: null,
     processedAt: null,
     platforms: meta.platforms || ['instagram', 'facebook', 'youtube'],
-    includeStories: mediaType === 'image' ? (meta.includeStories !== false) : false,
-    storyMediaUrl,
+    includeStories: false,
+    storyMediaUrl: '',
     expiresAt,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  return { mediaUrl, storyMediaUrl, queueId: docRef.id };
+  return { mediaUrl, queueId: docRef.id };
 }
 
 
@@ -1029,15 +1020,6 @@ export async function uploadAndQueueCarousel(items, meta) {
     filenames.push(filename);
   }
 
-  let storyMediaUrl = null;
-  if (meta.storyItem && meta.storyItem.blob) {
-    const storyRef = ref(storage, `generated_posters/${meta.storyItem.filename}`);
-    await uploadBytes(storyRef, meta.storyItem.blob, {
-      contentType: meta.storyItem.blob.type || 'image/jpeg',
-    });
-    storyMediaUrl = await getDownloadURL(storyRef);
-  }
-
   const docRef = await addDoc(collection(db, 'social_queue'), {
     source: meta.source || 'admin',
     jobId: meta.jobId || '',
@@ -1064,14 +1046,14 @@ export async function uploadAndQueueCarousel(items, meta) {
     lastCheckedAt: null,
     processedAt: null,
     platforms: meta.platforms || ['instagram', 'facebook'],
-    includeStories: meta.includeStories !== false,
-    storyMediaUrl,
+    includeStories: false,
+    storyMediaUrl: '',
     expiresAt,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  return { mediaUrls, storyMediaUrl, queueId: docRef.id };
+  return { mediaUrls, queueId: docRef.id };
 }
 
 

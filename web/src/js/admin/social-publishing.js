@@ -576,7 +576,6 @@ export function createSocialPublishingController(deps) {
             stage: 'rendering',
             lastMessage: `Rendering ${sectorCode} image batch…`,
             platforms: ['instagram', 'facebook'],
-            includeStories: true,
             caption,
           });
 
@@ -626,12 +625,6 @@ export function createSocialPublishingController(deps) {
               lastMessage: `Uploading ${sectorCode} to Firebase Storage…`,
             });
 
-            const storyBlob = await deps.composePosterStoryImage(items[0].blob).catch(() => null);
-            const storyItem = storyBlob ? {
-              blob: storyBlob,
-              filename: `${deps.fileSafeSlug(sectorCode) || 'poster'}-story-9x16-${Date.now()}.jpg`,
-            } : null;
-
             const result = await deps.uploadAndQueueCarousel(items, {
               source: 'admin',
               jobId,
@@ -642,8 +635,6 @@ export function createSocialPublishingController(deps) {
               marketKey,
               caption,
               platforms: ['instagram', 'facebook'],
-              includeStories: true,
-              storyItem,
               lastMessage: 'Uploaded and waiting for Buffer dispatch.',
             });
 
@@ -655,7 +646,6 @@ export function createSocialPublishingController(deps) {
               stage: 'waiting_dispatch',
               uploadedAt: new Date(),
               mediaUrls: result.mediaUrls || [],
-              storyMediaUrl: result.storyMediaUrl || '',
               filenames: items.map((item) => item.filename),
               caption,
               lastMessage: 'Uploaded and waiting for Buffer dispatch.',
@@ -701,7 +691,7 @@ export function createSocialPublishingController(deps) {
       }
 
       const failureNote = counts.failedItems ? ` ${counts.failedItems} sector${counts.failedItems > 1 ? 's' : ''} failed.` : '';
-      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} queued for Instagram/Facebook feed posts with Instagram stories.${failureNote}`);
+      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} queued for Instagram/Facebook feed posts.${failureNote}`);
     } catch (error) {
       console.error('queueMarketImagesForSocial:', error);
       deps.toast('error', 'Queue Failed', error.message || 'Failed to queue airport images.');

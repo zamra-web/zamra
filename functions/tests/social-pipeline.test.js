@@ -5,7 +5,6 @@ const {
   inspectMarketHealth,
   getConfiguredChannelForMarket,
   resolveQueueMarketKey,
-  shouldDispatchStoryToPlatform,
   buildQueueCreatePayload,
 } = require("../social/pipeline");
 
@@ -50,11 +49,6 @@ test("resolveQueueMarketKey normalizes legacy country keys to airport keys", () 
   assert.equal(resolveQueueMarketKey({ marketKey: "", sectorCode: "CCJ COK" }), "");
 });
 
-test("shouldDispatchStoryToPlatform keeps stories instagram-only", () => {
-  assert.equal(shouldDispatchStoryToPlatform("instagram"), true);
-  assert.equal(shouldDispatchStoryToPlatform("facebook"), false);
-});
-
 test("buildQueueCreatePayload seeds queue docs with retry and visibility fields", () => {
   const payload = buildQueueCreatePayload({
     source: "admin",
@@ -76,5 +70,7 @@ test("buildQueueCreatePayload seeds queue docs with retry and visibility fields"
   assert.equal(payload.marketKey, "ccj");
   assert.equal(payload.mediaType, "video");
   assert.equal(payload.mediaUrls.length, 1);
+  assert.equal(payload.includeStories, false);
+  assert.equal(payload.storyMediaUrl, "");
   assert.equal(payload.attemptCount, 0);
 });
