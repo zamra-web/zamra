@@ -105,7 +105,7 @@ web/
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
   - **Consistent canvas, adaptive composition** — posters keep a fixed export size, but the fare card/header/footer spacing now rebalance to give the table more room instead of relying on large dead zones
   - **12-row capacity profile** — full poster pages switch to an extra-tight composition so 12 fares still fit on one image without breaking the cleaner spacing on lighter pages
-  - **Auto-page** — sectors with more than 12 fares split into multiple posters, and multi-page routes distribute rows more evenly so the final page does not end up sparse
+  - **Auto-page** — sectors with more than 12 fares split into multiple posters, with each page filling up to 12 fares before overflow moves to the next poster
   - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown — airline + time are normalized so duplicates across agents collapse reliably
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Dynamic brand themes** — each generation creates a brand‑safe palette on the fly (effectively infinite variety) so posters feel fresh when shared

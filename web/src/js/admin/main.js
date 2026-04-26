@@ -1708,16 +1708,9 @@ function chunkPosterFares(list, size) {
   const source = Array.isArray(list) ? list : [];
   if (!source.length || !Number.isFinite(size) || size <= 0) return [];
 
-  const pageCount = Math.ceil(source.length / size);
-  const baseSize = Math.floor(source.length / pageCount);
-  const remainder = source.length % pageCount;
   const chunks = [];
-  let cursor = 0;
-
-  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-    const chunkSize = baseSize + (pageIndex < remainder ? 1 : 0);
-    chunks.push(source.slice(cursor, cursor + chunkSize));
-    cursor += chunkSize;
+  for (let cursor = 0; cursor < source.length; cursor += size) {
+    chunks.push(source.slice(cursor, cursor + size));
   }
 
   return chunks;
