@@ -1,3 +1,10 @@
+import {
+  appendCarouselItemsLimited,
+  buildMarketCountryGroups,
+  formatCountryCarouselCaption,
+  POSTER_SOCIAL_IMAGE_MAX_ITEMS,
+} from './social-image-carousels.js';
+
 function escapeHtml(value = '') {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -526,11 +533,16 @@ export function createSocialPublishingController(deps) {
         faresBySector.get(fare.sectorId).push(fare);
       });
 
-      const eligibleSectors = sectorIds
+      const marketSectors = sectorIds
         .map((sid) => deps.getSectors().find((sector) => sector.id === sid))
-        .filter((sector) => sector && (faresBySector.get(sector.id)?.length || 0) > 0);
+        .filter(Boolean);
+      const countryGroups = buildMarketCountryGroups({
+        marketKey,
+        sectors: marketSectors,
+        faresBySector,
+      });
 
-      if (!eligibleSectors.length) {
+      if (!countryGroups.length) {
         deps.toast('warning', 'No Fares', `No live ${market.label} fares found for the selected date range.`);
         return;
       }
@@ -541,15 +553,15 @@ export function createSocialPublishingController(deps) {
         mediaType: 'image',
         status: 'created',
         currentStage: 'rendering',
-        lastMessage: `Rendering ${eligibleSectors.length} ${market.label} image batch${eligibleSectors.length > 1 ? 'es' : ''}.`,
+        lastMessage: `Rendering ${countryGroups.length} ${market.label} country carousel${countryGroups.length > 1 ? 's' : ''}.`,
         requestedBy: deps.getRequestedBy(),
         filters: { startDate, endDate, marketKey, sectorIds },
-        plannedItems: eligibleSectors.length,
-        createdItems: eligibleSectors.length,
+        plannedItems: countryGroups.length,
+        createdItems: countryGroups.length,
       });
 
       const counts = {
-        plannedItems: eligibleSectors.length,
+        plannedItems: countryGroups.length,
         renderedItems: 0,
         uploadedItems: 0,
         queuedItems: 0,
@@ -560,21 +572,21 @@ export function createSocialPublishingController(deps) {
 
       const workspace = deps.createOffscreenPosterWorkspace();
       try {
-        for (let index = 0; index < eligibleSectors.length; index += 1) {
-          const sector = eligibleSectors[index];
-          const sectorCode = sector.sectorCode || sector.id;
-          const caption = deps.formatPosterSocialCaption(sector, marketKey, 'image');
+        for (let index = 0; index < countryGroups.length; index += 1) {
+          const group = countryGroups[index];
+          const countryLabel = group.countryLabel;
+          const caption = formatCountryCarouselCaption(marketKey, group.countryKey);
           const itemId = await deps.createSocialJobItem(jobId, {
             source: 'admin',
-            label: sectorCode,
-            sectorId: sector.id,
-            sectorCode,
+            label: countryLabel,
+            sectorId: '',
+            sectorCode: '',
             marketKey,
             mediaType: 'image',
             ratio: 'carousel',
             status: 'pending',
             stage: 'rendering',
-            lastMessage: `Rendering ${sectorCode} image batch…`,
+            lastMessage: `Rendering ${countryLabel} country carousel…`,
             platforms: ['instagram', 'facebook'],
             caption,
           });
@@ -582,56 +594,64 @@ export function createSocialPublishingController(deps) {
           try {
             await syncJobSnapshot(jobId, counts, {
               currentStage: 'rendering',
-              currentItemLabel: sectorCode,
-              lastMessage: `Rendering ${index + 1}/${eligibleSectors.length} · ${sectorCode}`,
+              currentItemLabel: countryLabel,
+              lastMessage: `Rendering ${index + 1}/${countryGroups.length} · ${countryLabel}`,
               status: 'created',
             });
 
-            const frames = await deps.populatePosterRenderStack(
-              faresBySector.get(sector.id) || [],
-              sector.id,
-              workspace.stack,
-              workspace.templateFrame,
-            );
-            if (!frames.length) {
-              throw new Error(`No poster frames were generated for ${sectorCode}.`);
-            }
+            let items = [];
+            for (const sector of group.sectors) {
+              const sectorCode = sector.sectorCode || sector.id;
+              const frames = await deps.populatePosterRenderStack(
+                faresBySector.get(sector.id) || [],
+                sector.id,
+                workspace.stack,
+                workspace.templateFrame,
+              );
+              if (!frames.length) continue;
 
-            const items = [];
-            for (const frame of frames) {
-              const blob = await deps.renderPosterFrameToBlob(frame);
-              if (!blob) continue;
-              const page = Number(frame.dataset.posterPage || 1);
-              const pageCount = Number(frame.dataset.posterPageCount || 1);
-              const pageSuffix = pageCount > 1 ? `-p${page}` : '';
-              items.push({
-                blob,
-                filename: `${deps.fileSafeSlug(sectorCode) || 'poster'}${pageSuffix}-${Date.now()}.jpg`,
-              });
+              const sectorItems = [];
+              for (const frame of frames) {
+                if (items.length + sectorItems.length >= POSTER_SOCIAL_IMAGE_MAX_ITEMS) break;
+
+                const blob = await deps.renderPosterFrameToBlob(frame);
+                if (!blob) continue;
+
+                const page = Number(frame.dataset.posterPage || 1);
+                const pageCount = Number(frame.dataset.posterPageCount || 1);
+                const pageSuffix = pageCount > 1 ? `-p${page}` : '';
+                sectorItems.push({
+                  blob,
+                  filename: `${deps.fileSafeSlug(`${market.key}-${group.countryKey}-${sectorCode}`) || 'poster'}${pageSuffix}-${Date.now()}-${items.length + sectorItems.length + 1}.jpg`,
+                });
+              }
+
+              items = appendCarouselItemsLimited(items, sectorItems, POSTER_SOCIAL_IMAGE_MAX_ITEMS);
+              if (items.length >= POSTER_SOCIAL_IMAGE_MAX_ITEMS) break;
             }
             if (!items.length) {
-              throw new Error(`No image blobs were produced for ${sectorCode}.`);
+              throw new Error(`No image blobs were produced for ${countryLabel}.`);
             }
 
             counts.renderedItems += 1;
             await deps.updateSocialJobItem(jobId, itemId, {
               stage: 'uploading',
               renderedAt: new Date(),
-              lastMessage: 'Rendered successfully. Uploading poster media…',
+              lastMessage: `Rendered ${items.length} image${items.length === 1 ? '' : 's'}. Uploading carousel media…`,
             });
             await syncJobSnapshot(jobId, counts, {
               currentStage: 'uploading',
-              currentItemLabel: sectorCode,
-              lastMessage: `Uploading ${sectorCode} to Firebase Storage…`,
+              currentItemLabel: countryLabel,
+              lastMessage: `Uploading ${countryLabel} carousel to Firebase Storage…`,
             });
 
             const result = await deps.uploadAndQueueCarousel(items, {
               source: 'admin',
               jobId,
               jobItemId: itemId,
-              label: sectorCode,
-              sectorId: sector.id,
-              sectorCode,
+              label: countryLabel,
+              sectorId: '',
+              sectorCode: '',
               marketKey,
               caption,
               platforms: ['instagram', 'facebook'],
@@ -652,8 +672,8 @@ export function createSocialPublishingController(deps) {
             });
             await syncJobSnapshot(jobId, counts, {
               currentStage: 'waiting_dispatch',
-              currentItemLabel: sectorCode,
-              lastMessage: `Queued ${sectorCode} for Buffer dispatch.`,
+              currentItemLabel: countryLabel,
+              lastMessage: `Queued ${countryLabel} carousel for Buffer dispatch.`,
             });
           } catch (error) {
             counts.failedItems += 1;
@@ -661,12 +681,12 @@ export function createSocialPublishingController(deps) {
               status: 'failed',
               stage: 'failed',
               lastError: { message: error.message || String(error), retryable: false },
-              lastMessage: error.message || `Failed to queue ${sectorCode}.`,
+              lastMessage: error.message || `Failed to queue ${countryLabel} carousel.`,
             });
             await syncJobSnapshot(jobId, counts, {
               currentStage: 'failed',
-              currentItemLabel: sectorCode,
-              lastMessage: error.message || `Failed to queue ${sectorCode}.`,
+              currentItemLabel: countryLabel,
+              lastMessage: error.message || `Failed to queue ${countryLabel} carousel.`,
             });
             console.error('queueMarketImagesForSocial:', error);
           }
@@ -679,19 +699,19 @@ export function createSocialPublishingController(deps) {
         status: 'created',
         currentStage: counts.queuedItems ? 'waiting_dispatch' : 'failed',
         lastMessage: counts.queuedItems
-          ? `Queued ${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} for dispatch.`
-          : `No ${market.label} image batches were queued.`,
+          ? `Queued ${counts.queuedItems} ${market.label} country carousel${counts.queuedItems > 1 ? 's' : ''} for dispatch.`
+          : `No ${market.label} country carousels were queued.`,
       });
 
       await runDispatcherSoon();
 
       if (!counts.queuedItems) {
-        deps.toast('warning', 'Queue Failed', `No ${market.label} image batches were queued.`);
+        deps.toast('warning', 'Queue Failed', `No ${market.label} country carousels were queued.`);
         return;
       }
 
-      const failureNote = counts.failedItems ? ` ${counts.failedItems} sector${counts.failedItems > 1 ? 's' : ''} failed.` : '';
-      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} image batch${counts.queuedItems > 1 ? 'es' : ''} queued for Instagram/Facebook feed posts.${failureNote}`);
+      const failureNote = counts.failedItems ? ` ${counts.failedItems} country carousel${counts.failedItems > 1 ? 's' : ''} failed.` : '';
+      deps.toast('success', 'Queued for Social', `${counts.queuedItems} ${market.label} country carousel${counts.queuedItems > 1 ? 's' : ''} queued for Instagram/Facebook feed posts.${failureNote}`);
     } catch (error) {
       console.error('queueMarketImagesForSocial:', error);
       deps.toast('error', 'Queue Failed', error.message || 'Failed to queue airport images.');

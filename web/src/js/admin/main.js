@@ -33,6 +33,7 @@ import { formatPosterBaggageDisplay } from './poster-baggage-display.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
 import { createSocialPublishingController } from './social-publishing.js';
 import {
+  listPosterSocialCountries,
   getPosterSocialMarket,
   getPosterSocialMarketPlatforms,
   listPosterSocialMarkets,
@@ -80,12 +81,13 @@ const POSTER_AIRPORT_SHORTCUT_KEYWORDS = {
   ixe: ['MANGALORE'],
 };
 const POSTER_SECTOR_SHORTCUTS = [
-  { key: 'saudi', label: 'Saudi', groupLabel: 'Country Shortcuts', airportCodes: ['JED', 'RUH', 'DMM'], keywords: ['SAUDI', 'SAUDI ARABIA'] },
-  { key: 'uae', label: 'UAE', groupLabel: 'Country Shortcuts', airportCodes: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'], keywords: ['UAE', 'UNITED ARAB EMIRATES', 'DUBAI', 'SHARJAH', 'ABU DHABI', 'RAS AL KHAIMAH', 'AL AIN', 'FUJAIRAH'] },
-  { key: 'qatar', label: 'Qatar', groupLabel: 'Country Shortcuts', airportCodes: ['DOH'], keywords: ['QATAR', 'DOHA'] },
-  { key: 'oman', label: 'Oman', groupLabel: 'Country Shortcuts', airportCodes: ['MCT'], keywords: ['OMAN', 'MUSCAT'] },
-  { key: 'kuwait', label: 'Kuwait', groupLabel: 'Country Shortcuts', airportCodes: ['KWI'], keywords: ['KUWAIT'] },
-  { key: 'bahrain', label: 'Bahrain', groupLabel: 'Country Shortcuts', airportCodes: ['BAH'], keywords: ['BAHRAIN'] },
+  ...listPosterSocialCountries().map((country) => ({
+    key: country.key,
+    label: country.label,
+    groupLabel: country.groupLabel || 'Country Shortcuts',
+    airportCodes: Array.isArray(country.airportCodes) ? country.airportCodes : [],
+    keywords: Array.isArray(country.keywords) ? country.keywords : [],
+  })),
   ...listPosterSocialMarkets().map((market) => ({
     key: `airport-${market.key}`,
     label: market.label,

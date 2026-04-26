@@ -1,4 +1,5 @@
 export const POSTER_SOCIAL_MARKET_ORDER = ['ccj', 'cok', 'cnn', 'trv', 'ixe'];
+export const POSTER_SOCIAL_COUNTRY_ORDER = ['saudi', 'uae', 'oman', 'qatar', 'bahrain', 'kuwait'];
 
 export const POSTER_SOCIAL_MARKETS = {
   ccj: {
@@ -43,11 +44,62 @@ export const POSTER_SOCIAL_MARKETS = {
   },
 };
 
+export const POSTER_SOCIAL_COUNTRIES = {
+  saudi: {
+    key: 'saudi',
+    label: 'Saudi',
+    groupLabel: 'Country Shortcuts',
+    airportCodes: ['JED', 'RUH', 'DMM'],
+    keywords: ['SAUDI', 'SAUDI ARABIA'],
+  },
+  uae: {
+    key: 'uae',
+    label: 'UAE',
+    groupLabel: 'Country Shortcuts',
+    airportCodes: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'],
+    keywords: ['UAE', 'UNITED ARAB EMIRATES', 'DUBAI', 'SHARJAH', 'ABU DHABI', 'RAS AL KHAIMAH', 'AL AIN', 'FUJAIRAH'],
+  },
+  oman: {
+    key: 'oman',
+    label: 'Oman',
+    groupLabel: 'Country Shortcuts',
+    airportCodes: ['MCT'],
+    keywords: ['OMAN', 'MUSCAT'],
+  },
+  qatar: {
+    key: 'qatar',
+    label: 'Qatar',
+    groupLabel: 'Country Shortcuts',
+    airportCodes: ['DOH'],
+    keywords: ['QATAR', 'DOHA'],
+  },
+  bahrain: {
+    key: 'bahrain',
+    label: 'Bahrain',
+    groupLabel: 'Country Shortcuts',
+    airportCodes: ['BAH'],
+    keywords: ['BAHRAIN'],
+  },
+  kuwait: {
+    key: 'kuwait',
+    label: 'Kuwait',
+    groupLabel: 'Country Shortcuts',
+    airportCodes: ['KWI'],
+    keywords: ['KUWAIT'],
+  },
+};
+
 export const INDIA_AIRPORT_CODES = ['CCJ', 'COK', 'CNN', 'TRV', 'IXE'];
 
 const INDIA_AIRPORT_SET = new Set(INDIA_AIRPORT_CODES);
 const INDIA_AIRPORT_KEY_BY_CODE = Object.fromEntries(
   INDIA_AIRPORT_CODES.map((code) => [code, code.toLowerCase()]),
+);
+const COUNTRY_KEY_BY_AIRPORT_CODE = Object.fromEntries(
+  POSTER_SOCIAL_COUNTRY_ORDER.flatMap((key) => {
+    const country = POSTER_SOCIAL_COUNTRIES[key];
+    return (country?.airportCodes || []).map((code) => [code, key]);
+  }),
 );
 
 const LOCATION_CODE_MAP = {
@@ -129,8 +181,24 @@ export function resolveSectorMarketKey(sector = {}) {
   return INDIA_AIRPORT_KEY_BY_CODE[indiaCode] || null;
 }
 
+export function resolveSectorCountryKey(sector = {}) {
+  const { fromCode, toCode } = getSectorRouteCodes(sector);
+  if (!fromCode || !toCode) return null;
+
+  const fromIndia = INDIA_AIRPORT_SET.has(fromCode);
+  const toIndia = INDIA_AIRPORT_SET.has(toCode);
+  if (fromIndia === toIndia) return null;
+
+  const nonIndiaCode = fromIndia ? toCode : fromCode;
+  return COUNTRY_KEY_BY_AIRPORT_CODE[nonIndiaCode] || null;
+}
+
 export function getPosterSocialMarket(key) {
   return POSTER_SOCIAL_MARKETS[key] || null;
+}
+
+export function getPosterSocialCountry(key) {
+  return POSTER_SOCIAL_COUNTRIES[key] || null;
 }
 
 export function getPosterSocialMarketPlatforms(key) {
@@ -140,5 +208,11 @@ export function getPosterSocialMarketPlatforms(key) {
 export function listPosterSocialMarkets() {
   return POSTER_SOCIAL_MARKET_ORDER
     .map((key) => POSTER_SOCIAL_MARKETS[key])
+    .filter(Boolean);
+}
+
+export function listPosterSocialCountries() {
+  return POSTER_SOCIAL_COUNTRY_ORDER
+    .map((key) => POSTER_SOCIAL_COUNTRIES[key])
     .filter(Boolean);
 }

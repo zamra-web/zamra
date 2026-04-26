@@ -127,7 +127,8 @@ web/
 - **Setup-aware publishing controls** — the tab reads the saved posting setup from Firestore `config/socialPublishing`; action buttons disable automatically when the required airport-specific channel IDs are missing
 - **Current Activity card** — shows the live stage, current route/ratio, and `Created` / `Posted` counters while a publishing batch is rendering/uploading/dispatching
 - **Recent Publishing Jobs** — last 25 jobs from the past 3 days are listed inline with `Created` / `Posted` counts; opening a job shows item-level status, error details, and retry actions
-- **Queue Images** — batches eligible India ↔ international sectors by India-side airport group into standard Instagram/Facebook feed posts only
+- **Queue Images** — one click per airport group builds up to 6 standard Instagram/Facebook feed carousels only, grouped by destination country in this fixed order: `Saudi`, `UAE`, `Oman`, `Qatar`, `Bahrain`, `Kuwait`
+- **Country carousel cap** — each airport-country image post keeps only the first 10 rendered poster frames so one airport run stays capped at `6 queue items` and `12 Buffer createPost` calls
 - **Queue Videos** — batches eligible India ↔ international sectors by India-side airport group into two uploads per sector: `9:16` for Instagram/Facebook/YouTube Shorts and `16:9` for YouTube only
 - **Airport routing** — social queueing always groups by the India-side airport in either direction (for example `CCJ DMM` and `DMM CCJ` both publish under `Calicut (CCJ)`), and still excludes non-India routes like `DOH DXB`
 - **Durable queue pipeline** — every batch creates a `social_jobs/{jobId}` record plus `social_jobs/{jobId}/items/*`; uploaded media is written to `social_queue` with retry/lease metadata, then dispatched by scheduled workers
@@ -556,4 +557,4 @@ npx firebase-tools@latest deploy --only functions
 
 ---
 
-_Last audited: 2026-04-26 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer `createPost` dispatch only, `Created` / `Posted` operator-facing job states, feed-only image batches, retryable retained media, inline activity/history UI in the Socials tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, and merged slideshow exports; poster footer contact remains +91 9846606739._
+_Last audited: 2026-04-26 — Social publishing uses a durable Firestore-backed job/queue pipeline with saved posting setup snapshots, direct Buffer `createPost` dispatch only, `Created` / `Posted` operator-facing job states, airport-country feed-only image carousels capped at 6 queue items / 12 Buffer calls per airport run, retryable retained media, inline activity/history UI in the Socials tab, and 72-hour retention for queue/job/media cleanup. Poster generator still keeps infinite brand-safe palettes, video progress feedback, and merged slideshow exports; poster footer contact remains +91 9846606739._
