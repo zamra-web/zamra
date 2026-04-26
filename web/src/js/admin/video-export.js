@@ -335,7 +335,9 @@ function drawSlideBackground(ctx, preset, image) {
 
   ctx.save();
   try {
-    ctx.filter = `blur(${preset.backdropBlur}px) brightness(0.58) saturate(0.9)`;
+    const brightness = Number(preset.backdropBrightness) || 0.58;
+    const saturation = Number(preset.backdropSaturation) || 0.9;
+    ctx.filter = `blur(${preset.backdropBlur}px) brightness(${brightness}) saturate(${saturation})`;
   } catch (_) {}
   ctx.drawImage(
     image,
@@ -352,15 +354,29 @@ function drawSlideBackground(ctx, preset, image) {
 
   const gradient = ctx.createLinearGradient(0, 0, 0, preset.height);
   gradient.addColorStop(0, `rgba(8, 17, 32, ${preset.overlayAlpha})`);
-  gradient.addColorStop(0.5, 'rgba(8, 17, 32, 0.18)');
+  gradient.addColorStop(0.5, 'rgba(8, 17, 32, 0.12)');
   gradient.addColorStop(1, `rgba(8, 17, 32, ${preset.overlayAlpha + 0.08})`);
   ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, preset.width, preset.height);
+
+  const spotlight = ctx.createRadialGradient(
+    preset.width / 2,
+    preset.height * 0.42,
+    preset.width * 0.1,
+    preset.width / 2,
+    preset.height * 0.45,
+    preset.width * 0.72,
+  );
+  spotlight.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
+  spotlight.addColorStop(0.5, 'rgba(147, 197, 253, 0.05)');
+  spotlight.addColorStop(1, 'rgba(8, 17, 32, 0)');
+  ctx.fillStyle = spotlight;
   ctx.fillRect(0, 0, preset.width, preset.height);
 }
 
 function drawSlideCard(ctx, layout, image) {
   ctx.save();
-  ctx.shadowColor = 'rgba(8, 15, 29, 0.34)';
+  ctx.shadowColor = 'rgba(8, 15, 29, 0.38)';
   ctx.shadowBlur = layout.preset.shadowBlur;
   ctx.shadowOffsetY = layout.preset.shadowOffsetY;
   ctx.fillStyle = '#ffffff';
@@ -371,11 +387,27 @@ function drawSlideCard(ctx, layout, image) {
   ctx.save();
   drawRoundedRectPath(ctx, layout.card.x, layout.card.y, layout.card.width, layout.card.height, layout.card.radius);
   ctx.clip();
-  ctx.drawImage(image, layout.card.x, layout.card.y, layout.card.width, layout.card.height);
+  const crop = layout.card.crop || {
+    sx: 0,
+    sy: 0,
+    sw: image.width,
+    sh: image.height,
+  };
+  ctx.drawImage(
+    image,
+    crop.sx,
+    crop.sy,
+    crop.sw,
+    crop.sh,
+    layout.card.x,
+    layout.card.y,
+    layout.card.width,
+    layout.card.height,
+  );
   ctx.restore();
 
   ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
   ctx.lineWidth = 2;
   drawRoundedRectPath(ctx, layout.card.x, layout.card.y, layout.card.width, layout.card.height, layout.card.radius);
   ctx.stroke();

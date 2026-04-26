@@ -9,38 +9,56 @@ export const VIDEO_SLIDESHOW_PRESETS = Object.freeze({
   '1x1': Object.freeze({
     width: 1080,
     height: 1080,
-    paddingX: 74,
-    paddingY: 72,
-    cardRadius: 34,
-    shadowBlur: 46,
-    shadowOffsetY: 18,
-    backdropScale: 1.08,
-    backdropBlur: 28,
-    overlayAlpha: 0.42,
+    paddingX: 52,
+    paddingY: 48,
+    cardRadius: 36,
+    shadowBlur: 52,
+    shadowOffsetY: 20,
+    backdropScale: 1.16,
+    backdropBlur: 18,
+    backdropBrightness: 0.72,
+    backdropSaturation: 1.02,
+    overlayAlpha: 0.34,
+    cardAspectMinScale: 0.82,
+    cardAspectMaxScale: 1.1,
+    cardFocusX: 0.5,
+    cardFocusY: 0.7,
   }),
   '9x16': Object.freeze({
     width: 1080,
     height: 1920,
-    paddingX: 60,
-    paddingY: 84,
+    paddingX: 44,
+    paddingY: 52,
     cardRadius: 36,
-    shadowBlur: 54,
+    shadowBlur: 56,
     shadowOffsetY: 22,
-    backdropScale: 1.1,
-    backdropBlur: 34,
-    overlayAlpha: 0.46,
+    backdropScale: 1.18,
+    backdropBlur: 18,
+    backdropBrightness: 0.7,
+    backdropSaturation: 1.04,
+    overlayAlpha: 0.36,
+    cardAspectMinScale: 0.82,
+    cardAspectMaxScale: 1.08,
+    cardFocusX: 0.5,
+    cardFocusY: 0.68,
   }),
   '16x9': Object.freeze({
     width: 1920,
     height: 1080,
-    paddingX: 96,
-    paddingY: 68,
+    paddingX: 56,
+    paddingY: 36,
     cardRadius: 30,
-    shadowBlur: 50,
+    shadowBlur: 56,
     shadowOffsetY: 20,
-    backdropScale: 1.08,
-    backdropBlur: 30,
-    overlayAlpha: 0.48,
+    backdropScale: 1.18,
+    backdropBlur: 20,
+    backdropBrightness: 0.74,
+    backdropSaturation: 1.03,
+    overlayAlpha: 0.36,
+    cardAspectMinScale: 0.82,
+    cardAspectMaxScale: 1.1,
+    cardFocusX: 0.5,
+    cardFocusY: 0.72,
   }),
 });
 
@@ -73,11 +91,31 @@ export function containRect(sourceWidth, sourceHeight, maxWidth, maxHeight) {
   };
 }
 
-export function coverImageRect(sourceWidth, sourceHeight, targetWidth, targetHeight) {
+export function fitRectToAspect(maxWidth, maxHeight, aspectRatio) {
+  const width = Math.max(1, Number(maxWidth) || 1);
+  const height = Math.max(1, Number(maxHeight) || 1);
+  const ratio = Math.max(0.01, Number(aspectRatio) || 1);
+
+  let fittedWidth = width;
+  let fittedHeight = fittedWidth / ratio;
+  if (fittedHeight > height) {
+    fittedHeight = height;
+    fittedWidth = fittedHeight * ratio;
+  }
+
+  return {
+    width: fittedWidth,
+    height: fittedHeight,
+  };
+}
+
+export function coverImageRect(sourceWidth, sourceHeight, targetWidth, targetHeight, options = {}) {
   const width = Math.max(1, Number(sourceWidth) || 1);
   const height = Math.max(1, Number(sourceHeight) || 1);
   const sourceRatio = width / height;
   const targetRatio = Math.max(1, Number(targetWidth) || 1) / Math.max(1, Number(targetHeight) || 1);
+  const focusX = clamp(options.focusX ?? 0.5, 0, 1);
+  const focusY = clamp(options.focusY ?? 0.5, 0, 1);
 
   let sw = width;
   let sh = height;
@@ -86,10 +124,10 @@ export function coverImageRect(sourceWidth, sourceHeight, targetWidth, targetHei
 
   if (sourceRatio > targetRatio) {
     sw = height * targetRatio;
-    sx = (width - sw) / 2;
+    sx = (width - sw) * focusX;
   } else {
     sh = width / targetRatio;
-    sy = (height - sh) / 2;
+    sy = (height - sh) * focusY;
   }
 
   return { sx, sy, sw, sh };
@@ -105,13 +143,24 @@ export function planSlideshowLayout({
   const canvas = { width: preset.width, height: preset.height };
   const maxCardWidth = canvas.width - (preset.paddingX * 2);
   const maxCardHeight = canvas.height - (preset.paddingY * 2);
-  const contained = containRect(slideWidth, slideHeight, maxCardWidth, maxCardHeight);
+  const safeSlideWidth = Math.max(1, Number(slideWidth) || 1);
+  const safeSlideHeight = Math.max(1, Number(slideHeight) || 1);
+  const sourceRatio = safeSlideWidth / safeSlideHeight;
+  const stageRatio = maxCardWidth / maxCardHeight;
+  const aspectMinScale = Math.max(0.4, Number(preset.cardAspectMinScale) || 1);
+  const aspectMaxScale = Math.max(aspectMinScale, Number(preset.cardAspectMaxScale) || aspectMinScale);
+  const targetRatio = clamp(stageRatio, sourceRatio * aspectMinScale, sourceRatio * aspectMaxScale);
+  const fitted = fitRectToAspect(maxCardWidth, maxCardHeight, targetRatio);
   const card = {
-    x: (canvas.width - contained.width) / 2,
-    y: (canvas.height - contained.height) / 2,
-    width: contained.width,
-    height: contained.height,
+    x: (canvas.width - fitted.width) / 2,
+    y: (canvas.height - fitted.height) / 2,
+    width: fitted.width,
+    height: fitted.height,
     radius: preset.cardRadius,
+    crop: coverImageRect(safeSlideWidth, safeSlideHeight, fitted.width, fitted.height, {
+      focusX: preset.cardFocusX ?? 0.5,
+      focusY: preset.cardFocusY ?? 0.5,
+    }),
   };
 
   return {
@@ -119,8 +168,8 @@ export function planSlideshowLayout({
     canvas,
     preset,
     source: {
-      width: Math.max(1, Number(slideWidth) || 1),
-      height: Math.max(1, Number(slideHeight) || 1),
+      width: safeSlideWidth,
+      height: safeSlideHeight,
     },
     card,
   };

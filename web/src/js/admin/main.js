@@ -872,6 +872,122 @@ function openModal(title, bodyHtml, wide = false) {
 // DASHBOARD TAB — Poster Generator
 // ══════════════════════════════════════════════════════════════════════════════
 const POSTER_MAX_ROWS = 12;
+
+function getPosterLayoutProfile(rowCount = 0) {
+  if (rowCount >= 10) {
+    return {
+      key: 'dense',
+      headerHeight: 232,
+      headerPadX: 34,
+      badgePadding: '7px 22px',
+      badgeFont: 14,
+      badgeMarginBottom: 14,
+      titleFont: 52,
+      subtitleFont: 18,
+      bodyPadding: '30px 34px 26px',
+      cardPadding: 24,
+      cardRadius: 18,
+      thPadding: '12px 10px',
+      thFont: 13,
+      rowPadY: 10,
+      rowPadX: 10,
+      dateFont: 14,
+      airlineTextFont: 13,
+      logoHeight: 28,
+      logoMaxWidth: 96,
+      timeFont: 14,
+      baggageFont: 13,
+      baggagePadding: '5px 10px',
+      fareFont: 18,
+      footerPadding: '22px 34px',
+      footerGap: 16,
+      footerBrandGap: 14,
+      footerLogoHeight: 42,
+      footerDividerHeight: 34,
+      footerTitleFont: 20,
+      footerMetaFont: 17,
+      footerMetaGap: 22,
+    };
+  }
+
+  if (rowCount >= 6) {
+    return {
+      key: 'balanced',
+      headerHeight: 220,
+      headerPadX: 34,
+      badgePadding: '7px 22px',
+      badgeFont: 14,
+      badgeMarginBottom: 14,
+      titleFont: 54,
+      subtitleFont: 18,
+      bodyPadding: '28px 32px 24px',
+      cardPadding: 22,
+      cardRadius: 18,
+      thPadding: '12px 10px',
+      thFont: 13,
+      rowPadY: 12,
+      rowPadX: 10,
+      dateFont: 14,
+      airlineTextFont: 13,
+      logoHeight: 30,
+      logoMaxWidth: 102,
+      timeFont: 14,
+      baggageFont: 13,
+      baggagePadding: '5px 11px',
+      fareFont: 19,
+      footerPadding: '22px 32px',
+      footerGap: 16,
+      footerBrandGap: 14,
+      footerLogoHeight: 42,
+      footerDividerHeight: 34,
+      footerTitleFont: 20,
+      footerMetaFont: 17,
+      footerMetaGap: 22,
+    };
+  }
+
+  return {
+    key: 'sparse',
+    headerHeight: 208,
+    headerPadX: 30,
+    badgePadding: '6px 20px',
+    badgeFont: 13,
+    badgeMarginBottom: 12,
+    titleFont: 56,
+    subtitleFont: 17,
+    bodyPadding: '24px 28px 22px',
+    cardPadding: 20,
+    cardRadius: 18,
+    thPadding: '11px 10px',
+    thFont: 13,
+    rowPadY: 14,
+    rowPadX: 10,
+    dateFont: 15,
+    airlineTextFont: 14,
+    logoHeight: 34,
+    logoMaxWidth: 110,
+    timeFont: 15,
+    baggageFont: 13,
+    baggagePadding: '6px 12px',
+    fareFont: 21,
+    footerPadding: '20px 28px',
+    footerGap: 14,
+    footerBrandGap: 12,
+    footerLogoHeight: 40,
+    footerDividerHeight: 32,
+    footerTitleFont: 19,
+    footerMetaFont: 16,
+    footerMetaGap: 18,
+  };
+}
+
+function resolvePosterTitleFontSize(originName, destName, layout) {
+  const totalLength = `${originName || ''}${destName || ''}`.replace(/\s+/g, '').length;
+  if (totalLength >= 24) return Math.max(layout.titleFont - 12, 40);
+  if (totalLength >= 18) return Math.max(layout.titleFont - 8, 44);
+  if (totalLength >= 14) return Math.max(layout.titleFont - 4, 46);
+  return layout.titleFont;
+}
 const POSTER_THEMES = [
   {
     id: 'classic',
@@ -1275,6 +1391,94 @@ function buildPosterThemeOrder(count) {
 let isVideoPosterGenerating = false;
 let isMarketSocialQueueGenerating = false;
 
+function applyPosterLayout(frameEl, layout) {
+  if (!frameEl || !layout) return;
+
+  const topBar = frameEl.querySelector('[data-poster-top-bar]');
+  if (topBar) topBar.style.height = '14px';
+
+  const header = frameEl.querySelector('[data-poster-header]');
+  if (header) header.style.height = `${layout.headerHeight}px`;
+
+  const headerContent = frameEl.querySelector('[data-poster-header-content]');
+  if (headerContent) {
+    headerContent.style.paddingLeft = `${layout.headerPadX}px`;
+    headerContent.style.paddingRight = `${layout.headerPadX}px`;
+  }
+
+  const badge = frameEl.querySelector('[data-poster-badge]');
+  if (badge) {
+    badge.style.padding = layout.badgePadding;
+    badge.style.fontSize = `${layout.badgeFont}px`;
+    badge.style.marginBottom = `${layout.badgeMarginBottom}px`;
+  }
+
+  const title = frameEl.querySelector('[data-poster-title]');
+  if (title) {
+    title.style.lineHeight = '1.08';
+    title.style.marginBottom = '8px';
+  }
+
+  const subtitle = frameEl.querySelector('[data-poster-subtitle]');
+  if (subtitle) {
+    subtitle.style.fontSize = `${layout.subtitleFont}px`;
+    subtitle.style.fontWeight = '600';
+  }
+
+  const body = frameEl.querySelector('[data-poster-body]');
+  if (body) {
+    body.style.padding = layout.bodyPadding;
+    body.style.display = 'flex';
+    body.style.flexDirection = 'column';
+  }
+
+  const card = frameEl.querySelector('[data-poster-card]');
+  if (card) {
+    card.style.padding = `${layout.cardPadding}px`;
+    card.style.borderRadius = `${layout.cardRadius}px`;
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.flex = '1';
+  }
+
+  const tableShell = frameEl.querySelector('[data-poster-table-shell]');
+  if (tableShell) {
+    tableShell.style.display = 'flex';
+    tableShell.style.flexDirection = 'column';
+    tableShell.style.flex = '1';
+    tableShell.style.justifyContent = 'flex-start';
+  }
+
+  frameEl.querySelectorAll('[data-poster-th]').forEach((th) => {
+    th.style.padding = layout.thPadding;
+    th.style.fontSize = `${layout.thFont}px`;
+  });
+
+  const footer = frameEl.querySelector('[data-poster-footer]');
+  if (footer) {
+    footer.style.padding = layout.footerPadding;
+    footer.style.gap = `${layout.footerGap}px`;
+  }
+
+  const footerBrand = frameEl.querySelector('[data-poster-footer-brand]');
+  if (footerBrand) footerBrand.style.gap = `${layout.footerBrandGap}px`;
+
+  const footerLogo = frameEl.querySelector('[data-poster-footer-logo]');
+  if (footerLogo) footerLogo.style.height = `${layout.footerLogoHeight}px`;
+
+  const footerDivider = frameEl.querySelector('[data-poster-footer-divider]');
+  if (footerDivider) footerDivider.style.height = `${layout.footerDividerHeight}px`;
+
+  const footerTitle = frameEl.querySelector('[data-poster-footer-title]');
+  if (footerTitle) footerTitle.style.fontSize = `${layout.footerTitleFont}px`;
+
+  const footerMeta = frameEl.querySelector('[data-poster-footer-meta]');
+  if (footerMeta) {
+    footerMeta.style.gap = `${layout.footerMetaGap}px`;
+    footerMeta.style.fontSize = `${layout.footerMetaFont}px`;
+  }
+}
+
 function applyPosterTheme(frameEl, theme) {
   if (!frameEl || !theme) return;
 
@@ -1453,10 +1657,21 @@ async function writeTextToClipboard(text, html = '') {
 }
 
 function chunkPosterFares(list, size) {
+  const source = Array.isArray(list) ? list : [];
+  if (!source.length || !Number.isFinite(size) || size <= 0) return [];
+
+  const pageCount = Math.ceil(source.length / size);
+  const baseSize = Math.floor(source.length / pageCount);
+  const remainder = source.length % pageCount;
   const chunks = [];
-  for (let i = 0; i < list.length; i += size) {
-    chunks.push(list.slice(i, i + size));
+  let cursor = 0;
+
+  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    const chunkSize = baseSize + (pageIndex < remainder ? 1 : 0);
+    chunks.push(source.slice(cursor, cursor + chunkSize));
+    cursor += chunkSize;
   }
+
   return chunks;
 }
 
@@ -1726,6 +1941,8 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame)
       const tbody = frameEl.querySelector('[data-poster-tbody]') || frameEl.querySelector('#poster-fares-tbody');
       if (!titleEl || !tbody) return;
 
+      const layout = getPosterLayoutProfile(frameFares.length);
+      applyPosterLayout(frameEl, layout);
       applyPosterTheme(frameEl, theme);
 
       const sector = _sectors.find((item) => item.id === frameSectorId);
@@ -1746,6 +1963,7 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame)
       titleEl.innerHTML = destName
         ? `${originName} <span style="color:${accent};font-weight:900;">&#8594;</span> ${destName}`
         : `${originName}`;
+      titleEl.style.fontSize = `${resolvePosterTitleFontSize(originName, destName, layout)}px`;
 
       const rows = [];
       const rowAlt = theme?.rowAlt || '#f8fafc';
@@ -1764,55 +1982,43 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame)
         const logoSrc = airline ? blobUrlMap[airline.id] : null;
 
         const airlineCell = logoSrc
-          ? `<img src="${logoSrc}" style="height:22px;max-width:80px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
-          : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:12px;white-space:nowrap;">${airline?.name || fare.airlineId || '—'}</span>`;
+          ? `<img src="${logoSrc}" style="height:${layout.logoHeight}px;max-width:${layout.logoMaxWidth}px;object-fit:contain;display:block;margin:0 auto;" alt="${airline?.name || ''}">`
+          : `<span style="font-weight:700;color:#0f172a;display:block;text-align:center;font-size:${layout.airlineTextFont}px;white-space:nowrap;">${airline?.name || fare.airlineId || '—'}</span>`;
 
-        let timeCell = '<span style="color:#94a3b8;font-size:12px;">—</span>';
+        let timeCell = `<span style="color:#94a3b8;font-size:${Math.max(layout.timeFont - 2, 12)}px;">—</span>`;
         if (fare.flightTime) {
           const parts = fare.flightTime.split('-').map((part) => part.trim());
           if (parts.length >= 2) {
-            timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
+            timeCell = `<span style="font-weight:700;font-size:${layout.timeFont}px;color:#0f172a;white-space:nowrap;">${parts[0]} - ${parts[1]}</span>`;
           } else {
-            timeCell = `<span style="font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;">${fare.flightTime}</span>`;
+            timeCell = `<span style="font-weight:700;font-size:${layout.timeFont}px;color:#0f172a;white-space:nowrap;">${fare.flightTime}</span>`;
           }
         }
 
         const baggageLabel = formatPosterBaggageDisplay(fare.baggage, fare.extraBaggage);
         const baggageCell = baggageLabel === '—'
-          ? '<span style="color:#94a3b8;font-size:12px;">—</span>'
-          : `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:3px 7px;border-radius:6px;font-size:11px;text-align:center;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;
+          ? `<span style="color:#94a3b8;font-size:${Math.max(layout.baggageFont - 1, 12)}px;">—</span>`
+          : `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:${layout.baggagePadding};border-radius:999px;font-size:${layout.baggageFont}px;text-align:center;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;
 
         const posterRate = getPosterRateDisplay(fare.finalRate, fare.flightDate);
 
         rows.push(`
           <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
-            <td style="padding:6px 8px;font-weight:700;color:#0f172a;font-size:12px;white-space:nowrap;">${dt}</td>
-            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${airlineCell}</td>
-            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${timeCell}</td>
-            <td style="padding:6px 8px;text-align:center;vertical-align:middle;">${baggageCell}</td>
-            <td style="padding:6px 8px;text-align:right;vertical-align:middle;">
+            <td style="padding:${layout.rowPadY}px ${layout.rowPadX}px;font-weight:700;color:#0f172a;font-size:${layout.dateFont}px;white-space:nowrap;">${dt}</td>
+            <td style="padding:${layout.rowPadY}px ${layout.rowPadX}px;text-align:center;vertical-align:middle;">${airlineCell}</td>
+            <td style="padding:${layout.rowPadY}px ${layout.rowPadX}px;text-align:center;vertical-align:middle;">${timeCell}</td>
+            <td style="padding:${layout.rowPadY}px ${layout.rowPadX}px;text-align:center;vertical-align:middle;">${baggageCell}</td>
+            <td style="padding:${layout.rowPadY}px ${layout.rowPadX}px;text-align:right;vertical-align:middle;">
               <div
                 data-rate-mode="${posterRate.isMasked ? 'masked' : 'live'}"
                 data-actual-rate="${escapeHtml(posterRate.actualLabel)}"
-                style="display:inline-block;color:${fareText};font-weight:900;font-size:14px;white-space:nowrap;"
+                style="display:inline-block;color:${fareText};font-weight:900;font-size:${layout.fareFont}px;white-space:nowrap;"
               >
                 ${escapeHtml(posterRate.displayLabel)}
               </div>
             </td>
           </tr>`);
       });
-
-      for (let i = frameFares.length; i < POSTER_MAX_ROWS; i += 1) {
-        const rowBg = i % 2 === 0 ? '#ffffff' : rowAlt;
-        rows.push(`
-          <tr style="background-color:${rowBg};border-bottom:1px solid ${rowBorder};">
-            <td style="padding:6px 8px;">&nbsp;</td>
-            <td style="padding:6px 8px;">&nbsp;</td>
-            <td style="padding:6px 8px;">&nbsp;</td>
-            <td style="padding:6px 8px;">&nbsp;</td>
-            <td style="padding:6px 8px;">&nbsp;</td>
-          </tr>`);
-      }
 
       tbody.innerHTML = rows.join('');
     };

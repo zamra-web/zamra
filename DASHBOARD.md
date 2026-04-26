@@ -103,14 +103,14 @@ web/
   - **Default date floor = today** — poster fetches always start from today to avoid expired fares (even if the date input is blank or earlier)
   - **All Sectors** renders **one poster per sector** (instead of mixing sectors into a single table)
   - Layout utilizes a concise, dense row design to fit more fares cleanly into the poster
-  - **Consistent size** — posters use a fixed height and pad empty rows so the layout never shrinks
-  - **Auto-page** — sectors with more than 12 fares split into multiple posters (page per chunk)
+  - **Consistent canvas, adaptive composition** — posters keep a fixed export size, but the fare card/header/footer spacing now rebalance to give the table more room instead of relying on large dead zones
+  - **Auto-page** — sectors with more than 12 fares split into multiple posters, and multi-page routes distribute rows more evenly so the final page does not end up sparse
   - **Deduplicates identical flights** (same sector, airline, date, and time), guaranteeing only the cheapest rate is shown — airline + time are normalized so duplicates across agents collapse reliably
   - **Airline logos** are pre-fetched as blob URLs before rendering (with case-insensitive, whitespace-trimmed lookups) — sidesteps CORS for `html2canvas`
   - **Dynamic brand themes** — each generation creates a brand‑safe palette on the fly (effectively infinite variety) so posters feel fresh when shared
   - **Footer contact** — poster footer phone is `+91 9846606739`
   - **Video slideshow** — if a route spans multiple pages, the video export merges them into a single poster-page slideshow
-  - **Video exports are full-frame and ratio-aware** — the canvas renderer now places each rendered poster page onto a ratio-aware slideshow stage for 1:1 / 9:16 / 16:9 exports, using a contained poster card over a softened full-frame backdrop so each ratio stays readable without row-level animation
+  - **Video exports are full-frame and ratio-aware** — the canvas renderer now places each rendered poster page onto a ratio-aware slideshow stage for 1:1 / 9:16 / 16:9 exports, using adaptive poster framing, bounded safe-area cropping, and a softened full-frame backdrop so each ratio feels fuller without row-level animation
   - **Video progress** — inline status pill updates during rendering (e.g. `Rendering 3/8 · CCJ DXB`)
   - **Copy Text** — copies the currently generated poster fares into a plain-text share format grouped by route (for quick WhatsApp/status posting). Airport-shortcut previews also expose country-specific copy targets such as `CCJ → Saudi` or `CCJ → UAE` so teams can copy only the relevant subset.
   - **Download JPEG** — renders poster(s) to canvas at 2× resolution and triggers a `.jpg` download (downloads one file per sector for All Sectors)
