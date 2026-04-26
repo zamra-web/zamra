@@ -874,15 +874,57 @@ function openModal(title, bodyHtml, wide = false) {
 const POSTER_MAX_ROWS = 12;
 
 function getPosterLayoutProfile(rowCount = 0) {
+  if (rowCount >= POSTER_MAX_ROWS) {
+    return {
+      key: 'capacity',
+      topBarHeight: 12,
+      headerHeight: 212,
+      headerPadX: 30,
+      badgePadding: '6px 18px',
+      badgeFont: 13,
+      badgeMarginBottom: 12,
+      titleFont: 48,
+      titleLineHeight: 1.06,
+      titleMarginBottom: 6,
+      subtitleFont: 16,
+      bodyPadding: '22px 24px 18px',
+      cardPadding: 18,
+      cardRadius: 18,
+      thPadding: '10px 8px',
+      thFont: 12,
+      rowPadY: 7,
+      rowPadX: 8,
+      dateFont: 13,
+      airlineTextFont: 12,
+      logoHeight: 24,
+      logoMaxWidth: 88,
+      timeFont: 13,
+      baggageFont: 12,
+      baggagePadding: '4px 8px',
+      fareFont: 17,
+      footerPadding: '18px 24px',
+      footerGap: 12,
+      footerBrandGap: 12,
+      footerLogoHeight: 38,
+      footerDividerHeight: 30,
+      footerTitleFont: 18,
+      footerMetaFont: 15,
+      footerMetaGap: 16,
+    };
+  }
+
   if (rowCount >= 10) {
     return {
       key: 'dense',
+      topBarHeight: 14,
       headerHeight: 232,
       headerPadX: 34,
       badgePadding: '7px 22px',
       badgeFont: 14,
       badgeMarginBottom: 14,
       titleFont: 52,
+      titleLineHeight: 1.08,
+      titleMarginBottom: 8,
       subtitleFont: 18,
       bodyPadding: '30px 34px 26px',
       cardPadding: 24,
@@ -913,12 +955,15 @@ function getPosterLayoutProfile(rowCount = 0) {
   if (rowCount >= 6) {
     return {
       key: 'balanced',
+      topBarHeight: 14,
       headerHeight: 220,
       headerPadX: 34,
       badgePadding: '7px 22px',
       badgeFont: 14,
       badgeMarginBottom: 14,
       titleFont: 54,
+      titleLineHeight: 1.08,
+      titleMarginBottom: 8,
       subtitleFont: 18,
       bodyPadding: '28px 32px 24px',
       cardPadding: 22,
@@ -948,12 +993,15 @@ function getPosterLayoutProfile(rowCount = 0) {
 
   return {
     key: 'sparse',
+    topBarHeight: 14,
     headerHeight: 208,
     headerPadX: 30,
     badgePadding: '6px 20px',
     badgeFont: 13,
     badgeMarginBottom: 12,
     titleFont: 56,
+    titleLineHeight: 1.08,
+    titleMarginBottom: 8,
     subtitleFont: 17,
     bodyPadding: '24px 28px 22px',
     cardPadding: 20,
@@ -1395,7 +1443,7 @@ function applyPosterLayout(frameEl, layout) {
   if (!frameEl || !layout) return;
 
   const topBar = frameEl.querySelector('[data-poster-top-bar]');
-  if (topBar) topBar.style.height = '14px';
+  if (topBar) topBar.style.height = `${layout.topBarHeight ?? 14}px`;
 
   const header = frameEl.querySelector('[data-poster-header]');
   if (header) header.style.height = `${layout.headerHeight}px`;
@@ -1415,8 +1463,8 @@ function applyPosterLayout(frameEl, layout) {
 
   const title = frameEl.querySelector('[data-poster-title]');
   if (title) {
-    title.style.lineHeight = '1.08';
-    title.style.marginBottom = '8px';
+    title.style.lineHeight = String(layout.titleLineHeight ?? 1.08);
+    title.style.marginBottom = `${layout.titleMarginBottom ?? 8}px`;
   }
 
   const subtitle = frameEl.querySelector('[data-poster-subtitle]');
