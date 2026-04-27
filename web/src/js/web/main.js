@@ -1,6 +1,7 @@
 // Modern Zamra Travels JavaScript
 import '../shared/vercel-insights.js';
 import { getSectors, getFares, getAirlines } from '../admin/db.js';
+import { dedupeAndSortFares, splitFlightTimeRange } from './flight-results.js';
 import { initSiteChrome } from './site-chrome.js';
 
 const ENQUIRY_WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/enquiry';
@@ -226,32 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const today = new Date();
           today.setHours(0,0,0,0);
 
-          let fares = await getFares({
+          const fares = dedupeAndSortFares(await getFares({
             sectorId: sector.id,
             startDate: today.toISOString()
-          });
-
-          // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
-          const groupedFaresMap = new Map();
-          fares.forEach(fare => {
-            const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
-            const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
-            if (!groupedFaresMap.has(key)) {
-              groupedFaresMap.set(key, fare);
-            } else {
-              if (fare.finalRate < groupedFaresMap.get(key).finalRate) {
-                groupedFaresMap.set(key, fare);
-              }
-            }
-          });
-          fares = Array.from(groupedFaresMap.values());
-
-          fares.sort((a, b) => {
-             if (a.flightDate.getTime() === b.flightDate.getTime()) {
-                return a.finalRate - b.finalRate;
-             }
-             return a.flightDate.getTime() - b.flightDate.getTime();
-          });
+          }));
 
           if (fares.length > 0) {
             hasFares = true;
@@ -259,8 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const airlineName = airlineMap[fare.airlineId] || 'Unknown Airline';
               const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
               const dateStr = fare.flightDate.toLocaleDateString('en-GB', dateOptions);
-              const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
-              const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
+              const { departure: dep, arrival: arr } = splitFlightTimeRange(fare.flightTime);
               const price = `\u20b9${fare.finalRate.toLocaleString('en-IN')}`;
               const waMsg = encodeURIComponent(`Hello Zamra Travels, I'd like to book this flight:\n\n\u2708\ufe0f *${airlineName}*\n\ud83d\uddef\ufe0f Route: *${routeName}*\n\ud83d\udcc5 Date: *${dateStr}*\n\u23f0 Dep: ${dep} | Arr: ${arr}\n\ud83d\udcb5 Price: *${price}*\n\nPlease confirm availability!`);
               const waLink = `https://wa.me/919846606739?text=${waMsg}`;
@@ -545,32 +523,10 @@ async function searchFlights() {
       const today = new Date();
       today.setHours(0,0,0,0);
 
-      let fares = await getFares({
+      const fares = dedupeAndSortFares(await getFares({
         sectorId: sector.id,
         startDate: today.toISOString()
-      });
-      
-      // Deduplicate flights (same sector, airline, date, time) taking the cheapest rate
-      const groupedFaresMap = new Map();
-      fares.forEach(fare => {
-        const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
-        const key = `${fare.sectorId}_${fare.airlineId}_${dtTime}_${fare.flightTime}`;
-        if (!groupedFaresMap.has(key)) {
-          groupedFaresMap.set(key, fare);
-        } else {
-          if (fare.finalRate < groupedFaresMap.get(key).finalRate) {
-            groupedFaresMap.set(key, fare);
-          }
-        }
-      });
-      fares = Array.from(groupedFaresMap.values());
-      
-      fares.sort((a, b) => {
-         if (a.flightDate.getTime() === b.flightDate.getTime()) {
-            return a.finalRate - b.finalRate;
-         }
-         return a.flightDate.getTime() - b.flightDate.getTime();
-      });
+      }));
       
       const airlines = await getAirlines();
       const airlineMap = new Map(airlines.map((airline) => [airline.id, airline]));
@@ -579,8 +535,7 @@ async function searchFlights() {
         const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
         const dateStr = fare.flightDate.toLocaleDateString('en-GB', dateOptions).replace(/,/g, ''); 
         
-        const dep = (fare.flightTime && fare.flightTime.split('-')[0]) ? fare.flightTime.split('-')[0].trim() : 'TBA';
-        const arr = (fare.flightTime && fare.flightTime.includes('-')) ? fare.flightTime.split('-')[1].trim() : 'TBA';
+        const { departure: dep, arrival: arr } = splitFlightTimeRange(fare.flightTime);
         
         const baggageVal = Number(fare.baggage) || 0;
         const extraBaggageVal = Number(fare.extraBaggage) || 0;

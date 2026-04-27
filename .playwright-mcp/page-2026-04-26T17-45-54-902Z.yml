@@ -1,0 +1,461 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Zamra Travels" [ref=e4] [cursor=pointer]:
+        - /url: "#hero"
+        - img "Zamra Travels" [ref=e5]
+      - navigation [ref=e6]:
+        - list [ref=e7]:
+          - listitem [ref=e8]:
+            - link "About" [ref=e9] [cursor=pointer]:
+              - /url: "#about"
+          - listitem [ref=e10]:
+            - link "Services" [ref=e11] [cursor=pointer]:
+              - /url: "#services"
+          - listitem [ref=e12]:
+            - link "Flights" [ref=e13] [cursor=pointer]:
+              - /url: "#flights"
+          - listitem [ref=e14]:
+            - link "Tours" [ref=e15] [cursor=pointer]:
+              - /url: /tours.html
+          - listitem [ref=e16]:
+            - link "Visa" [ref=e17] [cursor=pointer]:
+              - /url: /visa.html
+          - listitem [ref=e18]:
+            - link "Hajj-Umrah" [ref=e19] [cursor=pointer]:
+              - /url: /hajj-umrah.html
+          - listitem [ref=e20]:
+            - link "Contact" [ref=e21] [cursor=pointer]:
+              - /url: "#contact"
+      - generic [ref=e22]:
+        - link "Enquiry " [ref=e23] [cursor=pointer]:
+          - /url: "#enquiry"
+          - text: Enquiry
+          - generic [ref=e24]: 
+        - text: 
+  - generic [ref=e25]:
+    - img "Travel Background" [ref=e28]
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]: Trusted Travel Partner
+        - heading "Welcome to Zamra Travels" [level=1] [ref=e33]:
+          - text: Welcome to
+          - text: Zamra Travels
+        - paragraph [ref=e34]: Your trusted partner for affordable and reliable flight bookings, visa assistance, and complete travel solutions worldwide.
+        - generic [ref=e35]:
+          - link "Book Flights" [ref=e36] [cursor=pointer]:
+            - /url: "#flights"
+          - link "Explore Services" [ref=e37] [cursor=pointer]:
+            - /url: "#services"
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e41]: 
+          - generic [ref=e42]:
+            - heading "Flight Booking" [level=3] [ref=e43]
+            - paragraph [ref=e44]: Domestic & international flights at best prices with 24/7 support.
+        - generic [ref=e45]:
+          - generic [ref=e47]: 
+          - generic [ref=e48]:
+            - heading "Complete Solution" [level=3] [ref=e49]
+            - paragraph [ref=e50]: Visa, holidays, Hajj & Umrah, tours, and passport services.
+        - generic [ref=e51]:
+          - generic [ref=e53]: 
+          - generic [ref=e54]:
+            - heading "24/7 Support" [level=3] [ref=e55]
+            - paragraph [ref=e56]: Dedicated experts ready to assist with any travel changes.
+  - generic [ref=e58]:
+    - generic [ref=e60]:
+      - generic [ref=e62]: 
+      - generic [ref=e63]:
+        - generic [ref=e64]: Live Sync
+        - generic [ref=e65]: Search Flight Deals
+    - generic [ref=e66]:
+      - generic [ref=e67]:
+        - generic [ref=e68]: From
+        - combobox [ref=e69] [cursor=pointer]:
+          - option "Kozhikode (CCJ)" [selected]
+          - option "Kochi (COK)"
+          - option "Kannur (CNN)"
+          - option "Trivandrum (TRV)"
+          - option "Mangalore (IXE)"
+          - option "Riyadh (RUH)"
+          - option "Jeddah (JED)"
+          - option "Dammam (DMM)"
+          - option "Dubai (DXB)"
+          - option "Sharjah (SHJ)"
+          - option "Abu Dhabi (AUH)"
+          - option "Doha (DOH)"
+          - option "Kuwait (KWI)"
+          - option "Bahrain (BAH)"
+          - option "Muscat (MCT)"
+      - button "Swap locations" [ref=e71] [cursor=pointer]:
+        - generic [ref=e72]: 
+      - text: 
+      - generic [ref=e73]:
+        - generic [ref=e74]: To
+        - combobox [ref=e75] [cursor=pointer]:
+          - option "Riyadh (RUH)" [selected]
+          - option "Jeddah (JED)"
+          - option "Dammam (DMM)"
+          - option "Dubai (DXB)"
+          - option "Sharjah (SHJ)"
+          - option "Abu Dhabi (AUH)"
+          - option "Doha (DOH)"
+          - option "Kuwait (KWI)"
+          - option "Bahrain (BAH)"
+          - option "Muscat (MCT)"
+          - option "Kozhikode (CCJ)"
+          - option "Kochi (COK)"
+          - option "Kannur (CNN)"
+          - option "Trivandrum (TRV)"
+          - option "Mangalore (IXE)"
+      - button " Search" [ref=e76] [cursor=pointer]:
+        - generic [ref=e77]: 
+        - text: Search
+  - generic [ref=e80]:
+    - generic [ref=e81]:
+      - heading "Lowest Fare Flight Tickets" [level=2] [ref=e82]
+      - paragraph [ref=e83]: Discover amazing deals on popular routes from major airports
+    - generic [ref=e84]:
+      - generic [ref=e85]:
+        - heading " Flights From India" [level=3] [ref=e86]:
+          - generic [ref=e87]: 
+          - text: Flights From India
+        - generic [ref=e88]:
+          - heading "Kozhikode (CCJ) " [level=4] [ref=e90] [cursor=pointer]:
+            - text: Kozhikode (CCJ)
+            - generic [ref=e91]: 
+          - heading "Kochi (COK) " [level=4] [ref=e93] [cursor=pointer]:
+            - text: Kochi (COK)
+            - generic [ref=e94]: 
+          - heading "Kannur (CNN) " [level=4] [ref=e96] [cursor=pointer]:
+            - text: Kannur (CNN)
+            - generic [ref=e97]: 
+          - heading "Trivandrum (TRV) " [level=4] [ref=e99] [cursor=pointer]:
+            - text: Trivandrum (TRV)
+            - generic [ref=e100]: 
+          - heading "Mangalore (IXE) " [level=4] [ref=e102] [cursor=pointer]:
+            - text: Mangalore (IXE)
+            - generic [ref=e103]: 
+      - generic [ref=e104]:
+        - heading " Flights From Middle East" [level=3] [ref=e105]:
+          - generic [ref=e106]: 
+          - text: Flights From Middle East
+        - generic [ref=e107]:
+          - heading "Jeddah (JED) " [level=4] [ref=e109] [cursor=pointer]:
+            - text: Jeddah (JED)
+            - generic [ref=e110]: 
+          - heading "Riyadh (RUH) " [level=4] [ref=e112] [cursor=pointer]:
+            - text: Riyadh (RUH)
+            - generic [ref=e113]: 
+          - heading "Dammam (DMM) " [level=4] [ref=e115] [cursor=pointer]:
+            - text: Dammam (DMM)
+            - generic [ref=e116]: 
+          - heading "Doha (DOH) " [level=4] [ref=e118] [cursor=pointer]:
+            - text: Doha (DOH)
+            - generic [ref=e119]: 
+          - heading "Muscat (MCT) " [level=4] [ref=e121] [cursor=pointer]:
+            - text: Muscat (MCT)
+            - generic [ref=e122]: 
+          - heading "Bahrain (BAH) " [level=4] [ref=e124] [cursor=pointer]:
+            - text: Bahrain (BAH)
+            - generic [ref=e125]: 
+          - heading "Kuwait (KWI) " [level=4] [ref=e127] [cursor=pointer]:
+            - text: Kuwait (KWI)
+            - generic [ref=e128]: 
+          - heading "Dubai (DXB) " [level=4] [ref=e130] [cursor=pointer]:
+            - text: Dubai (DXB)
+            - generic [ref=e131]: 
+          - heading "Sharjah (SHJ) " [level=4] [ref=e133] [cursor=pointer]:
+            - text: Sharjah (SHJ)
+            - generic [ref=e134]: 
+          - heading "Abu Dhabi (AUH) " [level=4] [ref=e136] [cursor=pointer]:
+            - text: Abu Dhabi (AUH)
+            - generic [ref=e137]: 
+          - heading "Ras Al Khaimah (RKT) " [level=4] [ref=e139] [cursor=pointer]:
+            - text: Ras Al Khaimah (RKT)
+            - generic [ref=e140]: 
+          - heading "Al Ain (AAN) " [level=4] [ref=e142] [cursor=pointer]:
+            - text: Al Ain (AAN)
+            - generic [ref=e143]: 
+          - heading "Fujairah (FJR) " [level=4] [ref=e145] [cursor=pointer]:
+            - text: Fujairah (FJR)
+            - generic [ref=e146]: 
+  - generic [ref=e148]:
+    - generic [ref=e149]:
+      - heading "Hajj & Umrah Services" [level=2] [ref=e150]
+      - paragraph [ref=e151]: Experience a spiritual journey with our premium packages
+    - generic [ref=e152]:
+      - link "Hajj Seats Hajj Seats" [ref=e153] [cursor=pointer]:
+        - /url: /hajj-umrah.html
+        - img "Hajj Seats" [ref=e154]
+        - generic [ref=e156]:
+          - heading "Hajj" [level=3] [ref=e157]
+          - paragraph [ref=e158]: Seats
+      - link "Umrah Packages Umrah Packages" [ref=e159] [cursor=pointer]:
+        - /url: /hajj-umrah.html
+        - img "Umrah Packages" [ref=e160]
+        - generic [ref=e162]:
+          - heading "Umrah" [level=3] [ref=e163]
+          - paragraph [ref=e164]: Packages
+      - link "Umrah E Visa Umrah E Visa" [ref=e165] [cursor=pointer]:
+        - /url: "#enquiry"
+        - img "Umrah E Visa" [ref=e166]
+        - generic [ref=e168]:
+          - heading "Umrah" [level=3] [ref=e169]
+          - paragraph [ref=e170]: E Visa
+  - generic [ref=e174]:
+    - generic [ref=e176]:
+      - img "About Zamra Travels" [ref=e177]
+      - generic [ref=e179]:
+        - generic [ref=e180]: 15+
+        - generic [ref=e181]:
+          - text: Years of
+          - text: Excellence
+    - generic [ref=e183]:
+      - generic [ref=e184]: Get to know us
+      - heading "Your Gateway to Extraordinary Journeys" [level=2] [ref=e185]
+      - paragraph [ref=e186]:
+        - text: At
+        - strong [ref=e187]: Zamra Travels
+        - text: ", we believe every journey tells a story. Whether you're planning your dream vacation, a quick weekend escape, or a cultural adventure, we're here to make it seamless, memorable, and truly extraordinary."
+      - list [ref=e188]:
+        - listitem [ref=e189]:
+          - generic [ref=e191]: 
+          - generic [ref=e192]:
+            - heading "Seamless Flight Bookings" [level=4] [ref=e193]
+            - paragraph [ref=e194]: We offer competitive prices and real-time flight availability for both domestic and international destinations.
+        - listitem [ref=e195]:
+          - generic [ref=e197]: 
+          - generic [ref=e198]:
+            - heading "Customized Travel Packages" [level=4] [ref=e199]
+            - paragraph [ref=e200]: From solo trips to family vacations, we craft personalized itineraries that suit your style and budget.
+        - listitem [ref=e201]:
+          - generic [ref=e203]: 
+          - generic [ref=e204]:
+            - heading "24/7 Travel Assistance" [level=4] [ref=e205]
+            - paragraph [ref=e206]: Our travel experts are available around the clock to guide you through bookings, changes, and emergency support.
+  - generic [ref=e208]:
+    - generic [ref=e209]:
+      - heading "Our Premium Services" [level=2] [ref=e210]
+      - paragraph [ref=e211]: Comprehensive travel solutions tailored to make your journey extraordinary
+    - generic [ref=e212]:
+      - generic [ref=e213]:
+        - generic [ref=e215]: 
+        - heading "International & Domestic Flights" [level=3] [ref=e216]
+        - paragraph [ref=e217]: Assuring cheap price on Domestic and International booking Services. Secure Booking Process 24*7 Support.
+      - generic [ref=e218]:
+        - generic [ref=e220]: 
+        - heading "Visiting Visas" [level=3] [ref=e221]
+        - paragraph [ref=e222]: We make visas easy for you Safety & Confidentiality with almost 200+ countries around the globe being able to access our services.
+      - generic [ref=e223]:
+        - generic [ref=e225]: 
+        - heading "Visa Stamping" [level=3] [ref=e226]
+        - paragraph [ref=e227]: Provided excellent and Attentive visa Stamping Services with almost 200+ countries around the globe being able to access our services.
+      - generic [ref=e228]:
+        - generic [ref=e230]: 
+        - heading "Hajj & Umrah Services" [level=3] [ref=e231]
+        - paragraph [ref=e232]: We are organizing international standard Haj and Umrah tours for potential pilgrims. Our packages cater to all types of pilgrims.
+      - generic [ref=e233]:
+        - generic [ref=e235]: 
+        - heading "Document Attestation" [level=3] [ref=e236]
+        - paragraph [ref=e237]: Quick and trusted document attestation for education, employment, and travel purposes ensuring a hassle-free process.
+      - generic [ref=e238]:
+        - generic [ref=e240]: 
+        - heading "Passport Services" [level=3] [ref=e241]
+        - paragraph [ref=e242]: Fast and reliable assistance for new passports, renewals, and corrections with efficient processing to save your time.
+  - generic [ref=e244]:
+    - generic [ref=e245]:
+      - heading "Our Flight Ticketing Partners" [level=2] [ref=e246]
+      - paragraph [ref=e247]: Trusted by major airlines worldwide
+    - generic [ref=e249] [cursor=pointer]:
+      - generic [ref=e250]:
+        - img "Indigo" [ref=e252]
+        - img "Air India Express" [ref=e254]
+        - img "Air Arabia" [ref=e256]
+        - img "Flynas" [ref=e258]
+        - img "Oman Air" [ref=e260]
+        - img "Salam Air" [ref=e262]
+        - img "Air India" [ref=e264]
+        - img "Saudi Airlines" [ref=e266]
+      - generic [ref=e267]:
+        - img "Indigo" [ref=e269]
+        - img "Air India Express" [ref=e271]
+        - img "Air Arabia" [ref=e273]
+        - img "Flynas" [ref=e275]
+        - img "Oman Air" [ref=e277]
+        - img "Salam Air" [ref=e279]
+        - img "Air India" [ref=e281]
+        - img "Saudi Airlines" [ref=e283]
+  - generic [ref=e287]:
+    - generic [ref=e288]:
+      - generic [ref=e290]: 
+      - generic [ref=e291]: 120+
+      - generic [ref=e292]: Daily Flights
+    - generic [ref=e293]:
+      - generic [ref=e295]: 
+      - generic [ref=e296]: 50+
+      - generic [ref=e297]: Destinations
+    - generic [ref=e298]:
+      - generic [ref=e300]: 
+      - generic [ref=e301]: 200+
+      - generic [ref=e302]: Partner Hotels
+    - generic [ref=e303]:
+      - generic [ref=e305]: 
+      - generic [ref=e306]: 8000+
+      - generic [ref=e307]: Happy Travelers
+  - generic [ref=e309]:
+    - generic [ref=e310]:
+      - heading "Get In Touch" [level=2] [ref=e311]
+      - paragraph [ref=e312]: We are here to help you
+    - generic [ref=e313]:
+      - generic [ref=e314]:
+        - generic [ref=e315]:
+          - generic [ref=e317]: 
+          - generic [ref=e318]:
+            - heading "Our Office" [level=4] [ref=e319]
+            - paragraph [ref=e320]:
+              - text: Kizhakkethala, Down Hill,
+              - text: Malappuram, Kerala 676519, India
+        - generic [ref=e321]:
+          - generic [ref=e323]: 
+          - generic [ref=e324]:
+            - heading "Call Us" [level=4] [ref=e325]
+            - link "+91 9846606739" [ref=e326] [cursor=pointer]:
+              - /url: tel:+919846606739
+        - generic [ref=e327]:
+          - generic [ref=e329]: 
+          - generic [ref=e330]:
+            - heading "Email Us" [level=4] [ref=e331]
+            - link "zamratravelsmlp@gmail.com" [ref=e332] [cursor=pointer]:
+              - /url: mailto:zamratravelsmlp@gmail.com
+      - iframe [ref=e334]
+  - generic [ref=e338]:
+    - generic [ref=e340]:
+      - heading "Flight Ticket Enquiry" [level=2] [ref=e341]
+      - paragraph [ref=e342]: Send us your requirements, and we'll give you the best quote
+    - generic [ref=e343]:
+      - textbox "Your Name" [ref=e345]
+      - textbox "Phone Number" [ref=e347]
+      - textbox "Email Address" [ref=e349]
+      - textbox [ref=e351] [cursor=pointer]
+      - combobox [ref=e353]:
+        - option "From (Origin)" [selected]
+        - option "Kozhikode (CCJ)"
+        - option "Kochi (COK)"
+        - option "Kannur (CNN)"
+        - option "Trivandrum (TRV)"
+        - option "Mangalore (IXE)"
+        - option "Jeddah (JED)"
+        - option "Riyadh (RUH)"
+        - option "Dammam (DMM)"
+        - option "Doha (DOH)"
+        - option "Muscat (MCT)"
+        - option "Bahrain (BAH)"
+        - option "Kuwait (KWI)"
+        - option "Dubai (DXB)"
+        - option "Sharjah (SHJ)"
+        - option "Abu Dhabi (AUH)"
+        - option "Ras Al Khaimah (RKT)"
+        - option "Al Ain (AAN)"
+        - option "Fujairah (FJR)"
+      - combobox [ref=e355]:
+        - option "To (Destination)" [selected]
+        - option "Jeddah (JED)"
+        - option "Riyadh (RUH)"
+        - option "Dammam (DMM)"
+        - option "Doha (DOH)"
+        - option "Muscat (MCT)"
+        - option "Bahrain (BAH)"
+        - option "Kuwait (KWI)"
+        - option "Dubai (DXB)"
+        - option "Sharjah (SHJ)"
+        - option "Abu Dhabi (AUH)"
+        - option "Ras Al Khaimah (RKT)"
+        - option "Al Ain (AAN)"
+        - option "Fujairah (FJR)"
+        - option "Kozhikode (CCJ)"
+        - option "Kochi (COK)"
+        - option "Kannur (CNN)"
+        - option "Trivandrum (TRV)"
+        - option "Mangalore (IXE)"
+      - combobox [ref=e357]:
+        - option "Preferred Airline (optional)" [selected]
+        - option "IndiGo"
+        - option "Air India"
+        - option "Air India Express"
+        - option "Air Arabia"
+        - option "Flynas"
+        - option "Oman Air"
+        - option "SalamAir"
+        - option "Saudia"
+      - textbox "Any special requests or messages..." [ref=e359]
+      - button "Send Enquiry" [ref=e361] [cursor=pointer]
+  - contentinfo [ref=e362]:
+    - generic [ref=e363]:
+      - generic [ref=e364]:
+        - generic [ref=e365]:
+          - link "Zamra Travels" [ref=e366] [cursor=pointer]:
+            - /url: "#hero"
+            - img "Zamra Travels" [ref=e367]
+          - paragraph [ref=e368]: Your trusted travel companion offering the best deals on flights, visas, tours, and more. Experience the world with comfort and ease.
+          - generic [ref=e369]:
+            - link "" [ref=e370] [cursor=pointer]:
+              - /url: https://www.facebook.com/share/19ptsreQGF/
+              - generic [ref=e371]: 
+            - link "" [ref=e372] [cursor=pointer]:
+              - /url: https://wa.me/919846606739
+              - generic [ref=e373]: 
+            - link "" [ref=e374] [cursor=pointer]:
+              - /url: https://www.instagram.com/zamratravels?igsh=dXF0eDRxM2R3bmN3
+              - generic [ref=e375]: 
+        - generic [ref=e376]:
+          - heading "Quick Links" [level=4] [ref=e377]
+          - list [ref=e378]:
+            - listitem [ref=e379]:
+              - link "Home" [ref=e380] [cursor=pointer]:
+                - /url: "#hero"
+            - listitem [ref=e381]:
+              - link "About Us" [ref=e382] [cursor=pointer]:
+                - /url: "#about"
+            - listitem [ref=e383]:
+              - link "Our Services" [ref=e384] [cursor=pointer]:
+                - /url: "#services"
+            - listitem [ref=e385]:
+              - link "Flight Offers" [ref=e386] [cursor=pointer]:
+                - /url: "#flights"
+            - listitem [ref=e387]:
+              - link "Contact Us" [ref=e388] [cursor=pointer]:
+                - /url: "#contact"
+        - generic [ref=e389]:
+          - heading "Contact Info" [level=4] [ref=e390]
+          - list [ref=e391]:
+            - listitem [ref=e392]:
+              - generic [ref=e393]: 
+              - generic [ref=e394]:
+                - text: Kizhakkethala, Down Hill,
+                - text: Malappuram, Kerala 676519, India
+            - listitem [ref=e395]:
+              - generic [ref=e396]: 
+              - generic [ref=e397]: +91 9846606739
+            - listitem [ref=e398]:
+              - generic [ref=e399]: 
+              - generic [ref=e400]: zamratravelsmlp@gmail.com
+      - paragraph [ref=e402]:
+        - text: © 2026
+        - strong [ref=e403]: Zamra Travels
+        - text: . All Rights Reserved.
+  - generic [ref=e404]:
+    - link "" [ref=e405] [cursor=pointer]:
+      - /url: https://wa.me/919846606739
+      - generic [ref=e406]: 
+    - link "" [ref=e407] [cursor=pointer]:
+      - /url: tel:+919846606739
+      - generic [ref=e408]: 
+  - generic:
+    - generic:
+      - button "":
+        - generic: 
+      - generic:
+        - heading "Flight Details" [level=3]
+        - paragraph: CCJ → JED

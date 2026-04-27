@@ -1,0 +1,161 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Zamra Travels" [ref=e4] [cursor=pointer]:
+        - /url: /index.html
+        - img "Zamra Travels" [ref=e5]
+      - navigation [ref=e6]:
+        - list [ref=e7]:
+          - listitem [ref=e8]:
+            - link "About" [ref=e9] [cursor=pointer]:
+              - /url: /index.html#about
+          - listitem [ref=e10]:
+            - link "Services" [ref=e11] [cursor=pointer]:
+              - /url: /index.html#services
+          - listitem [ref=e12]:
+            - link "Flights" [ref=e13] [cursor=pointer]:
+              - /url: /index.html#flights
+          - listitem [ref=e14]:
+            - link "Tours" [ref=e15] [cursor=pointer]:
+              - /url: /tours.html
+          - listitem [ref=e16]:
+            - link "Visa" [ref=e17] [cursor=pointer]:
+              - /url: /visa.html
+          - listitem [ref=e18]:
+            - link "Hajj-Umrah" [ref=e19] [cursor=pointer]:
+              - /url: /hajj-umrah.html
+          - listitem [ref=e20]:
+            - link "Contact" [ref=e21] [cursor=pointer]:
+              - /url: /index.html#contact
+      - generic [ref=e22]:
+        - link "Enquiry " [ref=e23] [cursor=pointer]:
+          - /url: /index.html#enquiry
+          - text: Enquiry
+          - generic [ref=e24]: 
+        - text: 
+  - generic [ref=e28]:
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]: 
+        - text: Handcrafted Tour Packages
+      - heading "Discover the World with Us" [level=1] [ref=e32]:
+        - text: Discover the
+        - text: World with Us
+      - paragraph [ref=e33]: From tropical paradises to ancient cities — curated packages with everything handled, so you just enjoy the journey.
+    - generic [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]: 30+
+        - generic [ref=e37]: Destinations
+      - generic [ref=e38]:
+        - generic [ref=e39]: 2000+
+        - generic [ref=e40]: Happy Travellers
+      - generic [ref=e41]:
+        - generic [ref=e42]: 100%
+        - generic [ref=e43]: Hassle-Free
+      - generic [ref=e44]:
+        - generic [ref=e45]: 10+
+        - generic [ref=e46]: Years Experience
+  - generic [ref=e49]:
+    - generic [ref=e50]:
+      - button " All Tours" [ref=e51] [cursor=pointer]:
+        - generic [ref=e52]: 
+        - text: All Tours
+      - button " International" [ref=e53] [cursor=pointer]:
+        - generic [ref=e54]: 
+        - text: International
+      - button " Domestic" [ref=e55] [cursor=pointer]:
+        - generic [ref=e56]: 
+        - text: Domestic
+    - generic [ref=e57]:
+      - generic: 
+      - textbox "Search destinations, packages…" [ref=e58]
+  - generic [ref=e60]:
+    - generic [ref=e61]:
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - generic [ref=e64]: 
+          - text: Our Packages
+        - heading "Featured Tour Packages" [level=2] [ref=e65]
+        - paragraph [ref=e66]: Every trip is crafted with care — from flights to hotels to guided tours, we handle it all.
+      - link " Enquire Now" [ref=e67] [cursor=pointer]:
+        - /url: https://wa.me/919846606739?text=Hello%20Zamra%20Travels%2C%20I%20am%20interested%20in%20a%20tour%20package.
+        - generic [ref=e68]: 
+        - text: Enquire Now
+    - text: 
+  - text:     
+  - generic [ref=e74]:
+    - generic [ref=e75]:
+      - generic [ref=e76]: 
+      - text: Expert Travel Consultants
+    - heading "Can't find the perfect package?" [level=2] [ref=e77]
+    - paragraph [ref=e78]: Our travel experts will build a custom itinerary tailored just for you and your group.
+    - generic [ref=e79]:
+      - link " Chat on WhatsApp" [ref=e80] [cursor=pointer]:
+        - /url: https://wa.me/919846606739?text=Hello%20Zamra%20Travels%2C%20I%20need%20help%20planning%20a%20custom%20tour.
+        - generic [ref=e81]: 
+        - text: Chat on WhatsApp
+      - link " +91 98466 06739" [ref=e82] [cursor=pointer]:
+        - /url: tel:+919846606739
+        - generic [ref=e83]: 
+        - text: +91 98466 06739
+  - contentinfo [ref=e84]:
+    - generic [ref=e85]:
+      - generic [ref=e86]:
+        - generic [ref=e87]:
+          - link "Zamra Travels" [ref=e88] [cursor=pointer]:
+            - /url: /index.html
+            - img "Zamra Travels" [ref=e89]
+          - paragraph [ref=e90]: Your trusted travel companion offering the best deals on flights, visas, tours, and more. Experience the world with comfort and ease.
+          - generic [ref=e91]:
+            - link "" [ref=e92] [cursor=pointer]:
+              - /url: https://www.facebook.com/share/19ptsreQGF/
+              - generic [ref=e93]: 
+            - link "" [ref=e94] [cursor=pointer]:
+              - /url: https://wa.me/919846606739
+              - generic [ref=e95]: 
+            - link "" [ref=e96] [cursor=pointer]:
+              - /url: https://www.instagram.com/zamratravels?igsh=dXF0eDRxM2R3bmN3
+              - generic [ref=e97]: 
+        - generic [ref=e98]:
+          - heading "Quick Links" [level=4] [ref=e99]
+          - list [ref=e100]:
+            - listitem [ref=e101]:
+              - link "Home" [ref=e102] [cursor=pointer]:
+                - /url: /index.html
+            - listitem [ref=e103]:
+              - link "About Us" [ref=e104] [cursor=pointer]:
+                - /url: /index.html#about
+            - listitem [ref=e105]:
+              - link "Tour Packages" [ref=e106] [cursor=pointer]:
+                - /url: /tours.html
+            - listitem [ref=e107]:
+              - link "Visa Services" [ref=e108] [cursor=pointer]:
+                - /url: /visa.html
+            - listitem [ref=e109]:
+              - link "Contact Us" [ref=e110] [cursor=pointer]:
+                - /url: /index.html#contact
+        - generic [ref=e111]:
+          - heading "Contact Info" [level=4] [ref=e112]
+          - list [ref=e113]:
+            - listitem [ref=e114]:
+              - generic [ref=e115]: 
+              - generic [ref=e116]:
+                - text: Kizhakkethala, Down Hill,
+                - text: Malappuram, Kerala 676519, India
+            - listitem [ref=e117]:
+              - generic [ref=e118]: 
+              - generic [ref=e119]: +91 9846606739
+            - listitem [ref=e120]:
+              - generic [ref=e121]: 
+              - generic [ref=e122]: zamratravelsmlp@gmail.com
+      - paragraph [ref=e124]:
+        - text: © 2026
+        - strong [ref=e125]: Zamra Travels
+        - text: . All Rights Reserved.
+  - generic [ref=e126]:
+    - link "" [ref=e127] [cursor=pointer]:
+      - /url: https://wa.me/919846606739
+      - generic [ref=e128]: 
+    - link "" [ref=e129] [cursor=pointer]:
+      - /url: tel:+919846606739
+      - generic [ref=e130]: 
