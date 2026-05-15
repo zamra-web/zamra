@@ -6958,9 +6958,13 @@ function buildChips() {
 
   chipAgents.forEach(agent => {
     const c = document.createElement('div');
-    c.className = 'rp-chip';
+    c.className = 'rp-chip min-w-[3.5rem]';
     c.dataset.agentId = agent.id;
-    c.textContent = agent.id;
+    const agentFirstName = agent.name ? agent.name.split(' ')[0] : '';
+    c.innerHTML = `
+      <span class="text-[13px] font-bold leading-none">${escapeHtml(agent.id)}</span>
+      ${agentFirstName ? `<span class="text-[9px] font-semibold opacity-75 leading-none truncate max-w-[60px]">${escapeHtml(agentFirstName)}</span>` : ''}
+    `;
     if (agent.id === selAgent) c.classList.add('on');
     c.addEventListener('click', () => pickAgent(agent.id, agent.name, c));
     cGrid.appendChild(c);

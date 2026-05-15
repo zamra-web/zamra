@@ -673,18 +673,17 @@ html[data-theme="dark"] {
     }
 
     .rp-chip {
-        height: 48px;
-        padding: 0 12px;
+        min-height: 48px;
+        padding: 6px 12px;
         display: inline-flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 2px;
         border: 2px solid #b8cce4;
         border-radius: 10px;
         background: #ffffff;
         color: #1e293b;
-        font-size: 13px;
-        font-weight: 700;
-        line-height: 1;
         box-shadow: 0 1px 4px rgba(13, 31, 60, 0.10);
         transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         cursor: pointer;
