@@ -237,6 +237,27 @@ const ORIGIN_COUNTRY_ORIGIN_CONFIGS = [
     cityLabelMl: 'കൊച്ചി',
     groupLabel: 'Kochi Routes',
   },
+  {
+    marketKey: 'cnn',
+    airportCode: 'CNN',
+    cityLabel: 'Kannur',
+    cityLabelMl: 'കണ്ണൂർ',
+    groupLabel: 'Kannur Routes',
+  },
+  {
+    marketKey: 'trv',
+    airportCode: 'TRV',
+    cityLabel: 'Trivandrum',
+    cityLabelMl: 'തിരുവനന്തപുരം',
+    groupLabel: 'Trivandrum Routes',
+  },
+  {
+    marketKey: 'ixe',
+    airportCode: 'IXE',
+    cityLabel: 'Mangalore',
+    cityLabelMl: 'മംഗലാപുരം',
+    groupLabel: 'Mangalore Routes',
+  },
 ];
 
 export const POSTER_COUNTRY_ML_LABELS = {

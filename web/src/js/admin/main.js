@@ -360,7 +360,7 @@ function populatePosterSectorSelect(selectEl) {
   fragment.appendChild(new Option('Choose Sector, Country, or Airport', ''));
   fragment.appendChild(new Option('All Sectors', 'all'));
 
-  ['Country Shortcuts', 'Airport Shortcuts', 'Calicut Routes', 'Kochi Routes'].forEach((groupLabel) => {
+  ['Country Shortcuts', 'Airport Shortcuts', 'Calicut Routes', 'Kochi Routes', 'Kannur Routes', 'Trivandrum Routes', 'Mangalore Routes'].forEach((groupLabel) => {
     const shortcuts = POSTER_SECTOR_SHORTCUTS.filter((shortcut) => shortcut.groupLabel === groupLabel);
     if (!shortcuts.length) return;
     const group = document.createElement('optgroup');
