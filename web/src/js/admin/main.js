@@ -2571,9 +2571,15 @@ function buildCopyTextHeader(shortcut, date = new Date()) {
   const countryLabelMl = shortcut.countryLabelMl || countryLabel;
 
   // Build the direction line in Malayalam
-  // e.g. "കോഴിക്കോട് എയർപോർട്ടിൽ നിന്ന് സൗദിയിലേക്കും സൗദിയിൽ നിന്ന് കോഴിക്കോട്ടേക്കുമുള്ള"
-  // The suffix "ലേക്കും" / "ൽ നിന്ന്" varies — we use a generic pattern with the country name.
-  const directionLine = `*${cityMl} എയർപോർട്ടിൽ നിന്ന് ${countryLabelMl}ലേക്കും ${countryLabelMl}ൽ നിന്ന് ${cityMl}ക്ക് തിരിച്ചുമുള്ള LOW FARE ഫ്ലൈറ്റ് ടിക്കറ്റുകൾ*`;
+  const returnCitySuffix = {
+    'കോഴിക്കോട്': 'കോഴിക്കോട്ടിലേക്കും',
+    'കൊച്ചി': 'കൊച്ചിയിലേക്കും',
+    'കണ്ണൂർ': 'കണ്ണൂരിലേക്കും',
+    'തിരുവനന്തപുരം': 'തിരുവനന്തപുരത്തേക്കും',
+    'മംഗലാപുരം': 'മംഗലാപുരത്തേക്കും'
+  }[cityMl] || `${cityMl}ലേക്കും`;
+
+  const directionLine = `*${cityMl} എയർപോർട്ടിൽ നിന്ന് ${countryLabelMl}ലേക്കും ${countryLabelMl}ൽ നിന്ന് ${returnCitySuffix} ഉള്ള LOW FARE ഫ്ലൈറ്റ് ടിക്കറ്റുകൾ*`;
 
   return [
     `*ZAMRATRAVELS.COM* ✈️ `,
@@ -2597,16 +2603,15 @@ function buildCopyTextFooter(shortcut) {
     `ഇന്നത്തെ ഏറ്റവും കുറഞ്ഞ ടിക്കറ്റ് നിരക്കുകൾ അറിയാൻ :- `,
     ` *www.zamratravels.com* `,
     `വെബ്സൈറ്റ് സന്ദർശിക്കുക...`,
-    ``,
-    `*ഫ്ലൈറ്റ് ടിക്കറ്റ് ഓഫറുകൾ* അറിയിക്കുന്ന ഞങ്ങളുടെ കമ്മ്യൂണിറ്റിയിൽ *ജോയിൻ ചെയ്യാൻ* താഴെയുള്ള ലിങ്കിൽ " *ക്ലിക്ക്* " ചെയ്യുക.👇`,
   ];
 
   if (waLink) {
     lines.push(``);
-    lines.push(`${countryFlag}*${countryLabel} ടിക്കറ്റ് ഗ്രൂപ്പിൽ ജോയിൻ ചെയ്യുന്നതിനായുള്ള ലിങ്ക്*`);
+    lines.push(`${countryFlag}${countryLabel} ടിക്കറ്റ് ഗ്രൂപ്പിൽ ജോയിൻ ചെയ്യുന്നതിനായുള്ള ലിങ്ക്`);
     lines.push(waLink);
   }
 
+  lines.push(``);
   lines.push(`💞💞💞💞💞💞💞💞`);
   return lines.join('\n');
 }
