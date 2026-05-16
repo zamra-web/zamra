@@ -216,3 +216,68 @@ export function listPosterSocialCountries() {
     .map((key) => POSTER_SOCIAL_COUNTRIES[key])
     .filter(Boolean);
 }
+
+// ── Origin-Country Shortcuts ──────────────────────────────────────────────────
+// Each entry represents a specific origin airport paired with a destination
+// country (e.g. "Calicut to Saudi"). The matching logic includes both forward
+// and return legs (CCJ→JED and JED→CCJ both appear under "Calicut to Saudi").
+
+const ORIGIN_COUNTRY_ORIGIN_CONFIGS = [
+  {
+    marketKey: 'ccj',
+    airportCode: 'CCJ',
+    cityLabel: 'Calicut',
+    cityLabelMl: 'കോഴിക്കോട്',
+    groupLabel: 'Calicut Routes',
+  },
+  {
+    marketKey: 'cok',
+    airportCode: 'COK',
+    cityLabel: 'Kochi',
+    cityLabelMl: 'കൊച്ചി',
+    groupLabel: 'Kochi Routes',
+  },
+];
+
+export const POSTER_COUNTRY_ML_LABELS = {
+  saudi:   { label: 'SAUDI',   labelMl: 'സൗദി',    flag: '🇸🇦' },
+  uae:     { label: 'UAE',     labelMl: 'യു.എ.ഇ',  flag: '🇦🇪' },
+  oman:    { label: 'OMAN',    labelMl: 'ഒമാൻ',    flag: '🇴🇲' },
+  qatar:   { label: 'QATAR',   labelMl: 'ഖത്തർ',   flag: '🇶🇦' },
+  bahrain: { label: 'BAHRAIN', labelMl: 'ബഹ്‌റൈൻ', flag: '🇧🇭' },
+  kuwait:  { label: 'KUWAIT',  labelMl: 'കുവൈത്ത്', flag: '🇰🇼' },
+};
+
+export const POSTER_ORIGIN_COUNTRY_SHORTCUTS = ORIGIN_COUNTRY_ORIGIN_CONFIGS.flatMap((origin) =>
+  POSTER_SOCIAL_COUNTRY_ORDER.map((countryKey) => {
+    const country = POSTER_SOCIAL_COUNTRIES[countryKey];
+    const ml = POSTER_COUNTRY_ML_LABELS[countryKey];
+    return {
+      key: `${origin.marketKey}-${countryKey}`,
+      kind: 'origin-country',
+      label: `${origin.cityLabel} to ${ml?.label || country.label}`,
+      groupLabel: origin.groupLabel,
+      originAirport: origin.airportCode,
+      originMarketKey: origin.marketKey,
+      originCityLabel: origin.cityLabel,
+      originCityLabelMl: origin.cityLabelMl,
+      countryKey,
+      countryLabel: ml?.label || country.label,
+      countryLabelMl: ml?.labelMl || '',
+      countryFlag: ml?.flag || '',
+      airportCodes: country.airportCodes || [],
+    };
+  })
+);
+
+const POSTER_ORIGIN_COUNTRY_SHORTCUT_BY_KEY = new Map(
+  POSTER_ORIGIN_COUNTRY_SHORTCUTS.map((s) => [s.key, s])
+);
+
+export function listPosterOriginCountryShortcuts() {
+  return POSTER_ORIGIN_COUNTRY_SHORTCUTS;
+}
+
+export function getOriginCountryShortcut(key) {
+  return POSTER_ORIGIN_COUNTRY_SHORTCUT_BY_KEY.get(String(key || '').trim().toLowerCase()) || null;
+}

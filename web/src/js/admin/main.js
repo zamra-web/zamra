@@ -40,6 +40,9 @@ import {
   resolveSectorCountryKey,
   resolveSectorMarketKey,
   getSectorRouteCodes,
+  listPosterOriginCountryShortcuts,
+  getOriginCountryShortcut,
+  POSTER_COUNTRY_ML_LABELS,
 } from './social-markets.js';
 import { appendVideoSlidesLimited } from './social-image-carousels.js';
 import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
@@ -83,6 +86,17 @@ const POSTER_AIRPORT_SHORTCUT_KEYWORDS = {
   trv: ['TRIVANDRUM', 'THIRUVANANTHAPURAM'],
   ixe: ['MANGALORE'],
 };
+
+// WhatsApp group links shown in the copy-text footer, keyed by country
+const COPY_TEXT_WA_LINKS = {
+  saudi:   'https://chat.whatsapp.com/JyNP1rt6iI41UsjZvp4Oxt',
+  uae:     'https://chat.whatsapp.com/BBjB3vAeBFQCPi68JVpFcF',
+  qatar:   'https://chat.whatsapp.com/Ibl4sawpp8r5N9sWIbbcvu',
+  oman:    'https://chat.whatsapp.com/LJJs0A1jOoE66wMPHT7eHE',
+  bahrain: 'https://chat.whatsapp.com/FAgYjLbSfaZDV9Pu6x4rME',
+  kuwait:  'https://chat.whatsapp.com/B88wpRSFYtg4HGf995G2yk',
+};
+
 const POSTER_SECTOR_SHORTCUTS = [
   ...listPosterSocialCountries().map((country) => ({
     key: country.key,
@@ -98,7 +112,26 @@ const POSTER_SECTOR_SHORTCUTS = [
     airportCodes: Array.isArray(market.airports) ? market.airports : [],
     keywords: POSTER_AIRPORT_SHORTCUT_KEYWORDS[market.key] || [],
   })),
+  ...listPosterOriginCountryShortcuts().map((oc) => ({
+    key: oc.key,
+    kind: 'origin-country',
+    label: oc.label,
+    groupLabel: oc.groupLabel,
+    // For matching: one side must be originAirport, other side must be one of airportCodes
+    originAirport: oc.originAirport,
+    airportCodes: oc.airportCodes,
+    keywords: [],
+    // Carry full metadata for header/footer generation
+    originCityLabel: oc.originCityLabel,
+    originCityLabelMl: oc.originCityLabelMl,
+    originMarketKey: oc.originMarketKey,
+    countryKey: oc.countryKey,
+    countryLabel: oc.countryLabel,
+    countryLabelMl: oc.countryLabelMl,
+    countryFlag: oc.countryFlag,
+  })),
 ];
+
 const POSTER_SECTOR_SHORTCUT_BY_KEY = new Map(
   POSTER_SECTOR_SHORTCUTS.map((shortcut) => [
     shortcut.key,
@@ -218,6 +251,18 @@ function sectorMatchesPosterShortcut(sector, shortcut) {
   const routeCodes = [fromCode, toCode]
     .map((code) => String(code || '').trim().toUpperCase())
     .filter(Boolean);
+
+  // Origin-country shortcuts: one side must be the origin airport AND
+  // the other side must be a country airport — this includes both directions
+  // (e.g. CCJ→JED and JED→CCJ both match "Calicut to Saudi").
+  if (shortcut.kind === 'origin-country' && shortcut.originAirport) {
+    const origin = String(shortcut.originAirport).trim().toUpperCase();
+    const destCodes = new Set((shortcut.airportCodes || []).map((c) => String(c || '').trim().toUpperCase()).filter(Boolean));
+    const hasOrigin = routeCodes.includes(origin);
+    const hasDest = routeCodes.some((c) => destCodes.has(c));
+    return hasOrigin && hasDest;
+  }
+
   if (routeCodes.some((code) => shortcut.airportCodeSet.has(code))) return true;
 
   if (!shortcut.keywordList?.length) return false;
@@ -230,6 +275,7 @@ function sectorMatchesPosterShortcut(sector, shortcut) {
     .filter(Boolean);
   return haystack.some((value) => shortcut.keywordList.some((keyword) => value.includes(keyword)));
 }
+
 
 function getPosterShortcutSectorIds(shortcutKey) {
   const shortcut = getPosterShortcut(shortcutKey);
@@ -314,7 +360,7 @@ function populatePosterSectorSelect(selectEl) {
   fragment.appendChild(new Option('Choose Sector, Country, or Airport', ''));
   fragment.appendChild(new Option('All Sectors', 'all'));
 
-  ['Country Shortcuts', 'Airport Shortcuts'].forEach((groupLabel) => {
+  ['Country Shortcuts', 'Airport Shortcuts', 'Calicut Routes', 'Kochi Routes'].forEach((groupLabel) => {
     const shortcuts = POSTER_SECTOR_SHORTCUTS.filter((shortcut) => shortcut.groupLabel === groupLabel);
     if (!shortcuts.length) return;
     const group = document.createElement('optgroup');
@@ -340,6 +386,7 @@ function populatePosterSectorSelect(selectEl) {
     : '';
   selectEl.value = nextValue;
 }
+
 
 function populateReportsSectorSelect(selectEl = document.getElementById('reports-sector-sel')) {
   if (!selectEl) return;
@@ -2517,13 +2564,83 @@ function buildPosterClipboardSections(fares, selection) {
   }).filter(Boolean);
 }
 
+function buildCopyTextHeader(shortcut, date = new Date()) {
+  const dateStr = formatPosterSocialDate(date);
+  const cityMl = shortcut.originCityLabelMl || shortcut.originCityLabel || '';
+  const countryLabel = shortcut.countryLabel || '';
+  const countryLabelMl = shortcut.countryLabelMl || countryLabel;
+
+  // Build the direction line in Malayalam
+  // e.g. "കോഴിക്കോട് എയർപോർട്ടിൽ നിന്ന് സൗദിയിലേക്കും സൗദിയിൽ നിന്ന് കോഴിക്കോട്ടേക്കുമുള്ള"
+  // The suffix "ലേക്കും" / "ൽ നിന്ന്" varies — we use a generic pattern with the country name.
+  const directionLine = `*${cityMl} എയർപോർട്ടിൽ നിന്ന് ${countryLabelMl}ലേക്കും ${countryLabelMl}ൽ നിന്ന് ${cityMl}ക്ക് തിരിച്ചുമുള്ള LOW FARE ഫ്ലൈറ്റ് ടിക്കറ്റുകൾ*`;
+
+  return [
+    `*ZAMRATRAVELS.COM* ✈️ `,
+    ``,
+    `*TODAY (${dateStr}) ${countryLabel} FARE*`,
+    ``,
+    directionLine,
+  ].join('\n');
+}
+
+function buildCopyTextFooter(shortcut) {
+  const countryKey = shortcut.countryKey || '';
+  const countryLabel = shortcut.countryLabel || '';
+  const countryLabelMl = shortcut.countryLabelMl || countryLabel;
+  const countryFlag = shortcut.countryFlag || '';
+  const waLink = COPY_TEXT_WA_LINKS[countryKey] || '';
+
+  const lines = [
+    ``,
+    `*FOR BOOKING* :  https://wa.me/919846606739`,
+    `ഇന്നത്തെ ഏറ്റവും കുറഞ്ഞ ടിക്കറ്റ് നിരക്കുകൾ അറിയാൻ :- `,
+    ` *www.zamratravels.com* `,
+    `വെബ്സൈറ്റ് സന്ദർശിക്കുക...`,
+    ``,
+    `*ഫ്ലൈറ്റ് ടിക്കറ്റ് ഓഫറുകൾ* അറിയിക്കുന്ന ഞങ്ങളുടെ കമ്മ്യൂണിറ്റിയിൽ *ജോയിൻ ചെയ്യാൻ* താഴെയുള്ള ലിങ്കിൽ " *ക്ലിക്ക്* " ചെയ്യുക.👇`,
+  ];
+
+  if (waLink) {
+    lines.push(``);
+    lines.push(`${countryFlag}*${countryLabel} ടിക്കറ്റ് ഗ്രൂപ്പിൽ ജോയിൻ ചെയ്യുന്നതിനായുള്ള ലിങ്ക്*`);
+    lines.push(waLink);
+  }
+
+  lines.push(`💞💞💞💞💞💞💞💞`);
+  return lines.join('\n');
+}
+
+function resolveClipboardShortcut(selection) {
+  if (!selection?.kind) return null;
+  // selection.kind is always 'shortcut' for any shortcut selection — check the actual
+  // shortcut object to see if it's an origin-country type.
+  if (selection.kind === 'shortcut' && selection.key) {
+    const shortcut = POSTER_SECTOR_SHORTCUTS.find((s) => s.key === selection.key);
+    if (shortcut?.kind === 'origin-country') return shortcut;
+  }
+  return null;
+}
+
 function buildPosterClipboardPayload(fares, selection) {
   const sections = buildPosterClipboardSections(fares, selection);
   if (!sections.length) return { text: '', html: '' };
 
-  const text = sections.map(({ heading, lines }) => {
+  const bodyText = sections.map(({ heading, lines }) => {
     return `*${heading}*\n\`\`\`\n${lines.join('\n')}\n\`\`\``;
   }).join('\n\n');
+
+  // Determine if this is an origin-country shortcut selection (header/footer applies)
+  const ocShortcut = resolveClipboardShortcut(selection);
+
+  let text;
+  if (ocShortcut) {
+    const header = buildCopyTextHeader(ocShortcut);
+    const footer = buildCopyTextFooter(ocShortcut);
+    text = `${header}\n\n${bodyText}\n${footer}`;
+  } else {
+    text = bodyText;
+  }
 
   const html = `<div>${sections.map(({ heading, lines }) => `
     <section style="margin:0 0 16px;">
@@ -2534,6 +2651,7 @@ function buildPosterClipboardPayload(fares, selection) {
 
   return { text, html };
 }
+
 
 function countPosterClipboardRoutes(fares = []) {
   return new Set(
