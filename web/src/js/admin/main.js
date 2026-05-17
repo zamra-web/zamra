@@ -2579,7 +2579,20 @@ function buildCopyTextHeader(shortcut, date = new Date()) {
     'മംഗലാപുരം': 'മംഗലാപുരത്തേക്കും'
   }[cityMl] || `${cityMl}ലേക്കും`;
 
-  const directionLine = `*${cityMl} എയർപോർട്ടിൽ നിന്ന് ${countryLabelMl}ലേക്കും ${countryLabelMl}ൽ നിന്ന് ${returnCitySuffix} ഉള്ള LOW FARE ഫ്ലൈറ്റ് ടിക്കറ്റുകൾ*`;
+  const countryGrammar = {
+    'സൗദി': { to: 'സൗദിയിലേക്കും', from: 'സൗദിയിൽ നിന്ന്' },
+    'യു.എ.ഇ': { to: 'യു.എ.ഇയിലേക്കും', from: 'യു.എ.ഇയിൽ നിന്ന്' },
+    'ഒമാൻ': { to: 'ഒമാനിലേക്കും', from: 'ഒമാനിൽ നിന്ന്' },
+    'ഖത്തർ': { to: 'ഖത്തറിലേക്കും', from: 'ഖത്തറിൽ നിന്ന്' },
+    'ബഹ്‌റൈൻ': { to: 'ബഹ്‌റൈനിലേക്കും', from: 'ബഹ്‌റൈനിൽ നിന്ന്' },
+    'കുവൈറ്റ്': { to: 'കുവൈറ്റിലേക്കും', from: 'കുവൈറ്റിൽ നിന്ന്' },
+    'കുവൈത്ത്': { to: 'കുവൈറ്റിലേക്കും', from: 'കുവൈറ്റിൽ നിന്ന്' }
+  };
+
+  const toCountry = countryGrammar[countryLabelMl]?.to || `${countryLabelMl}ലേക്കും`;
+  const fromCountry = countryGrammar[countryLabelMl]?.from || `${countryLabelMl}ൽ നിന്ന്`;
+
+  const directionLine = `*${cityMl} എയർപോർട്ടിൽ നിന്ന് ${toCountry} ${fromCountry} ${returnCitySuffix} ഉള്ള LOW FARE ഫ്ലൈറ്റ് ടിക്കറ്റുകൾ*`;
 
   return [
     `*ZAMRATRAVELS.COM* ✈️ `,

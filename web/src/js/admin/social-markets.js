@@ -266,7 +266,7 @@ export const POSTER_COUNTRY_ML_LABELS = {
   oman:    { label: 'OMAN',    labelMl: 'ഒമാൻ',    flag: '🇴🇲' },
   qatar:   { label: 'QATAR',   labelMl: 'ഖത്തർ',   flag: '🇶🇦' },
   bahrain: { label: 'BAHRAIN', labelMl: 'ബഹ്‌റൈൻ', flag: '🇧🇭' },
-  kuwait:  { label: 'KUWAIT',  labelMl: 'കുവൈത്ത്', flag: '🇰🇼' },
+  kuwait:  { label: 'KUWAIT',  labelMl: 'കുവൈറ്റ്', flag: '🇰🇼' },
 };
 
 export const POSTER_ORIGIN_COUNTRY_SHORTCUTS = ORIGIN_COUNTRY_ORIGIN_CONFIGS.flatMap((origin) =>
