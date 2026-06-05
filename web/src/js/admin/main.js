@@ -89,7 +89,7 @@ const POSTER_AIRPORT_SHORTCUT_KEYWORDS = {
 
 // WhatsApp group links shown in the copy-text footer, keyed by country
 const COPY_TEXT_WA_LINKS = {
-  saudi:   'https://chat.whatsapp.com/JyNP1rt6iI41UsjZvp4Oxt',
+  saudi:   'https://chat.whatsapp.com/DrVxl2XXobZ5zZrj0xjT7Q',
   uae:     'https://chat.whatsapp.com/BBjB3vAeBFQCPi68JVpFcF',
   qatar:   'https://chat.whatsapp.com/Ibl4sawpp8r5N9sWIbbcvu',
   oman:    'https://chat.whatsapp.com/LJJs0A1jOoE66wMPHT7eHE',
