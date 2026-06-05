@@ -1496,7 +1496,7 @@ Example:
                         <div class="flex items-center justify-between gap-3 mb-4">
                             <h3 class="font-bold text-[15px] text-navy tracking-[0.02em]">Poster Details</h3>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Airline *</label>
                                 <select id="design-airline" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
@@ -1516,8 +1516,12 @@ Example:
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Date Range / Text *</label>
-                                <input id="design-date" type="text" placeholder="e.g. MAY 2025" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">From Date *</label>
+                                <input id="design-date-from" type="date" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">To Date *</label>
+                                <input id="design-date-to" type="date" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
                             </div>
                             <div>
                                 <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Fare Price *</label>

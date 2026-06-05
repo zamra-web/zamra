@@ -8814,6 +8814,33 @@ function openHajjUmrahModal(pkg) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DESIGN TAB — AI POSTER GENERATOR
 // ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Format two ISO date strings into a poster-friendly date range.
+ * e.g. "2025-05-01" + "2025-05-15" → "01 – 15 MAY 2025"
+ * e.g. "2025-05-01" + "2025-06-10" → "01 MAY – 10 JUN 2025"
+ */
+function _formatDesignDateRange(fromStr, toStr) {
+  if (!fromStr || !toStr) return '';
+  const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const from = new Date(fromStr + 'T00:00:00');
+  const to = new Date(toStr + 'T00:00:00');
+  const dFrom = String(from.getDate()).padStart(2, '0');
+  const dTo = String(to.getDate()).padStart(2, '0');
+  const mFrom = MONTHS[from.getMonth()];
+  const mTo = MONTHS[to.getMonth()];
+  const yFrom = from.getFullYear();
+  const yTo = to.getFullYear();
+
+  if (yFrom === yTo && mFrom === mTo) {
+    return `${dFrom} – ${dTo} ${mFrom} ${yFrom}`;
+  }
+  if (yFrom === yTo) {
+    return `${dFrom} ${mFrom} – ${dTo} ${mTo} ${yFrom}`;
+  }
+  return `${dFrom} ${mFrom} ${yFrom} – ${dTo} ${mTo} ${yTo}`;
+}
+
 async function renderDesignTab() {
   const apiKeyInput = document.getElementById('kie-api-key');
   const airlineSelect = document.getElementById('design-airline');
@@ -8836,20 +8863,14 @@ async function renderDesignTab() {
     airlineSelect.innerHTML += `<option value="${a.name}">${a.name}</option>`;
   });
 
-  // Populate Origins & Destinations
-  const airports = new Set();
-  _sectors.forEach(s => {
-    airports.add(s.origin);
-    airports.add(s.destination);
-  });
-  const sortedAirports = Array.from(airports).sort();
+  // Populate Origins & Destinations from sector data
+  const uniqueOrigins = [...new Set(_sectors.map(s => s.sectorFrom).filter(Boolean))].sort();
+  const uniqueDests = [...new Set(_sectors.map(s => s.sectorTo).filter(Boolean))].sort();
 
-  originSelect.innerHTML = '<option value="">Select Origin</option>';
-  destSelect.innerHTML = '<option value="">Select Destination</option>';
-  sortedAirports.forEach(city => {
-    originSelect.innerHTML += `<option value="${city}">${city}</option>`;
-    destSelect.innerHTML += `<option value="${city}">${city}</option>`;
-  });
+  originSelect.innerHTML = '<option value="">Select Origin</option>' +
+    uniqueOrigins.map(o => `<option value="${o}">${o}</option>`).join('');
+  destSelect.innerHTML = '<option value="">Select Destination</option>' +
+    uniqueDests.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // Prevent multiple bindings
   if (!generateBtn.dataset.wired) {
@@ -8863,11 +8884,13 @@ async function handleDesignGenerate() {
   const airline = document.getElementById('design-airline').value;
   const origin = document.getElementById('design-origin').value;
   const dest = document.getElementById('design-destination').value;
-  const dateStr = document.getElementById('design-date').value.trim();
+  const dateFrom = document.getElementById('design-date-from').value;
+  const dateTo = document.getElementById('design-date-to').value;
+  const dateStr = _formatDesignDateRange(dateFrom, dateTo);
   const price = document.getElementById('design-price').value.trim();
 
   if (!apiKey) return toast('error', 'API Key Required', 'Please enter your KIE API Key.');
-  if (!airline || !origin || !dest || !dateStr || !price) {
+  if (!airline || !origin || !dest || !dateFrom || !dateTo || !price) {
     return toast('error', 'Missing Fields', 'Please fill in all poster details.');
   }
 
