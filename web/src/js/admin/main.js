@@ -7191,6 +7191,12 @@ function doPreview(text) {
 function hidePrev() { document.getElementById('prevBox')?.classList.remove('on'); }
 
 async function handleSheetSubmit() {
+  let audioCtx;
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) audioCtx = new AudioContext();
+  } catch(e) {}
+
   const ta = document.getElementById('rateData');
   if (!selAgent || !ta?.value.trim()) return;
 
@@ -7257,6 +7263,31 @@ async function handleSheetSubmit() {
     hEntry.saved = savedCount;
     saveHistory(); renderHistory(); updateStats();
     toast('success', 'Saved', `${savedCount} row${savedCount === 1 ? '' : 's'} added to Firestore.`);
+    
+    try {
+      if (audioCtx) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      }
+    } catch(e) {}
+    
+    const firstRow = document.querySelector('#historyWrap > div');
+    if (firstRow) {
+      firstRow.classList.remove('bg-white', 'border-border/50');
+      firstRow.classList.add('bg-emerald-50', 'border-emerald-200');
+    }
+
     setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
   } catch (err) {
     clearInterval(iv);
