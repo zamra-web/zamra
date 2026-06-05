@@ -8951,7 +8951,7 @@ Incorporate the logo provided in the input image at the bottom center. No other 
   loadingWrapper.classList.remove('hidden');
 
   try {
-    const createRes = await fetch('https://api.kie.ai/v1/jobs/createTask', {
+    const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -8959,18 +8959,21 @@ Incorporate the logo provided in the input image at the bottom center. No other 
       },
       body: JSON.stringify({
         model: 'gpt-image-2-image-to-image',
-        prompt: prompt,
-        input_urls: ['https://www.zamratravels.com/assets/img/logo.webp']
+        input: {
+          prompt: prompt,
+          input_urls: ['https://www.zamratravels.com/assets/img/logo.webp'],
+          aspect_ratio: '4:5'
+        }
       })
     });
 
     if (!createRes.ok) {
       const errData = await createRes.json().catch(() => ({}));
-      throw new Error(errData.message || errData.error || 'Failed to create task on KIE API.');
+      throw new Error(errData.message || errData.msg || errData.error || 'Failed to create task on KIE API.');
     }
 
     const taskData = await createRes.json();
-    const taskId = taskData.id || taskData.data?.id;
+    const taskId = taskData.data?.taskId || taskData.taskId || taskData.data?.id || taskData.id;
     if (!taskId) throw new Error('No task ID returned from KIE API.');
 
     // Poll for status
@@ -8981,20 +8984,31 @@ Incorporate the logo provided in the input image at the bottom center. No other 
       await new Promise(resolve => setTimeout(resolve, 3000));
       attempts++;
       
-      const pollRes = await fetch(`https://api.kie.ai/v1/jobs/${taskId}`, {
+      const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
       if (!pollRes.ok) continue;
 
       const pollData = await pollRes.json();
-      const currentStatus = pollData.status || pollData.data?.status;
+      const currentState = pollData.data?.state || pollData.state;
       
-      if (currentStatus === 'success' || currentStatus === 'completed') {
+      if (currentState === 'success') {
         status = 'success';
-        imageUrl = pollData.image_url || pollData.data?.image_url || (pollData.data?.images && pollData.data.images[0]);
+        // resultJson is a stringified JSON with resultUrls array
+        try {
+          const resultObj = typeof pollData.data?.resultJson === 'string'
+            ? JSON.parse(pollData.data.resultJson)
+            : pollData.data?.resultJson;
+          imageUrl = resultObj?.resultUrls?.[0] || resultObj?.image_url;
+        } catch (_) { /* fallback below */ }
+        // Fallbacks for alternative response shapes
+        if (!imageUrl) {
+          imageUrl = pollData.data?.image_url || pollData.image_url
+            || (pollData.data?.images && pollData.data.images[0]);
+        }
         break;
-      } else if (currentStatus === 'failed' || currentStatus === 'error') {
-        throw new Error(pollData.error || pollData.data?.error || 'Generation failed.');
+      } else if (currentState === 'fail' || currentState === 'failed' || currentState === 'error') {
+        throw new Error(pollData.data?.failMsg || pollData.error || pollData.data?.error || 'Generation failed.');
       }
     }
 
