@@ -8894,16 +8894,41 @@ async function handleDesignGenerate() {
     return toast('error', 'Missing Fields', 'Please fill in all poster details.');
   }
 
-  const prompt = `Create a premium airline fare promotion poster for a travel agency in ultra-realistic modern social media advertisement style.
+  // Look up airline logo from the cached airlines list
+  const matchedAirline = _airlines.find(a => a.name === airline);
+  const airlineLogoUrl = matchedAirline?.logoUrl || '';
+  const zamraLogoUrl = 'https://www.zamratravels.com/assets/img/logo.webp';
+
+  // Build input_urls — airline logo first (if available), Zamra logo last
+  const inputUrls = [];
+  if (airlineLogoUrl) inputUrls.push(airlineLogoUrl);
+  inputUrls.push(zamraLogoUrl);
+
+  // Build image reference instructions for the prompt
+  const airlineLogoRef = airlineLogoUrl
+    ? `The FIRST input reference image is the official ${airline} airline logo. Reproduce it exactly on the aircraft tail/fuselage and optionally in the route banner. Match its exact colors, shape and typography.`
+    : `The aircraft should clearly display ${airline} branding colors and livery.`;
+
+  const zamraLogoRef = inputUrls.length === 2
+    ? `The SECOND input reference image is the Zamra Travels agency logo. Place it in the bottom footer strip exactly as provided.`
+    : `The FIRST input reference image is the Zamra Travels agency logo. Place it in the bottom footer strip exactly as provided.`;
+
+  const prompt = `Create a premium airline fare promotion poster for a travel agency called "Zamra Travels" in ultra-realistic modern social media advertisement style.
 
 FORMAT:
 Vertical poster, 4:5 ratio for Instagram and WhatsApp marketing.
 Ultra HD, sharp details, vibrant colors, premium travel agency design.
 
+REFERENCE IMAGES:
+${airlineLogoRef}
+${zamraLogoRef}
+Do NOT alter, crop, or stylise the logos — reproduce them faithfully.
+
 MAIN DESIGN:
 A bright blue sky background with soft white clouds.
 Large commercial airplane flying diagonally across the top section.
-Aircraft should resemble an ${airline} style aircraft with ${airline} branding colors, realistic lighting and shadows.
+Aircraft should display ${airline} livery and branding colors with realistic lighting and shadows.
+${airlineLogoUrl ? `Place the ${airline} airline logo (from the first input image) on the aircraft tail or fuselage clearly visible.` : ''}
 
 HEADLINE:
 Huge bold 3D typography in the center:
@@ -8938,7 +8963,7 @@ Text inside:
 
 FOOTER:
 Bottom strip in dark navy blue.
-Incorporate the logo provided in the input image at the bottom center. No other text in the footer.`;
+Place the Zamra Travels logo (from the input reference images) at the bottom center of the footer. No other text in the footer.`;
 
   const generateBtn = document.getElementById('design-generate-btn');
   const loadingWrapper = document.getElementById('design-loading-wrapper');
@@ -8961,7 +8986,7 @@ Incorporate the logo provided in the input image at the bottom center. No other 
         model: 'gpt-image-2-image-to-image',
         input: {
           prompt: prompt,
-          input_urls: ['https://www.zamratravels.com/assets/img/logo.webp'],
+          input_urls: inputUrls,
           aspect_ratio: '4:5'
         }
       })
