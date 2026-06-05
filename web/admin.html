@@ -55,6 +55,8 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-cloud-arrow-up"></i><span>Rate Upload</span></a>
                         <a href="#" data-tab="eticket-tab" data-title="E-Ticket"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-ticket-perforated"></i><span>E-Ticket</span></a>
+                        <a href="#" data-tab="design-tab" data-title="Design"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-palette"></i><span>Design</span></a>
                         <a href="#" data-tab="reports-tab" data-title="Reports"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-bar-chart-line"></i><span>Reports</span></a>
                         <a href="#" data-tab="database-tab" data-title="Database"
@@ -98,6 +100,7 @@
                 <option value="socials-tab">Socials</option>
                 <option value="agent-sheets-tab">Rate Upload</option>
                 <option value="eticket-tab">E-Ticket</option>
+                <option value="design-tab">Design</option>
                 <option value="reports-tab">Reports</option>
                 <option value="database-tab">Database</option>
                 <option value="agents-tab">Agents</option>
@@ -1461,6 +1464,104 @@ Example:
                         </section>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- DESIGN TAB -->
+        <div id="design-tab" class="tab-content">
+            <div class="admin-panel rounded-3xl p-6 md:p-8 text-text-main mb-8 no-print">
+                <div class="flex flex-wrap items-start justify-between gap-4 mb-6 md:mb-8">
+                    <div>
+                        <span class="inline-flex items-center gap-1.5 bg-primary/10 text-primary text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-[0.12em]">KIE API Integration</span>
+                        <h2 class="text-2xl font-bold text-navy mt-3">AI Poster Generator</h2>
+                        <p class="text-sm text-text-muted mt-1">Generate ultra-realistic social media posters using GPT Image 2.</p>
+                    </div>
+                </div>
+
+                <div class="space-y-6 md:space-y-7">
+                    <section class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 md:p-6">
+                        <div class="flex items-center justify-between gap-3 mb-4">
+                            <h3 class="font-bold text-[15px] text-navy tracking-[0.02em]">API Configuration</h3>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">KIE API Key</label>
+                                <input id="kie-api-key" type="password" placeholder="Enter your KIE API Key" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                <p class="text-[11px] text-text-muted mt-1">Stored securely in your local browser.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
+                        <div class="flex items-center justify-between gap-3 mb-4">
+                            <h3 class="font-bold text-[15px] text-navy tracking-[0.02em]">Poster Details</h3>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Airline *</label>
+                                <select id="design-airline" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                    <option value="">Select Airline</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Origin *</label>
+                                <select id="design-origin" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                    <option value="">Select Origin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Destination *</label>
+                                <select id="design-destination" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                    <option value="">Select Destination</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Date Range / Text *</label>
+                                <input id="design-date" type="text" placeholder="e.g. MAY 2025" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Fare Price *</label>
+                                <input id="design-price" type="text" placeholder="e.g. 10,500 INR" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                        <button type="button" id="design-generate-btn" class="admin-btn admin-btn-primary px-8 text-sm flex items-center gap-2">
+                            <i class="bi bi-magic"></i> Generate Poster
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output Section -->
+            <div id="design-output-wrapper" class="hidden space-y-4">
+                <div class="max-w-2xl mx-auto no-print">
+                    <div class="bg-slate-900 text-white rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3 shadow-[var(--shadow-premium-soft)]">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.12em] text-slate-300">Generation Complete</p>
+                            <p class="text-sm font-semibold">Your AI poster is ready.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <a id="design-download-btn" href="#" download="ai-poster.png" class="admin-btn admin-btn-primary px-6">
+                                <i class="bi bi-download"></i> Download Image
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-[0_30px_80px_-35px_rgba(15,23,42,0.45)] text-slate-800 flex justify-center p-4">
+                    <img id="design-result-img" src="" alt="Generated Poster" class="max-w-full rounded-2xl object-contain">
+                </div>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="design-loading-wrapper" class="hidden space-y-4">
+                 <div class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-12 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.45)] flex flex-col items-center justify-center text-center">
+                    <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6"></div>
+                    <h3 class="text-xl font-bold text-navy mb-2">Generating Masterpiece...</h3>
+                    <p class="text-sm text-text-muted">This usually takes 30-60 seconds. Please wait.</p>
+                 </div>
             </div>
         </div>
 

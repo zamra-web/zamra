@@ -886,6 +886,7 @@ async function renderActiveTab() {
     validate();
   }
   else if (id === 'eticket-tab') await renderETicketTab();
+  else if (id === 'design-tab') await renderDesignTab();
 }
 
 
@@ -8808,4 +8809,187 @@ function openHajjUmrahModal(pkg) {
       submitBtn.textContent = 'Save Package';
     }
   });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DESIGN TAB — AI POSTER GENERATOR
+// ══════════════════════════════════════════════════════════════════════════════
+async function renderDesignTab() {
+  const apiKeyInput = document.getElementById('kie-api-key');
+  const airlineSelect = document.getElementById('design-airline');
+  const originSelect = document.getElementById('design-origin');
+  const destSelect = document.getElementById('design-destination');
+  const generateBtn = document.getElementById('design-generate-btn');
+
+  // Load saved API Key
+  const savedKey = localStorage.getItem('kie_api_key');
+  if (savedKey) apiKeyInput.value = savedKey;
+
+  // Save API key on change
+  apiKeyInput.addEventListener('change', (e) => {
+    localStorage.setItem('kie_api_key', e.target.value.trim());
+  });
+
+  // Populate Airlines
+  airlineSelect.innerHTML = '<option value="">Select Airline</option>';
+  _airlines.forEach(a => {
+    airlineSelect.innerHTML += `<option value="${a.name}">${a.name}</option>`;
+  });
+
+  // Populate Origins & Destinations
+  const airports = new Set();
+  _sectors.forEach(s => {
+    airports.add(s.origin);
+    airports.add(s.destination);
+  });
+  const sortedAirports = Array.from(airports).sort();
+
+  originSelect.innerHTML = '<option value="">Select Origin</option>';
+  destSelect.innerHTML = '<option value="">Select Destination</option>';
+  sortedAirports.forEach(city => {
+    originSelect.innerHTML += `<option value="${city}">${city}</option>`;
+    destSelect.innerHTML += `<option value="${city}">${city}</option>`;
+  });
+
+  // Prevent multiple bindings
+  if (!generateBtn.dataset.wired) {
+    generateBtn.dataset.wired = 'true';
+    generateBtn.addEventListener('click', handleDesignGenerate);
+  }
+}
+
+async function handleDesignGenerate() {
+  const apiKey = document.getElementById('kie-api-key').value.trim();
+  const airline = document.getElementById('design-airline').value;
+  const origin = document.getElementById('design-origin').value;
+  const dest = document.getElementById('design-destination').value;
+  const dateStr = document.getElementById('design-date').value.trim();
+  const price = document.getElementById('design-price').value.trim();
+
+  if (!apiKey) return toast('error', 'API Key Required', 'Please enter your KIE API Key.');
+  if (!airline || !origin || !dest || !dateStr || !price) {
+    return toast('error', 'Missing Fields', 'Please fill in all poster details.');
+  }
+
+  const prompt = `Create a premium airline fare promotion poster for a travel agency in ultra-realistic modern social media advertisement style.
+
+FORMAT:
+Vertical poster, 4:5 ratio for Instagram and WhatsApp marketing.
+Ultra HD, sharp details, vibrant colors, premium travel agency design.
+
+MAIN DESIGN:
+A bright blue sky background with soft white clouds.
+Large commercial airplane flying diagonally across the top section.
+Aircraft should resemble an ${airline} style aircraft with ${airline} branding colors, realistic lighting and shadows.
+
+HEADLINE:
+Huge bold 3D typography in the center:
+“SPECIAL FARE”
+
+“SPECIAL” in white with deep blue shadow.
+“FARE” in yellow brush-style font.
+
+ROUTE SECTION:
+Modern white curved banner across the middle.
+
+Left side icon:
+${origin} landmark icon inside blue circle.
+
+Text:
+“${origin} TO ${dest}”
+
+Right side icon:
+${dest} skyline icon inside blue circle.
+
+DATE SECTION:
+Modern rounded rectangle box with calendar icon.
+
+Text:
+“${dateStr}”
+
+FARE SECTION:
+Large glowing orange price tag at the bottom center.
+
+Text inside:
+“ONLY ${price}”
+
+FOOTER:
+Bottom strip in dark navy blue.
+Incorporate the logo provided in the input image at the bottom center. No other text in the footer.`;
+
+  const generateBtn = document.getElementById('design-generate-btn');
+  const loadingWrapper = document.getElementById('design-loading-wrapper');
+  const outputWrapper = document.getElementById('design-output-wrapper');
+  const resultImg = document.getElementById('design-result-img');
+  const downloadBtn = document.getElementById('design-download-btn');
+
+  generateBtn.disabled = true;
+  outputWrapper.classList.add('hidden');
+  loadingWrapper.classList.remove('hidden');
+
+  try {
+    const createRes = await fetch('https://api.kie.ai/v1/jobs/createTask', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-image-2-image-to-image',
+        prompt: prompt,
+        input_urls: ['https://www.zamratravels.com/assets/img/logo.webp']
+      })
+    });
+
+    if (!createRes.ok) {
+      const errData = await createRes.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || 'Failed to create task on KIE API.');
+    }
+
+    const taskData = await createRes.json();
+    const taskId = taskData.id || taskData.data?.id;
+    if (!taskId) throw new Error('No task ID returned from KIE API.');
+
+    // Poll for status
+    let status = 'processing';
+    let imageUrl = null;
+    let attempts = 0;
+    while (status !== 'success' && attempts < 60) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      attempts++;
+      
+      const pollRes = await fetch(`https://api.kie.ai/v1/jobs/${taskId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      if (!pollRes.ok) continue;
+
+      const pollData = await pollRes.json();
+      const currentStatus = pollData.status || pollData.data?.status;
+      
+      if (currentStatus === 'success' || currentStatus === 'completed') {
+        status = 'success';
+        imageUrl = pollData.image_url || pollData.data?.image_url || (pollData.data?.images && pollData.data.images[0]);
+        break;
+      } else if (currentStatus === 'failed' || currentStatus === 'error') {
+        throw new Error(pollData.error || pollData.data?.error || 'Generation failed.');
+      }
+    }
+
+    if (status !== 'success' || !imageUrl) {
+      throw new Error('Timeout waiting for poster generation.');
+    }
+
+    resultImg.src = imageUrl;
+    downloadBtn.href = imageUrl;
+    loadingWrapper.classList.add('hidden');
+    outputWrapper.classList.remove('hidden');
+    toast('success', 'Poster Generated!', 'Your AI poster is ready to download.');
+
+  } catch (err) {
+    console.error('Design generation error:', err);
+    toast('error', 'Generation Error', err.message);
+    loadingWrapper.classList.add('hidden');
+  } finally {
+    generateBtn.disabled = false;
+  }
 }
