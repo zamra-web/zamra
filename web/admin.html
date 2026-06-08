@@ -645,7 +645,7 @@ Example:
                     Add Airline</button>
             </div>
 
-            <div class="admin-panel p-6 text-text-main">
+            <div class="admin-panel p-6 text-text-main mb-8">
                 <div class="admin-toolbar-row mb-6">
                     <div class="admin-toolbar-group">
                         <i class="bi bi-funnel"></i>
@@ -680,6 +680,43 @@ Example:
                     </table>
                 </div>
                 <div id="airlines-pagination-footer" class="border-t border-slate-100 bg-slate-50 rounded-b-[20px]"></div>
+            </div>
+
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-sliders text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Airline + Sector Defaults</h2>
+                        <p class="text-[12px] text-text-muted">Configure default flight time and baggage info for n8n rate uploads</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="flight-detail-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Default
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Airline</th>
+                                <th>Sector</th>
+                                <th>Flight Time</th>
+                                <th>Baggage</th>
+                                <th>Extra Baggage (kg)</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="flight-details-table-body">
+                            <!-- populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 

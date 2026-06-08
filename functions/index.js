@@ -554,6 +554,43 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 6b. exportFlightDetailsForN8n
+//     Returns all flight details configurations from Firestore so n8n can use them.
+// ══════════════════════════════════════════════════════════════════════════════
+exports.exportFlightDetailsForN8n = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
+  if (req.method !== "GET" && req.method !== "POST") {
+    return res.status(405).send("Method Not Allowed");
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== "Bearer ZamraFirestore") {
+    return res.status(401).send("Unauthorized");
+  }
+
+  try {
+    const snapshot = await db.collection("flight_details").get();
+    const details = {};
+    
+    // Create a mapping grouped by document ID (which is airlineId_sectorId)
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      details[doc.id] = {
+        airlineId: d.airlineId,
+        sectorId: d.sectorId,
+        flightTime: d.flightTime || "",
+        baggage: d.baggage || "",
+        extraBaggage: d.extraBaggage || 0
+      };
+    });
+
+    res.status(200).json({ success: true, details });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 7. purgeOldFaresDaily (Scheduled)
 //    Deletes fares older than 2 days (by flightDate, UTC midnight).
 // ══════════════════════════════════════════════════════════════════════════════

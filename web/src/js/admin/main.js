@@ -13,6 +13,7 @@ import {
   getSectors, addSector, updateSector, deleteSector,
   getAirlines, addAirline, updateAirline, deleteAirline,
   getFares, addFare, saveFares, deleteFare, updateFare,
+  getFlightDetails, addFlightDetail, updateFlightDetail, deleteFlightDetail,
   getVisas, addVisa, updateVisa, deleteVisa,
   getVisaStampings, addVisaStamping, updateVisaStamping, deleteVisaStamping,
   getAttestations, addAttestation, updateAttestation, deleteAttestation,
@@ -51,6 +52,7 @@ import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
 let _agents = [];
 let _sectors = [];
 let _airlines = [];
+let _flightDetails = [];
 let _visas = [];
 let _visaStampings = [];
 let _attestations = [];
@@ -4354,6 +4356,9 @@ async function downloadPoster(format) {
   let ok = 0;
   let firstErr = null;
 
+  let multiPdf = null;
+  let multiPdfBaseName = `zamra-posters-${ts}`;
+
   for (let i = 0; i < frames.length; i++) {
     const posterEl = frames[i];
     const origTransform = posterEl.style.transform;
@@ -4407,15 +4412,28 @@ async function downloadPoster(format) {
         const PX_PER_MM = 96 / 25.4;           // ~3.779 px/mm at 1×
         const widthMm = (canvas.width / 2) / PX_PER_MM;
         const heightMm = (canvas.height / 2) / PX_PER_MM;
+        const orientation = widthMm > heightMm ? 'landscape' : 'portrait';
 
-        const pdf = new jsPDFCtor({
-          orientation: widthMm > heightMm ? 'landscape' : 'portrait',
-          unit: 'mm',
-          format: [widthMm, heightMm]
-        });
+        if (!multiPdf) {
+          multiPdf = new jsPDFCtor({
+            orientation,
+            unit: 'mm',
+            format: [widthMm, heightMm]
+          });
+          
+          if (multi) {
+            const selLabel = typeof _lastPosterPreview !== 'undefined' && _lastPosterPreview?.selection?.label;
+            if (selLabel) {
+              multiPdfBaseName = `zamra-posters-${fileSafe(selLabel)}-${ts}`;
+            }
+          } else {
+            multiPdfBaseName = baseName;
+          }
+        } else {
+          multiPdf.addPage([widthMm, heightMm], orientation);
+        }
 
-        pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
-        pdf.save(`${baseName}.pdf`);
+        multiPdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
       }
 
       ok += 1;
@@ -4427,9 +4445,13 @@ async function downloadPoster(format) {
     }
   }
 
+  if (format === 'pdf' && multiPdf) {
+    multiPdf.save(`${multiPdfBaseName}.pdf`);
+  }
+
   if (ok) {
     const msg = multi
-      ? `Downloaded ${ok} ${format === 'pdf' ? 'PDFs' : 'JPEGs'} successfully.`
+      ? (format === 'pdf' ? `Downloaded ${ok} posters in a single PDF successfully.` : `Downloaded ${ok} JPEGs successfully.`)
       : `${format === 'pdf' ? 'PDF' : 'JPEG'} poster saved successfully.`;
     toast('success', 'Downloaded!', msg);
   }
@@ -5248,7 +5270,15 @@ function openSectorModal(sector) {
 // FLIGHTS TAB (Airlines) — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderFlightsTab(fetchData = true) {
-  if (fetchData) { _airlines = await getAirlines(); tablePage.airlines = 1; }
+  if (fetchData) {
+    _airlines = await getAirlines();
+    _flightDetails = await getFlightDetails();
+    // Pre-fetch sectors so we can display sector code and use in modal
+    if (!_sectors.length) {
+      _sectors = await getSectors();
+    }
+    tablePage.airlines = 1;
+  }
 
   // Wire up filter inputs if not already
   const searchInp = document.getElementById('airlines-search');
@@ -5260,30 +5290,194 @@ async function renderFlightsTab(fetchData = true) {
   }
 
   const tbody = document.querySelector('#flights-tab .admin-table tbody');
-  if (!tbody) return;
+  if (tbody) {
+    const sorted = applySortAndFilter(_airlines, 'airlines');
+    const limit = tableLimit.airlines;
+    const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+    if (tablePage.airlines > totalPages) tablePage.airlines = totalPages;
+    const start = (tablePage.airlines - 1) * limit;
+    const pageData = sorted.slice(start, start + limit);
 
-  const sorted = applySortAndFilter(_airlines, 'airlines');
-  const limit = tableLimit.airlines;
-  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
-  if (tablePage.airlines > totalPages) tablePage.airlines = totalPages;
-  const start = (tablePage.airlines - 1) * limit;
-  const pageData = sorted.slice(start, start + limit);
+    tbody.innerHTML = pageData.length
+      ? pageData.map(a => airlineRow(a)).join('')
+      : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No airlines yet. Click "Add Airline".</td></tr>`;
 
-  tbody.innerHTML = pageData.length
-    ? pageData.map(a => airlineRow(a)).join('')
-    : `<tr><td colspan="4" class="text-center py-8 text-text-muted">No airlines yet. Click "Add Airline".</td></tr>`;
+    renderPaginationFooter('airlines', sorted.length, totalPages, start, limit);
+    wireAirlineActions();
+  }
 
-  renderPaginationFooter('airlines', sorted.length, totalPages, start, limit);
+  // Render Flight Details Table
+  const fdBody = document.getElementById('flight-details-table-body');
+  if (fdBody) {
+    fdBody.innerHTML = _flightDetails.length
+      ? _flightDetails.map(fd => flightDetailRow(fd)).join('')
+      : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No flight defaults yet. Click "Add Default".</td></tr>`;
+    wireFlightDetailActions();
+  }
 
-  wireAirlineActions();
+  const addAirlineBtn = document.querySelector('#flights-tab .flex.justify-between button');
+  if (addAirlineBtn && !addAirlineBtn.dataset.wired) {
+    addAirlineBtn.dataset.wired = '1';
+    addAirlineBtn.addEventListener('click', () => openAirlineModal(null));
+  }
 
-  const addBtn = document.querySelector('#flights-tab .flex.justify-between button');
-  if (addBtn && !addBtn.dataset.wired) {
-    addBtn.dataset.wired = '1';
-    addBtn.addEventListener('click', () => openAirlineModal(null));
+  const addFdBtn = document.getElementById('flight-detail-add-btn');
+  if (addFdBtn && !addFdBtn.dataset.wired) {
+    addFdBtn.dataset.wired = '1';
+    addFdBtn.addEventListener('click', () => openFlightDetailModal(null));
   }
 
   updateSortIcons('airlines');
+}
+
+function flightDetailRow(fd) {
+  const airline = _airlines.find(a => a.id === fd.airlineId);
+  const sector = _sectors.find(s => s.id === fd.sectorId);
+  
+  const airlineName = airline ? airline.name : `<span class="text-red-500">Unknown (${fd.airlineId})</span>`;
+  const sectorCode = sector ? sector.sectorCode : `<span class="text-red-500">Unknown (${fd.sectorId})</span>`;
+  
+  return `<tr data-flight-detail-id="${fd.id}">
+    <td class="font-semibold">${airlineName}</td>
+    <td><span class="font-mono font-bold text-primary">${sectorCode}</span></td>
+    <td>${fd.flightTime || '<span class="text-text-muted text-[11px] italic">Not set</span>'}</td>
+    <td>${fd.baggage || '<span class="text-text-muted text-[11px] italic">Not set</span>'}</td>
+    <td class="font-mono font-medium">${fd.extraBaggage}</td>
+    <td class="text-right">
+      <div class="flex gap-1 items-center justify-end">
+        <button data-action="edit-flight-detail" data-id="${fd.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-flight-detail" data-id="${fd.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireFlightDetailActions() {
+  const tbody = document.getElementById('flight-details-table-body');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const fd = _flightDetails.find(d => d.id === id);
+
+    if (action === 'edit-flight-detail') openFlightDetailModal(fd);
+    if (action === 'delete-flight-detail') {
+      if (!confirm(`Delete flight defaults for this airline + sector mapping?`)) return;
+      try { 
+        await deleteFlightDetail(id); 
+        toast('success', 'Deleted', `Flight default removed.`); 
+        await renderFlightsTab(); 
+      }
+      catch (e) { toast('error', 'Error', e.message); }
+    }
+  });
+}
+
+function openFlightDetailModal(fd) {
+  const isEdit = !!fd;
+  
+  const airlineOptions = _airlines.map(a => 
+    `<option value="${a.id}" ${fd?.airlineId === a.id ? 'selected' : ''}>${a.name} (${a.code})</option>`
+  ).join('');
+
+  const sectorOptions = _sectors.map(s => 
+    `<option value="${s.id}" ${fd?.sectorId === s.id ? 'selected' : ''}>${s.sectorFrom} - ${s.sectorTo} (${s.sectorCode})</option>`
+  ).join('');
+
+  openModal(isEdit ? 'Edit Flight Defaults' : 'Add Flight Defaults', `
+    <form id="flight-detail-form" class="admin-modal-form">
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Mapping Info</p>
+            <p class="admin-form-section-desc">Select the Airline and Sector this default applies to.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">Airline *</label>
+            <select name="airlineId" class="admin-control" required ${isEdit ? 'disabled' : ''}>
+              <option value="">-- Select Airline --</option>
+              ${airlineOptions}
+            </select>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Sector *</label>
+            <select name="sectorId" class="admin-control" required ${isEdit ? 'disabled' : ''}>
+              <option value="">-- Select Sector --</option>
+              ${sectorOptions}
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <div class="admin-form-section mt-4">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Default Details</p>
+            <p class="admin-form-section-desc">These values will be injected during n8n rate uploads.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="admin-field md:col-span-2">
+            <label class="admin-label">Flight Time</label>
+            <input name="flightTime" placeholder="e.g. 19:40 - 22:55" value="${fd?.flightTime || ''}" class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Baggage Info</label>
+            <input name="baggage" placeholder="e.g. 30kg + 7kg" value="${fd?.baggage || ''}" class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Extra Baggage (kg)</label>
+            <input name="extraBaggage" type="number" min="0" placeholder="e.g. 7" value="${fd?.extraBaggage || 0}" class="admin-control font-mono">
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-modal-footer">
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary text-sm">
+          ${isEdit ? 'Save Changes' : 'Add Mapping'}
+        </button>
+      </div>
+    </form>`);
+
+  document.getElementById('modal-cancel')?.addEventListener('click', () => document.getElementById('admin-modal').close());
+  document.getElementById('flight-detail-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fdData = new FormData(e.target);
+    const data = {
+      flightTime: fdData.get('flightTime'),
+      baggage: fdData.get('baggage'),
+      extraBaggage: fdData.get('extraBaggage') || 0
+    };
+    
+    // For new entries, we need to extract from select
+    if (!isEdit) {
+      data.airlineId = fdData.get('airlineId');
+      data.sectorId = fdData.get('sectorId');
+    }
+
+    const btn = e.target.querySelector('[type=submit]');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      if (isEdit) { 
+        await updateFlightDetail(fd.id, data); 
+        toast('success', 'Updated', 'Flight detail updated.'); 
+      } else { 
+        await addFlightDetail(data); 
+        toast('success', 'Added', 'Flight detail added.'); 
+      }
+      document.getElementById('admin-modal').close();
+      await renderFlightsTab();
+    } catch (err) { 
+      toast('error', 'Save Failed', err.message); 
+      btn.disabled = false; 
+      btn.textContent = isEdit ? 'Save Changes' : 'Add Mapping'; 
+    }
+  });
 }
 
 function airlineRow(a) {
@@ -7195,7 +7389,18 @@ async function handleSheetSubmit() {
   let audioCtx;
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) audioCtx = new AudioContext();
+    if (AudioContext) {
+      audioCtx = new AudioContext();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      const silentOsc = audioCtx.createOscillator();
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0;
+      silentOsc.connect(silentGain);
+      silentGain.connect(audioCtx.destination);
+      silentOsc.start();
+      silentOsc.stop(audioCtx.currentTime + 0.01);
+    }
   } catch(e) {}
 
   const ta = document.getElementById('rateData');

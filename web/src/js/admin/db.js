@@ -222,6 +222,49 @@ export async function deleteAirline(airlineId) {
 }
 
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FLIGHT DETAILS (Airline + Sector Mapping)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fetch all flight details configurations */
+export async function getFlightDetails() {
+  const snap = await getDocs(collection(db, 'flight_details'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/** Add a new flight detail mapping */
+export async function addFlightDetail(data) {
+  if (!data.airlineId || !data.sectorId) throw new Error("Airline and Sector are required");
+  const docId = `${data.airlineId}_${data.sectorId}`;
+  const docRef = doc(db, 'flight_details', docId);
+  await setDoc(docRef, {
+    airlineId: data.airlineId,
+    sectorId: data.sectorId,
+    flightTime: data.flightTime || '',
+    baggage: data.baggage || '',
+    extraBaggage: Number(data.extraBaggage) || 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docId;
+}
+
+/** Update an existing flight detail mapping */
+export async function updateFlightDetail(id, data) {
+  await updateDoc(doc(db, 'flight_details', id), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Delete a flight detail mapping */
+export async function deleteFlightDetail(id) {
+  await deleteDoc(doc(db, 'flight_details', id));
+}
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT FARES
 // ─────────────────────────────────────────────────────────────────────────────
