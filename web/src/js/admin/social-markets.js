@@ -1,101 +1,87 @@
-export const POSTER_SOCIAL_MARKET_ORDER = ['ccj', 'cok', 'cnn', 'trv', 'ixe'];
-export const POSTER_SOCIAL_COUNTRY_ORDER = ['saudi', 'uae', 'oman', 'qatar', 'bahrain', 'kuwait'];
+export const POSTER_SOCIAL_MARKET_ORDER = ['saudi', 'uae', 'qatar', 'oman'];
+export const POSTER_SOCIAL_COUNTRY_ORDER = ['ccj', 'cok', 'cnn', 'trv', 'ixe'];
 
 export const POSTER_SOCIAL_MARKETS = {
-  ccj: {
-    key: 'ccj',
-    label: 'Calicut (CCJ)',
-    airports: ['CCJ'],
-    summary: 'Flights from or to Calicut',
-    platforms: { instagram: true, facebook: true, youtube: true },
-    hashtags: ['#CalicutFlights', '#CCJDeals', '#KeralaTravel', '#ZamraTravels'],
-  },
-  cok: {
-    key: 'cok',
-    label: 'Kochi (COK)',
-    airports: ['COK'],
-    summary: 'Flights from or to Kochi',
-    platforms: { instagram: true, facebook: true, youtube: true },
-    hashtags: ['#KochiFlights', '#COKDeals', '#CochinFlights', '#ZamraTravels'],
-  },
-  cnn: {
-    key: 'cnn',
-    label: 'Kannur (CNN)',
-    airports: ['CNN'],
-    summary: 'Flights from or to Kannur',
-    platforms: { instagram: false, facebook: false, youtube: false },
-    hashtags: ['#KannurFlights', '#CNNDeals', '#NorthKeralaTravel', '#ZamraTravels'],
-  },
-  trv: {
-    key: 'trv',
-    label: 'Trivandrum (TRV)',
-    airports: ['TRV'],
-    summary: 'Flights from or to Trivandrum',
-    platforms: { instagram: false, facebook: false, youtube: false },
-    hashtags: ['#TrivandrumFlights', '#TRVDeals', '#SouthKeralaTravel', '#ZamraTravels'],
-  },
-  ixe: {
-    key: 'ixe',
-    label: 'Mangalore (IXE)',
-    airports: ['IXE'],
-    summary: 'Flights from or to Mangalore',
-    platforms: { instagram: false, facebook: false, youtube: false },
-    hashtags: ['#MangaloreFlights', '#IXEDeals', '#CoastalTravel', '#ZamraTravels'],
-  },
-};
-
-export const POSTER_SOCIAL_COUNTRIES = {
   saudi: {
     key: 'saudi',
     label: 'Saudi',
-    groupLabel: 'Country Shortcuts',
-    airportCodes: ['JED', 'RUH', 'DMM'],
-    keywords: ['SAUDI', 'SAUDI ARABIA'],
+    airports: ['JED', 'RUH', 'DMM'],
+    summary: 'Flights from or to Saudi',
+    platforms: { instagram: true, facebook: true, youtube: true },
+    hashtags: ['#SaudiFlights', '#JeddahDeals', '#RiyadhDeals', '#ZamraTravels'],
   },
   uae: {
     key: 'uae',
     label: 'UAE',
-    groupLabel: 'Country Shortcuts',
-    airportCodes: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'],
-    keywords: ['UAE', 'UNITED ARAB EMIRATES', 'DUBAI', 'SHARJAH', 'ABU DHABI', 'RAS AL KHAIMAH', 'AL AIN', 'FUJAIRAH'],
-  },
-  oman: {
-    key: 'oman',
-    label: 'Oman',
-    groupLabel: 'Country Shortcuts',
-    airportCodes: ['MCT'],
-    keywords: ['OMAN', 'MUSCAT'],
+    airports: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'],
+    summary: 'Flights from or to UAE',
+    platforms: { instagram: true, facebook: true, youtube: true },
+    hashtags: ['#UAEFlights', '#DubaiDeals', '#SharjahDeals', '#ZamraTravels'],
   },
   qatar: {
     key: 'qatar',
     label: 'Qatar',
-    groupLabel: 'Country Shortcuts',
-    airportCodes: ['DOH'],
-    keywords: ['QATAR', 'DOHA'],
+    airports: ['DOH'],
+    summary: 'Flights from or to Qatar',
+    platforms: { instagram: true, facebook: true, youtube: true },
+    hashtags: ['#QatarFlights', '#DohaDeals', '#ZamraTravels'],
   },
-  bahrain: {
-    key: 'bahrain',
-    label: 'Bahrain',
-    groupLabel: 'Country Shortcuts',
-    airportCodes: ['BAH'],
-    keywords: ['BAHRAIN'],
-  },
-  kuwait: {
-    key: 'kuwait',
-    label: 'Kuwait',
-    groupLabel: 'Country Shortcuts',
-    airportCodes: ['KWI'],
-    keywords: ['KUWAIT'],
+  oman: {
+    key: 'oman',
+    label: 'Oman',
+    airports: ['MCT'],
+    summary: 'Flights from or to Oman',
+    platforms: { instagram: true, facebook: true, youtube: true },
+    hashtags: ['#OmanFlights', '#MuscatDeals', '#ZamraTravels'],
   },
 };
 
-export const INDIA_AIRPORT_CODES = ['CCJ', 'COK', 'CNN', 'TRV', 'IXE'];
+export const POSTER_SOCIAL_COUNTRIES = {
+  ccj: {
+    key: 'ccj',
+    label: 'Calicut (CCJ)',
+    groupLabel: 'Destinations',
+    airportCodes: ['CCJ'],
+    keywords: ['CALICUT', 'KOZHIKODE'],
+  },
+  cok: {
+    key: 'cok',
+    label: 'Kochi (COK)',
+    groupLabel: 'Destinations',
+    airportCodes: ['COK'],
+    keywords: ['KOCHI', 'COCHIN'],
+  },
+  cnn: {
+    key: 'cnn',
+    label: 'Kannur (CNN)',
+    groupLabel: 'Destinations',
+    airportCodes: ['CNN'],
+    keywords: ['KANNUR'],
+  },
+  trv: {
+    key: 'trv',
+    label: 'Trivandrum (TRV)',
+    groupLabel: 'Destinations',
+    airportCodes: ['TRV'],
+    keywords: ['TRIVANDRUM', 'THIRUVANANTHAPURAM'],
+  },
+  ixe: {
+    key: 'ixe',
+    label: 'Mangalore (IXE)',
+    groupLabel: 'Destinations',
+    airportCodes: ['IXE'],
+    keywords: ['MANGALORE'],
+  },
+};
 
-const INDIA_AIRPORT_SET = new Set(INDIA_AIRPORT_CODES);
-const INDIA_AIRPORT_KEY_BY_CODE = Object.fromEntries(
-  INDIA_AIRPORT_CODES.map((code) => [code, code.toLowerCase()]),
+const GULF_COUNTRY_KEY_BY_CODE = Object.fromEntries(
+  POSTER_SOCIAL_MARKET_ORDER.flatMap((key) => {
+    const market = POSTER_SOCIAL_MARKETS[key];
+    return (market?.airports || []).map((code) => [code, key]);
+  }),
 );
-const COUNTRY_KEY_BY_AIRPORT_CODE = Object.fromEntries(
+
+const INDIA_COUNTRY_KEY_BY_CODE = Object.fromEntries(
   POSTER_SOCIAL_COUNTRY_ORDER.flatMap((key) => {
     const country = POSTER_SOCIAL_COUNTRIES[key];
     return (country?.airportCodes || []).map((code) => [code, key]);
@@ -173,24 +159,24 @@ export function resolveSectorMarketKey(sector = {}) {
   const { fromCode, toCode } = getSectorRouteCodes(sector);
   if (!fromCode || !toCode) return null;
 
-  const fromIndia = INDIA_AIRPORT_SET.has(fromCode);
-  const toIndia = INDIA_AIRPORT_SET.has(toCode);
-  if (fromIndia === toIndia) return null;
+  const fromGulf = GULF_COUNTRY_KEY_BY_CODE[fromCode];
+  const toGulf = GULF_COUNTRY_KEY_BY_CODE[toCode];
 
-  const indiaCode = fromIndia ? fromCode : toCode;
-  return INDIA_AIRPORT_KEY_BY_CODE[indiaCode] || null;
+  if (fromGulf && !toGulf) return fromGulf;
+  if (!fromGulf && toGulf) return toGulf;
+  return null;
 }
 
 export function resolveSectorCountryKey(sector = {}) {
   const { fromCode, toCode } = getSectorRouteCodes(sector);
   if (!fromCode || !toCode) return null;
 
-  const fromIndia = INDIA_AIRPORT_SET.has(fromCode);
-  const toIndia = INDIA_AIRPORT_SET.has(toCode);
-  if (fromIndia === toIndia) return null;
+  const fromIndia = INDIA_COUNTRY_KEY_BY_CODE[fromCode];
+  const toIndia = INDIA_COUNTRY_KEY_BY_CODE[toCode];
 
-  const nonIndiaCode = fromIndia ? toCode : fromCode;
-  return COUNTRY_KEY_BY_AIRPORT_CODE[nonIndiaCode] || null;
+  if (fromIndia && !toIndia) return fromIndia;
+  if (!fromIndia && toIndia) return toIndia;
+  return null;
 }
 
 export function getPosterSocialMarket(key) {
@@ -224,49 +210,41 @@ export function listPosterSocialCountries() {
 
 const ORIGIN_COUNTRY_ORIGIN_CONFIGS = [
   {
-    marketKey: 'ccj',
-    airportCode: 'CCJ',
-    cityLabel: 'Calicut',
-    cityLabelMl: 'കോഴിക്കോട്',
-    groupLabel: 'Calicut Routes',
+    marketKey: 'saudi',
+    airportCode: 'JED',
+    cityLabel: 'Saudi',
+    cityLabelMl: 'സൗദി',
+    groupLabel: 'Saudi Routes',
   },
   {
-    marketKey: 'cok',
-    airportCode: 'COK',
-    cityLabel: 'Kochi',
-    cityLabelMl: 'കൊച്ചി',
-    groupLabel: 'Kochi Routes',
+    marketKey: 'uae',
+    airportCode: 'DXB',
+    cityLabel: 'UAE',
+    cityLabelMl: 'യു.എ.ഇ',
+    groupLabel: 'UAE Routes',
   },
   {
-    marketKey: 'cnn',
-    airportCode: 'CNN',
-    cityLabel: 'Kannur',
-    cityLabelMl: 'കണ്ണൂർ',
-    groupLabel: 'Kannur Routes',
+    marketKey: 'qatar',
+    airportCode: 'DOH',
+    cityLabel: 'Qatar',
+    cityLabelMl: 'ഖത്തർ',
+    groupLabel: 'Qatar Routes',
   },
   {
-    marketKey: 'trv',
-    airportCode: 'TRV',
-    cityLabel: 'Trivandrum',
-    cityLabelMl: 'തിരുവനന്തപുരം',
-    groupLabel: 'Trivandrum Routes',
-  },
-  {
-    marketKey: 'ixe',
-    airportCode: 'IXE',
-    cityLabel: 'Mangalore',
-    cityLabelMl: 'മംഗലാപുരം',
-    groupLabel: 'Mangalore Routes',
+    marketKey: 'oman',
+    airportCode: 'MCT',
+    cityLabel: 'Oman',
+    cityLabelMl: 'ഒമാൻ',
+    groupLabel: 'Oman Routes',
   },
 ];
 
 export const POSTER_COUNTRY_ML_LABELS = {
-  saudi:   { label: 'SAUDI',   labelMl: 'സൗദി',    flag: '🇸🇦' },
-  uae:     { label: 'UAE',     labelMl: 'യു.എ.ഇ',  flag: '🇦🇪' },
-  oman:    { label: 'OMAN',    labelMl: 'ഒമാൻ',    flag: '🇴🇲' },
-  qatar:   { label: 'QATAR',   labelMl: 'ഖത്തർ',   flag: '🇶🇦' },
-  bahrain: { label: 'BAHRAIN', labelMl: 'ബഹ്‌റൈൻ', flag: '🇧🇭' },
-  kuwait:  { label: 'KUWAIT',  labelMl: 'കുവൈറ്റ്', flag: '🇰🇼' },
+  ccj: { label: 'CALICUT', labelMl: 'കോഴിക്കോട്', flag: '🇮🇳' },
+  cok: { label: 'KOCHI', labelMl: 'കൊച്ചി', flag: '🇮🇳' },
+  cnn: { label: 'KANNUR', labelMl: 'കണ്ണൂർ', flag: '🇮🇳' },
+  trv: { label: 'TRIVANDRUM', labelMl: 'തിരുവനന്തപുരം', flag: '🇮🇳' },
+  ixe: { label: 'MANGALORE', labelMl: 'മംഗലാപുരം', flag: '🇮🇳' },
 };
 
 export const POSTER_ORIGIN_COUNTRY_SHORTCUTS = ORIGIN_COUNTRY_ORIGIN_CONFIGS.flatMap((origin) =>

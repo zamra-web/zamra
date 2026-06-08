@@ -1,66 +1,47 @@
 const BUFFER_MARKET_CONFIG = {
-  ccj: {
-    key: "ccj",
-    label: "Calicut (CCJ)",
-    airports: ["CCJ"],
+  saudi: {
+    key: "saudi",
+    label: "Saudi",
+    airports: ["JED", "RUH", "DMM"],
     channels: {
-      instagram: "69e896ff031bfa423c2e1de2",
-      facebook: "69e8976f031bfa423c2e1f5b",
-      youtube: "69e89783031bfa423c2e1f9c",
+      instagram: "__SET_SAUDI_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_SAUDI_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_SAUDI_YOUTUBE_CHANNEL_ID__",
     },
   },
-  cok: {
-    key: "cok",
-    label: "Kochi (COK)",
-    airports: ["COK"],
+  uae: {
+    key: "uae",
+    label: "UAE",
+    airports: ["DXB", "SHJ", "AUH", "RKT", "AAN", "FJR"],
     channels: {
-      instagram: "69e8d1b2031bfa423c2f3991",
-      facebook: "69e8d1c8031bfa423c2f39e0",
-      youtube: "69e8d13d031bfa423c2f37dd",
+      instagram: "__SET_UAE_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_UAE_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_UAE_YOUTUBE_CHANNEL_ID__",
     },
   },
-  cnn: {
-    key: "cnn",
-    label: "Kannur (CNN)",
-    airports: ["CNN"],
+  qatar: {
+    key: "qatar",
+    label: "Qatar",
+    airports: ["DOH"],
     channels: {
-      instagram: "__SET_CNN_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_CNN_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_CNN_YOUTUBE_CHANNEL_ID__",
+      instagram: "__SET_QATAR_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_QATAR_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_QATAR_YOUTUBE_CHANNEL_ID__",
     },
   },
-  trv: {
-    key: "trv",
-    label: "Trivandrum (TRV)",
-    airports: ["TRV"],
+  oman: {
+    key: "oman",
+    label: "Oman",
+    airports: ["MCT"],
     channels: {
-      instagram: "__SET_TRV_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_TRV_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_TRV_YOUTUBE_CHANNEL_ID__",
-    },
-  },
-  ixe: {
-    key: "ixe",
-    label: "Mangalore (IXE)",
-    airports: ["IXE"],
-    channels: {
-      instagram: "__SET_IXE_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_IXE_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_IXE_YOUTUBE_CHANNEL_ID__",
+      instagram: "__SET_OMAN_INSTAGRAM_CHANNEL_ID__",
+      facebook: "__SET_OMAN_FACEBOOK_CHANNEL_ID__",
+      youtube: "__SET_OMAN_YOUTUBE_CHANNEL_ID__",
     },
   },
 };
 
 const PLATFORM_KEYS = ["instagram", "facebook", "youtube"];
-const INDIA_AIRPORT_CODES = new Set(["CCJ", "COK", "CNN", "TRV", "IXE"]);
-const INDIA_AIRPORT_KEY_BY_CODE = {
-  CCJ: "ccj",
-  COK: "cok",
-  CNN: "cnn",
-  TRV: "trv",
-  IXE: "ixe",
-};
-const VALID_MARKET_KEYS = new Set(Object.keys(BUFFER_MARKET_CONFIG));
 
 const LOCATION_CODE_MAP = {
   KOZHIKODE: "CCJ",
@@ -88,6 +69,16 @@ const LOCATION_CODE_MAP = {
   "AL AIN": "AAN",
   FUJAIRAH: "FJR",
 };
+
+const VALID_MARKET_KEYS = new Set(Object.keys(BUFFER_MARKET_CONFIG));
+
+// Build a reverse mapping from Gulf airport code to market key
+const GULF_COUNTRY_KEY_BY_CODE = {};
+for (const [marketKey, marketConfig] of Object.entries(BUFFER_MARKET_CONFIG)) {
+  for (const code of marketConfig.airports) {
+    GULF_COUNTRY_KEY_BY_CODE[code] = marketKey;
+  }
+}
 
 function normalizeToken(value = "") {
   return String(value || "")
@@ -133,12 +124,13 @@ function resolveSectorMarketKey(sector = {}) {
   const { fromCode, toCode } = getSectorRouteCodes(sector);
   if (!fromCode || !toCode) return null;
 
-  const fromIndia = INDIA_AIRPORT_CODES.has(fromCode);
-  const toIndia = INDIA_AIRPORT_CODES.has(toCode);
-  if (fromIndia === toIndia) return null;
+  const fromGulf = GULF_COUNTRY_KEY_BY_CODE[fromCode];
+  const toGulf = GULF_COUNTRY_KEY_BY_CODE[toCode];
 
-  const indiaCode = fromIndia ? fromCode : toCode;
-  return INDIA_AIRPORT_KEY_BY_CODE[indiaCode] || null;
+  if (fromGulf && !toGulf) return fromGulf;
+  if (!fromGulf && toGulf) return toGulf;
+
+  return null;
 }
 
 function normalizeMarketKey(value = "") {
