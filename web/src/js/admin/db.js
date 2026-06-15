@@ -1115,3 +1115,13 @@ export async function callGenerateAgentReport(startDate = null, endDate = null, 
   const result = await fn(payload);
   return result.data;
 }
+
+/** Update agent rates upload timestamp */
+export async function updateAgentRatesUploadedTimestamp(agentId) {
+  if (!agentId) return;
+  await updateDoc(doc(db, 'agents', agentId), {
+    lastRatesUploadedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+

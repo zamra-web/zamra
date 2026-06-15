@@ -549,6 +549,25 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
     saved += chunk.length;
   }
 
+  // Update lastRatesUploadedAt on the agents documents
+  try {
+    const uniqueAgentIds = [...new Set(fares.map(row => String(row.agent_id)).filter(Boolean))];
+    const agentUpdates = uniqueAgentIds.map(async (agentId) => {
+      try {
+        const agentRef = db.collection("agents").doc(agentId);
+        await agentRef.update({
+          lastRatesUploadedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      } catch (agentErr) {
+        console.error(`Failed to update lastRatesUploadedAt for agent ${agentId}:`, agentErr);
+      }
+    });
+    await Promise.all(agentUpdates);
+  } catch (err) {
+    console.error("Failed to update agents lastRatesUploadedAt timestamps:", err);
+  }
+
   res.status(200).json({ success: true, saved });
 });
 

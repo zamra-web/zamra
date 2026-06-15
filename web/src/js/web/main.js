@@ -6,12 +6,8 @@ import { initSiteChrome } from './site-chrome.js';
 
 const ENQUIRY_WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/enquiry';
 const AIRLINE_LOGO_FALLBACKS = {
-  'INDIGO': '/assets/img/flights/indigo.png',
   'AIR INDIA EXPRESS': '/assets/img/flights/air-india-express.png',
-  'AIR ARABIA': '/assets/img/flights/air-arabia.png',
-  'FLYNAS': '/assets/img/flights/flynas.png',
   'OMAN AIR': '/assets/img/flights/oman-air.png',
-  'SALAM AIR': '/assets/img/flights/salam-air.png',
   'AIR INDIA': '/assets/img/flights/air-india.png',
   'SAUDIA': '/assets/img/flights/saudia.png'
 };
@@ -27,11 +23,7 @@ function getFallbackAirlineLogo({ name = '', code = '' } = {}) {
   if (airlineName.includes('EXPRESS') || airlineCode === 'IX') return AIRLINE_LOGO_FALLBACKS['AIR INDIA EXPRESS'];
   if (airlineName.includes('INDIA') || airlineCode === 'AI') return AIRLINE_LOGO_FALLBACKS['AIR INDIA'];
   if (airlineName.includes('SAUD') || airlineName.includes('SOUD') || airlineCode === 'SV') return AIRLINE_LOGO_FALLBACKS['SAUDIA'];
-  if (airlineName.includes('INDIGO') || airlineCode === '6E') return AIRLINE_LOGO_FALLBACKS['INDIGO'];
-  if (airlineName.includes('ARABIA') || airlineCode === 'G9') return AIRLINE_LOGO_FALLBACKS['AIR ARABIA'];
-  if (airlineName.includes('FLYNAS') || airlineCode === 'XY') return AIRLINE_LOGO_FALLBACKS['FLYNAS'];
   if (airlineName.includes('OMAN') || airlineCode === 'WY') return AIRLINE_LOGO_FALLBACKS['OMAN AIR'];
-  if (airlineName.includes('SALAM') || airlineCode === 'OV') return AIRLINE_LOGO_FALLBACKS['SALAM AIR'];
 
   return '';
 }

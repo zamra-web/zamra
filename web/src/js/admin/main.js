@@ -21,7 +21,7 @@ import {
   getTours, addTour, updateTour, deleteTour,
   getHajjUmrahPackages, addHajjUmrahPackage, updateHajjUmrahPackage, deleteHajjUmrahPackage,
   callToggleAgentVisibility, callToggleSectorVisibility, callReorderSectors,
-  callGenerateAgentReport,
+  callGenerateAgentReport, updateAgentRatesUploadedTimestamp,
   uploadAndQueueForSocial, uploadAndQueueCarousel,
   createSocialJob, updateSocialJob,
   createSocialJobItem, updateSocialJobItem,
@@ -7318,6 +7318,27 @@ function initAgentSheets() {
   renderHistory();
 }
 
+function isSameDayAsToday(timestampOrDate) {
+  if (!timestampOrDate) return false;
+  let d;
+  if (typeof timestampOrDate.toDate === 'function') {
+    d = timestampOrDate.toDate();
+  } else if (timestampOrDate instanceof Date) {
+    d = timestampOrDate;
+  } else if (timestampOrDate.seconds !== undefined) {
+    d = new Date(timestampOrDate.seconds * 1000);
+  } else {
+    d = new Date(timestampOrDate);
+  }
+
+  if (isNaN(d.getTime())) return false;
+
+  const today = new Date();
+  return d.getFullYear() === today.getFullYear() &&
+         d.getMonth() === today.getMonth() &&
+         d.getDate() === today.getDate();
+}
+
 // Build agent chips from Firestore agents list
 function buildChips() {
   const cGrid = document.getElementById('chipGrid');
@@ -7347,6 +7368,23 @@ function buildChips() {
     const c = document.createElement('div');
     c.className = 'rp-chip min-w-[3.5rem]';
     c.dataset.agentId = agent.id;
+    
+    // Check if uploaded today
+    const wasUploadedToday = isSameDayAsToday(agent.lastRatesUploadedAt);
+    if (wasUploadedToday) {
+      c.classList.add('uploaded');
+    }
+    
+    // Hover tooltip info
+    if (agent.lastRatesUploadedAt) {
+      const uploadDate = typeof agent.lastRatesUploadedAt.toDate === 'function'
+        ? agent.lastRatesUploadedAt.toDate()
+        : new Date(agent.lastRatesUploadedAt);
+      c.setAttribute('title', `Last uploaded: ${uploadDate.toLocaleString('en-IN')}`);
+    } else {
+      c.setAttribute('title', 'No rates uploaded yet');
+    }
+
     const agentFirstName = agent.name ? agent.name.split(' ')[0] : '';
     c.innerHTML = `
       <span class="text-[13px] font-bold leading-none">${escapeHtml(agent.id)}</span>
@@ -7525,6 +7563,18 @@ async function handleSheetSubmit() {
     hEntry.saved = savedCount;
     saveHistory(); renderHistory(); updateStats();
     toast('success', 'Saved', `${savedCount} row${savedCount === 1 ? '' : 's'} added to Firestore.`);
+    
+    // Update agent rates upload status in Firestore and locally
+    try {
+      await updateAgentRatesUploadedTimestamp(selAgent);
+      const localAgent = _agents.find(a => a.id === selAgent);
+      if (localAgent) {
+        localAgent.lastRatesUploadedAt = new Date();
+      }
+      buildChips();
+    } catch (e) {
+      console.warn('Failed to update agent lastRatesUploadedAt:', e);
+    }
     
     try {
       if (audioCtx) {

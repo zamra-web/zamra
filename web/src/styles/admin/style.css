@@ -703,6 +703,23 @@ html[data-theme="dark"] {
         box-shadow: 0 4px 14px rgba(26, 115, 232, 0.3);
         transform: translateY(-1px);
     }
+
+    .rp-chip.uploaded {
+        background: #ecfdf5;
+        border-color: #10b981;
+        color: #065f46;
+    }
+
+    .rp-chip.uploaded:hover {
+        border-color: #059669;
+    }
+
+    .rp-chip.uploaded.on {
+        background: #10b981;
+        border-color: #10b981;
+        color: #ffffff;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
 }
 
 .premium-hover-lift {
@@ -1750,6 +1767,23 @@ html[data-theme="dark"] .rp-chip.on {
     border-color: #1e67c2;
     color: #ffffff;
     box-shadow: 0 12px 24px -16px rgba(30, 103, 194, 0.6);
+}
+
+html[data-theme="dark"] .rp-chip.uploaded {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #6ee7b7;
+}
+
+html[data-theme="dark"] .rp-chip.uploaded:hover {
+    border-color: rgba(16, 185, 129, 0.7);
+}
+
+html[data-theme="dark"] .rp-chip.uploaded.on {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border-color: #10b981;
+    color: #ffffff;
+    box-shadow: 0 12px 24px -16px rgba(16, 185, 129, 0.6);
 }
 
 html[data-theme="dark"] .nav-link {

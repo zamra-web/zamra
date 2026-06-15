@@ -13,38 +13,46 @@ import {
 } from '../src/js/admin/social-image-carousels.js';
 import {
   resolveSectorCountryKey,
+  resolveSectorMarketKey,
 } from '../src/js/admin/social-markets.js';
 
 test('resolveSectorCountryKey maps supported routes in both directions', () => {
-  assert.equal(resolveSectorCountryKey({ sectorCode: 'CCJ JED' }), 'saudi');
-  assert.equal(resolveSectorCountryKey({ sectorCode: 'JED CCJ' }), 'saudi');
-  assert.equal(resolveSectorCountryKey({ sectorCode: 'COK DXB' }), 'uae');
-  assert.equal(resolveSectorCountryKey({ sectorCode: 'MCT TRV' }), 'oman');
+  // Test resolveSectorMarketKey (resolves Gulf-side country)
+  assert.equal(resolveSectorMarketKey({ sectorCode: 'CCJ JED' }), 'saudi');
+  assert.equal(resolveSectorMarketKey({ sectorCode: 'JED CCJ' }), 'saudi');
+  assert.equal(resolveSectorMarketKey({ sectorCode: 'COK DXB' }), 'uae');
+  assert.equal(resolveSectorMarketKey({ sectorCode: 'MCT TRV' }), 'oman');
+  assert.equal(resolveSectorMarketKey({ sectorCode: 'CCJ COK' }), null);
+  assert.equal(resolveSectorMarketKey({ sectorCode: 'CCJ SIN' }), null);
+
+  // Test resolveSectorCountryKey (resolves India-side airport)
+  assert.equal(resolveSectorCountryKey({ sectorCode: 'CCJ JED' }), 'ccj');
+  assert.equal(resolveSectorCountryKey({ sectorCode: 'JED CCJ' }), 'ccj');
+  assert.equal(resolveSectorCountryKey({ sectorCode: 'COK DXB' }), 'cok');
+  assert.equal(resolveSectorCountryKey({ sectorCode: 'MCT TRV' }), 'trv');
   assert.equal(resolveSectorCountryKey({ sectorCode: 'CCJ COK' }), null);
-  assert.equal(resolveSectorCountryKey({ sectorCode: 'CCJ SIN' }), null);
+  assert.equal(resolveSectorCountryKey({ sectorCode: 'CCJ SIN' }), 'ccj');
 });
 
 test('buildMarketCountryGroups keeps fixed country order and skips empty countries', () => {
   const sectors = [
-    { id: 'uae-1', sectorCode: 'CCJ DXB', sectorFrom: 'Calicut', sectorTo: 'Dubai' },
-    { id: 'saudi-1', sectorCode: 'CCJ JED', sectorFrom: 'Calicut', sectorTo: 'Jeddah' },
-    { id: 'saudi-2', sectorCode: 'CCJ RUH', sectorFrom: 'Calicut', sectorTo: 'Riyadh' },
-    { id: 'oman-1', sectorCode: 'CCJ MCT', sectorFrom: 'Calicut', sectorTo: 'Muscat' },
-    { id: 'qatar-1', sectorCode: 'CCJ DOH', sectorFrom: 'Calicut', sectorTo: 'Doha' },
-    { id: 'unsupported', sectorCode: 'CCJ SIN', sectorFrom: 'Calicut', sectorTo: 'Singapore' },
+    { id: 'saudi-ccj', sectorCode: 'CCJ JED', sectorFrom: 'Calicut', sectorTo: 'Jeddah' },
+    { id: 'saudi-cok', sectorCode: 'COK JED', sectorFrom: 'Kochi', sectorTo: 'Jeddah' },
+    { id: 'saudi-cnn', sectorCode: 'CNN RUH', sectorFrom: 'Kannur', sectorTo: 'Riyadh' },
+    { id: 'uae-ccj', sectorCode: 'CCJ DXB', sectorFrom: 'Calicut', sectorTo: 'Dubai' },
+    { id: 'saudi-empty', sectorCode: 'TRV JED', sectorFrom: 'Trivandrum', sectorTo: 'Jeddah' },
   ];
 
   const faresBySector = new Map([
-    ['uae-1', [{ id: 'fare-1' }]],
-    ['saudi-1', [{ id: 'fare-2' }]],
-    ['saudi-2', [{ id: 'fare-3' }]],
-    ['oman-1', []],
-    ['qatar-1', [{ id: 'fare-4' }]],
-    ['unsupported', [{ id: 'fare-5' }]],
+    ['saudi-ccj', [{ id: 'fare-1' }]],
+    ['saudi-cok', [{ id: 'fare-2' }]],
+    ['saudi-cnn', [{ id: 'fare-3' }]],
+    ['uae-ccj', [{ id: 'fare-4' }]],
+    ['saudi-empty', []],
   ]);
 
   const groups = buildMarketCountryGroups({
-    marketKey: 'ccj',
+    marketKey: 'saudi',
     sectors,
     faresBySector,
   });
@@ -55,9 +63,9 @@ test('buildMarketCountryGroups keeps fixed country order and skips empty countri
       sectorIds: group.sectors.map((sector) => sector.id),
     })),
     [
-      { countryKey: 'saudi', sectorIds: ['saudi-1', 'saudi-2'] },
-      { countryKey: 'uae', sectorIds: ['uae-1'] },
-      { countryKey: 'qatar', sectorIds: ['qatar-1'] },
+      { countryKey: 'ccj', sectorIds: ['saudi-ccj'] },
+      { countryKey: 'cok', sectorIds: ['saudi-cok'] },
+      { countryKey: 'cnn', sectorIds: ['saudi-cnn'] },
     ],
   );
 });
@@ -122,8 +130,8 @@ test('appendVideoSlidesLimited preserves slide order and caps country reels at n
 
 test('formatCountryCarouselCaption uses the professional India-time template', () => {
   const caption = formatCountryCarouselCaption(
-    'ccj',
     'saudi',
+    'ccj',
     new Date('2026-04-18T06:00:00.000Z'),
   );
 
@@ -138,14 +146,14 @@ test('formatCountryCarouselCaption uses the professional India-time template', (
 
 test('formatCountryVideoCaption uses country-level copy for reels and widescreen videos', () => {
   const reelsCaption = formatCountryVideoCaption(
-    'ccj',
     'saudi',
+    'ccj',
     'video9x16',
     new Date('2026-04-18T06:00:00.000Z'),
   );
   const widescreenCaption = formatCountryVideoCaption(
-    'ccj',
     'saudi',
+    'ccj',
     'video16x9',
     new Date('2026-04-18T06:00:00.000Z'),
   );
@@ -168,11 +176,11 @@ test('formatCountryVideoCaption uses country-level copy for reels and widescreen
 
 test('formatCountryVideoYouTubeTitle creates country-level shorts and widescreen titles', () => {
   assert.equal(
-    formatCountryVideoYouTubeTitle('ccj', 'saudi', 'video9x16'),
+    formatCountryVideoYouTubeTitle('saudi', 'ccj', 'video9x16'),
     'Calicut to Saudi Shorts | Zamra Travels',
   );
   assert.equal(
-    formatCountryVideoYouTubeTitle('ccj', 'saudi', 'video16x9'),
+    formatCountryVideoYouTubeTitle('saudi', 'ccj', 'video16x9'),
     'Calicut to Saudi Flight Deals | Zamra Travels',
   );
 });

@@ -32,8 +32,8 @@ export function formatPosterSocialDate(date = new Date()) {
 export function formatCountryCarouselCaption(marketKey, countryKey, date = new Date()) {
   const market = getPosterSocialMarket(marketKey);
   const country = getPosterSocialCountry(countryKey);
-  const marketCity = toMarketCityLabel(market?.label);
-  const countryLabel = country?.label || String(countryKey || '').trim().toUpperCase() || 'International';
+  const marketCity = toMarketCityLabel(country?.label);
+  const countryLabel = market?.label || String(marketKey || '').trim().toUpperCase() || 'International';
 
   return [
     `TODAY (${formatPosterSocialDate(date)})`,
@@ -47,8 +47,8 @@ export function formatCountryCarouselCaption(marketKey, countryKey, date = new D
 export function formatCountryVideoCaption(marketKey, countryKey, type = 'video9x16', date = new Date()) {
   const market = getPosterSocialMarket(marketKey);
   const country = getPosterSocialCountry(countryKey);
-  const marketCity = toMarketCityLabel(market?.label);
-  const countryLabel = country?.label || String(countryKey || '').trim().toUpperCase() || 'International';
+  const marketCity = toMarketCityLabel(country?.label);
+  const countryLabel = market?.label || String(marketKey || '').trim().toUpperCase() || 'International';
   const routeLabel = `${marketCity} to ${countryLabel}`;
 
   if (type === 'video16x9') {
@@ -72,8 +72,8 @@ export function formatCountryVideoCaption(marketKey, countryKey, type = 'video9x
 export function formatCountryVideoYouTubeTitle(marketKey, countryKey, type = 'video9x16') {
   const market = getPosterSocialMarket(marketKey);
   const country = getPosterSocialCountry(countryKey);
-  const marketCity = toMarketCityLabel(market?.label);
-  const countryLabel = country?.label || String(countryKey || '').trim().toUpperCase() || 'International';
+  const marketCity = toMarketCityLabel(country?.label);
+  const countryLabel = market?.label || String(marketKey || '').trim().toUpperCase() || 'International';
   const routeLabel = `${marketCity} to ${countryLabel}`;
 
   if (type === 'video16x9') {
