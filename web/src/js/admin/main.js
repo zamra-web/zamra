@@ -2632,14 +2632,31 @@ function buildCopyTextFooter(shortcut) {
   return lines.join('\n');
 }
 
-function resolveClipboardShortcut(selection) {
-  if (!selection?.kind) return null;
-  // selection.kind is always 'shortcut' for any shortcut selection — check the actual
-  // shortcut object to see if it's an origin-country type.
-  if (selection.kind === 'shortcut' && selection.key) {
+function resolveClipboardShortcut(selection, fares) {
+  // 1. If selection itself is an explicit origin-country shortcut, return it
+  if (selection?.kind === 'shortcut' && selection.key) {
     const shortcut = POSTER_SECTOR_SHORTCUTS.find((s) => s.key === selection.key);
     if (shortcut?.kind === 'origin-country') return shortcut;
   }
+
+  // 2. Otherwise, check the fares in the payload to see if they all match a single origin-country shortcut
+  if (Array.isArray(fares) && fares.length) {
+    const sectorById = new Map(_sectors.map((s) => [s.id, s]));
+    const uniqueSectors = [...new Set(fares.map((f) => f.sectorId).filter(Boolean))]
+      .map((id) => sectorById.get(id))
+      .filter(Boolean);
+
+    if (uniqueSectors.length) {
+      const originCountryShortcuts = POSTER_SECTOR_SHORTCUTS.filter((s) => s.kind === 'origin-country');
+      const matchingShortcuts = originCountryShortcuts.filter((shortcut) =>
+        uniqueSectors.every((sector) => sectorMatchesPosterShortcut(sector, shortcut))
+      );
+      if (matchingShortcuts.length > 0) {
+        return matchingShortcuts[0];
+      }
+    }
+  }
+
   return null;
 }
 
@@ -2652,7 +2669,7 @@ function buildPosterClipboardPayload(fares, selection) {
   }).join('\n\n');
 
   // Determine if this is an origin-country shortcut selection (header/footer applies)
-  const ocShortcut = resolveClipboardShortcut(selection);
+  const ocShortcut = resolveClipboardShortcut(selection, fares);
 
   let text;
   if (ocShortcut) {
