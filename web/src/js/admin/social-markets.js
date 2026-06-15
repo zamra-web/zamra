@@ -210,61 +210,68 @@ export function listPosterSocialCountries() {
 
 const ORIGIN_COUNTRY_ORIGIN_CONFIGS = [
   {
-    marketKey: 'saudi',
-    airportCode: 'JED',
-    cityLabel: 'Saudi',
-    cityLabelMl: 'സൗദി',
-    groupLabel: 'Saudi Routes',
+    marketKey: 'ccj',
+    airportCode: 'CCJ',
+    cityLabel: 'Calicut',
+    cityLabelMl: 'കോഴിക്കോട്',
+    groupLabel: 'Calicut Routes',
   },
   {
-    marketKey: 'uae',
-    airportCode: 'DXB',
-    cityLabel: 'UAE',
-    cityLabelMl: 'യു.എ.ഇ',
-    groupLabel: 'UAE Routes',
+    marketKey: 'cok',
+    airportCode: 'COK',
+    cityLabel: 'Kochi',
+    cityLabelMl: 'കൊച്ചി',
+    groupLabel: 'Kochi Routes',
   },
   {
-    marketKey: 'qatar',
-    airportCode: 'DOH',
-    cityLabel: 'Qatar',
-    cityLabelMl: 'ഖത്തർ',
-    groupLabel: 'Qatar Routes',
+    marketKey: 'cnn',
+    airportCode: 'CNN',
+    cityLabel: 'Kannur',
+    cityLabelMl: 'കണ്ണൂർ',
+    groupLabel: 'Kannur Routes',
   },
   {
-    marketKey: 'oman',
-    airportCode: 'MCT',
-    cityLabel: 'Oman',
-    cityLabelMl: 'ഒമാൻ',
-    groupLabel: 'Oman Routes',
+    marketKey: 'trv',
+    airportCode: 'TRV',
+    cityLabel: 'Trivandrum',
+    cityLabelMl: 'തിരുവനന്തപുരം',
+    groupLabel: 'Trivandrum Routes',
+  },
+  {
+    marketKey: 'ixe',
+    airportCode: 'IXE',
+    cityLabel: 'Mangalore',
+    cityLabelMl: 'മംഗലാപുരം',
+    groupLabel: 'Mangalore Routes',
   },
 ];
 
 export const POSTER_COUNTRY_ML_LABELS = {
-  ccj: { label: 'CALICUT', labelMl: 'കോഴിക്കോട്', flag: '🇮🇳' },
-  cok: { label: 'KOCHI', labelMl: 'കൊച്ചി', flag: '🇮🇳' },
-  cnn: { label: 'KANNUR', labelMl: 'കണ്ണൂർ', flag: '🇮🇳' },
-  trv: { label: 'TRIVANDRUM', labelMl: 'തിരുവനന്തപുരം', flag: '🇮🇳' },
-  ixe: { label: 'MANGALORE', labelMl: 'മംഗലാപുരം', flag: '🇮🇳' },
+  saudi:   { label: 'SAUDI',   labelMl: 'സൗദി',    flag: '🇸🇦', airportCodes: ['JED', 'RUH', 'DMM'] },
+  uae:     { label: 'UAE',     labelMl: 'യു.എ.ഇ',  flag: '🇦🇪', airportCodes: ['DXB', 'SHJ', 'AUH', 'RKT', 'AAN', 'FJR'] },
+  oman:    { label: 'OMAN',    labelMl: 'ഒമാൻ',    flag: '🇴🇲', airportCodes: ['MCT'] },
+  qatar:   { label: 'QATAR',   labelMl: 'ഖത്തർ',   flag: '🇶🇦', airportCodes: ['DOH'] },
+  bahrain: { label: 'BAHRAIN', labelMl: 'ബഹ്‌റൈൻ', flag: '🇧🇭', airportCodes: ['BAH'] },
+  kuwait:  { label: 'KUWAIT',  labelMl: 'കുവൈത്ത്', flag: '🇰🇼', airportCodes: ['KWI'] },
 };
 
 export const POSTER_ORIGIN_COUNTRY_SHORTCUTS = ORIGIN_COUNTRY_ORIGIN_CONFIGS.flatMap((origin) =>
-  POSTER_SOCIAL_COUNTRY_ORDER.map((countryKey) => {
-    const country = POSTER_SOCIAL_COUNTRIES[countryKey];
+  Object.keys(POSTER_COUNTRY_ML_LABELS).map((countryKey) => {
     const ml = POSTER_COUNTRY_ML_LABELS[countryKey];
     return {
       key: `${origin.marketKey}-${countryKey}`,
       kind: 'origin-country',
-      label: `${origin.cityLabel} to ${ml?.label || country.label}`,
+      label: `${origin.cityLabel} to ${ml.label}`,
       groupLabel: origin.groupLabel,
       originAirport: origin.airportCode,
       originMarketKey: origin.marketKey,
       originCityLabel: origin.cityLabel,
       originCityLabelMl: origin.cityLabelMl,
       countryKey,
-      countryLabel: ml?.label || country.label,
-      countryLabelMl: ml?.labelMl || '',
-      countryFlag: ml?.flag || '',
-      airportCodes: country.airportCodes || [],
+      countryLabel: ml.label,
+      countryLabelMl: ml.labelMl,
+      countryFlag: ml.flag,
+      airportCodes: ml.airportCodes || [],
     };
   })
 );
