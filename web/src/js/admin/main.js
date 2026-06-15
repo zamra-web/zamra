@@ -2716,36 +2716,56 @@ function buildPosterClipboardScopes(preview = _lastPosterPreview) {
     selection,
   }];
 
+  const sectorById = new Map(_sectors.map((sector) => [sector.id, sector]));
+
+  // 1. Build Country Copy scopes (only for airport- shortcuts, e.g. UAE/Saudi)
   const shortcutKey = String(selection?.key || '').trim().toLowerCase();
-  if (selection?.kind !== 'shortcut' || !shortcutKey.startsWith('airport-')) {
-    return scopes;
+  if (selection?.kind === 'shortcut' && shortcutKey.startsWith('airport-')) {
+    const marketKey = shortcutKey.slice('airport-'.length);
+    const marketLabel = getPosterSocialMarket(marketKey)?.label || marketKey.toUpperCase();
+    if (marketKey && marketLabel) {
+      listPosterSocialCountries().forEach((country) => {
+        const scopedFares = fares.filter((fare) => {
+          const sector = sectorById.get(fare.sectorId);
+          if (!sector) return false;
+          return resolveSectorMarketKey(sector) === marketKey && resolveSectorCountryKey(sector) === country.key;
+        });
+        if (!scopedFares.length) return;
+
+        const scopedRouteCount = countPosterClipboardRoutes(scopedFares);
+        if (scopedRouteCount === routeCount && scopedFares.length === fares.length) return;
+
+        scopes.push({
+          key: `country:${country.key}`,
+          label: `Copy ${marketLabel} to ${country.label}`,
+          meta: `${scopedRouteCount} route${scopedRouteCount === 1 ? '' : 's'} · ${scopedFares.length} fare${scopedFares.length === 1 ? '' : 's'}`,
+          successMessage: `${marketLabel} to ${country.label} text copied to clipboard.`,
+          fares: scopedFares,
+          selection,
+        });
+      });
+    }
   }
 
-  const marketKey = shortcutKey.slice('airport-'.length);
-  const airportCode = String(getPosterSocialMarket(marketKey)?.airports?.[0] || '').trim().toUpperCase();
-  if (!marketKey || !airportCode) return scopes;
+  // 2. Build individual Route Copy scopes (if there are multiple distinct sectors in the preview fares)
+  const uniqueSectorIds = [...new Set(fares.map((fare) => fare.sectorId).filter(Boolean))];
+  if (uniqueSectorIds.length > 1) {
+    const sortedUniqueSectorIds = sortPosterSectorIds(uniqueSectorIds);
+    sortedUniqueSectorIds.forEach((sectorId) => {
+      const sectorFares = fares.filter((fare) => fare.sectorId === sectorId);
+      if (!sectorFares.length) return;
 
-  const sectorById = new Map(_sectors.map((sector) => [sector.id, sector]));
-  listPosterSocialCountries().forEach((country) => {
-    const scopedFares = fares.filter((fare) => {
-      const sector = sectorById.get(fare.sectorId);
-      if (!sector) return false;
-      return resolveSectorMarketKey(sector) === marketKey && resolveSectorCountryKey(sector) === country.key;
+      const heading = getPosterClipboardSectorHeading(sectorId);
+      scopes.push({
+        key: `sector:${sectorId}`,
+        label: `Copy ${heading}`,
+        meta: `${sectorFares.length} fare${sectorFares.length === 1 ? '' : 's'}`,
+        successMessage: `${heading} text copied to clipboard.`,
+        fares: sectorFares,
+        selection,
+      });
     });
-    if (!scopedFares.length) return;
-
-    const scopedRouteCount = countPosterClipboardRoutes(scopedFares);
-    if (scopedRouteCount === routeCount && scopedFares.length === fares.length) return;
-
-    scopes.push({
-      key: `country:${country.key}`,
-      label: `Copy ${airportCode} to ${country.label}`,
-      meta: `${scopedRouteCount} route${scopedRouteCount === 1 ? '' : 's'} · ${scopedFares.length} fare${scopedFares.length === 1 ? '' : 's'}`,
-      successMessage: `${airportCode} to ${country.label} text copied to clipboard.`,
-      fares: scopedFares,
-      selection,
-    });
-  });
+  }
 
   return scopes;
 }
@@ -2772,7 +2792,10 @@ function renderPosterCopyMenu() {
     return scopes;
   }
 
-  const [allScope, ...countryScopes] = scopes;
+  const allScope = scopes.find((s) => s.key === 'all');
+  const countryScopes = scopes.filter((s) => s.key.startsWith('country:'));
+  const sectorScopes = scopes.filter((s) => s.key.startsWith('sector:'));
+
   const renderScopeButton = (scope) => `
     <button type="button"
       class="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0"
@@ -2782,15 +2805,31 @@ function renderPosterCopyMenu() {
     </button>
   `;
 
-  menu.innerHTML = `
-    <div class="py-1">
-      ${renderScopeButton(allScope)}
-      <div class="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+  let html = `<div class="py-1">`;
+  if (allScope) {
+    html += renderScopeButton(allScope);
+  }
+
+  if (countryScopes.length > 0) {
+    html += `
+      <div class="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 border-t border-slate-100 first:border-t-0">
         Country Copy
       </div>
       ${countryScopes.map(renderScopeButton).join('')}
-    </div>
-  `;
+    `;
+  }
+
+  if (sectorScopes.length > 0) {
+    html += `
+      <div class="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 border-t border-slate-100 first:border-t-0">
+        Route Copy
+      </div>
+      ${sectorScopes.map(renderScopeButton).join('')}
+    `;
+  }
+
+  html += `</div>`;
+  menu.innerHTML = html;
 
   return scopes;
 }
