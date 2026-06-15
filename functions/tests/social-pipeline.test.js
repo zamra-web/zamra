@@ -54,7 +54,7 @@ test("buildQueueCreatePayload seeds queue docs with retry and visibility fields"
     source: "admin",
     jobId: "job-1",
     jobItemId: "item-1",
-    marketKey: "ccj",
+    marketKey: "saudi",
     sectorCode: "JED CCJ",
     mediaType: "video",
     ratio: "9x16",

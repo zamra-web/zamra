@@ -528,14 +528,20 @@ async function claimDueQueueItems(limit = DISPATCH_BATCH_LIMIT) {
 async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   const ref = socialQueueRef().doc(queueDoc.id);
   const freshSnap = await ref.get();
-  if (!freshSnap.exists) return;
+  if (!freshSnap.exists) {
+    logger.warn(`dispatchQueueDoc: queue doc ${queueDoc.id} no longer exists, skipping.`);
+    return;
+  }
   const doc = { id: freshSnap.id, ...freshSnap.data() };
+
+  logger.info(`dispatchQueueDoc: START queue=${doc.id} rawMarketKey="${doc.marketKey || ''}" label="${doc.label || ''}" mediaType="${doc.mediaType || ''}" sectorCode="${doc.sectorCode || ''}" status="${doc.status || ''}" platforms=${JSON.stringify(doc.platforms || [])}`);
 
   const mediaType = doc.mediaType === "video" ? "video" : "image";
   const mediaUrls = Array.isArray(doc.mediaUrls) && doc.mediaUrls.length
     ? doc.mediaUrls.filter(Boolean)
     : (doc.mediaUrl ? [doc.mediaUrl] : []);
   if (!mediaUrls.length) {
+    logger.warn(`dispatchQueueDoc: queue=${doc.id} FAILED — no media URLs available.`);
     await ref.update({
       status: "failed",
       stage: "failed",
@@ -553,8 +559,10 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   if (normalizedMarketKey) doc.marketKey = normalizedMarketKey;
   const marketKey = normalizeMarketKey(doc.marketKey);
   const marketLabel = getMarketLabel(marketKey || doc.marketKey);
+  logger.info(`dispatchQueueDoc: queue=${doc.id} marketKey resolution: raw="${queueDoc.marketKey || ''}" normalized="${normalizedMarketKey || ''}" final="${marketKey || ''}" label="${marketLabel}"`);
   if (!marketKey) {
-    const message = "Airport group could not be resolved for this queue item.";
+    const message = `Airport group could not be resolved for this queue item (raw marketKey="${doc.marketKey || ''}", sectorCode="${doc.sectorCode || ''}").`;
+    logger.warn(`dispatchQueueDoc: queue=${doc.id} FAILED — ${message}`);
     await ref.update({
       status: "failed",
       stage: "failed",
@@ -571,9 +579,11 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   const secret = bufferApiKeySecretsByMarket[marketKey];
   const apiKey = secret && typeof secret.value === "function" ? secret.value() : "";
   const marketSetup = await readCachedMarketHealth(marketKey);
+  logger.info(`dispatchQueueDoc: queue=${doc.id} market="${marketKey}" apiKeyPresent=${!!apiKey} apiKeyLength=${apiKey ? apiKey.length : 0} hasMarketSetup=${!!marketSetup}`);
 
   if (!apiKey) {
     const message = `No Buffer API key configured for ${marketLabel}.`;
+    logger.warn(`dispatchQueueDoc: queue=${doc.id} FAILED — ${message} (secret type=${typeof secret}, hasValue=${secret ? typeof secret.value : 'n/a'})`);
     await ref.update({
       status: "failed",
       stage: "failed",
@@ -595,9 +605,11 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
     if (platform === "youtube" && mediaType !== "video") continue;
     const { channel, blocker } = buildConfiguredChannelState(marketSetup || {}, marketKey, platform, marketLabel);
     if (!channel || !isConfiguredChannelId(channel.id)) {
+      logger.warn(`dispatchQueueDoc: queue=${doc.id} channel lookup MISS for ${platform}@${marketKey}: id="${channel ? channel.id : ''}" source="${channel ? channel.source : 'n/a'}" blocker="${blocker || 'none'}"`);
       setupErrors.push({ platform, message: blocker || `No configured ${platform} channel for ${marketLabel}.`, retryable: false });
       continue;
     }
+    logger.info(`dispatchQueueDoc: queue=${doc.id} channel HIT for ${platform}@${marketKey}: id="${channel.id.slice(0, 12)}…" source="${channel.source}"`);
     targets.push({
       platform,
       channelId: channel.id,
@@ -609,6 +621,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   if (!targets.length) {
     const attemptCount = Number(doc.attemptCount || 0);
     const blocking = setupErrors[0] || { message: "No eligible channels for this queue item.", retryable: false };
+    logger.warn(`dispatchQueueDoc: queue=${doc.id} FAILED — no eligible channels. errors=${JSON.stringify(setupErrors.map(e => e.message))} attempt=${attemptCount}/${MAX_ATTEMPTS}`);
     if (blocking.retryable && attemptCount < MAX_ATTEMPTS) {
       await ref.update({
         status: "pending",
@@ -650,6 +663,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
   let retryableFailure = retryableSetupError || null;
   let terminalFailure = setupErrors.find((item) => !item.retryable) || null;
 
+  logger.info(`dispatchQueueDoc: queue=${doc.id} dispatching to ${targets.length} channel(s): ${targets.map(t => `${t.platform}=${t.channelId.slice(0, 12)}…`).join(", ")}`);
   for (const target of targets) {
     const result = await bufferCreatePost.createPostOnChannel({
       apiKey,
@@ -666,6 +680,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
     if (result.ok) {
       acceptedCount += 1;
       const acceptedAtIso = new Date().toISOString();
+      logger.info(`dispatchQueueDoc: queue=${doc.id} ${target.platform} → ✅ postId=${result.postId}`);
       bufferPosts[target.platform] = {
         platform: target.platform,
         channelId: target.channelId,
@@ -678,6 +693,7 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
       };
     } else {
       const classified = classifyDispatchError(result.error);
+      logger.warn(`dispatchQueueDoc: queue=${doc.id} ${target.platform} → ❌ error="${classified.message}" retryable=${classified.retryable} rateLimited=${classified.rateLimited}`);
       if (!classified.rateLimited) {
         bufferPosts[target.platform] = {
           platform: target.platform,
@@ -720,6 +736,8 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
     ? (lastError ? "Posted to Buffer with some channel failures." : "Posted to Buffer.")
     : (lastError ? lastError.message : "Dispatch failed.");
 
+  logger.info(`dispatchQueueDoc: queue=${doc.id} DONE status="${status}" accepted=${acceptedCount}/${targets.length} market="${marketKey}" label="${doc.label || ''}"`);
+
   await ref.update({
     status,
     stage,
@@ -746,6 +764,9 @@ async function dispatchQueueDoc(bufferApiKeySecretsByMarket, queueDoc) {
 async function dispatchDueQueueItems(bufferApiKeySecretsByMarket, limit = DISPATCH_BATCH_LIMIT) {
   await reclaimExpiredProcessingItems();
   const claimed = await claimDueQueueItems(limit);
+  if (claimed.length) {
+    logger.info(`dispatchDueQueueItems: claimed ${claimed.length} queue item(s): ${claimed.map(d => `${d.id}(market="${d.marketKey || ''}",label="${d.label || ''}")`).join(", ")}`);
+  }
   for (const doc of claimed) {
     await dispatchQueueDoc(bufferApiKeySecretsByMarket, doc);
   }

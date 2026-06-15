@@ -123,6 +123,7 @@ function summarizeSocialJobItems(items = []) {
     lastMessage: latest && latest.lastMessage ? latest.lastMessage : "",
     currentStage: latest && latest.stage ? latest.stage : "",
     currentItemLabel: latest && (latest.sectorCode || latest.label || latest.ratio || "") ? (latest.sectorCode || latest.label || latest.ratio || "") : "",
+    lastError: latest && latest.lastError ? latest.lastError : null,
   };
 }
 

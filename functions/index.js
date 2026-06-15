@@ -614,7 +614,7 @@ exports.purgeOldFaresDaily = onSchedule(
 //   - refreshSocialPublishingHealth: refreshes saved per-airport posting setup
 //   - runSocialQueueNow: admin callable to dispatch pending queue work
 //   - socialQueueDispatcher: scheduled queue worker (every minute)
-//   Secrets: one Buffer API key per India-airport account.
+//   Secrets: one Buffer API key per Gulf region account.
 // ══════════════════════════════════════════════════════════════════════════════
 const { defineSecret } = require("firebase-functions/params");
 const BUFFER_API_KEY_SAUDI = defineSecret("BUFFER_API_KEY_SAUDI");
