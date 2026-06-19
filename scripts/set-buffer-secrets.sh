@@ -16,3 +16,11 @@ echo "Qatar key set."
 # Oman
 echo -n "bOQtX6AiJNo3M-QieIolZ3xCWBQz_-oKWBjmfC6ucU1" | npx firebase-tools@latest functions:secrets:set BUFFER_API_KEY_OMAN --project zamra-web-01 --force
 echo "Oman key set."
+
+# Kuwait
+echo -n "__SET_ME__" | npx firebase-tools@latest functions:secrets:set BUFFER_API_KEY_KUWAIT --project zamra-web-01 --force
+echo "Kuwait key set."
+
+# Bahrain
+echo -n "__SET_ME__" | npx firebase-tools@latest functions:secrets:set BUFFER_API_KEY_BAHRAIN --project zamra-web-01 --force
+echo "Bahrain key set."

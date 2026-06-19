@@ -1,4 +1,4 @@
-export const POSTER_SOCIAL_MARKET_ORDER = ['saudi', 'uae', 'qatar', 'oman'];
+export const POSTER_SOCIAL_MARKET_ORDER = ['saudi', 'uae', 'qatar', 'oman', 'kuwait', 'bahrain'];
 export const POSTER_SOCIAL_COUNTRY_ORDER = ['ccj', 'cok', 'cnn', 'trv', 'ixe'];
 
 export const POSTER_SOCIAL_MARKETS = {
@@ -33,6 +33,22 @@ export const POSTER_SOCIAL_MARKETS = {
     summary: 'Flights from or to Oman',
     platforms: { instagram: true, facebook: true, youtube: true },
     hashtags: ['#OmanFlights', '#MuscatDeals', '#ZamraTravels'],
+  },
+  kuwait: {
+    key: 'kuwait',
+    label: 'Kuwait',
+    airports: ['KWI'],
+    summary: 'Flights from or to Kuwait',
+    platforms: { instagram: true, facebook: true, youtube: true },
+    hashtags: ['#KuwaitFlights', '#KuwaitDeals', '#ZamraTravels'],
+  },
+  bahrain: {
+    key: 'bahrain',
+    label: 'Bahrain',
+    airports: ['BAH'],
+    summary: 'Flights from or to Bahrain',
+    platforms: { instagram: true, facebook: true, youtube: true },
+    hashtags: ['#BahrainFlights', '#BahrainDeals', '#ZamraTravels'],
   },
 };
 

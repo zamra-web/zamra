@@ -640,12 +640,16 @@ const BUFFER_API_KEY_SAUDI = defineSecret("BUFFER_API_KEY_SAUDI");
 const BUFFER_API_KEY_UAE = defineSecret("BUFFER_API_KEY_UAE");
 const BUFFER_API_KEY_QATAR = defineSecret("BUFFER_API_KEY_QATAR");
 const BUFFER_API_KEY_OMAN = defineSecret("BUFFER_API_KEY_OMAN");
+const BUFFER_API_KEY_KUWAIT = defineSecret("BUFFER_API_KEY_KUWAIT");
+const BUFFER_API_KEY_BAHRAIN = defineSecret("BUFFER_API_KEY_BAHRAIN");
 
 const BUFFER_API_KEYS_BY_MARKET = {
   saudi: BUFFER_API_KEY_SAUDI,
   uae: BUFFER_API_KEY_UAE,
   qatar: BUFFER_API_KEY_QATAR,
   oman: BUFFER_API_KEY_OMAN,
+  kuwait: BUFFER_API_KEY_KUWAIT,
+  bahrain: BUFFER_API_KEY_BAHRAIN,
 };
 
 const socialPipeline = require("./social/pipeline");

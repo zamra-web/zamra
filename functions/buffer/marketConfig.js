@@ -39,6 +39,26 @@ const BUFFER_MARKET_CONFIG = {
       youtube: "6a272eaf8f1d11f9b2665ee8",
     },
   },
+  kuwait: {
+    key: "kuwait",
+    label: "Kuwait",
+    airports: ["KWI"],
+    channels: {
+      instagram: "__SET_ME__",
+      facebook: "__SET_ME__",
+      youtube: "__SET_ME__",
+    },
+  },
+  bahrain: {
+    key: "bahrain",
+    label: "Bahrain",
+    airports: ["BAH"],
+    channels: {
+      instagram: "__SET_ME__",
+      facebook: "__SET_ME__",
+      youtube: "__SET_ME__",
+    },
+  },
 };
 
 const PLATFORM_KEYS = ["instagram", "facebook", "youtube"];
