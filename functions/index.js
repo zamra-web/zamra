@@ -587,19 +587,38 @@ exports.exportFlightDetailsForN8n = onRequest({ region: "asia-south1", cors: tru
   }
 
   try {
-    const snapshot = await db.collection("flight_details").get();
-    const details = {};
+    const [flightDetailsSnap, airlinesSnap, sectorsSnap] = await Promise.all([
+      db.collection("flight_details").get(),
+      db.collection("airlines").get(),
+      db.collection("sectors").get()
+    ]);
+
+    const airlineMap = {};
+    airlinesSnap.forEach(doc => { airlineMap[doc.id] = String(doc.data().code || "").toUpperCase(); });
     
-    // Create a mapping grouped by document ID (which is airlineId_sectorId)
-    snapshot.forEach(doc => {
+    const sectorMap = {};
+    sectorsSnap.forEach(doc => { 
+      const code = doc.data().sectorCode || "";
+      sectorMap[doc.id] = String(code).replace(/[\s-]/g, "").trim().toUpperCase(); 
+    });
+
+    const details = {};
+    flightDetailsSnap.forEach(doc => {
       const d = doc.data();
-      details[doc.id] = {
-        airlineId: d.airlineId,
-        sectorId: d.sectorId,
-        flightTime: d.flightTime || "",
-        baggage: d.baggage || "",
-        extraBaggage: d.extraBaggage || 0
-      };
+      const airlineCode = airlineMap[d.airlineId];
+      const sectorCode = sectorMap[d.sectorId];
+      
+      if (airlineCode && sectorCode) {
+        // Create key like "IX_CCJJED"
+        const key = `${airlineCode}_${sectorCode}`;
+        details[key] = {
+          airlineId: d.airlineId,
+          sectorId: d.sectorId,
+          flightTime: d.flightTime || "",
+          baggage: d.baggage || "",
+          extraBaggage: d.extraBaggage || 0
+        };
+      }
     });
 
     res.status(200).json({ success: true, details });
