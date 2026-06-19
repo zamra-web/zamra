@@ -4,9 +4,9 @@ const BUFFER_MARKET_CONFIG = {
     label: "Saudi",
     airports: ["JED", "RUH", "DMM"],
     channels: {
-      instagram: "__SET_SAUDI_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_SAUDI_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_SAUDI_YOUTUBE_CHANNEL_ID__",
+      instagram: "6a2729a28f1d11f9b2663fe6",
+      facebook: "6a2729c58f1d11f9b266408b",
+      youtube: "6a2729e78f1d11f9b266410f",
     },
   },
   uae: {
@@ -14,9 +14,9 @@ const BUFFER_MARKET_CONFIG = {
     label: "UAE",
     airports: ["DXB", "SHJ", "AUH", "RKT", "AAN", "FJR"],
     channels: {
-      instagram: "__SET_UAE_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_UAE_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_UAE_YOUTUBE_CHANNEL_ID__",
+      instagram: "6a272ff18f1d11f9b26667b4",
+      facebook: "6a2730058f1d11f9b266682e",
+      youtube: "6a27b04f8f1d11f9b2686da7",
     },
   },
   qatar: {
@@ -24,9 +24,9 @@ const BUFFER_MARKET_CONFIG = {
     label: "Qatar",
     airports: ["DOH"],
     channels: {
-      instagram: "__SET_QATAR_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_QATAR_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_QATAR_YOUTUBE_CHANNEL_ID__",
+      instagram: "6a272b848f1d11f9b26646d6",
+      facebook: "6a272ba48f1d11f9b2664736",
+      youtube: "6a272bb88f1d11f9b2664774",
     },
   },
   oman: {
@@ -34,9 +34,9 @@ const BUFFER_MARKET_CONFIG = {
     label: "Oman",
     airports: ["MCT"],
     channels: {
-      instagram: "__SET_OMAN_INSTAGRAM_CHANNEL_ID__",
-      facebook: "__SET_OMAN_FACEBOOK_CHANNEL_ID__",
-      youtube: "__SET_OMAN_YOUTUBE_CHANNEL_ID__",
+      instagram: "6a27b31b8f1d11f9b2687667",
+      facebook: "6a272e848f1d11f9b2665d35",
+      youtube: "6a272eaf8f1d11f9b2665ee8",
     },
   },
 };
