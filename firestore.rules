@@ -44,6 +44,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── flight_details ───────────────────────────────────────────────────────
+    // Public can read flight details; only admins can write
+    match /flight_details/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ── agent_fares ──────────────────────────────────────────────────────────
     // Public: can only read fares that are NOT hidden (isHidden == false)
     // Admins: full read/write including hidden records
