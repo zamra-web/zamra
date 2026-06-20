@@ -15,7 +15,9 @@ test("resolveSectorMarketKey matches Gulf-linked airport routes", () => {
   assert.equal(resolveSectorMarketKey({ sectorCode: "CCJ COK" }), null);
 });
 
-test("fallback Buffer channel ids stay unconfigured until real ids are supplied", () => {
-  assert.equal(isConfiguredChannelId(getFallbackChannelId("saudi", "instagram")), false);
-  assert.equal(isConfiguredChannelId(getFallbackChannelId("uae", "youtube")), false);
+test("live markets expose configured fallback channel ids while pending markets stay unconfigured", () => {
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("saudi", "instagram")), true);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("uae", "youtube")), true);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("kuwait", "instagram")), false);
+  assert.equal(isConfiguredChannelId(getFallbackChannelId("bahrain", "youtube")), false);
 });
