@@ -16,7 +16,7 @@ const CREATE_POST_MUTATION = `
   mutation CreatePost(
     $channelId: ChannelId!
     $text: String!
-    $assets: AssetsInput
+    $assets: [AssetInput!]
     $metadata: PostInputMetaData
   ) {
     createPost(input: {
@@ -43,10 +43,12 @@ const YOUTUBE_DEFAULT_CATEGORY = "22";
 function buildAssets({ mediaType, mediaUrls }) {
   const urls = Array.isArray(mediaUrls) ? mediaUrls.filter(Boolean) : [];
   if (urls.length === 0) return null;
+  // Buffer migrated from keyed AssetsInput to ordered [AssetInput!] (May 2026).
+  // Each item is exactly one of: { image: {url} }, { video: {url} }, etc.
   if (mediaType === "video") {
-    return { videos: urls.map((url) => ({ url })) };
+    return urls.map((url) => ({ video: { url } }));
   }
-  return { images: urls.map((url) => ({ url })) };
+  return urls.map((url) => ({ image: { url } }));
 }
 
 /**

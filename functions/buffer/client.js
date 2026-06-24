@@ -90,6 +90,19 @@ async function bufferQuery(apiKey, query, variables = {}) {
 
   if (!res.ok) {
     const body = await res.text();
+    // Try to extract clean GraphQL error messages from 4xx responses.
+    if (res.status >= 400 && res.status < 500) {
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed.errors && parsed.errors.length) {
+          const msg = parsed.errors.map((e) => e.message).join("; ");
+          throw new Error(`Buffer GraphQL error (HTTP ${res.status}): ${msg}`);
+        }
+      } catch (parseErr) {
+        if (parseErr.message.startsWith("Buffer GraphQL")) throw parseErr;
+        // Fall through to generic error below.
+      }
+    }
     throw new Error(`Buffer HTTP ${res.status}: ${body.slice(0, 500)}`);
   }
 
