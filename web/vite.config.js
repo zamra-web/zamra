@@ -15,6 +15,7 @@ export default defineConfig({
                 visa: resolve(__dirname, 'visa.html'),
                 tours: resolve(__dirname, 'tours.html'),
                 hajjUmrah: resolve(__dirname, 'hajj-umrah.html'),
+                connect: resolve(__dirname, 'connect.html'),
             }
         }
     }
