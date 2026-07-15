@@ -730,6 +730,83 @@ export async function deleteHajjUmrahPackage(pkgId) {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// B2B AGENTS (portal customers — separate from supplier `agents`)
+// Auth-touching operations (create/reset password/status/delete) go through
+// Cloud Functions; profile & pricing-control edits write Firestore directly.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fetch all B2B agents ordered by login ID */
+export async function getB2BAgents() {
+  const snap = await getDocs(query(collection(db, 'b2b_agents'), orderBy('loginIdLower')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Update a B2B agent's profile / pricing controls.
+ * @param {string} agentId
+ * @param {{ name?, agencyName?, phone?, place?, markupOverride?: number|null,
+ *           hiddenOrigins?: string[], hiddenSectorIds?: string[],
+ *           routeAdjustments?: Object<string, number> }} data
+ */
+export async function updateB2BAgent(agentId, data) {
+  await updateDoc(doc(db, 'b2b_agents', agentId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Create a B2B agent (Auth account + Firestore doc) via Cloud Function.
+ * @returns {Promise<{agentId, loginId, email, password}>} password is shown ONCE.
+ */
+export async function callCreateB2BAgent(data) {
+  const fn = httpsCallable(functions, 'createB2BAgent');
+  const result = await fn(data);
+  return result.data;
+}
+
+/** Generate a new password for a B2B agent. Returned once, never stored. */
+export async function callResetB2BAgentPassword(agentId) {
+  const fn = httpsCallable(functions, 'resetB2BAgentPassword');
+  const result = await fn({ agentId });
+  return result.data;
+}
+
+/** Activate/deactivate a B2B agent (disables the Auth account + revokes tokens). */
+export async function callSetB2BAgentStatus(agentId, isActive) {
+  const fn = httpsCallable(functions, 'setB2BAgentStatus');
+  const result = await fn({ agentId, isActive });
+  return result.data;
+}
+
+/** Delete a B2B agent's Auth account and Firestore doc. */
+export async function callDeleteB2BAgent(agentId) {
+  const fn = httpsCallable(functions, 'deleteB2BAgent');
+  const result = await fn({ agentId });
+  return result.data;
+}
+
+/** Read global B2B settings (config/b2b) with defaults. */
+export async function getB2BConfig() {
+  const snap = await getDoc(doc(db, 'config', 'b2b'));
+  const data = snap.exists() ? snap.data() : {};
+  return {
+    defaultMarkup: data.defaultMarkup !== undefined ? Number(data.defaultMarkup) : 200,
+    whatsappNumber: data.whatsappNumber || '919846606738',
+  };
+}
+
+/** Save global B2B settings (config/b2b). */
+export async function saveB2BConfig({ defaultMarkup, whatsappNumber }) {
+  await setDoc(doc(db, 'config', 'b2b'), {
+    defaultMarkup: Number(defaultMarkup) || 0,
+    whatsappNumber: String(whatsappNumber || '').replace(/[^\d]/g, ''),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // STORAGE HELPERS — Firebase Storage
 // ─────────────────────────────────────────────────────────────────────────────
 

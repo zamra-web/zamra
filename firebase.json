@@ -38,6 +38,14 @@
       {
         "source": "/login",
         "destination": "/login.html"
+      },
+      {
+        "source": "/b2b",
+        "destination": "/b2b.html"
+      },
+      {
+        "source": "/b2b-login",
+        "destination": "/b2b-login.html"
       }
     ]
   }

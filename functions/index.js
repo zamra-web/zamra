@@ -716,3 +716,20 @@ exports.runDailyPostNow = onCall(
 exports.purgeSocialPublishing =
   socialPipeline.buildPurgeSocialPublishing();
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// B2B agent portal (b2b.zamratravels.com)
+//   Admin: createB2BAgent / resetB2BAgentPassword / setB2BAgentStatus /
+//          deleteB2BAgent (manage b2b_agents docs + their Auth accounts).
+//   Agent: getB2BPortalContext / getB2BFares (server-side pricing so agents
+//          never see raw supplier rates).
+// ══════════════════════════════════════════════════════════════════════════════
+const b2b = require("./b2b").build(db, requireAdmin);
+
+exports.createB2BAgent = b2b.createB2BAgent;
+exports.resetB2BAgentPassword = b2b.resetB2BAgentPassword;
+exports.setB2BAgentStatus = b2b.setB2BAgentStatus;
+exports.deleteB2BAgent = b2b.deleteB2BAgent;
+exports.getB2BPortalContext = b2b.getB2BPortalContext;
+exports.getB2BFares = b2b.getB2BFares;
+

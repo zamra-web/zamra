@@ -16,6 +16,8 @@ export default defineConfig({
                 tours: resolve(__dirname, 'tours.html'),
                 hajjUmrah: resolve(__dirname, 'hajj-umrah.html'),
                 connect: resolve(__dirname, 'connect.html'),
+                b2b: resolve(__dirname, 'b2b.html'),
+                b2bLogin: resolve(__dirname, 'b2b-login.html'),
             }
         }
     }

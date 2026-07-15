@@ -63,6 +63,8 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-table"></i><span>Database</span></a>
                         <a href="#" data-tab="agents-tab" data-title="Agents"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-people"></i><span>Agents</span></a>
+                        <a href="#" data-tab="b2b-agents-tab" data-title="B2B Agents"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-briefcase"></i><span>B2B Agents</span></a>
                         <a href="#" data-tab="sectors-tab" data-title="Sectors"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-signpost-split"></i><span>Sectors</span></a>
                         <a href="#" data-tab="flights-tab" data-title="Flights"
@@ -104,6 +106,7 @@
                 <option value="reports-tab">Reports</option>
                 <option value="database-tab">Database</option>
                 <option value="agents-tab">Agents</option>
+                <option value="b2b-agents-tab">B2B Agents</option>
                 <option value="sectors-tab">Sectors</option>
                 <option value="flights-tab">Flights</option>
                 <option value="visas-tab">Visas</option>
@@ -349,6 +352,79 @@
         </div>
 
         <!-- agent-charts-tab REMOVED — use Reports tab for analytics -->
+
+        <!-- B2B AGENTS TAB -->
+        <div id="b2b-agents-tab" class="tab-content">
+            <div class="admin-tab-head mb-6">
+                <div>
+                    <span class="admin-tab-kicker"><i class="bi bi-briefcase-fill"></i> B2B Portal</span>
+                    <h2 class="admin-tab-title">B2B Agent Management</h2>
+                    <p class="admin-tab-subtitle">Portal logins, per-agent markups, route visibility, and instant price adjustments for b2b.zamratravels.com.</p>
+                </div>
+                <button id="b2b-agents-add-btn"
+                    class="admin-btn admin-btn-primary h-[42px] px-5"><i class="bi bi-person-plus-fill"></i>
+                    Add B2B Agent</button>
+            </div>
+
+            <div class="admin-panel p-6 text-text-main mb-6">
+                <div class="admin-form-section-head mb-4">
+                    <div>
+                        <p class="admin-form-section-title">Global B2B Settings</p>
+                        <p class="admin-form-section-desc">Defaults applied to every agent unless overridden per agent below.</p>
+                    </div>
+                </div>
+                <form id="b2b-settings-form" class="flex flex-wrap items-end gap-4">
+                    <div class="admin-field">
+                        <label class="admin-label">Default B2B Markup (₹)</label>
+                        <input id="b2b-default-markup" name="defaultMarkup" type="number" min="0" class="admin-control w-[180px]" placeholder="200">
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">B2B WhatsApp Number</label>
+                        <input id="b2b-whatsapp-number" name="whatsappNumber" class="admin-control w-[220px]" placeholder="919846606738">
+                    </div>
+                    <button type="submit" class="admin-btn admin-btn-primary h-[42px] px-5">Save Settings</button>
+                </form>
+            </div>
+
+            <div class="admin-panel p-6 text-text-main">
+                <div class="admin-toolbar-row mb-6">
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-funnel"></i>
+                        Show <select id="b2bAgents-limit" class="mx-1.5 admin-control admin-control-sm">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="999999">All</option>
+                        </select> entries
+                    </div>
+                    <div class="admin-toolbar-group">
+                        <i class="bi bi-search"></i>
+                        Search: <input type="text" id="b2bAgents-search"
+                            class="ml-1.5 admin-control admin-control-sm w-[220px]" placeholder="Login ID, name, agency...">
+                    </div>
+                </div>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="loginId">Login ID <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="name">Name <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="agencyName">Agency <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="phone">Phone <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="markupOverride">Markup <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th>Restrictions</th>
+                                <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="isActive">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- populated by JS: renderB2BAgentsTab() -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="b2bAgents-pagination-footer" class="border-t border-border/50 mt-0"></div>
+            </div>
+        </div>
 
         <!-- AGENT SHEETS TAB -->
         <div id="agent-sheets-tab" class="tab-content">

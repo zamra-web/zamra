@@ -27,6 +27,8 @@ import {
   createSocialJobItem, updateSocialJobItem,
   subscribeSocialPublishingConfig, subscribeRecentSocialJobs, subscribeSocialJobItems,
   callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
+  getB2BAgents, updateB2BAgent, callCreateB2BAgent, callResetB2BAgentPassword,
+  callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
 } from './db.js';
 
 import { downloadVideoPoster as renderVideoPoster } from './video-export.js';
@@ -50,6 +52,8 @@ import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
 
 // ── Global State ──────────────────────────────────────────────────────────────
 let _agents = [];
+let _b2bAgents = [];
+let _b2bConfig = null;
 let _sectors = [];
 let _airlines = [];
 let _flightDetails = [];
@@ -617,6 +621,7 @@ function getPosterDateRange(startInput, endInput) {
 // ── Sorting & Search State ────────────────────────────────────────────────────
 let tableSort = {
   agents: { key: 'id', asc: true },
+  b2bAgents: { key: 'loginId', asc: true },
   sectors: { key: 'sortOrder', asc: true },
   airlines: { key: 'name', asc: true },
   visas: { key: 'countryName', asc: true },
@@ -628,9 +633,9 @@ let tableSort = {
   reportFares: { key: 'flightDate', asc: true },
   databaseFares: { key: 'flightDate', asc: true },
 };
-let tableSearch = { agents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '', tours: '', hajjUmrah: '' };
-let tablePage = { agents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, tours: 1, hajjUmrah: 1, reportFares: 1, databaseFares: 1 };
-let tableLimit = { agents: 10, sectors: 25, airlines: 10, visas: 10, visaStampings: 10, attestations: 10, passportServices: 10, tours: 10, hajjUmrah: 10, reportFares: 10, databaseFares: 25 };
+let tableSearch = { agents: '', b2bAgents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '', tours: '', hajjUmrah: '' };
+let tablePage = { agents: 1, b2bAgents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, tours: 1, hajjUmrah: 1, reportFares: 1, databaseFares: 1 };
+let tableLimit = { agents: 10, b2bAgents: 25, sectors: 25, airlines: 10, visas: 10, visaStampings: 10, attestations: 10, passportServices: 10, tours: 10, hajjUmrah: 10, reportFares: 10, databaseFares: 25 };
 
 const databaseFilters = {
   search: '',
@@ -656,6 +661,14 @@ function applySortAndFilter(data, tab) {
       (a.email || '').toLowerCase().includes(q) ||
       (a.contactPhone || '').toLowerCase().includes(q) ||
       (a.id || '').toLowerCase().includes(q)
+    );
+  } else if (q && tab === 'b2bAgents') {
+    filtered = filtered.filter(a =>
+      (a.loginId || '').toLowerCase().includes(q) ||
+      (a.name || '').toLowerCase().includes(q) ||
+      (a.agencyName || '').toLowerCase().includes(q) ||
+      (a.phone || '').toLowerCase().includes(q) ||
+      (a.place || '').toLowerCase().includes(q)
     );
   } else if (q && tab === 'sectors') {
     filtered = filtered.filter(s =>
@@ -760,6 +773,7 @@ document.addEventListener('click', (e) => {
   }
 
   if (tab === 'agents') renderAgentsTab(false);
+  else if (tab === 'b2bAgents') renderB2BAgentsTab(false);
   else if (tab === 'sectors') renderSectorsTab(false);
   else if (tab === 'airlines') renderFlightsTab(false);
   else if (tab === 'visas') renderVisasTab(false);
@@ -775,6 +789,13 @@ document.documentElement.style.visibility = 'hidden';
 onAuthChange(async (user) => {
   if (!user) {
     window.location.href = '/login.html';
+    return;
+  }
+  // Only the admin claim opens the panel — B2B agents are bounced to their portal.
+  const { claims } = await user.getIdTokenResult();
+  if (!claims.admin) {
+    await logoutUser();
+    window.location.href = claims.agent ? '/b2b-login' : '/login.html';
     return;
   }
   _currentAdminUser = user;
@@ -873,6 +894,7 @@ async function renderActiveTab() {
   if (!active) return;
   const id = active.id;
   if (id === 'agents-tab') await renderAgentsTab();
+  else if (id === 'b2b-agents-tab') await renderB2BAgentsTab();
   else if (id === 'sectors-tab') await renderSectorsTab();
   else if (id === 'flights-tab') await renderFlightsTab();
   else if (id === 'dashboard-tab') await renderDashboardTab();
@@ -3205,7 +3227,7 @@ async function buildVideoPosterSlides(ratio, fares, selection, sectors, {
     }
 
     return {
-      sectorSlug: fileSafeSlug(sectorCode) || fileSafeSlug(sectorId) || 'sector',
+      sectorSlug: fileSafeSlug(sectorCode) || fileSafeSlug(selectionId) || 'sector',
       slides,
     };
   } finally {
@@ -4784,6 +4806,7 @@ function renderPaginationFooter(tabName, total, totalPages, start, limit) {
       else if (action === 'next') tablePage[tabName]++;
       else if (action === 'goto') tablePage[tabName] = parseInt(btn.dataset.pg);
       if (tabName === 'agents') renderAgentsTab(false);
+      else if (tabName === 'b2bAgents') renderB2BAgentsTab(false);
       else if (tabName === 'sectors') renderSectorsTab(false);
       else if (tabName === 'airlines') renderFlightsTab(false);
       else if (tabName === 'reportFares') renderReportFaresTable(_reportFares);
@@ -4859,6 +4882,380 @@ function openAgentModal(agent) {
       document.getElementById('admin-modal').close();
       await renderAgentsTab();
     } catch (err) { toast('error', 'Save Failed', err.message); btn.disabled = false; btn.textContent = isEdit ? 'Save Changes' : 'Add Agent'; }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// B2B AGENTS TAB — portal logins, per-agent markups, route visibility,
+// instant per-route price adjustments (b2b.zamratravels.com)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function renderB2BAgentsTab(fetchData = true) {
+  if (fetchData) {
+    [_b2bAgents, _b2bConfig] = await Promise.all([getB2BAgents(), getB2BConfig()]);
+    tablePage.b2bAgents = 1;
+    hydrateB2BSettingsForm();
+  }
+  const tbody = document.querySelector('#b2b-agents-tab .admin-table tbody');
+  if (!tbody) return;
+
+  const searchInp = document.getElementById('b2bAgents-search');
+  const limitSel = document.getElementById('b2bAgents-limit');
+  if (searchInp && !searchInp.dataset.wired) {
+    searchInp.dataset.wired = '1';
+    if (limitSel) limitSel.dataset.wired = '1';
+    searchInp.addEventListener('input', (e) => { tableSearch.b2bAgents = e.target.value; tablePage.b2bAgents = 1; renderB2BAgentsTab(false); });
+    if (limitSel) limitSel.addEventListener('change', (e) => { tableLimit.b2bAgents = parseInt(e.target.value); tablePage.b2bAgents = 1; renderB2BAgentsTab(false); });
+  }
+
+  const sorted = applySortAndFilter(_b2bAgents, 'b2bAgents');
+  const limit = tableLimit.b2bAgents;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / limit));
+  if (tablePage.b2bAgents > totalPages) tablePage.b2bAgents = totalPages;
+  const start = (tablePage.b2bAgents - 1) * limit;
+  const pageData = sorted.slice(start, start + limit);
+
+  tbody.innerHTML = pageData.length
+    ? pageData.map(a => b2bAgentRow(a)).join('')
+    : `<tr><td colspan="8" class="text-center py-8 text-text-muted">No B2B agents yet. Click "+ Add B2B Agent" to create the first login.</td></tr>`;
+
+  renderPaginationFooter('b2bAgents', sorted.length, totalPages, start, limit);
+  wireB2BAgentActions();
+  wireB2BSettingsForm();
+
+  const addBtn = document.getElementById('b2b-agents-add-btn');
+  if (addBtn && !addBtn.dataset.wired) {
+    addBtn.dataset.wired = '1';
+    addBtn.addEventListener('click', () => openB2BAgentModal(null));
+  }
+
+  updateSortIcons('b2bAgents');
+}
+
+function b2bAgentRow(a) {
+  const statusBadge = a.isActive !== false
+    ? `<span class="admin-status-pill admin-status-active">Active</span>`
+    : `<span class="admin-status-pill admin-status-inactive">Disabled</span>`;
+  const markup = (typeof a.markupOverride === 'number')
+    ? `₹${Number(a.markupOverride).toLocaleString()}`
+    : `<span class="text-text-muted">Global (₹${Number(_b2bConfig?.defaultMarkup ?? 200).toLocaleString()})</span>`;
+  const restrictions = [];
+  if (a.hiddenOrigins?.length) restrictions.push(`${a.hiddenOrigins.length} origin${a.hiddenOrigins.length !== 1 ? 's' : ''} hidden`);
+  if (a.hiddenSectorIds?.length) restrictions.push(`${a.hiddenSectorIds.length} route${a.hiddenSectorIds.length !== 1 ? 's' : ''} hidden`);
+  const adjCount = Object.keys(a.routeAdjustments || {}).length;
+  if (adjCount) restrictions.push(`${adjCount} price adj.`);
+
+  return `<tr data-b2b-agent-id="${a.id}">
+    <td class="font-mono text-xs font-bold text-navy">${a.loginId || '—'}</td>
+    <td class="font-semibold">${a.name || '—'}</td>
+    <td>${a.agencyName || '—'}</td>
+    <td>${a.phone || '—'}</td>
+    <td class="font-semibold text-navy">${markup}</td>
+    <td class="text-xs text-text-muted">${restrictions.join('<br>') || '—'}</td>
+    <td>${statusBadge}</td>
+    <td>
+      <div class="flex gap-1 flex-wrap items-center">
+        <button data-action="edit-b2b-agent" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="reset-b2b-password" data-id="${a.id}" class="admin-action-btn admin-action-show"><i class="bi bi-key"></i>Reset PW</button>
+        <button data-action="toggle-b2b-agent" data-id="${a.id}" data-active="${a.isActive !== false}"
+          class="admin-action-btn ${a.isActive !== false ? 'admin-action-toggle' : 'admin-action-show'}">
+          <i class="bi ${a.isActive !== false ? 'bi-slash-circle' : 'bi-check-circle'}"></i>${a.isActive !== false ? 'Deactivate' : 'Activate'}</button>
+        <button data-action="delete-b2b-agent" data-id="${a.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireB2BAgentActions() {
+  const tbody = document.querySelector('#b2b-agents-tab .admin-table tbody');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    const agent = _b2bAgents.find(a => a.id === id);
+    if (!agent) return;
+
+    if (action === 'edit-b2b-agent') openB2BAgentModal(agent);
+
+    if (action === 'reset-b2b-password') {
+      if (!confirm(`Generate a NEW password for "${agent.loginId}"? The old password stops working immediately.`)) return;
+      btn.disabled = true;
+      try {
+        const res = await callResetB2BAgentPassword(id);
+        openB2BCredentialsModal('Password Reset', res.loginId, res.password);
+      } catch (err) { toast('error', 'Reset Failed', err.message); }
+      btn.disabled = false;
+    }
+
+    if (action === 'toggle-b2b-agent') {
+      const newStatus = btn.dataset.active !== 'true';
+      btn.disabled = true; btn.textContent = 'Working…';
+      try {
+        await callSetB2BAgentStatus(id, newStatus);
+        toast('success', newStatus ? 'Agent Activated' : 'Agent Deactivated',
+          `"${agent.loginId}" ${newStatus ? 'can now log in.' : 'is locked out of the portal.'}`);
+        await renderB2BAgentsTab();
+      } catch (err) { toast('error', 'Status Change Failed', err.message); await renderB2BAgentsTab(); }
+    }
+
+    if (action === 'delete-b2b-agent') {
+      if (!confirm(`Delete B2B agent "${agent.loginId}" (${agent.name})? Their login stops working permanently.`)) return;
+      try {
+        await callDeleteB2BAgent(id);
+        toast('success', 'Deleted', `B2B agent "${agent.loginId}" removed.`);
+        await renderB2BAgentsTab();
+      } catch (err) { toast('error', 'Delete Failed', err.message); }
+    }
+  });
+}
+
+function hydrateB2BSettingsForm() {
+  const markupInp = document.getElementById('b2b-default-markup');
+  const waInp = document.getElementById('b2b-whatsapp-number');
+  if (markupInp && _b2bConfig) markupInp.value = _b2bConfig.defaultMarkup;
+  if (waInp && _b2bConfig) waInp.value = _b2bConfig.whatsappNumber;
+}
+
+function wireB2BSettingsForm() {
+  const form = document.getElementById('b2b-settings-form');
+  if (!form || form.dataset.wired) return;
+  form.dataset.wired = '1';
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const settings = {
+        defaultMarkup: document.getElementById('b2b-default-markup').value,
+        whatsappNumber: document.getElementById('b2b-whatsapp-number').value,
+      };
+      await saveB2BConfig(settings);
+      _b2bConfig = await getB2BConfig();
+      toast('success', 'Settings Saved', `Default markup ₹${_b2bConfig.defaultMarkup}, WhatsApp ${_b2bConfig.whatsappNumber}.`);
+      renderB2BAgentsTab(false);
+    } catch (err) { toast('error', 'Save Failed', err.message); }
+    btn.disabled = false; btn.textContent = 'Save Settings';
+  });
+}
+
+/** Unique origin airport codes derived from sector codes ("CCJ RUH" → "CCJ"). */
+function getB2BOriginOptions() {
+  const origins = new Set();
+  (_sectors || []).forEach(s => {
+    const code = String(s.sectorCode || '').replace('-', ' ').trim().toUpperCase().split(/\s+/)[0];
+    if (code) origins.add(code);
+  });
+  return [...origins].sort();
+}
+
+function b2bAdjustmentRowHtml(sectorId = '', amount = '') {
+  const options = (_sectors || []).map(s =>
+    `<option value="${s.id}" ${s.id === sectorId ? 'selected' : ''}>${s.sectorCode || s.id}</option>`).join('');
+  return `<div class="flex items-center gap-2 b2b-adj-row">
+    <select data-adj-sector class="admin-control admin-control-sm flex-1"><option value="">Select route…</option>${options}</select>
+    <input data-adj-amount type="number" step="1" value="${amount}" placeholder="+500 / -300" class="admin-control admin-control-sm w-[120px]">
+    <button type="button" data-adj-remove class="admin-action-btn admin-action-delete"><i class="bi bi-x-lg"></i></button>
+  </div>`;
+}
+
+function openB2BAgentModal(agent) {
+  const isEdit = !!agent;
+  const globalMarkup = Number(_b2bConfig?.defaultMarkup ?? 200);
+  const hiddenOrigins = agent?.hiddenOrigins || [];
+  const hiddenSectorIds = agent?.hiddenSectorIds || [];
+  const adjustments = Object.entries(agent?.routeAdjustments || {});
+
+  const originChecks = getB2BOriginOptions().map(code => `
+    <label class="flex items-center gap-2 text-sm cursor-pointer">
+      <input type="checkbox" name="hiddenOrigins" value="${code}" ${hiddenOrigins.includes(code) ? 'checked' : ''}> ${code}
+    </label>`).join('');
+
+  const sectorChecks = (_sectors || []).map(s => `
+    <label class="flex items-center gap-2 text-sm cursor-pointer">
+      <input type="checkbox" name="hiddenSectorIds" value="${s.id}" ${hiddenSectorIds.includes(s.id) ? 'checked' : ''}> ${s.sectorCode || s.id}
+    </label>`).join('');
+
+  openModal(isEdit ? `Edit B2B Agent — ${agent.loginId}` : 'Add B2B Agent', `
+    <form id="b2b-agent-form" class="admin-modal-form">
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Agent Profile</p>
+            <p class="admin-form-section-desc">${isEdit ? 'Login ID cannot be changed after creation.' : 'A password is generated automatically and shown once after saving.'}</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">Login ID *</label>
+            <input name="loginId" required value="${agent?.loginId || ''}" placeholder="e.g. ZMR001" pattern="[A-Za-z0-9]{3,20}"
+              ${isEdit ? 'readonly class="admin-control cursor-not-allowed bg-slate-100 text-slate-500"' : 'class="admin-control"'}>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Name *</label>
+            <input name="name" required value="${agent?.name || ''}" class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Agency Name</label>
+            <input name="agencyName" value="${agent?.agencyName || ''}" class="admin-control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Phone</label>
+            <input name="phone" value="${agent?.phone || ''}" class="admin-control">
+          </div>
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Place</label>
+            <input name="place" value="${agent?.place || ''}" class="admin-control" placeholder="e.g. Malappuram">
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Pricing</p>
+            <p class="admin-form-section-desc">Leave markup empty to use the global default (₹${globalMarkup.toLocaleString()}).</p>
+          </div>
+        </div>
+        <div class="admin-field">
+          <label class="admin-label">Custom Markup (₹)</label>
+          <input name="markupOverride" type="number" min="0"
+            value="${typeof agent?.markupOverride === 'number' ? agent.markupOverride : ''}"
+            class="admin-control" placeholder="Global (₹${globalMarkup.toLocaleString()})">
+        </div>
+      </div>
+
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Route Visibility</p>
+            <p class="admin-form-section-desc">Checked items are HIDDEN from this agent.</p>
+          </div>
+        </div>
+        <p class="admin-label mb-2">Hide Departure Airports</p>
+        <div class="flex flex-wrap gap-x-5 gap-y-2 mb-4">${originChecks || '<span class="text-sm text-text-muted">No sectors configured yet.</span>'}</div>
+        <p class="admin-label mb-2">Hide Specific Routes</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 max-h-[180px] overflow-y-auto border border-border rounded-lg p-3">${sectorChecks || '<span class="text-sm text-text-muted">No sectors configured yet.</span>'}</div>
+      </div>
+
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Instant Price Adjustments</p>
+            <p class="admin-form-section-desc">Per-route amount added on top of this agent's price (negative allowed). Takes effect immediately.</p>
+          </div>
+        </div>
+        <div id="b2b-adj-rows" class="space-y-2">
+          ${adjustments.map(([sid, amt]) => b2bAdjustmentRowHtml(sid, amt)).join('')}
+        </div>
+        <button type="button" id="b2b-adj-add" class="admin-btn admin-btn-ghost mt-3 text-sm"><i class="bi bi-plus-lg"></i> Add Adjustment</button>
+      </div>
+
+      <div class="admin-modal-footer">
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary text-sm">${isEdit ? 'Save Changes' : 'Create Agent & Generate Password'}</button>
+      </div>
+    </form>`, true);
+
+  document.getElementById('modal-cancel')?.addEventListener('click', () => document.getElementById('admin-modal').close());
+
+  const adjRows = document.getElementById('b2b-adj-rows');
+  document.getElementById('b2b-adj-add')?.addEventListener('click', () => {
+    adjRows.insertAdjacentHTML('beforeend', b2bAdjustmentRowHtml());
+  });
+  adjRows?.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('[data-adj-remove]');
+    if (removeBtn) removeBtn.closest('.b2b-adj-row')?.remove();
+  });
+
+  document.getElementById('b2b-agent-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('[type=submit]');
+
+    const markupRaw = form.elements.markupOverride.value.trim();
+    const routeAdjustments = {};
+    adjRows?.querySelectorAll('.b2b-adj-row').forEach(row => {
+      const sid = row.querySelector('[data-adj-sector]')?.value;
+      const amt = Number(row.querySelector('[data-adj-amount]')?.value);
+      if (sid && Number.isFinite(amt) && amt !== 0) routeAdjustments[sid] = amt;
+    });
+
+    const data = {
+      name: form.elements.name.value.trim(),
+      agencyName: form.elements.agencyName.value.trim(),
+      phone: form.elements.phone.value.trim(),
+      place: form.elements.place.value.trim(),
+      markupOverride: markupRaw === '' ? null : Number(markupRaw),
+      hiddenOrigins: [...form.querySelectorAll('input[name="hiddenOrigins"]:checked')].map(i => i.value),
+      hiddenSectorIds: [...form.querySelectorAll('input[name="hiddenSectorIds"]:checked')].map(i => i.value),
+      routeAdjustments,
+    };
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      if (isEdit) {
+        await updateB2BAgent(agent.id, data);
+        toast('success', 'Updated', `B2B agent "${agent.loginId}" updated. Changes apply on their next search.`);
+        document.getElementById('admin-modal').close();
+      } else {
+        const res = await callCreateB2BAgent({ ...data, loginId: form.elements.loginId.value.trim() });
+        openB2BCredentialsModal('B2B Agent Created', res.loginId, res.password);
+      }
+      await renderB2BAgentsTab();
+    } catch (err) {
+      toast('error', 'Save Failed', err.message);
+      btn.disabled = false; btn.textContent = isEdit ? 'Save Changes' : 'Create Agent & Generate Password';
+    }
+  });
+}
+
+function openB2BCredentialsModal(title, loginId, password) {
+  openModal(title, `
+    <div class="space-y-4">
+      <div class="rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm p-3">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        This password is shown <strong>only once</strong> and is not stored anywhere.
+        Copy it now and share it with the agent.
+      </div>
+      <div class="admin-field">
+        <label class="admin-label">Login ID</label>
+        <div class="flex gap-2">
+          <input readonly value="${loginId}" class="admin-control font-mono flex-1">
+          <button type="button" data-copy="${loginId}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
+        </div>
+      </div>
+      <div class="admin-field">
+        <label class="admin-label">Password</label>
+        <div class="flex gap-2">
+          <input readonly value="${password}" class="admin-control font-mono flex-1">
+          <button type="button" data-copy="${password}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
+        </div>
+      </div>
+      <div class="admin-field">
+        <label class="admin-label">Both (ready to send)</label>
+        <div class="flex gap-2">
+          <input readonly value="Zamra B2B Portal — ID: ${loginId}  Password: ${password}" class="admin-control font-mono text-xs flex-1">
+          <button type="button" data-copy="Zamra B2B Portal — ID: ${loginId}  Password: ${password}  Login: https://b2b.zamratravels.com" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
+        </div>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" id="b2b-cred-done" class="admin-btn admin-btn-primary px-6 text-sm">Done</button>
+      </div>
+    </div>`);
+
+  const body = document.getElementById('modal-body');
+  body?.addEventListener('click', async (e) => {
+    const copyBtn = e.target.closest('[data-copy]');
+    if (copyBtn) {
+      try {
+        await navigator.clipboard.writeText(copyBtn.dataset.copy);
+        toast('success', 'Copied', 'Copied to clipboard.');
+      } catch { toast('error', 'Copy Failed', 'Select and copy manually.'); }
+    }
+    if (e.target.closest('#b2b-cred-done')) document.getElementById('admin-modal').close();
   });
 }
 

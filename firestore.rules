@@ -17,6 +17,12 @@ service cloud.firestore {
         && request.auth.token.admin != '';
     }
 
+    function isAgent() {
+      return isAuthenticated()
+        && request.auth.token.agent == true
+        && request.auth.token.b2bAgentId is string;
+    }
+
     // ── admins ───────────────────────────────────────────────────────────────
     // Only admins can read/write other admin docs
     match /admins/{uid} {
@@ -27,6 +33,14 @@ service cloud.firestore {
     // Public can read active agents; only admins can write
     match /agents/{agentId} {
       allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── b2b_agents ───────────────────────────────────────────────────────────
+    // B2B portal agents. Admin-managed; an agent may read only their own doc.
+    // Fares/pricing are never served from here — see getB2BFares Cloud Function.
+    match /b2b_agents/{agentId} {
+      allow read: if isAdmin() || (isAgent() && request.auth.token.b2bAgentId == agentId);
       allow write: if isAdmin();
     }
 
