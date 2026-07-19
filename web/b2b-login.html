@@ -81,7 +81,7 @@
         }
 
         .input-group input:focus {
-            border-color: var(--primary);
+            border-color: var(--color-primary);
             box-shadow: 0 0 0 4px rgba(12, 74, 138, 0.1);
         }
 
@@ -91,7 +91,7 @@
 
         .input-group input:focus ~ .input-icon,
         .input-group input:focus + .input-icon {
-            color: var(--primary);
+            color: var(--color-primary);
         }
 
         .login-btn {
@@ -176,7 +176,7 @@
         }
 
         .password-toggle:hover {
-            color: var(--primary);
+            color: var(--color-primary);
         }
 
         .spinner {
@@ -222,7 +222,7 @@
     </style>
 </head>
 
-<body class="min-h-screen flex items-center justify-center relative overflow-hidden" style="background-color: var(--bg-main); font-family: 'Inter', sans-serif;">
+<body class="min-h-screen flex items-center justify-center relative overflow-hidden" style="background-color: var(--color-bg-main); font-family: 'Inter', sans-serif;">
 
     <!-- Background Effects -->
     <div class="absolute inset-0 login-aurora"></div>
@@ -248,10 +248,10 @@
                     <div class="login-logo inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--color-primary-gradient-start)] to-[var(--color-primary-gradient-end)] shadow-[0_8px_30px_rgba(12,74,138,0.3)] mb-5">
                         <i class="bi bi-briefcase-fill text-white text-2xl"></i>
                     </div>
-                    <h1 class="text-2xl font-extrabold tracking-tight mb-1.5" style="color: var(--navy); font-family: 'Outfit', sans-serif;">
+                    <h1 class="text-2xl font-extrabold tracking-tight mb-1.5" style="color: var(--color-navy); font-family: 'Outfit', sans-serif;">
                         B2B Agent Portal
                     </h1>
-                    <p class="text-sm font-medium" style="color: var(--text-muted);">
+                    <p class="text-sm font-medium" style="color: var(--color-text-muted);">
                         Sign in with the Agent ID issued by Zamra Travels
                     </p>
                 </div>
@@ -268,11 +268,11 @@
 
                     <!-- Agent ID -->
                     <div>
-                        <label for="login-agent-id" class="block text-xs font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+                        <label for="login-agent-id" class="block text-xs font-bold uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">
                             Agent ID
                         </label>
                         <div class="input-group relative">
-                            <div class="absolute left-4 top-1/2 -translate-y-1/2 input-icon" style="color: var(--text-muted);">
+                            <div class="absolute left-4 top-1/2 -translate-y-1/2 input-icon" style="color: var(--color-text-muted);">
                                 <i class="bi bi-person-badge text-base"></i>
                             </div>
                             <input
@@ -284,18 +284,18 @@
                                 autocapitalize="characters"
                                 required
                                 class="w-full h-[52px] pl-12 pr-4 rounded-xl border text-[15px] font-medium outline-none"
-                                style="border-color: var(--border); color: var(--navy); background: rgba(248, 250, 252, 0.8);"
+                                style="border-color: var(--color-border); color: var(--color-navy); background: rgba(248, 250, 252, 0.8);"
                             >
                         </div>
                     </div>
 
                     <!-- Password -->
                     <div>
-                        <label for="login-password" class="block text-xs font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+                        <label for="login-password" class="block text-xs font-bold uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">
                             Password
                         </label>
                         <div class="input-group relative">
-                            <div class="absolute left-4 top-1/2 -translate-y-1/2 input-icon" style="color: var(--text-muted);">
+                            <div class="absolute left-4 top-1/2 -translate-y-1/2 input-icon" style="color: var(--color-text-muted);">
                                 <i class="bi bi-lock text-base"></i>
                             </div>
                             <input
@@ -306,9 +306,9 @@
                                 autocomplete="current-password"
                                 required
                                 class="w-full h-[52px] pl-12 pr-12 rounded-xl border text-[15px] font-medium outline-none"
-                                style="border-color: var(--border); color: var(--navy); background: rgba(248, 250, 252, 0.8);"
+                                style="border-color: var(--color-border); color: var(--color-navy); background: rgba(248, 250, 252, 0.8);"
                             >
-                            <button type="button" id="toggle-password" class="absolute right-4 top-1/2 -translate-y-1/2 password-toggle" style="color: var(--text-muted);">
+                            <button type="button" id="toggle-password" aria-label="Show or hide password" class="absolute right-4 top-1/2 -translate-y-1/2 password-toggle" style="color: var(--color-text-muted);">
                                 <i class="bi bi-eye text-base" id="eye-icon"></i>
                             </button>
                         </div>
@@ -326,12 +326,12 @@
                 </form>
 
                 <!-- Footer -->
-                <div class="mt-8 pt-6 border-t text-center" style="border-color: var(--border);">
-                    <div class="flex items-center justify-center gap-2 text-xs font-semibold" style="color: var(--text-muted);">
-                        <i class="bi bi-shield-check text-sm" style="color: var(--primary);"></i>
+                <div class="mt-8 pt-6 border-t text-center" style="border-color: var(--color-border);">
+                    <div class="flex items-center justify-center gap-2 text-xs font-semibold" style="color: var(--color-text-muted);">
+                        <i class="bi bi-shield-check text-sm" style="color: var(--color-primary);"></i>
                         Agent accounts are issued by Zamra Travels admin
                     </div>
-                    <a href="https://zamratravels.com" class="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold hover:underline" style="color: var(--primary);">
+                    <a href="https://zamratravels.com" class="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold hover:underline" style="color: var(--color-primary);">
                         <i class="bi bi-arrow-left text-xs"></i>
                         Back to Zamra Travels
                     </a>
@@ -341,7 +341,7 @@
         </div>
 
         <!-- Branding -->
-        <p class="text-center mt-6 text-xs font-semibold" style="color: var(--text-muted); opacity: 0.7;">
+        <p class="text-center mt-6 text-xs font-semibold" style="color: var(--color-text-muted); opacity: 0.7;">
             © 2026 Zamra Travels. All rights reserved.
         </p>
     </div>

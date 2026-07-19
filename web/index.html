@@ -151,7 +151,7 @@
 
       <div class="p-[20px] md:p-[32px] max-sm:p-[16px] flex flex-col md:flex-row gap-[16px] max-sm:gap-[12px] md:items-end">
         <div class="flex-1 w-full md:min-w-[200px]">
-          <div class="text-[13px] font-bold text-text-muted mb-[8px]">From</div>
+          <label for="origin" class="block text-[13px] font-bold text-text-muted mb-[8px]">From</label>
           <select id="origin"
             class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] max-sm:px-[14px] h-[52px] max-sm:h-[48px] text-[15px] max-sm:text-[14px] text-text-main font-bold cursor-pointer premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]">
             <option value="CCJ" selected>Kozhikode (CCJ)</option>
@@ -186,7 +186,7 @@
         </div>
 
         <div class="flex-1 w-full md:min-w-[200px]">
-          <div class="text-[13px] font-bold text-text-muted mb-[8px]">To</div>
+          <label for="destination" class="block text-[13px] font-bold text-text-muted mb-[8px]">To</label>
           <select id="destination"
             class="w-full bg-[#f8fafc] border border-border rounded-[12px] px-[16px] max-sm:px-[14px] h-[52px] max-sm:h-[48px] text-[15px] max-sm:text-[14px] text-text-main font-bold cursor-pointer premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]">
             <option value="RUH" selected>Riyadh (RUH)</option>
@@ -225,7 +225,7 @@
           <div
             class="inline-block w-[40px] h-[40px] border-[3px] border-[rgba(26,115,232,0.2)] rounded-full border-t-primary animate-spin">
           </div>
-          <div class="mt-[16px] font-bold text-text-mid opacity-80 animate-pulse">Syncing with Zamra Servers...
+          <div class="mt-[16px] font-bold text-text-muted opacity-80 animate-pulse">Syncing with Zamra Servers...
           </div>
         </div>
 
@@ -639,7 +639,7 @@
           <div class="mb-4">
             <select
               class="w-full bg-[#f8fafc] border border-border rounded-xl px-5 max-sm:px-4 py-4 max-sm:py-3.5 text-[15px] max-sm:text-[14px] font-body text-text-main premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23475569%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_auto] bg-no-repeat bg-[position:right_20px_center]"
-              name="from" required>
+              name="from" aria-label="Origin airport" required>
               <option value="">From (Origin)</option>
               <optgroup label="India">
                 <option value="Kozhikode (CCJ)">Kozhikode (CCJ)</option>
@@ -668,7 +668,7 @@
           <div class="mb-4">
             <select
               class="w-full bg-[#f8fafc] border border-border rounded-xl px-5 max-sm:px-4 py-4 max-sm:py-3.5 text-[15px] max-sm:text-[14px] font-body text-text-main premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23475569%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_auto] bg-no-repeat bg-[position:right_20px_center]"
-              name="to" required>
+              name="to" aria-label="Destination airport" required>
               <option value="">To (Destination)</option>
               <optgroup label="Middle East">
                 <option value="Jeddah (JED)">Jeddah (JED)</option>
@@ -697,7 +697,7 @@
           <div class="mb-4">
             <select
               class="w-full bg-[#f8fafc] border border-border rounded-xl px-5 max-sm:px-4 py-4 max-sm:py-3.5 text-[15px] max-sm:text-[14px] font-body text-text-main premium-transition focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23475569%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_auto] bg-no-repeat bg-[position:right_20px_center]"
-              name="airline">
+              name="airline" aria-label="Preferred airline (optional)">
               <option value="">Preferred Airline (optional)</option>
               <option value="IndiGo">IndiGo</option>
               <option value="Air India">Air India</option>
@@ -808,7 +808,7 @@
       class="bg-white/90 backdrop-blur-[20px] border border-white/20 shadow-[0_8px_32px_rgba(13,31,60,0.1)] w-[90%] max-sm:w-[94%] max-w-[760px] rounded-[20px] max-sm:rounded-[16px] p-[30px] max-sm:p-[20px] relative translate-y-[20px] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-[.active]:translate-y-0 max-h-[85vh] overflow-hidden flex flex-col">
       <button
         class="absolute top-[20px] right-[20px] bg-[#f1f5f9] border-none w-[36px] h-[36px] rounded-full flex items-center justify-center text-[16px] cursor-pointer text-[#64748b] transition-all duration-200 hover:bg-[#e2e8f0] hover:text-[#1e293b] hover:rotate-90"
-        id="modal-close"><i class="bi bi-x-lg"></i></button>
+        id="modal-close" aria-label="Close flight details"><i class="bi bi-x-lg"></i></button>
       <div class="mb-[20px]">
         <h3 id="modal-title" class="text-[20px] font-bold text-navy">Flight Details</h3>
         <p class="inline-block py-[6px] px-[14px] bg-primary-light text-primary rounded-[50px] text-[14px] font-bold mt-[10px] tracking-[1px]"

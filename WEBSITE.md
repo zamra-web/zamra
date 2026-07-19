@@ -37,8 +37,11 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | `web/visa.html` | `/visa.html` | Visa services — tabbed UI for Visas, Stamping, Attestations, Passport Services |
 | `web/tours.html` | `/tours.html` | Tours listing page — category filter chips, search, tour card grid |
 | `web/hajj-umrah.html` | `/hajj-umrah.html` | Hajj & Umrah packages page — filters, search, package grid |
+| `web/connect.html` | `/gcc` | GCC flight deals landing page |
 | `web/login.html` | `/login.html` | Admin login page (Firebase Auth) |
 | `web/admin.html` | `/admin.html` | Admin dashboard (auth-gated, see DASHBOARD.md) |
+| `web/b2b-login.html` | `b2b.zamratravels.com/b2b-login` | B2B agent login (agent claim) |
+| `web/b2b.html` | `b2b.zamratravels.com/b2b` | B2B agent portal — see below |
 
 ---
 
@@ -191,6 +194,22 @@ Tour details now open in a modal directly from the listing page. There is no sta
 
 ---
 
+## B2B Agent Portal (`b2b.html` + `b2b/main.js`)
+
+Auth-gated partner portal on `b2b.zamratravels.com`. Shares the public site's stylesheet and design system, but reads **nothing** from Firestore directly — all fare data comes from the `getB2BPortalContext` / `getB2BFares` callables so pricing stays server-side. See DASHBOARD.md for the pricing waterfall.
+
+**Layout.** Header (`site-header` + `initSiteChrome`), hero band, glass search card, results, visa services, footer. The hero and search card sit inside one `aurora-container` / `aurora-bg` field — without that backdrop the `glass-effect` card renders as a flat washed-out rectangle, since glass over near-white has nothing to refract.
+
+**Route selects.** Built only from the agent's allowed sectors. Labels read `Kozhikode (CCJ)`, derived from the `sectorFrom` / `sectorTo` city names the portal context already returns; unnamed codes fall back to the bare IATA code.
+
+**Results controls** (`#b2b-results-controls`, hidden until a search returns): sort by price / departure time / travel date, filter by airline, and copy a shareable link. All operate on the already-fetched `fares` array — no extra callable round-trips. The airline filter is rebuilt per search from whatever that route actually returned.
+
+**Deep links.** The chosen route is mirrored to `?from=CCJ&to=JED` via `history.replaceState`. On boot the params pre-select and auto-search when the agent is permitted that route, otherwise it falls back silently to `defaultOrigin`. This is a convenience only — `getB2BFares` re-authorises every sector server-side regardless.
+
+**States.** First load shows a "pick a route" prompt; empty results and filtered-to-zero have distinct copy; the three service lists render shimmer skeletons before data lands.
+
+---
+
 ## Styling System
 
 The site uses a **Tailwind CSS v4 `@theme` design token system** defined in `web/src/styles/web/style.css`:
@@ -208,6 +227,8 @@ The site uses a **Tailwind CSS v4 `@theme` design token system** defined in `web
 ```
 
 All components use these tokens via Tailwind utility classes. Custom vanilla CSS is minimal and limited to the hamburger menu mechanism.
+
+> **Token trap — dead references fail silently.** Tailwind v4's `@theme` emits variables under their **full** name, so raw CSS must say `var(--color-primary)`, not `var(--primary)`. A wrong name is not an error: the property just falls back to inherited or initial, so a mis-styled element often looks *almost* right and survives review. The same applies to utilities — `text-text-mid` compiles to nothing here because the web theme defines `text-main` / `text-muted` / `text-light` and has no `text-mid` (the **admin** theme does define `--color-text-mid`, which is how it leaks in via copy-paste). When adding raw CSS or porting markup between the two surfaces, check the name against the `@theme` block in the target stylesheet.
 
 ---
 

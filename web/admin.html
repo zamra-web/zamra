@@ -477,7 +477,9 @@
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <!-- id is load-bearing: this tab has two .admin-table elements and the
+                             rules table above comes first, so a bare querySelector hits the wrong one. -->
+                        <tbody id="b2b-agents-body">
                             <!-- populated by JS: renderB2BAgentsTab() -->
                         </tbody>
                     </table>

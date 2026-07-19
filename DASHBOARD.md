@@ -273,6 +273,8 @@ Portal logins, pricing controls, and route visibility for `b2b.zamratravels.com`
 - **Instant Price Adjustments** — per-route ± amount per agent (`routeAdjustments`).
 - **Table columns:** Login ID · Name · Agency · Phone · Markup · Restrictions · Status · Actions
 
+> **DOM gotcha:** this tab holds **two** `.admin-table` elements — the Supplier Markup Rules table comes first, the agents table second. Both tbodies carry explicit ids (`#b2b-rules-body`, `#b2b-agents-body`) and the JS must address them by id. A bare `document.querySelector('#b2b-agents-tab .admin-table tbody')` resolves to the **rules** table and silently breaks the tab three ways: agent rows overwrite the rules, the agents table renders empty under a correct row count, and `wireB2BAgentActions()` hits the rules tbody's already-set `actionsWired` flag so Edit / Reset PW / Deactivate / Delete never bind. Fixed in `renderB2BAgentsTab()` and `wireB2BAgentActions()`.
+
 #### B2B pricing waterfall
 Computed server-side in [functions/b2b.js](functions/b2b.js) (`computeB2BFares`). B2B agents never receive `specialRate`, `finalRate`, `commission`, or supplier IDs.
 

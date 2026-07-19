@@ -4907,7 +4907,9 @@ async function renderB2BAgentsTab(fetchData = true) {
     hydrateB2BSettingsForm();
     renderB2BRules();
   }
-  const tbody = document.querySelector('#b2b-agents-tab .admin-table tbody');
+  // Address the tbody by id — this tab also holds the supplier-rules table, which
+  // sits FIRST, so `#b2b-agents-tab .admin-table tbody` resolves to the wrong one.
+  const tbody = document.getElementById('b2b-agents-body');
   if (!tbody) return;
 
   const searchInp = document.getElementById('b2bAgents-search');
@@ -4978,7 +4980,9 @@ function b2bAgentRow(a) {
 }
 
 function wireB2BAgentActions() {
-  const tbody = document.querySelector('#b2b-agents-tab .admin-table tbody');
+  // Same id lookup as renderB2BAgentsTab() — grabbing the rules tbody here would
+  // hit its already-set actionsWired flag and silently skip binding every action.
+  const tbody = document.getElementById('b2b-agents-body');
   if (!tbody || tbody.dataset.actionsWired) return;
   tbody.dataset.actionsWired = '1';
   tbody.addEventListener('click', async (e) => {

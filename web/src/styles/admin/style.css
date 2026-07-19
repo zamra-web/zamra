@@ -103,8 +103,11 @@ html[data-theme="dark"] {
 }
 
 @layer components {
+    /* The sticky top nav uses this. At 0.55 alpha, tab content scrolling underneath
+       read straight through the bar and collided with the nav links, so keep it
+       opaque enough to stay legible over scrolled content (dark mode uses 0.78). */
     .glass-effect {
-        background: rgba(255, 255, 255, 0.55);
+        background: rgba(255, 255, 255, 0.82);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.3);
