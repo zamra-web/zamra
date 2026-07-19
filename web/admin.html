@@ -386,6 +386,66 @@
                 </form>
             </div>
 
+            <!-- SUPPLIER MARKUP RULES — per-supplier price rules, optionally scoped to one agent.
+                 Stacks on top of the markup above; see renderB2BRules() in main.js. -->
+            <div class="admin-panel p-6 text-text-main mb-6">
+                <div class="admin-form-section-head b2b-rules-head">
+                    <div>
+                        <p class="admin-form-section-title">Supplier Markup Rules</p>
+                        <p class="admin-form-section-desc">Add or subtract per supplier, on top of the markup above.
+                            Pick an agent to override a supplier's rule for that agent only.</p>
+                    </div>
+                    <div class="b2b-rules-scope">
+                        <label class="admin-label mb-0" for="b2b-rules-agent">Pricing for</label>
+                        <select id="b2b-rules-agent" class="admin-control admin-control-sm w-[260px]">
+                            <option value="">All agents — supplier defaults</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="b2b-rules-bar">
+                    <p class="b2b-rules-formula" id="b2b-rules-formula"></p>
+                    <div class="b2b-rules-sample">
+                        <label class="admin-label mb-0" for="b2b-rules-base">Preview on base</label>
+                        <div class="b2b-rules-sample-field">
+                            <span aria-hidden="true">₹</span>
+                            <input id="b2b-rules-base" type="number" min="0" step="500" value="10000"
+                                aria-label="Sample supplier rate used for the price preview"
+                                class="admin-control admin-control-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-table-container">
+                    <table class="admin-table b2b-rules-table">
+                        <thead>
+                            <tr>
+                                <th>Supplier</th>
+                                <th>Rule</th>
+                                <th>Applies from</th>
+                                <th class="text-right">Agent pays</th>
+                            </tr>
+                        </thead>
+                        <tbody id="b2b-rules-body">
+                            <!-- populated by JS: renderB2BRules() -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="b2b-rules-savebar" class="b2b-savebar" hidden>
+                    <span class="b2b-savebar-text">
+                        <i class="bi bi-pencil-fill"></i>
+                        <strong id="b2b-savebar-count">0</strong> unsaved <span id="b2b-savebar-noun">rules</span>
+                    </span>
+                    <div class="b2b-savebar-actions">
+                        <button type="button" id="b2b-rules-discard"
+                            class="admin-btn admin-btn-ghost h-9 px-4 text-xs">Discard</button>
+                        <button type="button" id="b2b-rules-save"
+                            class="admin-btn admin-btn-primary h-9 px-5 text-xs">Save rules</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="admin-panel p-6 text-text-main">
                 <div class="admin-toolbar-row mb-6">
                     <div class="admin-toolbar-group">

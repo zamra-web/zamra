@@ -261,6 +261,36 @@ web/
 - **Live Sync** — data drives `/hajj-umrah.html` public page.
 - Data from Firestore `hajj_umrah_packages` collection.
 
+### 13. 🤝 B2B Agents Tab
+Portal logins, pricing controls, and route visibility for `b2b.zamratravels.com`.
+
+> **Naming trap:** `agents` = rate **suppliers** (Mushtaq, Ameen, Lafi…). `b2b_agents` = travel-agency **customers** who log into the portal. The two are unrelated collections.
+
+- **Full CRUD** — Add / Edit / Reset Password / Activate / Delete, all via Cloud Function callables (`createB2BAgent`, `resetB2BAgentPassword`, `setB2BAgentStatus`, `deleteB2BAgent`).
+- **Global B2B Settings** — default markup (₹) and portal WhatsApp number, stored on `config/b2b`.
+- **Supplier Markup Rules** — per-supplier price adjustments, optionally scoped to a single agent. See the pricing waterfall below.
+- **Route Visibility** — hide whole departure airports or individual sectors per agent.
+- **Instant Price Adjustments** — per-route ± amount per agent (`routeAdjustments`).
+- **Table columns:** Login ID · Name · Agency · Phone · Markup · Restrictions · Status · Actions
+
+#### B2B pricing waterfall
+Computed server-side in [functions/b2b.js](functions/b2b.js) (`computeB2BFares`). B2B agents never receive `specialRate`, `finalRate`, `commission`, or supplier IDs.
+
+```
+base                 agent_fares.specialRate
+                     (falls back to finalRate − commission when specialRate is 0)
++ agent markup       b2b_agents.markupOverride ?? config/b2b.defaultMarkup
++ supplier rule      b2b_agents.supplierAdjustments[supplierId]
+                       ?? config/b2b.supplierDefaults[supplierId]
+                       ?? 0
++ route adjustment   b2b_agents.routeAdjustments[sectorId] ?? 0
+= price              floored at 0, rounded
+```
+
+Supplier rules are **signed** — positive marks up, negative discounts — and **stack on top of** the agent markup rather than replacing it, so a discount alone can never price below the supplier's raw rate. The most specific tier wins: an agent's own rule beats the global supplier default, and an explicit `0` on an agent cancels that default for that agent only.
+
+Fares are grouped by sector + airline + date + time keeping the **minimum final price**. Comparing final price rather than raw base matters once supplier rules exist: a supplier with a higher raw rate but a discount rule can undercut a cheaper supplier carrying a markup.
+
 ## Firestore Database Schema
 
 ### `admins`
@@ -392,6 +422,35 @@ web/
 | `isActive` | Boolean | `false` = hidden from public page |
 | `createdAt` | Timestamp | Server timestamp |
 | `updatedAt` | Timestamp | Server timestamp |
+
+### `b2b_agents`
+Travel-agency customers of the B2B portal — **not** the `agents` (supplier) collection.
+
+| Field | Type | Notes |
+|---|---|---|
+| `loginId` | String | e.g. `ZMR001`; 3–20 letters/digits |
+| `loginIdLower` | String | Lowercased, used for the uniqueness check |
+| `authUid` | String | Firebase Auth UID; email is `<loginid>@b2b.zamratravels.com` |
+| `name` / `agencyName` / `phone` / `place` | String | Profile fields |
+| `isActive` | Boolean | `false` disables the Auth account and revokes tokens |
+| `markupOverride` | Number \| null | ₹ markup for this agent; `null` uses `config/b2b.defaultMarkup`. `0` is valid |
+| `supplierAdjustments` | Map\<supplierId, Number\> | Signed ₹ per supplier for this agent. Explicit `0` cancels the global default |
+| `routeAdjustments` | Map\<sectorId, Number\> | Signed ₹ per route |
+| `hiddenOrigins` | Array\<String\> | Departure airport codes hidden from this agent |
+| `hiddenSectorIds` | Array\<String\> | Individual sectors hidden from this agent |
+| `createdAt` / `updatedAt` | Timestamp | Server timestamps |
+
+Passwords are generated server-side, returned once, and never stored.
+
+### `config/b2b`
+| Field | Type | Notes |
+|---|---|---|
+| `defaultMarkup` | Number | Common markup applied when an agent has no `markupOverride`. Defaults to `200` |
+| `supplierDefaults` | Map\<supplierId, Number\> | Signed ₹ per supplier, applied to every agent unless overridden. `0` is dropped — with no tier below it, "0" and "unset" are the same rule |
+| `whatsappNumber` | String | Digits only; shown in the portal |
+| `updatedAt` | Timestamp | Server timestamp |
+
+> Written by `saveB2BConfig()` (scalars, `setDoc` merge) and `saveB2BSupplierDefaults()` (the map, via `updateDoc` so removed suppliers actually disappear — a `setDoc` merge would merge nested maps key-by-key and leave orphans behind).
 
 ---
 

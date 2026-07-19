@@ -793,16 +793,47 @@ export async function getB2BConfig() {
   return {
     defaultMarkup: data.defaultMarkup !== undefined ? Number(data.defaultMarkup) : 200,
     whatsappNumber: data.whatsappNumber || '919846606738',
+    supplierDefaults: data.supplierDefaults && typeof data.supplierDefaults === 'object'
+      ? data.supplierDefaults
+      : {},
   };
 }
 
-/** Save global B2B settings (config/b2b). */
+/** Save global B2B settings (config/b2b). Supplier defaults save separately. */
 export async function saveB2BConfig({ defaultMarkup, whatsappNumber }) {
   await setDoc(doc(db, 'config', 'b2b'), {
     defaultMarkup: Number(defaultMarkup) || 0,
     whatsappNumber: String(whatsappNumber || '').replace(/[^\d]/g, ''),
     updatedAt: serverTimestamp(),
   }, { merge: true });
+}
+
+/**
+ * Replace the global per-supplier rule map on config/b2b.
+ *
+ * Uses updateDoc, which overwrites a map field wholesale — setDoc({merge:true})
+ * merges nested maps key-by-key, so removed suppliers would linger forever and
+ * keep pricing fares. Falls back to setDoc the first time, before config/b2b
+ * has ever been written.
+ *
+ * @param {Object<string, number>} supplierDefaults  supplierId → signed ₹ amount
+ */
+export async function saveB2BSupplierDefaults(supplierDefaults = {}) {
+  const clean = {};
+  for (const [supplierId, amount] of Object.entries(supplierDefaults)) {
+    const num = Number(amount);
+    const key = String(supplierId).trim();
+    if (!key || !Number.isFinite(num) || num === 0) continue;
+    clean[key] = num;
+  }
+  const payload = { supplierDefaults: clean, updatedAt: serverTimestamp() };
+  const configRef = doc(db, 'config', 'b2b');
+  try {
+    await updateDoc(configRef, payload);
+  } catch (err) {
+    if (err.code !== 'not-found') throw err;
+    await setDoc(configRef, payload, { merge: true });
+  }
 }
 
 

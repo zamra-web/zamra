@@ -81,18 +81,54 @@ function resolveAgentMarkup(agent, config) {
 }
 
 /**
+ * Per-supplier price rule, signed (positive = markup, negative = discount).
+ * Stacks ON TOP of the agent markup rather than replacing it, so a discount
+ * rule can never drop the price below the supplier's raw rate on its own.
+ *
+ * Most specific wins:
+ *   1. agent.supplierAdjustments[supplierId]  — this agent, this supplier
+ *   2. config.supplierDefaults[supplierId]    — this supplier, every agent
+ *   3. 0                                      — no rule
+ *
+ * An explicit 0 at tier 1 is a real value: it cancels a tier-2 default for one
+ * agent. Only null/undefined/non-numeric falls through to the next tier.
+ *
+ * @param {string} supplierId  agent_fares.agentId — the `agents` (supplier) doc id
+ */
+function resolveSupplierAdjustment(supplierId, agent, config) {
+  const id = String(supplierId || "").trim();
+  if (!id) return 0;
+
+  const perAgent = agent?.supplierAdjustments?.[id];
+  if (typeof perAgent === "number" && Number.isFinite(perAgent)) return perAgent;
+
+  const supplierDefault = config?.supplierDefaults?.[id];
+  if (typeof supplierDefault === "number" && Number.isFinite(supplierDefault)) return supplierDefault;
+
+  return 0;
+}
+
+/**
  * Computes sanitized B2B fares from raw agent_fares docs.
  *
  * base = specialRate, falling back to finalRate - commission when specialRate
  * is missing/0 (n8n writes specialRate: 0 when sp_rate is absent). Fares with
- * no positive base are skipped. Groups by sector+airline+date+time keeping the
- * MIN base (mirrors dedupeAndSortFares on the B2C side, but on the raw rate),
- * then price = minBase + markup + routeAdjustment.
+ * no positive base are skipped.
+ *
+ * Pricing waterfall, per fare:
+ *   base + agentMarkup + supplierAdjustment + routeAdjustment  (floored at 0)
+ *
+ * Groups by sector+airline+date+time keeping the MIN FINAL PRICE. Comparing
+ * final price rather than raw base matters as soon as per-supplier rules exist:
+ * a supplier with a slightly higher raw rate but a discount rule can undercut a
+ * cheaper supplier that carries a markup, and the agent must be shown the
+ * genuinely cheapest option.
  *
  * @param {Array<object>} fareDocs  plain objects; flightDate may be a Firestore
- *   Timestamp, Date, or ms number
- * @param {object} agent   b2b_agents doc data (markupOverride, routeAdjustments)
- * @param {object} config  config/b2b doc data (defaultMarkup)
+ *   Timestamp, Date, or ms number. `agentId` is the supplier id.
+ * @param {object} agent   b2b_agents doc data (markupOverride, supplierAdjustments,
+ *   routeAdjustments)
+ * @param {object} config  config/b2b doc data (defaultMarkup, supplierDefaults)
  * @returns {Array<{airlineId, flightDate, flightTime, baggage, extraBaggage, price}>}
  */
 function computeB2BFares(fareDocs, agent, config) {
@@ -110,26 +146,25 @@ function computeB2BFares(fareDocs, agent, config) {
     const date = typeof rawDate?.toDate === "function" ? rawDate.toDate() : new Date(rawDate);
     if (Number.isNaN(date.getTime())) continue;
 
+    const supplierAdjustment = resolveSupplierAdjustment(fare.agentId, agent, config);
+    const routeAdjustment = Number(agent.routeAdjustments?.[fare.sectorId]) || 0;
+    const price = Math.max(0, Math.round(base + markup + supplierAdjustment + routeAdjustment));
+
     const key = [fare.sectorId, fare.airlineId, date.getTime(), fare.flightTime || ""].join("|");
     const existing = groups.get(key);
-    if (existing && existing.base <= base) continue;
+    if (existing && existing.price <= price) continue;
 
-    const adjustment = Number(agent.routeAdjustments?.[fare.sectorId]) || 0;
     groups.set(key, {
-      base,
-      fare: {
-        airlineId: fare.airlineId || "",
-        flightDate: date.toISOString(),
-        flightTime: fare.flightTime || "",
-        baggage: fare.baggage ?? "",
-        extraBaggage: Number(fare.extraBaggage) || 0,
-        price: Math.max(0, Math.round(base + markup + adjustment)),
-      },
+      airlineId: fare.airlineId || "",
+      flightDate: date.toISOString(),
+      flightTime: fare.flightTime || "",
+      baggage: fare.baggage ?? "",
+      extraBaggage: Number(fare.extraBaggage) || 0,
+      price,
     });
   }
 
   return [...groups.values()]
-    .map((entry) => entry.fare)
     .sort((a, b) =>
       a.flightDate === b.flightDate
         ? a.price - b.price
@@ -178,6 +213,42 @@ function sanitizeRouteAdjustments(value) {
   return out;
 }
 
+/**
+ * Per-agent supplier rules ({ supplierId: signedAmount }).
+ *
+ * Unlike route adjustments, an explicit 0 is KEPT: it is how an admin cancels a
+ * global supplierDefaults entry for one agent. To drop a rule entirely the
+ * client omits the key.
+ */
+function sanitizeSupplierAdjustments(value) {
+  const out = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return out;
+  for (const [supplierId, amount] of Object.entries(value)) {
+    const key = String(supplierId).trim();
+    if (!key || amount === null || amount === undefined || amount === "") continue;
+    const num = Number(amount);
+    if (!Number.isFinite(num)) continue;
+    out[key] = num;
+  }
+  return out;
+}
+
+/**
+ * Global per-supplier defaults ({ supplierId: signedAmount }) on config/b2b.
+ * 0 is dropped here — with no tier below it, "0" and "unset" are the same rule.
+ */
+function sanitizeSupplierDefaults(value) {
+  const out = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return out;
+  for (const [supplierId, amount] of Object.entries(value)) {
+    const num = Number(amount);
+    const key = String(supplierId).trim();
+    if (!key || !Number.isFinite(num) || num === 0) continue;
+    out[key] = num;
+  }
+  return out;
+}
+
 // ── Builder ──────────────────────────────────────────────────────────────────
 
 /**
@@ -197,6 +268,7 @@ function build(db, requireAdmin) {
         ? Number(data.defaultMarkup)
         : DEFAULT_B2B_MARKUP,
       whatsappNumber: String(data.whatsappNumber || DEFAULT_B2B_WHATSAPP),
+      supplierDefaults: sanitizeSupplierDefaults(data.supplierDefaults),
     };
   }
 
@@ -278,6 +350,7 @@ function build(db, requireAdmin) {
         hiddenOrigins: sanitizeCodeArray(data.hiddenOrigins),
         hiddenSectorIds: sanitizeIdArray(data.hiddenSectorIds),
         routeAdjustments: sanitizeRouteAdjustments(data.routeAdjustments),
+        supplierAdjustments: sanitizeSupplierAdjustments(data.supplierAdjustments),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -423,6 +496,9 @@ module.exports = {
   isSectorVisibleToAgent,
   parseSectorCodes,
   resolveAgentMarkup,
+  resolveSupplierAdjustment,
+  sanitizeSupplierAdjustments,
+  sanitizeSupplierDefaults,
   loginIdToEmail,
   generatePassword,
 };

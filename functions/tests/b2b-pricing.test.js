@@ -7,6 +7,9 @@ const {
   isSectorVisibleToAgent,
   parseSectorCodes,
   resolveAgentMarkup,
+  resolveSupplierAdjustment,
+  sanitizeSupplierAdjustments,
+  sanitizeSupplierDefaults,
   loginIdToEmail,
   generatePassword,
 } = require("../b2b");
@@ -105,6 +108,102 @@ test("computeB2BFares applies positive and negative route adjustments per sector
   for (const price of fares.map((f) => f.price)) {
     assert.ok(Object.values(bySector).includes(price));
   }
+});
+
+// ── Per-supplier rules ───────────────────────────────────────────────────────
+// agent_fares.agentId is the SUPPLIER id (the `agents` collection), not the
+// b2b_agents customer. Rules stack on top of the agent markup.
+
+test("resolveSupplierAdjustment prefers the agent rule over the supplier default", () => {
+  const agent = { supplierAdjustments: { mushtaq: -100 } };
+  const config = { supplierDefaults: { mushtaq: 250, lafi: 200 } };
+
+  assert.equal(resolveSupplierAdjustment("mushtaq", agent, config), -100);
+  assert.equal(resolveSupplierAdjustment("lafi", agent, config), 200);
+  assert.equal(resolveSupplierAdjustment("ameen", agent, config), 0);
+  assert.equal(resolveSupplierAdjustment("", agent, config), 0);
+});
+
+test("resolveSupplierAdjustment treats an explicit agent 0 as cancelling the supplier default", () => {
+  const config = { supplierDefaults: { lafi: 200 } };
+
+  assert.equal(resolveSupplierAdjustment("lafi", { supplierAdjustments: { lafi: 0 } }, config), 0);
+  // null/undefined fall through to the default instead of cancelling it
+  assert.equal(resolveSupplierAdjustment("lafi", { supplierAdjustments: { lafi: null } }, config), 200);
+  assert.equal(resolveSupplierAdjustment("lafi", {}, config), 200);
+});
+
+test("computeB2BFares stacks supplier rules on top of the agent markup", () => {
+  const agent = { supplierAdjustments: { mushtaq: -100, ameen: 300 } };
+  const config = { defaultMarkup: 500, supplierDefaults: { lafi: 200 } };
+
+  const priceFrom = (supplierId, sectorId) =>
+    computeB2BFares([fare({ agentId: supplierId, sectorId })], agent, config)[0].price;
+
+  assert.equal(priceFrom("mushtaq", "s1"), 10400); // 10000 + 500 - 100
+  assert.equal(priceFrom("ameen", "s2"), 10800); // 10000 + 500 + 300
+  assert.equal(priceFrom("lafi", "s3"), 10700); // 10000 + 500 + 200 (supplier default)
+  assert.equal(priceFrom("unknown", "s4"), 10500); // 10000 + 500, no rule
+});
+
+test("computeB2BFares picks the cheapest FINAL price, not the cheapest raw rate", () => {
+  // Ameen is cheaper at source but carries a markup; Mushtaq costs more raw yet
+  // lands lower once its discount applies. The agent must see Mushtaq's price.
+  const fares = computeB2BFares(
+    [
+      fare({ agentId: "ameen", specialRate: 10000 }),
+      fare({ agentId: "mushtaq", specialRate: 10050 }),
+    ],
+    { supplierAdjustments: { ameen: 300, mushtaq: -100 } },
+    { defaultMarkup: 500 },
+  );
+
+  assert.equal(fares.length, 1);
+  assert.equal(fares[0].price, 10450); // 10050 + 500 - 100, beating Ameen's 10800
+});
+
+test("computeB2BFares combines supplier and route adjustments", () => {
+  const fares = computeB2BFares(
+    [fare({ agentId: "mushtaq" })],
+    { supplierAdjustments: { mushtaq: -100 }, routeAdjustments: { s1: 250 } },
+    { defaultMarkup: 500 },
+  );
+
+  assert.equal(fares[0].price, 10650); // 10000 + 500 - 100 + 250
+});
+
+test("computeB2BFares floors a price at 0 when discounts exceed the base", () => {
+  const fares = computeB2BFares(
+    [fare({ agentId: "mushtaq", specialRate: 400 })],
+    { supplierAdjustments: { mushtaq: -5000 } },
+    { defaultMarkup: 200 },
+  );
+
+  assert.equal(fares[0].price, 0);
+});
+
+test("sanitizeSupplierAdjustments keeps explicit 0 but drops blanks and junk", () => {
+  assert.deepEqual(
+    sanitizeSupplierAdjustments({
+      mushtaq: -100,
+      lafi: 0,
+      ameen: "300",
+      blank: "",
+      nulled: null,
+      junk: "abc",
+      "  spaced  ": 50,
+    }),
+    { mushtaq: -100, lafi: 0, ameen: 300, spaced: 50 },
+  );
+  assert.deepEqual(sanitizeSupplierAdjustments(null), {});
+  assert.deepEqual(sanitizeSupplierAdjustments([1, 2]), {});
+});
+
+test("sanitizeSupplierDefaults drops 0 since it has no lower tier to cancel", () => {
+  assert.deepEqual(
+    sanitizeSupplierDefaults({ lafi: 200, mushtaq: 0, ameen: "-150", junk: "abc" }),
+    { lafi: 200, ameen: -150 },
+  );
 });
 
 test("computeB2BFares never exposes raw rate fields", () => {

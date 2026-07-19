@@ -720,6 +720,400 @@ html[data-theme="dark"] {
         color: #ffffff;
         box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
     }
+
+    /* ─── B2B supplier markup rules ─────────────────────────────────────────
+       Colour reads from the ADMIN's side of the deal: a markup lifts margin
+       (emerald), a discount gives it away (amber), and pricing under the
+       supplier's own rate is a loss (red). */
+
+    .b2b-rules-scope {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-shrink: 0;
+    }
+
+    .b2b-rules-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem 1.5rem;
+        margin-bottom: 1.25rem;
+        padding: 0.85rem 1.1rem;
+        border: 1px solid #dbe5f2;
+        border-radius: 0.85rem;
+        background: linear-gradient(180deg, #f6faff 0%, #f1f6fd 100%);
+    }
+
+    .b2b-rules-formula {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 0;
+        min-width: 0;
+    }
+
+    .b2b-formula-term {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        padding: 0.3rem 0.65rem;
+        border: 1px solid #dae4f2;
+        border-radius: 0.6rem;
+        background: #ffffff;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: var(--navy);
+        line-height: 1.25;
+    }
+
+    .b2b-formula-term em {
+        font-style: normal;
+        font-size: 0.625rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    .b2b-formula-term.is-focus {
+        border-color: #b9d2f2;
+        background: #eaf3ff;
+        color: var(--primary);
+    }
+
+    .b2b-formula-term.is-focus em {
+        color: #4c7cb5;
+    }
+
+    .b2b-formula-term.is-result {
+        border-color: #0c4a8a;
+        background: linear-gradient(to right, var(--color-primary-gradient-start), var(--color-primary-gradient-end));
+        color: #ffffff;
+    }
+
+    .b2b-formula-op {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #9db2cd;
+    }
+
+    .b2b-rules-sample {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-shrink: 0;
+    }
+
+    .b2b-rules-sample-field {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .b2b-rules-sample-field span {
+        position: absolute;
+        left: 0.6rem;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .b2b-rules-sample-field .admin-control {
+        width: 7rem;
+        padding-left: 1.5rem;
+        font-weight: 700;
+    }
+
+    .b2b-rules-table td {
+        vertical-align: middle;
+    }
+
+    .b2b-rules-table tr.is-dirty td {
+        background: #fffaf0;
+    }
+
+    .b2b-rule-supplier {
+        display: block;
+        font-weight: 700;
+        color: var(--navy);
+    }
+
+    .b2b-rule-supplier-meta {
+        display: block;
+        margin-top: 0.1rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        color: var(--text-soft);
+    }
+
+    .b2b-rules-table tr.is-dirty .b2b-rule-supplier::after {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-left: 0.4rem;
+        border-radius: 999px;
+        background: #d97706;
+        vertical-align: middle;
+    }
+
+    .b2b-rule-editor {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .b2b-sign {
+        display: inline-flex;
+        border: 1px solid #d4dfed;
+        border-radius: 0.55rem;
+        background: #f1f5fb;
+        padding: 2px;
+        gap: 2px;
+    }
+
+    .b2b-sign-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.28rem 0.55rem;
+        border-radius: 0.4rem;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        white-space: nowrap;
+        transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+        cursor: pointer;
+    }
+
+    .b2b-sign-btn i {
+        font-size: 0.625rem;
+    }
+
+    .b2b-sign-btn:hover {
+        color: var(--navy);
+        background: rgba(255, 255, 255, 0.85);
+    }
+
+    .b2b-sign-btn:focus-visible {
+        outline: 2px solid rgba(12, 74, 138, 0.45);
+        outline-offset: 1px;
+    }
+
+    .b2b-sign-btn[data-rule-sign-btn="1"].is-active {
+        color: #0b6b52;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12), inset 0 0 0 1px #a7ddc9;
+    }
+
+    .b2b-sign-btn[data-rule-sign-btn="-1"].is-active {
+        color: #92400e;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12), inset 0 0 0 1px #f0cf9a;
+    }
+
+    .b2b-amount {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .b2b-amount-prefix {
+        position: absolute;
+        left: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .b2b-amount .admin-control {
+        width: 6.5rem;
+        padding-left: 1.35rem;
+        font-weight: 700;
+    }
+
+    .b2b-rule-clear {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 0.45rem;
+        border: 1px solid transparent;
+        font-size: 0.6875rem;
+        color: var(--text-soft);
+        transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+        cursor: pointer;
+    }
+
+    .b2b-rule-clear:hover {
+        color: #c62828;
+        background: #fdecec;
+        border-color: #f9c7c7;
+    }
+
+    .b2b-rule-clear:focus-visible {
+        outline: 2px solid rgba(196, 40, 40, 0.4);
+        outline-offset: 1px;
+    }
+
+    .b2b-rule-clear[hidden] {
+        display: none;
+    }
+
+    .b2b-badge-own {
+        color: #0f4f9e;
+        background: #e8f1ff;
+        border-color: #c4d9f5;
+    }
+
+    .b2b-badge-inherited {
+        color: #5b6b82;
+        background: #f2f5fa;
+        border-color: #dae2ee;
+    }
+
+    .b2b-badge-none {
+        color: #8b9bb1;
+        background: transparent;
+        border-color: #e2e8f0;
+    }
+
+    .b2b-rule-price {
+        display: block;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        color: var(--navy);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .b2b-rule-price.is-loss {
+        color: #b42323;
+    }
+
+    .b2b-rule-delta {
+        display: block;
+        margin-top: 0.1rem;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .b2b-rule-delta.is-up {
+        color: #0b6b52;
+    }
+
+    .b2b-rule-delta.is-down {
+        color: #92400e;
+    }
+
+    .b2b-rule-delta.is-flat {
+        color: var(--text-soft);
+        font-weight: 600;
+    }
+
+    .b2b-rule-warn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-top: 0.25rem;
+        font-size: 0.625rem;
+        font-weight: 700;
+        color: #b42323;
+    }
+
+    .b2b-savebar {
+        position: sticky;
+        bottom: 1rem;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem 1rem;
+        margin-top: 1.25rem;
+        padding: 0.7rem 0.7rem 0.7rem 1.1rem;
+        border: 1px solid #f0cf9a;
+        border-radius: 0.85rem;
+        background: #fffaf0;
+        box-shadow: 0 18px 32px -24px rgba(15, 23, 42, 0.55);
+        animation: b2bSaveBarIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .b2b-savebar[hidden] {
+        display: none;
+    }
+
+    .b2b-savebar-text {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #92400e;
+    }
+
+    .b2b-savebar-text strong {
+        font-weight: 800;
+    }
+
+    .b2b-savebar-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    @keyframes b2bSaveBarIn {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .b2b-savebar {
+            animation: none;
+        }
+    }
+
+    .b2b-rules-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 2.5rem 1rem;
+        text-align: center;
+    }
+
+    .b2b-rules-empty i {
+        font-size: 1.5rem;
+        color: var(--text-soft);
+        margin-bottom: 0.3rem;
+    }
+
+    .b2b-rules-empty-title {
+        margin: 0;
+        font-weight: 700;
+        color: var(--navy);
+    }
+
+    .b2b-rules-empty-desc {
+        margin: 0;
+        max-width: 42ch;
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+    }
 }
 
 .premium-hover-lift {
@@ -1143,199 +1537,226 @@ html[data-theme="dark"] {
     .admin-empty-state {
         padding: 2.8rem 1rem;
     }
+}
 
-    /* ─── Admin Modal System ─── */
-    .admin-modal {
-        position: relative;
-        overflow: hidden;
-        background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
-        border: 1px solid #dbe6f4;
-        border-radius: 1.6rem;
-        box-shadow: 0 40px 90px -40px rgba(15, 23, 42, 0.45), 0 24px 50px -40px rgba(12, 74, 138, 0.35);
-    }
+/* ─── Admin Modal System ───────────────────────────────────────────────────
+   Deliberately top-level (unlayered) and NOT inside a media query: these are
+   the base styles for every admin modal at every width. They previously sat
+   inside `@media (max-width: 640px)`, so modals rendered unstyled on desktop.
+   Mobile-only overrides stay in the media query above. */
 
-    .admin-modal::backdrop {
-        background: rgba(15, 23, 42, 0.45);
-        backdrop-filter: blur(6px);
-    }
+.admin-modal {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
+    border: 1px solid #dbe6f4;
+    border-radius: 1.6rem;
+    box-shadow: 0 40px 90px -40px rgba(15, 23, 42, 0.45), 0 24px 50px -40px rgba(12, 74, 138, 0.35);
+}
 
-    .admin-modal-header {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: linear-gradient(180deg, #fbfdff 0%, #eef4ff 100%);
-        border-bottom: 1px solid #e2e8f0;
-        backdrop-filter: blur(8px);
-    }
+.admin-modal::backdrop {
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
+}
 
-    .admin-modal-body {
-        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    }
+.admin-modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: linear-gradient(180deg, #fbfdff 0%, #eef4ff 100%);
+    border-bottom: 1px solid #e2e8f0;
+    backdrop-filter: blur(8px);
+}
 
-    .admin-modal-header #modal-close-btn {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        color: var(--text-muted);
-        box-shadow: 0 8px 16px -12px rgba(15, 23, 42, 0.4);
-    }
+.admin-modal-body {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
 
-    .admin-modal-header #modal-close-btn:hover {
-        background: #eef4ff;
-        color: var(--navy);
-    }
+.admin-modal-header #modal-close-btn {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    color: var(--text-muted);
+    box-shadow: 0 8px 16px -12px rgba(15, 23, 42, 0.4);
+}
 
-    .admin-modal-form {
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-    }
+.admin-modal-header #modal-close-btn:hover {
+    background: #eef4ff;
+    color: var(--navy);
+}
 
-    .admin-form-section {
-        border: 1px solid #e2e8f0;
-        background: #ffffff;
-        border-radius: 1rem;
-        padding: 1.1rem 1.15rem;
-        box-shadow: 0 14px 30px -24px rgba(15, 23, 42, 0.2);
-    }
+.admin-modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
 
-    .admin-form-section-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 0.85rem;
-        padding-bottom: 0.65rem;
-        border-bottom: 1px dashed #e2e8f0;
-    }
+.admin-form-section {
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    border-radius: 1rem;
+    padding: 1.1rem 1.15rem;
+    box-shadow: 0 14px 30px -24px rgba(15, 23, 42, 0.2);
+}
 
-    .admin-form-section-title {
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--text-mid);
-    }
+.admin-form-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px dashed #e2e8f0;
+}
 
-    .admin-form-section-desc {
-        font-size: 0.75rem;
-        color: var(--text-soft);
-        margin-top: 0.3rem;
-    }
+.admin-form-section-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+}
 
-    .admin-field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.45rem;
-    }
+.admin-form-section-desc {
+    font-size: 0.75rem;
+    color: var(--text-soft);
+    margin-top: 0.3rem;
+}
 
-    .admin-field .admin-label {
-        margin-bottom: 0;
-    }
+.admin-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
 
-    .admin-help {
-        font-size: 0.72rem;
-        color: var(--text-soft);
-    }
+.admin-field .admin-label {
+    margin-bottom: 0;
+}
 
-    .admin-modal-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.75rem;
-        padding: 0.9rem 1.1rem 0.1rem;
-        margin-top: 0.25rem;
-        border-top: 1px solid #e2e8f0;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 52%);
-        position: sticky;
-        bottom: -1px;
-        z-index: 1;
-    }
+.admin-help {
+    font-size: 0.72rem;
+    color: var(--text-soft);
+}
 
-    .admin-toggle {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        padding: 0.65rem 0.75rem;
-        border-radius: 0.85rem;
-        border: 1px solid #e2e8f0;
-        background: #f8fafc;
-    }
+.admin-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 0.9rem 1.1rem 0.1rem;
+    margin-top: 0.25rem;
+    border-top: 1px solid #e2e8f0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 52%);
+    position: sticky;
+    bottom: -1px;
+    z-index: 1;
+}
 
-    .admin-toggle input {
-        width: 1.1rem;
-        height: 1.1rem;
-    }
+.admin-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.85rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
 
-    .admin-file {
-        border: 1px dashed #c8d6ea;
-        border-radius: 0.9rem;
-        padding: 0.85rem;
-        background: #f8fbff;
-    }
+.admin-toggle input {
+    width: 1.1rem;
+    height: 1.1rem;
+}
 
-    .admin-file input[type="file"] {
-        width: 100%;
-        font-size: 0.85rem;
-        color: var(--text-mid);
-        border: none;
-        background: transparent;
-        padding: 0;
-    }
+.admin-file {
+    border: 1px dashed #c8d6ea;
+    border-radius: 0.9rem;
+    padding: 0.85rem;
+    background: #f8fbff;
+}
 
-    .admin-file input[type="file"]::file-selector-button {
-        margin-right: 0.75rem;
-        padding: 0.4rem 0.85rem;
-        border-radius: 999px;
-        border: 0;
-        background: #e8f1ff;
-        color: #0f4f9e;
-        font-weight: 700;
-        font-size: 0.72rem;
-        cursor: pointer;
-    }
+.admin-file input[type="file"] {
+    width: 100%;
+    font-size: 0.85rem;
+    color: var(--text-mid);
+    border: none;
+    background: transparent;
+    padding: 0;
+}
 
-    .admin-file input[type="file"]::file-selector-button:hover {
-        background: #dbe9ff;
-    }
+.admin-file input[type="file"]::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    border: 0;
+    background: #e8f1ff;
+    color: #0f4f9e;
+    font-weight: 700;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
 
-    #admin-modal .admin-control {
-        background: #ffffff;
-        border-color: #d4dfed;
-        height: 2.9rem;
-    }
+.admin-file input[type="file"]::file-selector-button:hover {
+    background: #dbe9ff;
+}
 
-    #admin-modal .admin-control:focus {
-        box-shadow: 0 0 0 4px rgba(12, 74, 138, 0.12);
-    }
+#admin-modal .admin-control {
+    background: #ffffff;
+    border-color: #d4dfed;
+    height: 2.9rem;
+}
 
-    #admin-modal textarea.admin-control {
-        min-height: 5.5rem;
-        height: auto;
-        padding-top: 0.65rem;
-        padding-bottom: 0.65rem;
-    }
+#admin-modal .admin-control:focus {
+    box-shadow: 0 0 0 4px rgba(12, 74, 138, 0.12);
+}
 
-    #admin-modal input[type="file"].admin-control {
-        height: auto;
-        padding: 0.65rem 0.8rem;
-    }
+#admin-modal textarea.admin-control {
+    min-height: 5.5rem;
+    height: auto;
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+}
 
-    #admin-modal .tour-day-row {
-        border-color: #dbe5f2;
-    }
+#admin-modal input[type="file"].admin-control {
+    height: auto;
+    padding: 0.65rem 0.8rem;
+}
 
-    #admin-modal .tour-day-number {
-        display: inline-flex;
-        align-items: center;
-        margin: 0;
-        padding: 0.2rem 0.6rem;
-        border-radius: 999px;
-        background: rgba(12, 74, 138, 0.08);
-        color: var(--primary);
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-    }
+#admin-modal .tour-day-row {
+    border-color: #dbe5f2;
+}
+
+#admin-modal .tour-day-number {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(12, 74, 138, 0.08);
+    color: var(--primary);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+/* B2B rules panel reuses .admin-form-section-head outside a modal. It must sit
+   unlayered like the rule it modifies — @layer components would lose to it
+   regardless of specificity. Layout is inherited; this only adds wrapping,
+   drops the in-modal divider, and keeps the copy shrinkable so the agent
+   selector stays on the same row. */
+.b2b-rules-head {
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.b2b-rules-head > div:first-child {
+    flex: 1 1 20rem;
+    min-width: 0;
+}
+
+.b2b-rules-head .admin-form-section-desc {
+    max-width: 66ch;
 }
 
 /* ─── Dark Mode Overrides ─── */
@@ -2073,4 +2494,116 @@ input[type="date"]::-webkit-clear-button {
         margin: 0;
         size: A4 portrait;
     }
+}
+
+/* ─── B2B supplier markup rules — dark theme ─────────────────────────────────
+   Text colours that ride on --navy / --text-muted / --text-soft flip on their
+   own; only surfaces and the semantic accents need lifting for dark. */
+
+html[data-theme="dark"] .b2b-rules-bar {
+    background: linear-gradient(180deg, #101a2c 0%, #0d1524 100%);
+    border-color: #22324a;
+}
+
+html[data-theme="dark"] .b2b-formula-term {
+    background: #0f172a;
+    border-color: #24344f;
+}
+
+html[data-theme="dark"] .b2b-formula-term.is-focus {
+    background: rgba(30, 103, 194, 0.18);
+    border-color: rgba(96, 165, 250, 0.4);
+    color: #bfdbfe;
+}
+
+html[data-theme="dark"] .b2b-formula-term.is-focus em {
+    color: #93b4dd;
+}
+
+html[data-theme="dark"] .b2b-formula-term.is-result {
+    border-color: #1e67c2;
+    color: #ffffff;
+}
+
+html[data-theme="dark"] .b2b-formula-op {
+    color: #58708f;
+}
+
+html[data-theme="dark"] .b2b-rules-table tr.is-dirty td {
+    background: rgba(180, 83, 9, 0.12);
+}
+
+html[data-theme="dark"] .b2b-rules-table tr.is-dirty .b2b-rule-supplier::after {
+    background: #fbbf24;
+}
+
+html[data-theme="dark"] .b2b-sign {
+    background: #0b1220;
+    border-color: #24344f;
+}
+
+html[data-theme="dark"] .b2b-sign-btn:hover {
+    background: rgba(148, 163, 184, 0.12);
+    color: #e2e8f0;
+}
+
+html[data-theme="dark"] .b2b-sign-btn[data-rule-sign-btn="1"].is-active {
+    color: #6ee7b7;
+    background: #0f172a;
+    box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.45);
+}
+
+html[data-theme="dark"] .b2b-sign-btn[data-rule-sign-btn="-1"].is-active {
+    color: #fcd34d;
+    background: #0f172a;
+    box-shadow: inset 0 0 0 1px rgba(252, 211, 77, 0.42);
+}
+
+html[data-theme="dark"] .b2b-rule-clear:hover {
+    color: #fca5a5;
+    background: rgba(220, 38, 38, 0.16);
+    border-color: rgba(248, 113, 113, 0.4);
+}
+
+html[data-theme="dark"] .b2b-badge-own {
+    color: #bfdbfe;
+    background: rgba(30, 103, 194, 0.2);
+    border-color: rgba(96, 165, 250, 0.38);
+}
+
+html[data-theme="dark"] .b2b-badge-inherited {
+    color: #b0bfd6;
+    background: rgba(148, 163, 184, 0.12);
+    border-color: #2a3b5c;
+}
+
+html[data-theme="dark"] .b2b-badge-none {
+    color: #8fa3bf;
+    border-color: #26354d;
+}
+
+html[data-theme="dark"] .b2b-rule-price.is-loss {
+    color: #fca5a5;
+}
+
+html[data-theme="dark"] .b2b-rule-delta.is-up {
+    color: #6ee7b7;
+}
+
+html[data-theme="dark"] .b2b-rule-delta.is-down {
+    color: #fcd34d;
+}
+
+html[data-theme="dark"] .b2b-rule-warn {
+    color: #fca5a5;
+}
+
+html[data-theme="dark"] .b2b-savebar {
+    background: rgba(180, 83, 9, 0.16);
+    border-color: rgba(217, 119, 6, 0.42);
+    box-shadow: 0 20px 36px -26px rgba(0, 0, 0, 0.8);
+}
+
+html[data-theme="dark"] .b2b-savebar-text {
+    color: #fcd34d;
 }

@@ -29,6 +29,7 @@ import {
   callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
   getB2BAgents, updateB2BAgent, callCreateB2BAgent, callResetB2BAgentPassword,
   callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
+  saveB2BSupplierDefaults,
 } from './db.js';
 
 import { downloadVideoPoster as renderVideoPoster } from './video-export.js';
@@ -4892,9 +4893,19 @@ function openAgentModal(agent) {
 
 async function renderB2BAgentsTab(fetchData = true) {
   if (fetchData) {
-    [_b2bAgents, _b2bConfig] = await Promise.all([getB2BAgents(), getB2BConfig()]);
+    // Suppliers drive the markup-rules table; loadGlobalData() usually has them
+    // already, but the tab can render before that settles on a cold load.
+    const [b2bAgents, b2bConfig, suppliers] = await Promise.all([
+      getB2BAgents(),
+      getB2BConfig(),
+      _agents.length ? _agents : getAgents(),
+    ]);
+    _b2bAgents = b2bAgents;
+    _b2bConfig = b2bConfig;
+    _agents = suppliers;
     tablePage.b2bAgents = 1;
     hydrateB2BSettingsForm();
+    renderB2BRules();
   }
   const tbody = document.querySelector('#b2b-agents-tab .admin-table tbody');
   if (!tbody) return;
@@ -5036,9 +5047,363 @@ function wireB2BSettingsForm() {
       _b2bConfig = await getB2BConfig();
       toast('success', 'Settings Saved', `Default markup ₹${_b2bConfig.defaultMarkup}, WhatsApp ${_b2bConfig.whatsappNumber}.`);
       renderB2BAgentsTab(false);
+      renderB2BRules(); // the markup feeds every price preview below
+
     } catch (err) { toast('error', 'Save Failed', err.message); }
     btn.disabled = false; btn.textContent = 'Save Settings';
   });
+}
+
+// ── Supplier markup rules ─────────────────────────────────────────────────────
+// Two tiers, mirroring resolveSupplierAdjustment() in functions/b2b.js:
+//   config/b2b.supplierDefaults[supplierId]         → every agent
+//   b2b_agents/{id}.supplierAdjustments[supplierId] → one agent, wins
+//
+// Amounts are signed (+markup / −discount) and stack ON TOP of the agent markup
+// rather than replacing it, so a discount alone can never price below the
+// supplier's raw rate. `_agents` here is the SUPPLIER list (Mushtaq, Ameen…),
+// not the B2B customers in `_b2bAgents`.
+
+let _b2bRulesScope = '';        // '' = global supplier defaults, else a b2b_agents id
+let _b2bRulesDraft = new Map(); // supplierId → signed amount | null (rule cleared)
+let _b2bRulesBase = 10000;      // sample supplier rate driving the price preview
+
+const B2B_RULE_BADGES = {
+  agent: { cls: 'b2b-badge-own', icon: 'bi-person-fill-gear', label: 'Agent rule' },
+  default: { cls: 'b2b-badge-own', icon: 'bi-globe2', label: 'Supplier default' },
+  inherited: { cls: 'b2b-badge-inherited', icon: 'bi-arrow-return-right', label: 'Supplier default' },
+  none: { cls: 'b2b-badge-none', icon: 'bi-dash-lg', label: 'Common markup only' },
+};
+
+/** "+₹300" / "−₹100" — real minus sign, not a hyphen. */
+function b2bSignedLabel(amount) {
+  const n = Number(amount) || 0;
+  return `${n < 0 ? '−' : '+'}₹${Math.abs(n).toLocaleString()}`;
+}
+
+function b2bRulesScopeAgent() {
+  return _b2bRulesScope ? _b2bAgents.find(a => a.id === _b2bRulesScope) || null : null;
+}
+
+/** Markup applied before any supplier rule, for the current scope. */
+function b2bRulesScopeMarkup() {
+  const agent = b2bRulesScopeAgent();
+  if (agent && typeof agent.markupOverride === 'number') return agent.markupOverride;
+  return Number(_b2bConfig?.defaultMarkup ?? 200);
+}
+
+/** Persisted rule for the current scope, or null when unset. */
+function b2bRuleSaved(supplierId) {
+  const agent = b2bRulesScopeAgent();
+  const value = agent
+    ? agent.supplierAdjustments?.[supplierId]
+    : _b2bConfig?.supplierDefaults?.[supplierId];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** Draft-aware rule for the current scope (unsaved edits win). */
+function b2bRuleCurrent(supplierId) {
+  return _b2bRulesDraft.has(supplierId) ? _b2bRulesDraft.get(supplierId) : b2bRuleSaved(supplierId);
+}
+
+/** Resolves the same waterfall the server does, for the preview. */
+function b2bEffectiveRule(supplierId) {
+  const own = b2bRuleCurrent(supplierId);
+  if (typeof own === 'number') {
+    return { amount: own, source: _b2bRulesScope ? 'agent' : 'default' };
+  }
+  if (_b2bRulesScope) {
+    const inherited = _b2bConfig?.supplierDefaults?.[supplierId];
+    if (typeof inherited === 'number' && Number.isFinite(inherited)) {
+      return { amount: inherited, source: 'inherited' };
+    }
+  }
+  return { amount: 0, source: 'none' };
+}
+
+/** Suppliers whose draft value differs from what is stored. */
+function b2bRulesDirtyIds() {
+  return [..._b2bRulesDraft.keys()].filter(id => _b2bRulesDraft.get(id) !== b2bRuleSaved(id));
+}
+
+function b2bRuleRowHtml(supplier) {
+  const current = b2bRuleCurrent(supplier.id);
+  const hasRule = current !== null;
+  const sign = hasRule && current < 0 ? -1 : 1;
+  const amount = hasRule ? Math.abs(current) : '';
+  const name = escapeHtml(supplier.name || supplier.id);
+  // With no rule set, neither direction is shown as chosen — a lit-up "Markup"
+  // on an empty row reads as "+₹0 is configured", which it isn't.
+  const signBtn = (value, icon, label) => `
+    <button type="button" data-rule-sign-btn="${value}" aria-pressed="${hasRule && sign === value}"
+      class="b2b-sign-btn${hasRule && sign === value ? ' is-active' : ''}"><i class="bi ${icon}"></i>${label}</button>`;
+
+  return `<tr data-supplier-id="${escapeHtml(supplier.id)}" data-rule-sign="${sign}">
+    <td>
+      <span class="b2b-rule-supplier">${name}</span>
+      <span class="b2b-rule-supplier-meta">#${escapeHtml(supplier.id)}</span>
+    </td>
+    <td>
+      <div class="b2b-rule-editor">
+        <div class="b2b-sign" role="group" aria-label="Rule direction for ${name}">
+          ${signBtn(1, 'bi-plus-lg', 'Markup')}${signBtn(-1, 'bi-dash-lg', 'Discount')}
+        </div>
+        <div class="b2b-amount">
+          <span class="b2b-amount-prefix" aria-hidden="true">₹</span>
+          <input data-rule-amount type="number" min="0" step="50" value="${amount}" placeholder="0"
+            aria-label="Rule amount for ${name}" class="admin-control admin-control-sm">
+        </div>
+        <button type="button" data-rule-clear class="b2b-rule-clear" title="Clear this rule"
+          aria-label="Clear rule for ${name}"><i class="bi bi-x-lg"></i></button>
+      </div>
+    </td>
+    <td data-rule-source></td>
+    <td class="text-right" data-rule-price></td>
+  </tr>`;
+}
+
+/**
+ * Repaints only the derived cells of one row. Keeping the inputs untouched is
+ * what lets the preview update on every keystroke without stealing focus.
+ */
+function updateB2BRuleRow(tr) {
+  const supplierId = tr.dataset.supplierId;
+  const { amount, source } = b2bEffectiveRule(supplierId);
+  const markup = b2bRulesScopeMarkup();
+  const baseline = Math.max(0, Math.round(_b2bRulesBase + markup));
+  const price = Math.max(0, Math.round(_b2bRulesBase + markup + amount));
+  const delta = price - baseline;
+  const margin = markup + amount; // negative ⇒ selling under the supplier's rate
+
+  const badge = B2B_RULE_BADGES[source];
+  const inheritedAmount = source === 'inherited' ? ` ${b2bSignedLabel(amount)}` : '';
+  tr.querySelector('[data-rule-source]').innerHTML =
+    `<span class="admin-status-pill ${badge.cls}"><i class="bi ${badge.icon}"></i>${badge.label}${inheritedAmount}</span>`;
+
+  const deltaClass = delta === 0 ? 'is-flat' : delta > 0 ? 'is-up' : 'is-down';
+  tr.querySelector('[data-rule-price]').innerHTML = `
+    <span class="b2b-rule-price${margin < 0 ? ' is-loss' : ''}">₹${price.toLocaleString()}</span>
+    <span class="b2b-rule-delta ${deltaClass}">${delta === 0 ? 'no change' : b2bSignedLabel(delta)}</span>
+    ${margin < 0
+      ? `<span class="b2b-rule-warn"><i class="bi bi-exclamation-triangle-fill"></i>under supplier rate</span>`
+      : ''}`;
+
+  tr.classList.toggle('is-dirty', _b2bRulesDraft.has(supplierId)
+    && _b2bRulesDraft.get(supplierId) !== b2bRuleSaved(supplierId));
+  tr.querySelector('[data-rule-clear]').hidden = b2bRuleCurrent(supplierId) === null;
+  syncB2BRowSign(tr);
+}
+
+/** Reads the row's controls into the draft, then repaints it. */
+function commitB2BRuleRow(tr) {
+  const raw = tr.querySelector('[data-rule-amount]').value.trim();
+  let value = null;
+  if (raw !== '') {
+    const magnitude = Math.abs(Number(raw));
+    if (Number.isFinite(magnitude)) {
+      const signed = (Number(tr.dataset.ruleSign) || 1) < 0 ? -magnitude : magnitude;
+      // Global defaults have no tier beneath them, so 0 there means "no rule".
+      // Under an agent, 0 is meaningful: it cancels the supplier default.
+      value = signed === 0 && !_b2bRulesScope ? null : signed;
+    }
+  }
+  _b2bRulesDraft.set(tr.dataset.supplierId, value);
+  updateB2BRuleRow(tr);
+  updateB2BRulesSaveBar();
+}
+
+/**
+ * Lights the chosen direction only once a rule actually exists, or once the
+ * admin has explicitly picked one (`signTouched`) and is about to type.
+ */
+function syncB2BRowSign(tr) {
+  const show = b2bRuleCurrent(tr.dataset.supplierId) !== null || tr.dataset.signTouched === '1';
+  const sign = Number(tr.dataset.ruleSign) || 1;
+  tr.querySelectorAll('[data-rule-sign-btn]').forEach(btn => {
+    const active = show && Number(btn.dataset.ruleSignBtn) === sign;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function setB2BRowSign(tr, sign) {
+  tr.dataset.ruleSign = String(sign);
+  tr.dataset.signTouched = '1';
+  syncB2BRowSign(tr);
+}
+
+function renderB2BRulesFormula() {
+  const el = document.getElementById('b2b-rules-formula');
+  if (!el) return;
+  const agent = b2bRulesScopeAgent();
+  const markup = b2bRulesScopeMarkup();
+  const markupLabel = agent && typeof agent.markupOverride === 'number'
+    ? `${escapeHtml(agent.loginId || 'agent')} markup`
+    : 'common markup';
+  const who = agent ? escapeHtml(agent.loginId || agent.name || 'this agent') : 'each agent';
+
+  el.innerHTML = `
+    <span class="b2b-formula-term">₹${_b2bRulesBase.toLocaleString()}<em>supplier rate</em></span>
+    <span class="b2b-formula-op">+</span>
+    <span class="b2b-formula-term">₹${markup.toLocaleString()}<em>${markupLabel}</em></span>
+    <span class="b2b-formula-op">+</span>
+    <span class="b2b-formula-term is-focus">supplier rule<em>set below</em></span>
+    <span class="b2b-formula-op">=</span>
+    <span class="b2b-formula-term is-result">what ${who} pays</span>`;
+}
+
+function updateB2BRulesSaveBar() {
+  const bar = document.getElementById('b2b-rules-savebar');
+  if (!bar) return;
+  const dirty = b2bRulesDirtyIds().length;
+  bar.hidden = dirty === 0;
+  const count = document.getElementById('b2b-savebar-count');
+  const noun = document.getElementById('b2b-savebar-noun');
+  if (count) count.textContent = dirty;
+  if (noun) noun.textContent = dirty === 1 ? 'rule' : 'rules';
+}
+
+function renderB2BRules() {
+  const tbody = document.getElementById('b2b-rules-body');
+  if (!tbody) return;
+
+  const scopeSel = document.getElementById('b2b-rules-agent');
+  if (scopeSel) {
+    scopeSel.innerHTML = `<option value="">All agents — supplier defaults</option>` + _b2bAgents
+      .map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.loginId || a.id)}${a.name ? ` — ${escapeHtml(a.name)}` : ''}</option>`)
+      .join('');
+    // A deleted agent leaves a stale scope pointing at nothing; fall back to global.
+    if (_b2bRulesScope && !b2bRulesScopeAgent()) _b2bRulesScope = '';
+    scopeSel.value = _b2bRulesScope;
+  }
+
+  if (!_agents.length) {
+    tbody.innerHTML = `<tr><td colspan="4">
+      <div class="b2b-rules-empty">
+        <i class="bi bi-inboxes"></i>
+        <p class="b2b-rules-empty-title">No suppliers yet</p>
+        <p class="b2b-rules-empty-desc">Add rate suppliers in the <strong>Agents</strong> tab.
+          Each one shows up here so you can mark its fares up or down per agent.</p>
+      </div></td></tr>`;
+  } else {
+    tbody.innerHTML = _agents.map(b2bRuleRowHtml).join('');
+    tbody.querySelectorAll('tr[data-supplier-id]').forEach(updateB2BRuleRow);
+  }
+
+  renderB2BRulesFormula();
+  updateB2BRulesSaveBar();
+  wireB2BRules();
+}
+
+async function saveB2BRulesDraft(btn) {
+  const dirty = b2bRulesDirtyIds();
+  if (!dirty.length) return;
+  const agent = b2bRulesScopeAgent();
+
+  // Send the full map, not just the dirty keys — updateDoc replaces the field
+  // wholesale, which is what makes a cleared rule actually disappear.
+  const rules = {};
+  for (const supplier of _agents) {
+    const value = b2bRuleCurrent(supplier.id);
+    if (typeof value === 'number') rules[supplier.id] = value;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    if (agent) {
+      await updateB2BAgent(agent.id, { supplierAdjustments: rules });
+      _b2bAgents = await getB2BAgents();
+    } else {
+      await saveB2BSupplierDefaults(rules);
+      _b2bConfig = await getB2BConfig();
+    }
+    _b2bRulesDraft.clear();
+    renderB2BRules();
+    toast('success', 'Rules Saved', agent
+      ? `${dirty.length} supplier rule${dirty.length === 1 ? '' : 's'} updated for ${agent.loginId}. Live on their next search.`
+      : `${dirty.length} supplier default${dirty.length === 1 ? '' : 's'} updated across all agents.`);
+  } catch (err) {
+    toast('error', 'Save Failed', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save rules';
+  }
+}
+
+function wireB2BRules() {
+  const tbody = document.getElementById('b2b-rules-body');
+  if (tbody && !tbody.dataset.actionsWired) {
+    tbody.dataset.actionsWired = '1';
+
+    tbody.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-supplier-id]');
+      if (!tr) return;
+
+      const signBtn = e.target.closest('[data-rule-sign-btn]');
+      if (signBtn) {
+        setB2BRowSign(tr, Number(signBtn.dataset.ruleSignBtn));
+        const amountInp = tr.querySelector('[data-rule-amount]');
+        // Choosing a direction before typing shouldn't create a rule.
+        if (amountInp.value.trim() === '') { amountInp.focus(); return; }
+        commitB2BRuleRow(tr);
+        return;
+      }
+
+      if (e.target.closest('[data-rule-clear]')) {
+        tr.querySelector('[data-rule-amount]').value = '';
+        tr.dataset.ruleSign = '1';
+        delete tr.dataset.signTouched; // back to "no direction chosen"
+        commitB2BRuleRow(tr);
+      }
+    });
+
+    tbody.addEventListener('input', (e) => {
+      if (!e.target.matches('[data-rule-amount]')) return;
+      const tr = e.target.closest('tr[data-supplier-id]');
+      if (tr) commitB2BRuleRow(tr);
+    });
+  }
+
+  const scopeSel = document.getElementById('b2b-rules-agent');
+  if (scopeSel && !scopeSel.dataset.wired) {
+    scopeSel.dataset.wired = '1';
+    scopeSel.addEventListener('change', (e) => {
+      const dirty = b2bRulesDirtyIds().length;
+      if (dirty && !confirm(`Discard ${dirty} unsaved rule change${dirty === 1 ? '' : 's'}?`)) {
+        e.target.value = _b2bRulesScope;
+        return;
+      }
+      _b2bRulesScope = e.target.value;
+      _b2bRulesDraft.clear();
+      renderB2BRules();
+    });
+  }
+
+  const baseInp = document.getElementById('b2b-rules-base');
+  if (baseInp && !baseInp.dataset.wired) {
+    baseInp.dataset.wired = '1';
+    baseInp.addEventListener('input', (e) => {
+      _b2bRulesBase = Math.max(0, Number(e.target.value) || 0);
+      renderB2BRulesFormula();
+      document.querySelectorAll('#b2b-rules-body tr[data-supplier-id]').forEach(updateB2BRuleRow);
+    });
+  }
+
+  const saveBtn = document.getElementById('b2b-rules-save');
+  if (saveBtn && !saveBtn.dataset.wired) {
+    saveBtn.dataset.wired = '1';
+    saveBtn.addEventListener('click', () => saveB2BRulesDraft(saveBtn));
+  }
+
+  const discardBtn = document.getElementById('b2b-rules-discard');
+  if (discardBtn && !discardBtn.dataset.wired) {
+    discardBtn.dataset.wired = '1';
+    discardBtn.addEventListener('click', () => {
+      _b2bRulesDraft.clear();
+      renderB2BRules();
+    });
+  }
 }
 
 /** Unique origin airport codes derived from sector codes ("CCJ RUH" → "CCJ"). */
