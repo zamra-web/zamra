@@ -533,21 +533,29 @@ export async function getVisaStampings() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function addVisaStamping(data) {
+export async function addVisaStamping(data, posterFile = null) {
+  let posterUrl = data.posterUrl || '';
+  if (posterFile) {
+    posterUrl = await uploadLogo('service_posters', posterFile);
+  }
   const docRef = await addDoc(collection(db, 'visa_stamping'), {
     country: data.country || '',
     description: data.description || '',
     cost: Number(data.cost) || 0,
+    posterUrl,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
   return docRef.id;
 }
 
-export async function updateVisaStamping(id, data) {
+export async function updateVisaStamping(id, data, posterFile = null) {
   let updates = { ...data, updatedAt: serverTimestamp() };
   if (updates.cost !== undefined) updates.cost = Number(updates.cost);
   delete updates.processingTime; // field removed — strip it from any update payload
+  if (posterFile) {
+    updates.posterUrl = await uploadLogo('service_posters', posterFile);
+  }
   await updateDoc(doc(db, 'visa_stamping', id), updates);
 }
 
@@ -563,20 +571,28 @@ export async function getAttestations() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function addAttestation(data) {
+export async function addAttestation(data, posterFile = null) {
+  let posterUrl = data.posterUrl || '';
+  if (posterFile) {
+    posterUrl = await uploadLogo('service_posters', posterFile);
+  }
   const docRef = await addDoc(collection(db, 'attestations'), {
     country: data.country || '',
     certificate: data.certificate || '',
     cost: Number(data.cost) || 0,
+    posterUrl,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
   return docRef.id;
 }
 
-export async function updateAttestation(id, data) {
+export async function updateAttestation(id, data, posterFile = null) {
   let updates = { ...data, updatedAt: serverTimestamp() };
   if (updates.cost !== undefined) updates.cost = Number(updates.cost);
+  if (posterFile) {
+    updates.posterUrl = await uploadLogo('service_posters', posterFile);
+  }
   await updateDoc(doc(db, 'attestations', id), updates);
 }
 

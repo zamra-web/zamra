@@ -23,7 +23,7 @@ let _cityByCode = new Map(); // IATA code → city name, for friendly select lab
 
 // Last search kept in memory so sort/filter re-render without another callable.
 let _results = { fares: [], sectorInfo: null, origin: '', dest: '' };
-let _view = { sort: 'price-asc', airline: 'all' };
+let _view = { sort: 'date-asc', airline: 'all' };
 
 // Hide until the agent claim is verified to avoid flashing portal content.
 document.documentElement.style.visibility = 'hidden';
@@ -191,6 +191,17 @@ function fareDepartureMinutes(fare) {
   return timeToMinutes(splitFlightTimeRange(fare.flightTime).departure);
 }
 
+/**
+ * Fares are shown rounded to the nearest ₹100 so agents never quote an odd
+ * number like ₹21,501. Sorting uses the same rounded value, otherwise two
+ * cards displaying the same price could sit in an apparently random order.
+ */
+function roundFare(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num / 100) * 100;
+}
+
 function renderSearchPrompt() {
   const list = document.getElementById('flightList');
   if (!list) return;
@@ -298,12 +309,12 @@ function visibleFares() {
     : _results.fares.filter(f => airlineNameFor(f) === _view.airline);
 
   const sorters = {
-    'price-asc': (a, b) => Number(a.price) - Number(b.price),
-    'price-desc': (a, b) => Number(b.price) - Number(a.price),
+    'price-asc': (a, b) => roundFare(a.price) - roundFare(b.price),
+    'price-desc': (a, b) => roundFare(b.price) - roundFare(a.price),
     'time-asc': (a, b) => fareDepartureMinutes(a) - fareDepartureMinutes(b),
     'date-asc': (a, b) => new Date(a.flightDate) - new Date(b.flightDate),
   };
-  return rows.sort(sorters[_view.sort] || sorters['price-asc']);
+  return rows.sort(sorters[_view.sort] || sorters['date-asc']);
 }
 
 function renderResults() {
@@ -343,7 +354,7 @@ function renderResults() {
     const totalBaggage = baggageVal + extraBaggageVal;
     const baggageLabelStr = totalBaggage > 0 ? `${totalBaggage}KG` : '0KG';
     const airlineBrand = resolveAirlineBrand(_airlineMap.get(fare.airlineId));
-    const price = '₹' + Number(fare.price).toLocaleString('en-IN');
+    const price = '₹' + roundFare(fare.price).toLocaleString('en-IN');
 
     const item = {
       airline: airlineBrand.name,
@@ -395,7 +406,49 @@ function wireResultControls() {
   });
 }
 
-// ── Visa & Immigration services (3 categories only) ─────────────────────────
+// ── Visa & Immigration services (3 categories, poster-card layout) ──────────
+
+/**
+ * Promo posters shipped with the site, keyed by normalised country name per
+ * category. A Firestore `posterUrl` (uploaded from the admin dashboard) always
+ * wins; these are the built-in fallbacks for the artwork we already have.
+ * Posters stay local under /assets/posters — never reference external URLs.
+ */
+const LOCAL_POSTERS = {
+  visa: {
+    'umrah': '/assets/posters/umrah-visa.jpg',
+    'umrah visa': '/assets/posters/umrah-visa.jpg',
+    'uae': '/assets/posters/uae-visa.jpg',
+    'united arab emirates': '/assets/posters/uae-visa.jpg',
+    'qatar': '/assets/posters/qatar-visa.jpg',
+    'oman': '/assets/posters/oman-visa.jpg',
+  },
+  stamping: {
+    'kuwait': '/assets/posters/kuwait-visa-stamping.jpg',
+  },
+  attestation: {},
+};
+
+/** Fixed display order for tourist visas; unlisted countries follow, A–Z. */
+const VISA_ORDER = ['umrah', 'umrah visa', 'uae', 'united arab emirates', 'qatar', 'saudi arabia', 'kuwait'];
+
+function normaliseCountry(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function localPoster(category, name) {
+  return LOCAL_POSTERS[category]?.[normaliseCountry(name)] || '';
+}
+
+/** Uploaded artwork wins over the shipped poster for a country. */
+function posterFor(category, name, uploadedUrl) {
+  return uploadedUrl || localPoster(category, name);
+}
+
+function visaOrderIndex(name) {
+  const idx = VISA_ORDER.indexOf(normaliseCountry(name));
+  return idx === -1 ? VISA_ORDER.length : idx;
+}
 
 function formatRate(rate) {
   if (!rate && rate !== 0) return 'N/A';
@@ -409,44 +462,68 @@ function escHtml(value = '') {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function serviceRowHtml({ title, subtitle, rate, waText }) {
+/**
+ * One poster card. Falls back to a branded gradient tile with the category
+ * icon when no poster has been uploaded for that country yet, so a half-filled
+ * poster set still renders as a clean grid.
+ */
+function serviceCardHtml({ title, subtitle, rate, poster, icon, waText }) {
   const waNumber = _context?.whatsappNumber || '919846606738';
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
+  const media = poster
+    ? `<img src="${escHtml(poster)}" alt="${escHtml(title)} poster" loading="lazy"
+         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.06]">`
+    : `<div class="w-full h-full bg-gradient-to-br from-primary/80 to-blue-400/70 flex items-center justify-center text-white/90 text-[40px]">
+         <i class="${icon}"></i>
+       </div>`;
+
   return `
-    <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/60 bg-[#f8fafc] hover:border-primary/40 hover:bg-white transition-colors">
-      <div class="min-w-0">
-        <div class="text-[14px] font-bold text-navy truncate">${escHtml(title)}</div>
-        <div class="text-[12px] text-text-muted font-medium truncate">${escHtml(subtitle)} · ${escHtml(formatRate(rate))}</div>
+    <div class="group bg-bg-card rounded-[20px] max-sm:rounded-[16px] border border-border shadow-[var(--shadow-premium-soft)] overflow-hidden flex flex-col premium-hover-lift">
+      <div class="relative aspect-[4/5] overflow-hidden bg-slate-100">
+        ${media}
+        <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 to-transparent"></div>
+        <h4 class="absolute left-4 right-4 bottom-3 text-white font-heading font-bold text-[16px] max-sm:text-[14px] leading-tight drop-shadow">
+          ${escHtml(title)}
+        </h4>
       </div>
-      <a href="${waLink}" target="_blank"
-        class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 text-[#1da851] text-[12px] font-bold hover:bg-[#25D366]/20 transition-colors">
-        <i class="bi bi-whatsapp"></i> Enquire
-      </a>
+      <div class="p-4 max-sm:p-3 flex flex-col flex-1 gap-3">
+        <p class="text-[12px] text-text-muted font-medium leading-snug line-clamp-2">${escHtml(subtitle)}</p>
+        <div class="mt-auto flex items-end justify-between gap-2">
+          <div>
+            <div class="text-[11px] text-text-muted font-semibold uppercase tracking-[0.6px]">Agent rate</div>
+            <div class="text-[17px] max-sm:text-[15px] font-heading font-black text-navy">${escHtml(formatRate(rate))}</div>
+          </div>
+          <a href="${waLink}" target="_blank" rel="noopener"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366]/10 text-[#1da851] text-[12px] font-bold hover:bg-[#25D366]/20 transition-colors">
+            <i class="bi bi-whatsapp"></i> Enquire
+          </a>
+        </div>
+      </div>
     </div>`;
 }
 
-/** Shimmer placeholders so the three service cards do not sit on bare text. */
+/** Shimmer placeholders so the poster grids do not pop in from empty space. */
 function renderServiceSkeletons() {
-  const rows = Array.from({ length: 4 }, () => `
-    <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/60 bg-[#f8fafc]">
-      <div class="min-w-0 flex-1 space-y-2">
-        <div class="h-[13px] w-1/2 rounded bg-slate-200 animate-pulse"></div>
+  const cards = Array.from({ length: 4 }, () => `
+    <div class="bg-bg-card rounded-[20px] max-sm:rounded-[16px] border border-border overflow-hidden">
+      <div class="aspect-[4/5] bg-slate-200 animate-pulse"></div>
+      <div class="p-4 max-sm:p-3 space-y-2">
         <div class="h-[11px] w-3/4 rounded bg-slate-200/70 animate-pulse"></div>
+        <div class="h-[16px] w-1/2 rounded bg-slate-200 animate-pulse"></div>
       </div>
-      <div class="h-[28px] w-[76px] shrink-0 rounded-lg bg-slate-200/70 animate-pulse"></div>
     </div>`).join('');
 
   ['b2b-visas-list', 'b2b-stamping-list', 'b2b-attestations-list'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = rows;
+    if (el) el.innerHTML = cards;
   });
 }
 
-function renderServiceList(el, rows) {
+function renderServiceList(el, cards) {
   if (!el) return;
-  el.innerHTML = rows.length
-    ? rows.join('')
-    : `<div class="text-center text-text-muted text-sm py-6">No services listed right now. Enquire on WhatsApp.</div>`;
+  el.innerHTML = cards.length
+    ? cards.join('')
+    : `<div class="col-span-full text-center text-text-muted text-sm py-8 rounded-[20px] border-2 border-dashed border-border bg-[#f8fafc]">No services listed right now. Enquire on WhatsApp.</div>`;
 }
 
 async function loadVisaServices() {
@@ -459,27 +536,37 @@ async function loadVisaServices() {
       getAttestations().catch(() => []),
     ]);
 
-    visas.sort((a, b) => (a.countryName || '').localeCompare(b.countryName || ''));
-    renderServiceList(document.getElementById('b2b-visas-list'), visas.map(v => serviceRowHtml({
+    // Umrah first, then UAE, Qatar, Saudi Arabia, Kuwait — anything else A–Z.
+    visas.sort((a, b) =>
+      visaOrderIndex(a.countryName) - visaOrderIndex(b.countryName) ||
+      (a.countryName || '').localeCompare(b.countryName || ''));
+    renderServiceList(document.getElementById('b2b-visas-list'), visas.map(v => serviceCardHtml({
       title: v.countryName || 'Unknown',
       subtitle: v.visaType || 'Tourist Visa',
       rate: v.rate,
+      // A purpose-made poster reads better than a bare flag, so it wins here.
+      poster: localPoster('visa', v.countryName) || v.flagUrl || '',
+      icon: 'bi bi-globe-americas',
       waText: `Hello Zamra Travels, ${agentTag} I am interested in a visa for:\n\n🌍 Country: *${v.countryName || ''}*\n📄 Visa Type: *${v.visaType || 'Tourist'}*\n\nPlease provide details.`,
     })));
 
     stampings.sort((a, b) => (a.country || '').localeCompare(b.country || ''));
-    renderServiceList(document.getElementById('b2b-stamping-list'), stampings.map(s => serviceRowHtml({
+    renderServiceList(document.getElementById('b2b-stamping-list'), stampings.map(s => serviceCardHtml({
       title: s.country || 'Unknown',
       subtitle: s.description || 'Visa Stamping',
       rate: s.cost !== undefined ? s.cost : s.rate,
+      poster: posterFor('stamping', s.country, s.posterUrl),
+      icon: 'bi bi-file-earmark-check',
       waText: `Hello Zamra Travels, ${agentTag} I need visa stamping for:\n\n🌍 Country: *${s.country || ''}*\n📋 Service: *${s.description || 'Visa Stamping'}*\n\nPlease provide details.`,
     })));
 
     attestations.sort((a, b) => (a.country || '').localeCompare(b.country || ''));
-    renderServiceList(document.getElementById('b2b-attestations-list'), attestations.map(a => serviceRowHtml({
+    renderServiceList(document.getElementById('b2b-attestations-list'), attestations.map(a => serviceCardHtml({
       title: a.country || 'Unknown',
       subtitle: a.certificate || 'Attestation',
       rate: a.cost !== undefined ? a.cost : a.rate,
+      poster: posterFor('attestation', a.country, a.posterUrl),
+      icon: 'bi bi-patch-check',
       waText: `Hello Zamra Travels, ${agentTag} I need attestation for:\n\n🌍 Country: *${a.country || ''}*\n📄 Certificate: *${a.certificate || 'Attestation'}*\n\nPlease provide details.`,
     })));
   } catch (err) {

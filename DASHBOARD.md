@@ -374,6 +374,7 @@ Fares are grouped by sector + airline + date + time keeping the **minimum final 
 | `description` | String | Description of stamping |
 | `cost` | Number | Cost in ₹ |
 | `processingTime` | String | Processing details |
+| `posterUrl` | String | Optional promo poster (Storage `service_posters/`), shown on the B2B portal card |
 
 ### `attestations`
 | Field | Type | Notes |
@@ -381,6 +382,7 @@ Fares are grouped by sector + airline + date + time keeping the **minimum final 
 | `country` | String | Target country |
 | `certificate` | String | Type of certificate e.g. `'Marriage'` |
 | `cost` | Number | Cost in ₹ |
+| `posterUrl` | String | Optional promo poster (Storage `service_posters/`), shown on the B2B portal card |
 
 ### `passport_services`
 | Field | Type | Notes |

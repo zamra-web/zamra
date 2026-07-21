@@ -9186,9 +9186,19 @@ function openVisaModal(visa) {
 
 // --- Visa Stamping ---
 
+/** Tiny poster preview for the stamping / attestation tables. */
+function servicePosterThumb(posterUrl, label) {
+  if (!posterUrl) {
+    return `<span class="w-[34px] h-[34px] shrink-0 rounded-lg bg-slate-200/70 text-slate-400 flex items-center justify-center text-[13px]" title="No poster uploaded"><i class="bi bi-image"></i></span>`;
+  }
+  return `<img src="${escapeHtml(posterUrl)}" alt="${escapeHtml(label)} poster" class="w-[34px] h-[34px] shrink-0 rounded-lg object-cover border border-border">`;
+}
+
 function visaStampingRow(v) {
   return `<tr data-id="${v.id}">
-    <td class="font-bold text-navy">${escapeHtml(v.country)}</td>
+    <td class="font-bold text-navy">
+      <div class="flex items-center gap-2.5">${servicePosterThumb(v.posterUrl, v.country)}<span>${escapeHtml(v.country)}</span></div>
+    </td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.description)}</td>
     <td class="font-black text-[15px] text-navy">₹${(v.cost || 0).toLocaleString()}</td>
     <td>
@@ -9234,6 +9244,7 @@ function openVisaStampingModal(item) {
   const countryInput = document.getElementById('visa-stamping-country');
   const descInput = document.getElementById('visa-stamping-desc');
   const costInput = document.getElementById('visa-stamping-cost');
+  const posterInput = document.getElementById('visa-stamping-poster');
 
   if (item) {
     idInput.value = item.id;
@@ -9255,9 +9266,10 @@ function openVisaStampingModal(item) {
         description: descInput.value.trim(),
         cost: Number(costInput.value),
       };
+      const posterFile = posterInput?.files?.[0] || null;
 
-      if (vId) await updateVisaStamping(vId, data);
-      else await addVisaStamping(data);
+      if (vId) await updateVisaStamping(vId, data, posterFile);
+      else await addVisaStamping(data, posterFile);
 
       toast('success', 'Saved!', `Visa stamping for ${data.country} saved.`);
       document.getElementById('admin-modal').close();
@@ -9274,7 +9286,9 @@ function openVisaStampingModal(item) {
 
 function attestationRow(v) {
   return `<tr data-id="${v.id}">
-    <td class="font-bold text-navy">${escapeHtml(v.country)}</td>
+    <td class="font-bold text-navy">
+      <div class="flex items-center gap-2.5">${servicePosterThumb(v.posterUrl, v.country)}<span>${escapeHtml(v.country)}</span></div>
+    </td>
     <td class="text-text-muted text-[13px]">${escapeHtml(v.certificate)}</td>
     <td class="font-black text-[15px] text-navy">₹${(v.cost || 0).toLocaleString()}</td>
     <td>
@@ -9328,6 +9342,8 @@ function openAttestationModal(item) {
     costInput.value = item.cost || 0;
   }
 
+  const posterInput = document.getElementById('attestation-poster');
+
   modalForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = modalForm.querySelector('button[type="submit"]');
@@ -9341,9 +9357,10 @@ function openAttestationModal(item) {
         certificate: certInput.value.trim(),
         cost: Number(costInput.value),
       };
+      const posterFile = posterInput?.files?.[0] || null;
 
-      if (vId) await updateAttestation(vId, data);
-      else await addAttestation(data);
+      if (vId) await updateAttestation(vId, data, posterFile);
+      else await addAttestation(data, posterFile);
 
       toast('success', 'Saved!', `Attestation for ${data.country} saved.`);
       document.getElementById('admin-modal').close();

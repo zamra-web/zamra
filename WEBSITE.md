@@ -202,7 +202,11 @@ Auth-gated partner portal on `b2b.zamratravels.com`. Shares the public site's st
 
 **Route selects.** Built only from the agent's allowed sectors. Labels read `Kozhikode (CCJ)`, derived from the `sectorFrom` / `sectorTo` city names the portal context already returns; unnamed codes fall back to the bare IATA code.
 
-**Results controls** (`#b2b-results-controls`, hidden until a search returns): sort by price / departure time / travel date, filter by airline, and copy a shareable link. All operate on the already-fetched `fares` array — no extra callable round-trips. The airline filter is rebuilt per search from whatever that route actually returned.
+**Results controls** (`#b2b-results-controls`, hidden until a search returns): sort by travel date (the default) / price / departure time, filter by airline, and copy a shareable link. All operate on the already-fetched `fares` array — no extra callable round-trips. The airline filter is rebuilt per search from whatever that route actually returned. The default must stay in sync in two places: the `selected` option in `b2b.html` and `_view.sort` in `b2b/main.js`.
+
+**Price rounding.** `roundFare()` rounds every displayed fare to the nearest ₹100 so agents never quote an odd number like ₹21,501. The price sorters round too — sorting on the raw value would let two cards showing the same price sit in an apparently arbitrary order. The WhatsApp booking message quotes the same rounded figure that is on screen.
+
+**Visa services** render as three poster-card grids (tourist visas, stamping, attestations) rather than text rows. Artwork resolves as *uploaded `posterUrl` → shipped poster in `LOCAL_POSTERS` → gradient tile with the category icon*, so a half-filled poster set still renders as a clean grid. Tourist visas invert that first step — a purpose-made poster beats the bare `flagUrl`. `LOCAL_POSTERS` keys are lower-cased country names, so a country renamed in Firestore silently drops to its fallback; add the new spelling as an alias rather than renaming the file. Tourist visas use a fixed `VISA_ORDER` (Umrah, UAE, Qatar, Saudi Arabia, Kuwait) with everything else following A–Z.
 
 **Deep links.** The chosen route is mirrored to `?from=CCJ&to=JED` via `history.replaceState`. On boot the params pre-select and auto-search when the agent is permitted that route, otherwise it falls back silently to `defaultOrigin`. This is a convenience only — `getB2BFares` re-authorises every sector server-side regardless.
 
@@ -290,8 +294,8 @@ cd web && npm run build        # outputs to web/dist/
 | `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `extraBaggage`, `flightTime`, `isHidden` |
 | `services` | `serviceType`, `title`, `basePrice`, `isActive` |
 | `visas` | `countryName`, `visaType`, `processingTime`, `rate`, `flagUrl` |
-| `visa_stamping` | `country`, `description`, `processingTime`, `cost` |
-| `attestations` | `country`, `certificate`, `cost` |
+| `visa_stamping` | `country`, `description`, `processingTime`, `cost`, `posterUrl` |
+| `attestations` | `country`, `certificate`, `cost`, `posterUrl` |
 | `passport_services` | `type`, `description`, `cost` |
 | `tours` | `title`, `duration`, `category`, `price`, `description`, `highlights`, `itinerary`, `inclusions`, `exclusions`, `coverImageUrl`, `isActive` |
 | `hajj_umrah_packages` | `title`, `type`, `departureCity`, `airline`, `departureDate`, `days`, `nights`, `price`, `description`, `highlights`, `inclusions`, `coverImageUrl`, `isActive` |

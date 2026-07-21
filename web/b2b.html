@@ -137,10 +137,10 @@
               <label for="b2b-sort" class="text-[12px] font-bold text-text-muted uppercase tracking-[0.6px]">Sort</label>
               <select id="b2b-sort"
                 class="bg-white border border-border rounded-[10px] px-3 h-[38px] text-[13px] text-text-main font-semibold cursor-pointer focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10">
+                <option value="date-asc" selected>Travel date</option>
                 <option value="price-asc">Price: low to high</option>
                 <option value="price-desc">Price: high to low</option>
                 <option value="time-asc">Departure time</option>
-                <option value="date-asc">Travel date</option>
               </select>
             </div>
 
@@ -180,45 +180,46 @@
       <div class="h-[4px] w-[60px] bg-primary rounded-[2px] mt-[12px]"></div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Each category is its own poster wall — cards are built in b2b/main.js -->
+    <div class="space-y-10">
 
-      <div class="bg-bg-card rounded-[20px] border border-border shadow-[var(--shadow-premium-soft)] overflow-hidden flex flex-col premium-hover-lift">
-        <div class="p-5 border-b border-border flex items-center gap-3 bg-gradient-to-r from-primary/5 to-transparent">
-          <div class="w-[44px] h-[44px] rounded-xl bg-primary/10 text-primary flex items-center justify-center text-[20px]">
+      <div>
+        <div class="flex items-center gap-3 mb-5">
+          <div class="w-[44px] h-[44px] rounded-xl bg-primary/10 text-primary flex items-center justify-center text-[20px] shrink-0">
             <i class="bi bi-globe-americas"></i>
           </div>
           <div>
-            <h3 class="font-heading font-bold text-[16px] text-navy">Tourist Visas</h3>
+            <h3 class="font-heading font-bold text-[18px] max-sm:text-[16px] text-navy">Tourist Visas</h3>
             <p class="text-[12px] text-text-muted font-medium">Umrah &amp; other country visas</p>
           </div>
         </div>
-        <div id="b2b-visas-list" class="p-4 space-y-2 max-h-[320px] overflow-y-auto flex-1"></div>
+        <div id="b2b-visas-list" class="grid grid-cols-2 lg:grid-cols-4 gap-5 max-sm:gap-3"></div>
       </div>
 
-      <div class="bg-bg-card rounded-[20px] border border-border shadow-[var(--shadow-premium-soft)] overflow-hidden flex flex-col premium-hover-lift">
-        <div class="p-5 border-b border-border flex items-center gap-3 bg-gradient-to-r from-primary/5 to-transparent">
-          <div class="w-[44px] h-[44px] rounded-xl bg-primary/10 text-primary flex items-center justify-center text-[20px]">
+      <div>
+        <div class="flex items-center gap-3 mb-5">
+          <div class="w-[44px] h-[44px] rounded-xl bg-primary/10 text-primary flex items-center justify-center text-[20px] shrink-0">
             <i class="bi bi-file-earmark-check"></i>
           </div>
           <div>
-            <h3 class="font-heading font-bold text-[16px] text-navy">Visa Stamping</h3>
+            <h3 class="font-heading font-bold text-[18px] max-sm:text-[16px] text-navy">Visa Stamping</h3>
             <p class="text-[12px] text-text-muted font-medium">Kuwait, Saudi Arabia &amp; more</p>
           </div>
         </div>
-        <div id="b2b-stamping-list" class="p-4 space-y-2 max-h-[320px] overflow-y-auto flex-1"></div>
+        <div id="b2b-stamping-list" class="grid grid-cols-2 lg:grid-cols-4 gap-5 max-sm:gap-3"></div>
       </div>
 
-      <div class="bg-bg-card rounded-[20px] border border-border shadow-[var(--shadow-premium-soft)] overflow-hidden flex flex-col premium-hover-lift">
-        <div class="p-5 border-b border-border flex items-center gap-3 bg-gradient-to-r from-primary/5 to-transparent">
-          <div class="w-[44px] h-[44px] rounded-xl bg-primary/10 text-primary flex items-center justify-center text-[20px]">
+      <div>
+        <div class="flex items-center gap-3 mb-5">
+          <div class="w-[44px] h-[44px] rounded-xl bg-primary/10 text-primary flex items-center justify-center text-[20px] shrink-0">
             <i class="bi bi-patch-check"></i>
           </div>
           <div>
-            <h3 class="font-heading font-bold text-[16px] text-navy">Attestations</h3>
+            <h3 class="font-heading font-bold text-[18px] max-sm:text-[16px] text-navy">Attestations</h3>
             <p class="text-[12px] text-text-muted font-medium">Certificate &amp; document attestation</p>
           </div>
         </div>
-        <div id="b2b-attestations-list" class="p-4 space-y-2 max-h-[320px] overflow-y-auto flex-1"></div>
+        <div id="b2b-attestations-list" class="grid grid-cols-2 lg:grid-cols-4 gap-5 max-sm:gap-3"></div>
       </div>
 
     </div>
