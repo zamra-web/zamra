@@ -39,9 +39,15 @@ import {
   checkInBaggageOptions,
   resolveCheckInBaggageKg,
   formatCheckInBaggageLabel,
+  formatBaggageKg,
   hasVariableCheckInBaggage,
 } from '../shared/airline-baggage.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
+import {
+  sortFaresForExport,
+  buildFaresCsv,
+  buildExportFileName,
+} from './report-export.js';
 import { createSocialPublishingController } from './social-publishing.js';
 import {
   listPosterSocialCountries,
@@ -56,6 +62,13 @@ import {
   POSTER_COUNTRY_ML_LABELS,
 } from './social-markets.js';
 import { airportCity, airportName, resolveAirportCode } from '../shared/airports.js';
+import {
+  buildFlightDetailKey,
+  normalizeScheduleWindows,
+  resolveScheduledFlightTime,
+  findScheduleOverlaps,
+  toDateKey,
+} from '../shared/flight-schedule.js';
 import { appendVideoSlidesLimited } from './social-image-carousels.js';
 import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
 
@@ -655,7 +668,9 @@ let tableSort = {
   passportServices: { key: 'type', asc: true },
   tours: { key: 'title', asc: true },
   hajjUmrah: { key: 'title', asc: true },
-  reportFares: { key: 'flightDate', asc: true },
+  // 'sectorOrder' is the POS display order the exports use — the table opens on
+  // it so the sheet you download matches the rows you were just looking at.
+  reportFares: { key: 'sectorOrder', asc: true },
   databaseFares: { key: 'flightDate', asc: true },
 };
 let tableSearch = { agents: '', b2bAgents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '', tours: '', hajjUmrah: '' };
@@ -2424,17 +2439,29 @@ function buildPosterAirlineHelpers() {
   return { getAirline, toAirlineKey };
 }
 
+/** The `flight_details` doc for a fare, matched case- and padding-insensitively. */
+function findFlightDetailForFare(fare) {
+  const key = buildFlightDetailKey(fare?.airlineId, fare?.sectorId);
+  if (!key) return null;
+  return _flightDetails.find(
+    (d) => buildFlightDetailKey(d.airlineId, d.sectorId) === key,
+  ) || null;
+}
+
 /**
  * Flight time configured for an airline+sector in the Flight Details tab.
  * Fares uploaded before the n8n round-trip was fixed store an empty
  * `flightTime`; without this fallback the poster's Time column prints "—".
+ *
+ * Date-aware: a seasonal `schedules` window covering the fare's travel date
+ * beats the doc's default `flightTime`.
  */
 function getConfiguredFlightTime(fare) {
-  if (!fare?.airlineId || !fare?.sectorId) return '';
-  const detail = _flightDetails.find(
-    (d) => d.airlineId === fare.airlineId && d.sectorId === fare.sectorId,
+  return resolveScheduledFlightTime(
+    findFlightDetailForFare(fare),
+    fare?.flightDate,
+    normalizeFlightTime,
   );
-  return normalizeFlightTime(detail?.flightTime);
 }
 
 function resolvePosterFlightTime(fare) {
@@ -4299,63 +4326,88 @@ async function renderPoster(fares, selection) {
 
 const COLOR_FUNC_RE = /(oklch|oklab|lab|lch|color-mix|color\()/i;
 
+/**
+ * Resolves any CSS colour — including Tailwind v4's oklch() output — to a plain
+ * `rgba(r, g, b, a)` string that html2canvas 1.4.1 can parse.
+ *
+ * ★ This is the fix for tickets and reports that exported as solid black.
+ * The previous implementation asked `getComputedStyle().color` for the answer,
+ * but Chrome *serializes an oklch colour back as oklch()* — so the check
+ * "does the result still look like a colour function?" always failed, and the
+ * caller substituted #000000 for every colour it could not resolve, including
+ * background-color. A whole ticket of black boxes.
+ *
+ * Painting the colour onto a 1×1 canvas and reading the pixel back cannot fail
+ * that way: whatever the browser can parse, it can rasterize, and getImageData
+ * always hands back sRGB bytes.
+ */
 function normalizeCanvasColor(value) {
   if (!value) return value;
-  const val = value.trim();
+  const val = String(value).trim();
   if (!val) return val;
   if (val.startsWith('rgb') || val.startsWith('#') || val === 'transparent' || val === 'initial' || val === 'inherit') {
     return val;
   }
+
+  const cache = normalizeCanvasColor._cache || (normalizeCanvasColor._cache = new Map());
+  if (cache.has(val)) return cache.get(val);
+
+  let resolved = val;
   try {
-    // Prefer CSSColorValue if available (modern browsers)
-    if (typeof CSSColorValue !== 'undefined' && typeof CSSColorValue.parse === 'function') {
-      try {
-        const parsed = CSSColorValue.parse(val);
-        const out = parsed?.toString?.();
-        if (out && !COLOR_FUNC_RE.test(out)) return out;
-      } catch (_) { }
+    let ctx = normalizeCanvasColor._ctx;
+    if (!ctx) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      // willReadFrequently keeps the repeated 1×1 readback off the GPU path.
+      ctx = canvas.getContext('2d', { willReadFrequently: true });
+      normalizeCanvasColor._ctx = ctx;
     }
 
-    // Use a temporary element to resolve computed color to rgb()
-    const doc = document;
-    if (doc?.body) {
-      const tmp = normalizeCanvasColor._el || (normalizeCanvasColor._el = doc.createElement('span'));
-      tmp.style.color = '#000';
-      tmp.style.color = val;
-      doc.body.appendChild(tmp);
-      const computed = doc.defaultView?.getComputedStyle(tmp)?.color;
-      tmp.remove();
-      if (computed && !COLOR_FUNC_RE.test(computed)) return computed;
+    if (ctx) {
+      ctx.clearRect(0, 0, 1, 1);
+      // An unparseable fillStyle is ignored by the spec, leaving the previous
+      // value. Seed with a sentinel so we can tell "ignored" from "resolved".
+      ctx.fillStyle = '#000000';
+      ctx.fillStyle = val;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      resolved = a === 255
+        ? `rgb(${r}, ${g}, ${b})`
+        : `rgba(${r}, ${g}, ${b}, ${Number((a / 255).toFixed(3))})`;
     }
-
-    // Fallback to canvas normalization
-    const ctx = normalizeCanvasColor._ctx || (normalizeCanvasColor._ctx = document.createElement('canvas').getContext('2d'));
-    const baseline = ctx.fillStyle;
-    ctx.fillStyle = '#000';
-    const marker = ctx.fillStyle;
-    ctx.fillStyle = val;
-    const out = ctx.fillStyle;
-    if (out && !COLOR_FUNC_RE.test(out)) return out;
-    if (out === marker && val !== marker) {
-      ctx.fillStyle = baseline;
-      return val;
-    }
-    return out || val;
   } catch (_) {
-    return val;
+    resolved = val;
   }
+
+  cache.set(val, resolved);
+  return resolved;
+}
+
+/**
+ * A colour html2canvas is guaranteed to accept. Only used when
+ * normalizeCanvasColor could not resolve the input at all — which now means the
+ * browser itself rejected it, not merely that it serialized oddly.
+ *
+ * Backgrounds fall back to transparent and text to inherit rather than black:
+ * an unstyled element is recoverable, a black-filled one is not.
+ */
+function safeCanvasColor(value, { property = '' } = {}) {
+  const resolved = normalizeCanvasColor(value);
+  if (resolved && !COLOR_FUNC_RE.test(resolved)) return resolved;
+  return property.includes('background') ? 'rgba(0, 0, 0, 0)' : 'inherit';
 }
 
 function sanitizeForCanvas(el, cs) {
   const bgImg = cs.getPropertyValue('background-image');
   if (bgImg && bgImg !== 'none' && COLOR_FUNC_RE.test(bgImg)) {
     el.style.backgroundImage = 'none';
-    const bgc = normalizeCanvasColor(cs.getPropertyValue('background-color'));
-    if (!bgc || bgc === 'transparent' || bgc === 'rgba(0, 0, 0, 0)') {
-      el.style.backgroundColor = '#ffffff';
-    } else {
-      el.style.backgroundColor = bgc;
-    }
+    // Keep transparent transparent. Forcing #ffffff here used to paint opaque
+    // white panels over the ticket's own layered background.
+    el.style.backgroundColor = safeCanvasColor(
+      cs.getPropertyValue('background-color'),
+      { property: 'background-color' },
+    );
   }
 
   const boxShadow = cs.getPropertyValue('box-shadow');
@@ -4369,12 +4421,22 @@ function sanitizeForCanvas(el, cs) {
   }
 }
 
+/**
+ * Rewrites every computed property whose value html2canvas cannot parse.
+ *
+ * Scope this at the element being exported, never `document.body` — walking the
+ * whole dashboard means tens of thousands of getComputedStyle reads, which is
+ * slow enough to look like a hang and can leave the export blank.
+ */
 function sanitizeUnsupportedColorFunctions(root) {
   if (!root) return;
   const doc = root.ownerDocument || document;
+  const view = doc.defaultView;
+  if (!view) return;
+
   const elements = [root, ...root.querySelectorAll('*')];
   elements.forEach((el) => {
-    const cs = doc.defaultView?.getComputedStyle(el);
+    const cs = view.getComputedStyle(el);
     if (!cs) return;
     for (let i = 0; i < cs.length; i++) {
       const prop = cs[i];
@@ -4382,15 +4444,18 @@ function sanitizeUnsupportedColorFunctions(root) {
       if (!val || !COLOR_FUNC_RE.test(val)) continue;
 
       if (prop.includes('color')) {
-        const rgb = normalizeCanvasColor(val);
-        el.style.setProperty(prop, rgb && !COLOR_FUNC_RE.test(rgb) ? rgb : '#000000');
+        // safeCanvasColor falls back to transparent/inherit, never to black —
+        // a mis-resolved background used to paint the whole ticket black.
+        el.style.setProperty(prop, safeCanvasColor(val, { property: prop }));
         continue;
       }
 
       if (prop === 'background-image' || prop === 'background') {
         el.style.backgroundImage = 'none';
-        const bgc = normalizeCanvasColor(cs.getPropertyValue('background-color'));
-        el.style.backgroundColor = bgc && !COLOR_FUNC_RE.test(bgc) ? bgc : '#ffffff';
+        el.style.backgroundColor = safeCanvasColor(
+          cs.getPropertyValue('background-color'),
+          { property: 'background-color' },
+        );
         continue;
       }
 
@@ -4436,7 +4501,12 @@ function injectCanvasSafeStyles(doc, scopeSelector) {
  */
 function inlineColorsForCanvas(el) {
   if (!el || el.nodeType !== 1) return;
-  const cs = window.getComputedStyle(el);
+  // Read styles from the element's own document. Cloned nodes live in the
+  // html2canvas iframe, where the live `window` resolves nothing.
+  const view = el.ownerDocument?.defaultView || window;
+  const cs = view.getComputedStyle(el);
+  if (!cs) return;
+
   const props = [
     'color', 'backgroundColor', 'borderTopColor', 'borderBottomColor',
     'borderLeftColor', 'borderRightColor', 'outlineColor',
@@ -4621,16 +4691,22 @@ function renderReportFaresTable(fares) {
 
   // Sort (pagination-safe — no limit slice here)
   const { key, asc } = tableSort.reportFares;
-  const sorted = [...fares].sort((a, b) => {
-    let valA = a[key], valB = b[key];
-    if (valA instanceof Date) valA = valA.getTime();
-    if (valB instanceof Date) valB = valB.getTime();
-    if (typeof valA === 'string') valA = valA.toLowerCase();
-    if (typeof valB === 'string') valB = valB.toLowerCase();
-    if (valA < valB) return asc ? -1 : 1;
-    if (valA > valB) return asc ? 1 : -1;
-    return 0;
-  });
+  let sorted;
+  if (key === 'sectorOrder') {
+    sorted = sortFaresForExport(fares, buildReportExportContext(false));
+    if (!asc) sorted.reverse();
+  } else {
+    sorted = [...fares].sort((a, b) => {
+      let valA = a[key], valB = b[key];
+      if (valA instanceof Date) valA = valA.getTime();
+      if (valB instanceof Date) valB = valB.getTime();
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+      if (valA < valB) return asc ? -1 : 1;
+      if (valA > valB) return asc ? 1 : -1;
+      return 0;
+    });
+  }
 
   const limit = tableLimit.reportFares;
   const totalPages = Math.max(1, Math.ceil(fares.length / limit));
@@ -4647,7 +4723,7 @@ function renderReportFaresTable(fares) {
         <thead><tr>
           ${TH('flightDate', 'Date')}
           ${TH('flightTime', 'Time')}
-          ${TH('sectorId', 'Sector')}
+          ${TH('sectorOrder', 'Sector')}
           ${TH('airlineId', 'Airline')}
           ${TH('agentId', 'Agent')}
           ${TH('specialRate', 'SP Rate (₹)')}
@@ -6210,11 +6286,24 @@ function flightDetailRow(fd) {
   
   const airlineName = airline ? airline.name : `<span class="text-red-500">Unknown (${fd.airlineId})</span>`;
   const sectorCode = sector ? sector.sectorCode : `<span class="text-red-500">Unknown (${fd.sectorId})</span>`;
-  
+
+  // The Time column shows the default plus a count of seasonal overrides, so a
+  // route whose real time varies by date can't be mistaken for a fixed one.
+  const windows = normalizeScheduleWindows(fd.schedules, normalizeFlightTime);
+  const defaultTime = normalizeFlightTime(fd.flightTime);
+  const timeCell = defaultTime
+    ? escapeHtml(defaultTime)
+    : '<span class="text-text-muted text-[11px] italic">Not set</span>';
+  const scheduleBadge = windows.length
+    ? `<span class="inline-flex items-center gap-1 mt-1 rounded-full bg-blue-50 text-primary border border-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]">
+         <i class="bi bi-calendar-range text-[10px]"></i>${windows.length} date range${windows.length === 1 ? '' : 's'}
+       </span>`
+    : '';
+
   return `<tr data-flight-detail-id="${fd.id}">
     <td class="font-semibold">${airlineName}</td>
     <td><span class="font-mono font-bold text-primary">${sectorCode}</span></td>
-    <td>${fd.flightTime || '<span class="text-text-muted text-[11px] italic">Not set</span>'}</td>
+    <td><div class="flex flex-col items-start">${timeCell}${scheduleBadge}</div></td>
     <td class="font-mono font-medium">${resolveCheckInBaggageKg(airline?.code, fd.baggage)} kg</td>
     <td class="font-mono font-medium">${handBaggageKg(airline?.code)} kg</td>
     <td class="text-right">
@@ -6246,6 +6335,131 @@ function wireFlightDetailActions() {
       }
       catch (e) { toast('error', 'Error', e.message); }
     }
+  });
+}
+
+// ── Seasonal flight schedule editor (Flight Details modal) ───────────────────
+
+function buildFlightScheduleRowHtml(window = {}) {
+  return `<div class="fd-schedule-row grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.2fr_auto] gap-2 items-end rounded-xl border border-border bg-surface-soft px-3 py-2.5">
+    <div class="admin-field !mb-0">
+      <label class="admin-label !text-[10px]">From</label>
+      <input type="date" data-schedule-field="startDate" value="${escapeHtml(window.startDate || '')}" class="admin-control h-9 text-[12px]">
+    </div>
+    <div class="admin-field !mb-0">
+      <label class="admin-label !text-[10px]">To</label>
+      <input type="date" data-schedule-field="endDate" value="${escapeHtml(window.endDate || '')}" class="admin-control h-9 text-[12px]">
+    </div>
+    <div class="admin-field !mb-0">
+      <label class="admin-label !text-[10px]">Flight Time</label>
+      <input type="text" data-schedule-field="flightTime" value="${escapeHtml(window.flightTime || '')}" placeholder="01:30 - 06:50" class="admin-control h-9 text-[12px]">
+    </div>
+    <button type="button" data-remove-schedule class="admin-action-btn admin-action-delete h-9 shrink-0" aria-label="Remove this date range">
+      <i class="bi bi-trash3"></i>
+    </button>
+  </div>`;
+}
+
+/** Reads the editor rows back out as raw `{startDate, endDate, flightTime}`. */
+function readFlightScheduleRows() {
+  return Array.from(document.querySelectorAll('#fd-schedule-rows .fd-schedule-row')).map(row => ({
+    startDate: row.querySelector('[data-schedule-field="startDate"]')?.value || '',
+    endDate: row.querySelector('[data-schedule-field="endDate"]')?.value || '',
+    flightTime: normalizeFlightTime(row.querySelector('[data-schedule-field="flightTime"]')?.value || ''),
+  }));
+}
+
+/**
+ * Flags rows the resolver would treat ambiguously. Overlaps are legal —
+ * narrowest window wins — but they are almost always a mistake, so say so
+ * rather than silently picking one.
+ */
+function refreshFlightScheduleWarnings() {
+  const rows = readFlightScheduleRows();
+  const container = document.getElementById('fd-schedule-rows');
+  const emptyHint = document.getElementById('fd-schedule-empty');
+  const warnBox = document.getElementById('fd-schedule-warning');
+  if (emptyHint) emptyHint.classList.toggle('hidden', rows.length > 0);
+  if (container) container.classList.toggle('hidden', rows.length === 0);
+  if (!warnBox) return;
+
+  const messages = [];
+  const incomplete = rows.filter(r => (r.startDate || r.endDate || r.flightTime) &&
+    !(r.flightTime && (r.startDate || r.endDate)));
+  if (incomplete.length) {
+    messages.push(`${incomplete.length} range${incomplete.length === 1 ? ' is' : 's are'} incomplete and will be dropped — each needs a time and at least one date.`);
+  }
+
+  const windows = normalizeScheduleWindows(rows, normalizeFlightTime);
+  findScheduleOverlaps(windows).forEach(({ from, to }) => {
+    messages.push(`Ranges overlap between ${from} and ${to} — the shorter range wins on those dates.`);
+  });
+
+  warnBox.innerHTML = messages.map(m => `<div class="flex gap-2"><i class="bi bi-exclamation-triangle-fill shrink-0 mt-[1px]"></i><span>${escapeHtml(m)}</span></div>`).join('');
+  warnBox.classList.toggle('hidden', messages.length === 0);
+}
+
+function addFlightScheduleRow(window) {
+  const container = document.getElementById('fd-schedule-rows');
+  if (!container) return;
+  container.insertAdjacentHTML('beforeend', buildFlightScheduleRowHtml(window));
+  refreshFlightScheduleWarnings();
+}
+
+function wireFlightScheduleEditor(existingSchedules = []) {
+  const container = document.getElementById('fd-schedule-rows');
+  if (!container) return;
+
+  container.innerHTML = normalizeScheduleWindows(existingSchedules, normalizeFlightTime)
+    .map(w => buildFlightScheduleRowHtml(w))
+    .join('');
+  refreshFlightScheduleWarnings();
+
+  document.getElementById('fd-add-schedule')?.addEventListener('click', () => {
+    // Seed the new range at the day after the last one ends, which is the
+    // common case when an airline publishes a follow-on schedule.
+    const rows = readFlightScheduleRows();
+    const lastEnd = rows.map(r => r.endDate).filter(Boolean).sort().pop();
+    let startDate = toDateKey(new Date());
+    if (lastEnd) {
+      const next = new Date(`${lastEnd}T00:00:00`);
+      next.setDate(next.getDate() + 1);
+      startDate = toDateKey(next);
+    }
+    addFlightScheduleRow({ startDate, endDate: '', flightTime: '' });
+  });
+
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-schedule]');
+    if (!btn) return;
+    btn.closest('.fd-schedule-row')?.remove();
+    refreshFlightScheduleWarnings();
+  });
+
+  container.addEventListener('input', refreshFlightScheduleWarnings);
+
+  // "Apply to All Dates" — the route flies at one time year-round. Promote a
+  // single time to the default and clear every range in one click.
+  document.getElementById('fd-apply-all')?.addEventListener('click', () => {
+    const defaultInput = document.getElementById('fd-default-time');
+    const rows = readFlightScheduleRows();
+    const candidate = normalizeFlightTime(defaultInput?.value)
+      || rows.map(r => r.flightTime).find(Boolean)
+      || '';
+
+    if (!candidate) {
+      toast('warning', 'No Time Yet', 'Enter a flight time first, then apply it to all dates.');
+      defaultInput?.focus();
+      return;
+    }
+    if (rows.length && !confirm(`Apply ${candidate} to every date and remove the ${rows.length} date range${rows.length === 1 ? '' : 's'} below?`)) {
+      return;
+    }
+
+    if (defaultInput) defaultInput.value = candidate;
+    container.innerHTML = '';
+    refreshFlightScheduleWarnings();
+    toast('success', 'Applied to All Dates', `${candidate} now applies to every date on this route.`);
   });
 }
 
@@ -6290,15 +6504,45 @@ function openFlightDetailModal(fd) {
       <div class="admin-form-section mt-4">
         <div class="admin-form-section-head">
           <div>
-            <p class="admin-form-section-title">Default Details</p>
+            <p class="admin-form-section-title">Flight Time</p>
+            <p class="admin-form-section-desc">Used for every date unless a seasonal range below covers it.</p>
+          </div>
+        </div>
+        <div class="admin-field">
+          <label class="admin-label">Default Flight Time (all dates)</label>
+          <input name="flightTime" id="fd-default-time" placeholder="e.g. 19:40 - 22:55" value="${escapeHtml(fd?.flightTime || '')}" class="admin-control">
+          <p class="admin-help">Departure - arrival in local airport time.</p>
+        </div>
+      </div>
+
+      <div class="admin-form-section mt-4">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Seasonal Schedules</p>
+            <p class="admin-form-section-desc">Add a range when the airline flies this route at a different time for part of the season. Leave empty if the time never changes.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="fd-apply-all" class="admin-btn admin-btn-soft h-9 px-3 text-[12px]">
+              <i class="bi bi-calendar2-check"></i> Apply to All Dates
+            </button>
+            <button type="button" id="fd-add-schedule" class="admin-btn admin-btn-soft h-9 px-3 text-[12px]">
+              <i class="bi bi-plus-lg"></i> Add Date Range
+            </button>
+          </div>
+        </div>
+        <div id="fd-schedule-rows" class="space-y-2"></div>
+        <p id="fd-schedule-empty" class="admin-help mt-2">No date ranges — the default time above applies all year.</p>
+        <div id="fd-schedule-warning" class="hidden mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800"></div>
+      </div>
+
+      <div class="admin-form-section mt-4">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Baggage Defaults</p>
             <p class="admin-form-section-desc">These values will be injected during n8n rate uploads.</p>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="admin-field md:col-span-2">
-            <label class="admin-label">Flight Time</label>
-            <input name="flightTime" placeholder="e.g. 19:40 - 22:55" value="${fd?.flightTime || ''}" class="admin-control">
-          </div>
           <div class="admin-field">
             <label class="admin-label">Check-in Baggage (kg)</label>
             <select name="baggage" id="fd-bag" class="admin-control">
@@ -6326,6 +6570,8 @@ function openFlightDetailModal(fd) {
 
   document.getElementById('modal-cancel')?.addEventListener('click', () => document.getElementById('admin-modal').close());
 
+  wireFlightScheduleEditor(fd?.schedules);
+
   // Baggage follows the selected airline; both selects re-point when it changes.
   const fdAirlineSelect = document.querySelector('#flight-detail-form [name="airlineId"]');
   fdAirlineSelect?.addEventListener('change', () => {
@@ -6345,10 +6591,17 @@ function openFlightDetailModal(fd) {
     const airlineId = isEdit ? fd.airlineId : fdData.get('airlineId');
     const airlineCode = airlineCodeById(airlineId);
     const data = {
-      flightTime: fdData.get('flightTime'),
+      flightTime: normalizeFlightTime(fdData.get('flightTime')),
+      // Normalized here so Firestore only ever stores clean, sorted windows.
+      schedules: normalizeScheduleWindows(readFlightScheduleRows(), normalizeFlightTime),
       baggage: resolveCheckInBaggageKg(airlineCode, fdData.get('baggage')),
       extraBaggage: handBaggageKg(airlineCode)
     };
+
+    if (!data.flightTime && !data.schedules.length) {
+      toast('warning', 'No Flight Time', 'Set a default time or at least one date range.');
+      return;
+    }
 
     // For new entries, we need to extract from select
     if (!isEdit) {
@@ -6590,7 +6843,7 @@ function renderReportCharts(report, tab, opts = {}) {
   if (csvBtn) {
     const newBtn = csvBtn.cloneNode(true);
     csvBtn.parentNode.replaceChild(newBtn, csvBtn);
-    newBtn.addEventListener('click', () => downloadReportCSV(_reportFares));
+    newBtn.addEventListener('click', () => downloadReportCSV(_reportFares, { whiteLabel: isReportWhiteLabel() }));
     if (_reportFares && _reportFares.length) {
       newBtn.classList.remove('opacity-50', 'pointer-events-none');
     } else {
@@ -6603,7 +6856,7 @@ function renderReportCharts(report, tab, opts = {}) {
   if (pdfBtn) {
     const newBtn = pdfBtn.cloneNode(true);
     pdfBtn.parentNode.replaceChild(newBtn, pdfBtn);
-    newBtn.addEventListener('click', () => downloadReportPDF());
+    newBtn.addEventListener('click', () => downloadReportPDF({ whiteLabel: isReportWhiteLabel() }));
     if (_reportFares && _reportFares.length) {
       newBtn.classList.remove('opacity-50', 'pointer-events-none');
     } else {
@@ -6913,53 +7166,63 @@ function renderLeaderboards(agentReport, sectorReport) {
   }
 }
 
-function downloadReportCSV(fares) {
+/** Lookup maps + baggage resolvers shared by the CSV and PDF exporters. */
+function buildReportExportContext(whiteLabel) {
+  return {
+    sectors: _sectors,
+    sectorCodeById: Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode])),
+    airlineCodeById: Object.fromEntries(_airlines.map(a => [a.id, a.code || a.name])),
+    agentNameById: Object.fromEntries(_agents.map(a => [a.id, a.name])),
+    checkInKg: f => resolveCheckInBaggageKg(airlineCodeById(f.airlineId), f.baggage),
+    handKg: f => handBaggageKg(airlineCodeById(f.airlineId)),
+    whiteLabel: !!whiteLabel,
+  };
+}
+
+function downloadReportCSV(fares, { whiteLabel = false } = {}) {
   if (!fares || !fares.length) {
     toast('warning', 'No Data', 'No fares to export. Apply filters and fetch first.');
     return;
   }
 
-  const agentMap = Object.fromEntries(_agents.map(a => [a.id, a.name]));
-  const sectorMap = Object.fromEntries(_sectors.map(s => [s.id, s.sectorCode]));
-  const airlineMap = Object.fromEntries(_airlines.map(a => [a.id, a.code || a.name]));
-
-  // Helper: escape a value for CSV (wrap in quotes, escape internal quotes)
-  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-
-  const headers = ['Date', 'Time', 'Sector', 'Airline', 'Agent', 'SP Rate (INR)', 'Rate (INR)', 'Commission (INR)', 'Check-in Baggage (kg)', 'Hand Baggage (kg)', 'Status'];
-  const rows = fares.map(f => {
-    const dt = f.flightDate instanceof Date
-      ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      : (f.flightDate || '');
-    return [
-      esc(dt),
-      esc(f.flightTime || ''),
-      esc(sectorMap[f.sectorId] || f.sectorId),
-      esc(airlineMap[f.airlineId] || f.airlineId),
-      esc(agentMap[f.agentId] || f.agentId),
-      esc(f.specialRate || 0),
-      esc(f.finalRate || 0),
-      esc(f.commission || 0),
-      esc(resolveCheckInBaggageKg(airlineCodeById(f.airlineId), f.baggage)),
-      esc(handBaggageKg(airlineCodeById(f.airlineId))),
-      esc(f.isHidden ? 'Hidden' : 'Live')
-    ].join(',');
-  });
-
-  const csv = [headers.map(esc).join(','), ...rows].join('\n');
+  const csv = buildFaresCsv(fares, buildReportExportContext(whiteLabel));
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `zamra-fares-${new Date().toISOString().split('T')[0]}.csv`;
+  link.download = buildExportFileName('csv', { whiteLabel });
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-  toast('success', 'CSV Downloaded', `${fares.length} fares exported.`);
+  toast(
+    'success',
+    whiteLabel ? 'White-Label CSV Downloaded' : 'CSV Downloaded',
+    `${fares.length} fares exported in sector order.`,
+  );
 }
 
-async function downloadReportPDF() {
+/** Current state of the "Hide agency details" toggle above the report table. */
+function isReportWhiteLabel() {
+  return !!document.getElementById('report-white-label')?.checked;
+}
+
+/**
+ * 0-based indexes of the report table columns that identify Zamra or expose its
+ * margin. Derived from the rendered header row rather than hard-coded, so
+ * reordering the table can't silently leak a column into a white-label PDF.
+ */
+function findWhiteLabelColumnIndexes(scope) {
+  const headers = Array.from(scope?.querySelectorAll('thead th') || []);
+  const hidden = ['agent', 'sp rate', 'comm'];
+  return headers.reduce((acc, th, index) => {
+    const label = th.textContent.trim().toLowerCase();
+    if (hidden.some(h => label.startsWith(h))) acc.push(index);
+    return acc;
+  }, []);
+}
+
+async function downloadReportPDF({ whiteLabel = false } = {}) {
   if (!_reportFares || !_reportFares.length) {
     toast('warning', 'No Data', 'No fares to export. Apply filters and fetch first.');
     return;
@@ -6989,16 +7252,36 @@ async function downloadReportPDF() {
       logging: false,
       onclone: (doc) => {
         injectCanvasSafeStyles(doc, '#report-fares-card');
-        sanitizeUnsupportedColorFunctions(doc.body);
         const clonedCard = doc.getElementById('report-fares-card');
         if (!clonedCard) return;
+        // Scoped to the card — sanitizing doc.body walks the whole dashboard.
+        sanitizeUnsupportedColorFunctions(clonedCard);
 
         // Hide action buttons inside the export
-        clonedCard.querySelectorAll('#download-report-csv, #download-report-pdf').forEach(el => {
+        clonedCard.querySelectorAll('#download-report-csv, #download-report-pdf, #report-white-label-wrap').forEach(el => {
           el.style.display = 'none';
         });
         const toolbar = clonedCard.querySelector('#report-fares-toolbar');
         if (toolbar) toolbar.style.display = 'none';
+
+        if (whiteLabel) {
+          // Drop the supplier + margin columns cell-by-cell. Hiding only the
+          // header would leave the numbers sitting under the wrong labels.
+          const dropIndexes = findWhiteLabelColumnIndexes(clonedCard);
+          if (dropIndexes.length) {
+            clonedCard.querySelectorAll('thead tr, tbody tr').forEach((row) => {
+              const cells = Array.from(row.children);
+              dropIndexes.forEach((i) => { if (cells[i]) cells[i].style.display = 'none'; });
+            });
+          }
+          // Actions column carries per-row controls — meaningless on paper and
+          // it names internal operations.
+          clonedCard.querySelectorAll('thead th:last-child, tbody td:last-child').forEach((cell) => {
+            cell.style.display = 'none';
+          });
+          const heading = clonedCard.querySelector('h3');
+          if (heading) heading.textContent = 'Fare Report';
+        }
 
         // Ensure wide tables are fully visible in export
         const tableWrap = clonedCard.querySelector('.admin-table-container');
@@ -7054,9 +7337,12 @@ async function downloadReportPDF() {
       pageIndex += 1;
     }
 
-    const fileName = `zamra-report-${new Date().toISOString().split('T')[0]}.pdf`;
-    pdf.save(fileName);
-    toast('success', 'Downloaded!', 'Report PDF saved successfully.');
+    pdf.save(buildExportFileName('pdf', { whiteLabel }));
+    toast(
+      'success',
+      'Downloaded!',
+      whiteLabel ? 'White-label report PDF saved — agency details removed.' : 'Report PDF saved successfully.',
+    );
   } catch (err) {
     console.error('Report PDF export failed:', err);
     toast('error', 'Download Failed', err?.message || 'Unable to generate the PDF.');
@@ -8162,8 +8448,14 @@ let rateHistory = JSON.parse(localStorage.getItem('zt_hist') || '[]');
 // ride along in the same n8n webhook payload as base64 so the AI parser reads
 // both together; they are never persisted client-side.
 const RATE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
-const RATE_IMAGE_MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+// Budget for the *compressed* total. Base64 adds ~33%, so 12 MB of image data
+// leaves the JSON body under the ~16 MB n8n accepts by default.
+const RATE_IMAGE_MAX_TOTAL_BYTES = 12 * 1024 * 1024;
 const RATE_IMAGE_MAX_COUNT = 10;
+// Long-edge cap and JPEG quality for the downscale pass. Rate sheets are dense
+// text, so quality stays high enough for the OCR parser to read every row.
+const RATE_IMAGE_MAX_EDGE_PX = 1600;
+const RATE_IMAGE_JPEG_QUALITY = 0.82;
 
 let rateImages = [];
 let rateImageSeq = 0;
@@ -8182,13 +8474,56 @@ function readFileAsDataUrl(file) {
   });
 }
 
+function estimateDataUrlBytes(dataUrl) {
+  const base64 = String(dataUrl || '').slice(String(dataUrl || '').indexOf(',') + 1);
+  return Math.round(base64.length * 0.75);
+}
+
+/**
+ * Downscales a screenshot before it is base64-encoded into the n8n payload.
+ *
+ * Base64 inflates by ~33%, so ten untouched phone screenshots blew past n8n's
+ * request body limit and the webhook rejected the whole submission. 1600 px on
+ * the long edge keeps rate-sheet text comfortably legible for the OCR parser
+ * while cutting a typical 6 MB screenshot to a few hundred KB.
+ *
+ * Falls back to the original bytes whenever decoding fails (HEIC, SVG, an
+ * exotic colour profile) — the size guards below still apply.
+ */
+async function compressRateImage(file) {
+  const original = { dataUrl: await readFileAsDataUrl(file), mime: file.type, size: file.size };
+  if (typeof createImageBitmap !== 'function') return original;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const longEdge = Math.max(bitmap.width, bitmap.height);
+    const scale = Math.min(1, RATE_IMAGE_MAX_EDGE_PX / longEdge);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return original;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+
+    const dataUrl = canvas.toDataURL('image/jpeg', RATE_IMAGE_JPEG_QUALITY);
+    const size = estimateDataUrlBytes(dataUrl);
+    // Re-encoding a small PNG can come out bigger — keep whichever is smaller.
+    if (!dataUrl.startsWith('data:image/jpeg') || size >= file.size) return original;
+
+    return { dataUrl, mime: 'image/jpeg', size };
+  } catch {
+    return original;
+  }
+}
+
 async function addRateImages(fileList) {
   const files = Array.from(fileList || []).filter(f => f && f.type.startsWith('image/'));
   if (!files.length) return;
 
   const skipped = [];
   for (const file of files) {
-    const totalBytes = rateImages.reduce((sum, img) => sum + img.size, 0);
     if (rateImages.length >= RATE_IMAGE_MAX_COUNT) {
       skipped.push(`${file.name} (max ${RATE_IMAGE_MAX_COUNT} images)`);
       continue;
@@ -8197,19 +8532,25 @@ async function addRateImages(fileList) {
       skipped.push(`${file.name} (over ${formatRateImageSize(RATE_IMAGE_MAX_BYTES)})`);
       continue;
     }
-    if (totalBytes + file.size > RATE_IMAGE_MAX_TOTAL_BYTES) {
-      skipped.push(`${file.name} (total over ${formatRateImageSize(RATE_IMAGE_MAX_TOTAL_BYTES)})`);
-      continue;
-    }
 
     try {
+      const prepared = await compressRateImage(file);
+
+      // Budget against the compressed size — that is what actually ships.
+      const totalBytes = rateImages.reduce((sum, img) => sum + img.size, 0);
+      if (totalBytes + prepared.size > RATE_IMAGE_MAX_TOTAL_BYTES) {
+        skipped.push(`${file.name} (total over ${formatRateImageSize(RATE_IMAGE_MAX_TOTAL_BYTES)})`);
+        continue;
+      }
+
       rateImageSeq += 1;
       rateImages.push({
         id: `rate-img-${rateImageSeq}`,
         name: file.name || `screenshot-${rateImageSeq}.png`,
-        mime: file.type,
-        size: file.size,
-        dataUrl: await readFileAsDataUrl(file),
+        mime: prepared.mime,
+        size: prepared.size,
+        originalSize: file.size,
+        dataUrl: prepared.dataUrl,
       });
     } catch {
       skipped.push(`${file.name} (unreadable)`);
@@ -8245,20 +8586,30 @@ function renderRateImages() {
 
   const grid = document.getElementById('rateImageGrid');
   if (!grid) return;
-  grid.classList.toggle('on', rateImages.length > 0);
-  grid.innerHTML = rateImages.map(img => `
+  // Toggle `hidden` explicitly rather than relying on `[&.on]:grid` out-
+  // specifying `.hidden` — utility ordering is not a guarantee worth betting
+  // the preview on.
+  const hasImages = rateImages.length > 0;
+  grid.classList.toggle('on', hasImages);
+  grid.classList.toggle('hidden', !hasImages);
+  grid.innerHTML = rateImages.map(img => {
+    const shrunk = img.originalSize && img.originalSize > img.size
+      ? ` <span class="text-emerald-600 font-semibold">↓ from ${formatRateImageSize(img.originalSize)}</span>`
+      : '';
+    return `
     <div class="relative rounded-xl border border-border bg-white overflow-hidden">
-      <img src="${img.dataUrl}" alt="${escapeHtml(img.name)}" class="w-full h-24 object-cover">
-      <button type="button" data-remove-image="${img.id}" aria-label="Remove ${escapeHtml(img.name)}"
+      <img src="${img.dataUrl}" alt="${escapeHtml(img.name)}" class="w-full h-24 object-contain bg-slate-50">
+      <button type="button" data-remove-image="${escapeHtml(img.id)}" aria-label="Remove ${escapeHtml(img.name)}"
         class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-red-500 transition-colors">
         <i class="bi bi-x-lg text-[10px]"></i>
       </button>
       <div class="px-2 py-1.5 border-t border-border">
         <div class="text-[10px] font-bold text-navy truncate" title="${escapeHtml(img.name)}">${escapeHtml(img.name)}</div>
-        <div class="text-[10px] text-text-muted">${formatRateImageSize(img.size)}</div>
+        <div class="text-[10px] text-text-muted">${formatRateImageSize(img.size)}${shrunk}</div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function initAgentSheets() {
@@ -8290,7 +8641,15 @@ function initAgentSheets() {
   const dropZone = document.getElementById('rateDrop');
   const imageInput = document.getElementById('rateImageInput');
   if (dropZone && imageInput) {
-    dropZone.addEventListener('click', () => imageInput.click());
+    // The file input sits inside the drop zone, so the synthetic click from
+    // `imageInput.click()` bubbles straight back into this handler and reopens
+    // the picker — the file dialog flickered or refused to open at all.
+    // Stopping propagation at the input breaks that loop.
+    imageInput.addEventListener('click', (e) => e.stopPropagation());
+    dropZone.addEventListener('click', (e) => {
+      if (e.target === imageInput) return;
+      imageInput.click();
+    });
     dropZone.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); imageInput.click(); }
     });
@@ -8542,7 +8901,8 @@ async function handleSheetSubmit() {
   let prog = 0;
   const iv = setInterval(() => { prog = Math.min(prog + Math.random() * 13, 85); if (fill) fill.style.width = prog + '%'; }, 280);
 
-  const parsedRows = quickParse(ta.value);
+  const rawText = ta?.value || '';
+  const parsedRows = quickParse(rawText);
   // quickParse only reads text; images are parsed server-side by n8n, so an
   // image-only submission legitimately starts with zero client-parsed rows.
   const submittedImages = rateImages.map(img => ({
@@ -8569,7 +8929,7 @@ async function handleSheetSubmit() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         agent_id: selAgent,
-        raw_text: ta.value.trim(),
+        raw_text: rawText.trim(),
         parsed_rows: parsedRows,
         parsed_count: parsedRows.length,
         images: submittedImages,
@@ -8742,6 +9102,31 @@ function resetETicketPrintFit() {
   printArea.style.removeProperty('--eticket-print-scale');
 }
 
+/** Current state of the e-ticket "Hide agency details" toggle. */
+function isETicketWhiteLabel() {
+  return !!document.getElementById('et-white-label')?.checked;
+}
+
+/**
+ * Shows or hides every `data-brand-identity` node — the letterhead block (logo,
+ * address, phone, email) and the footer sign-off.
+ *
+ * `visibility` rather than `display` so the ticket keeps its layout: collapsing
+ * the letterhead would reflow the whole A4 page and push the footer up.
+ *
+ * @param {HTMLElement} [scope] defaults to the live preview; the export passes
+ *   its cloned tree so the download can differ from what is on screen.
+ * @param {boolean} [hide] defaults to the toggle's current state.
+ */
+function applyETicketWhiteLabel(scope, hide) {
+  const root = scope || document.getElementById('eticket-print-area');
+  if (!root) return;
+  const shouldHide = hide === undefined ? isETicketWhiteLabel() : !!hide;
+  root.querySelectorAll('[data-brand-identity]').forEach((node) => {
+    node.style.visibility = shouldHide ? 'hidden' : '';
+  });
+}
+
 async function downloadETicketPDF() {
   const wrapper = document.getElementById('eticket-output-wrapper');
   const printArea = document.getElementById('eticket-print-area');
@@ -8754,8 +9139,17 @@ async function downloadETicketPDF() {
   const btn = document.getElementById('et-download-btn');
   if (btn) btn.disabled = true;
 
+  const whiteLabel = isETicketWhiteLabel();
+
   try {
+    // html2canvas 1.4.1 has no support for CSS `zoom`: it measures the element
+    // with zoom applied but lays the children out unzoomed, which crops the
+    // ticket down to a corner of the navy frame — the "black block" export.
+    // Print-fit is only for the print stylesheet; the PDF path must be at 1:1.
     resetETicketPrintFit();
+    // Let the browser reflow at zoom:1 before measuring, otherwise the capture
+    // can still use the zoomed geometry.
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
 
     if (typeof html2canvas !== 'function') {
       throw new Error('html2canvas library not loaded.');
@@ -8775,13 +9169,25 @@ async function downloadETicketPDF() {
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
+      // Pin the capture box to the un-zoomed layout size so a stale zoom or a
+      // scrolled page can never shift the crop.
+      width: printArea.offsetWidth,
+      height: printArea.offsetHeight,
+      windowWidth: printArea.offsetWidth,
+      windowHeight: printArea.offsetHeight,
+      scrollX: 0,
+      scrollY: 0,
       onclone: (doc) => {
         injectCanvasSafeStyles(doc, '#eticket-print-area');
-        sanitizeUnsupportedColorFunctions(doc.body);
         const target = printArea.id ? doc.getElementById(printArea.id) : null;
         if (target) {
+          // Scoped to the ticket — sanitizing doc.body walked the entire
+          // dashboard (~10k nodes × ~340 properties) on every download.
+          target.style.zoom = '1';
+          target.style.removeProperty('--eticket-print-scale');
           sanitizeUnsupportedColorFunctions(target);
           inlineColorsForCanvas(target);
+          applyETicketWhiteLabel(target, whiteLabel);
           // The status pill is a solid badge — inlineColorsForCanvas() would
           // otherwise resolve its palette through the light-theme computed
           // styles and flatten the white text onto the coloured background.
@@ -8794,6 +9200,10 @@ async function downloadETicketPDF() {
         }
       }
     });
+
+    if (!canvas.width || !canvas.height) {
+      throw new Error('The ticket rendered empty. Try Print / Save as PDF instead.');
+    }
 
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
@@ -8835,10 +9245,16 @@ async function downloadETicketPDF() {
         .toLowerCase();
     const pnrText = document.getElementById('t-pnr')?.textContent || 'ticket';
     const ts = Date.now();
-    const fileName = `zamra-eticket-${fileSafe(pnrText) || 'ticket'}-${ts}.pdf`;
+    // A white-label file shouldn't announce the agency in its own name either.
+    const prefix = whiteLabel ? 'eticket' : 'zamra-eticket';
+    const fileName = `${prefix}-${fileSafe(pnrText) || 'ticket'}-${ts}.pdf`;
 
     pdf.save(fileName);
-    toast('success', 'Downloaded!', 'E-ticket PDF saved successfully.');
+    toast(
+      'success',
+      'Downloaded!',
+      whiteLabel ? 'White-label e-ticket saved — agency details removed.' : 'E-ticket PDF saved successfully.',
+    );
   } catch (err) {
     console.error('E-ticket PDF export failed:', err);
     toast('error', 'Download Failed', err?.message || 'Unable to generate the PDF. Try Print / Save as PDF.');
@@ -9036,8 +9452,15 @@ async function renderETicketTab() {
       await generateETicket(new FormData(form));
     });
 
+    // White-label toggle — applies to the live preview so what you see is what
+    // prints and what downloads.
+    document.getElementById('et-white-label')?.addEventListener('change', () => {
+      applyETicketWhiteLabel();
+    });
+
     // Wire Print Ticket Button (inside preview action bar)
     document.getElementById('et-print-btn')?.addEventListener('click', () => {
+      applyETicketWhiteLabel();
       applyETicketPrintFit();
       requestAnimationFrame(() => window.print());
     });
@@ -9206,16 +9629,16 @@ function buildETicketBaggageAllowanceHtml(passengers = []) {
   if (distinctWeights.size === 1) {
     const { carryKg, checkKg } = [...groups.values()][0];
     return [
-      bullet(`${carryKg} KG Cabin Baggage`),
-      bullet(`${checkKg} KG Check-in Baggage`),
+      bullet(`${formatBaggageKg(carryKg) || '0 kg'} cabin baggage`),
+      bullet(`${formatBaggageKg(checkKg) || '0 kg'} check-in baggage`),
     ].join('');
   }
 
   return [...groups.values()]
     .map((pax) => {
       const label = ETICKET_PAX_TYPE_LABELS[pax.type] || pax.type;
-      if (pax.carryKg === 0 && pax.checkKg === 0) return bullet(`${label}: No baggage allowance`);
-      return bullet(`${label}: ${pax.carryKg} KG Cabin + ${pax.checkKg} KG Check-in`);
+      if (pax.carryKg === 0 && pax.checkKg === 0) return bullet(`${label}: no baggage allowance`);
+      return bullet(`${label}: ${formatBaggageKg(pax.carryKg) || '0 kg'} cabin + ${formatBaggageKg(pax.checkKg) || '0 kg'} check-in`);
     })
     .join('');
 }
@@ -9397,8 +9820,8 @@ async function generateETicket(formData) {
           <td class="${cell}">${escapeHtml(pax.frequentFlyer || '-')}</td>
           <td class="${cell}">${escapeHtml(pax.seat || '-')}</td>
           <td class="${cell} px-2.5 leading-snug">
-            ${escapeHtml(`${pax.carryKg} Kg Cabin Baggage`)}<br>
-            ${escapeHtml(`+ ${pax.checkKg} Kg Check-in Baggage`)}
+            ${escapeHtml(`${formatBaggageKg(pax.carryKg) || '0 kg'} cabin`)}<br>
+            ${escapeHtml(`+ ${formatBaggageKg(pax.checkKg) || '0 kg'} check-in`)}
           </td>
         </tr>
       `;
@@ -9417,6 +9840,10 @@ async function generateETicket(formData) {
   // ── Barcode ────────────────────────────────────────────────────────────────
   renderETicketBarcode(el('t-barcode'), `${bookingRef}${pnr}`);
   setText('t-barcode-text', bookingRef);
+
+  // Re-assert the branding toggle — regenerating repaints the ticket body but
+  // leaves the letterhead nodes alone, so their visibility must be re-applied.
+  applyETicketWhiteLabel();
 
   // Show the preview wrapper
   const wrapper = el('eticket-output-wrapper');

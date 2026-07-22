@@ -9,6 +9,10 @@ import {
   resolveCheckInBaggageKg,
   hasVariableCheckInBaggage,
   formatCheckInBaggageLabel,
+  formatBaggageKg,
+  formatCheckInBaggageText,
+  formatHandBaggageText,
+  formatBaggageAllowanceShort,
   baggageSummary,
 } from '../src/js/shared/airline-baggage.js';
 
@@ -89,4 +93,29 @@ test('baggageSummary renders one row per airline in table order', () => {
   assert.deepEqual(rows[0], { code: 'IX', checkInBaggage: [30], handBaggage: 7 });
   assert.deepEqual(rows[5], { code: 'OV', checkInBaggage: [20, 40], handBaggage: 5 });
   assert.deepEqual(rows[7], { code: 'SV', checkInBaggage: [20, 30, 40], handBaggage: 7 });
+});
+
+test('formatBaggageKg spells the unit one way and drops empty weights', () => {
+  assert.equal(formatBaggageKg(30), '30 kg');
+  assert.equal(formatBaggageKg('30kg'), '30 kg');
+  assert.equal(formatBaggageKg(7.5), '7.5 kg');
+  assert.equal(formatBaggageKg(0), '');
+  assert.equal(formatBaggageKg(''), '');
+  assert.equal(formatBaggageKg(null), '');
+});
+
+test('baggage display text is labelled and consistently spelled', () => {
+  assert.equal(formatCheckInBaggageText('IX', 30), 'Check-in 30 kg');
+  assert.equal(formatHandBaggageText('IX'), 'Hand 7 kg');
+  // Airline policy corrects an out-of-range weight rather than printing it.
+  assert.equal(formatCheckInBaggageText('IX', 45), 'Check-in 30 kg');
+  assert.equal(formatCheckInBaggageText('SV', 40), 'Check-in 40 kg');
+  assert.equal(formatHandBaggageText('G9'), 'Hand 10 kg');
+  assert.equal(formatHandBaggageText('OV'), 'Hand 5 kg');
+});
+
+test('formatBaggageAllowanceShort shares one trailing unit', () => {
+  assert.equal(formatBaggageAllowanceShort('IX', 30), '30 + 7 kg');
+  assert.equal(formatBaggageAllowanceShort('G9', 30), '30 + 10 kg');
+  assert.equal(formatBaggageAllowanceShort('OV', 20), '20 + 5 kg');
 });

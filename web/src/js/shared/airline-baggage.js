@@ -72,6 +72,43 @@ export function formatCheckInBaggageLabel(airlineCode) {
   return checkInBaggageOptions(airlineCode).join(', ');
 }
 
+// ── Display formatting ───────────────────────────────────────────────────────
+// One spelling of the unit everywhere: a space before it, lowercase "kg".
+// Every surface that prints an allowance goes through these so the site, the
+// posters, the e-ticket and the exports can't drift apart again.
+
+/** '30 kg' — a bare weight with its unit. Empty string when there is none. */
+export function formatBaggageKg(kg) {
+  const n = parseKg(kg);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  // Drop a trailing ".0" so 30 prints as "30 kg", not "30.0 kg".
+  return `${Number.isInteger(n) ? n : Number(n.toFixed(1))} kg`;
+}
+
+/** 'Check-in 30 kg' — the labelled check-in allowance for a fare. */
+export function formatCheckInBaggageText(airlineCode, requested) {
+  const text = formatBaggageKg(resolveCheckInBaggageKg(airlineCode, requested));
+  return text ? `Check-in ${text}` : 'Check-in as per airline';
+}
+
+/** 'Hand 7 kg' — the labelled cabin allowance for a fare. */
+export function formatHandBaggageText(airlineCode) {
+  const text = formatBaggageKg(handBaggageKg(airlineCode));
+  return text ? `Hand ${text}` : 'Hand as per airline';
+}
+
+/**
+ * '30 + 7 kg' — the compact badge used where space is tight (mobile fare card,
+ * poster chips). Both numbers share the single trailing unit.
+ */
+export function formatBaggageAllowanceShort(airlineCode, requested) {
+  const checkIn = parseKg(resolveCheckInBaggageKg(airlineCode, requested));
+  const hand = parseKg(handBaggageKg(airlineCode));
+  const parts = [checkIn, hand].filter(n => Number.isFinite(n) && n > 0);
+  if (!parts.length) return 'As per airline';
+  return `${parts.join(' + ')} kg`;
+}
+
 /** Rows for a baggage summary table, one per airline code. */
 export function baggageSummary(codes = STANDARD_AIRLINE_CODES) {
   return codes.map((code) => ({

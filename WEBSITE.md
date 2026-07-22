@@ -292,8 +292,7 @@ cd web && npm run build        # outputs to web/dist/
 | `sectors` | `sectorFrom`, `sectorTo`, `sectorCode`, `sortOrder` |
 | `airlines` | `name`, `code`, `logoUrl` |
 | `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `extraBaggage`, `flightTime`, `isHidden` |
-
-Baggage is **not** read from the fare row for display. `baggage` (check-in) and `extraBaggage` (hand) are re-derived from the airline's IATA code at render time via `shared/airline-baggage.js`, so stale weights on legacy rows never reach a flight card. See the baggage rules table in [DASHBOARD.md](DASHBOARD.md#baggage-rules).
+| `flight_details` | `airlineId`, `sectorId`, `flightTime`, `schedules` |
 | `services` | `serviceType`, `title`, `basePrice`, `isActive` |
 | `visas` | `countryName`, `visaType`, `processingTime`, `rate`, `flagUrl` |
 | `visa_stamping` | `country`, `description`, `processingTime`, `cost`, `posterUrl` |
@@ -302,6 +301,12 @@ Baggage is **not** read from the fare row for display. `baggage` (check-in) and 
 | `tours` | `title`, `duration`, `category`, `price`, `description`, `highlights`, `itinerary`, `inclusions`, `exclusions`, `coverImageUrl`, `isActive` |
 | `hajj_umrah_packages` | `title`, `type`, `departureCity`, `airline`, `departureDate`, `days`, `nights`, `price`, `description`, `highlights`, `inclusions`, `coverImageUrl`, `isActive` |
 
+**Baggage is not read from the fare row for display.** `baggage` (check-in) and `extraBaggage` (hand) are re-derived from the airline's IATA code at render time via `shared/airline-baggage.js`, so stale weights on legacy rows never reach a flight card. See the baggage rules table in [DASHBOARD.md](DASHBOARD.md#baggage-rules).
+
+The display strings come from that same module — `formatCheckInBaggageText()` (`Check-in 30 kg`), `formatHandBaggageText()` (`Hand 7 kg`) and `formatBaggageAllowanceShort()` (`30 + 7 kg`, the compact mobile badge). Do not hand-build these strings at the call site; the public site, the B2B portal and the e-ticket each had their own spelling (`30 KG`, `30Kg`, `30 + 7KG`) before they were centralised.
+
+**Flight times fall back to `flight_details`.** A fare whose `flightTime` is empty (every row ingested before the n8n round-trip was fixed) resolves against the configured airline+sector default, including any date-ranged seasonal override — this is what stopped SpiceJet CCJ–DXB rendering as `TBA`. `main.js` builds the resolver once per page load via `buildFlightTimeResolver()` and passes it into `dedupeAndSortFares()`, which must resolve **before** grouping because flight time is part of the dedupe key. A failed `flight_details` read degrades to the fare's own value rather than blanking the list.
+
 ---
 
-_Last audited: 2026-03-16 — Shared site chrome consolidates header/nav behavior, mobile menu uses `#nav-menu.active`, and Tours/Hajj/Umrah details continue to open in premium modals (no standalone tour detail route). Hajj/Umrah still sorts client-side by `departureDate`._
+_Last audited: 2026-07-23 — Fare cards resolve flight times from `flight_details` (with date-ranged `schedules`) and render baggage through the shared formatters. Shared site chrome consolidates header/nav behavior, mobile menu uses `#nav-menu.active`, and Tours/Hajj/Umrah details continue to open in premium modals (no standalone tour detail route). Hajj/Umrah still sorts client-side by `departureDate`._

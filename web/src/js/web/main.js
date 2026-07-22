@@ -1,13 +1,34 @@
 // Modern Zamra Travels JavaScript
 import '../shared/vercel-insights.js';
-import { getSectors, getFares, getAirlines } from '../admin/db.js';
+import { getSectors, getFares, getAirlines, getFlightDetails } from '../admin/db.js';
+import { buildFlightTimeResolver } from '../shared/flight-schedule.js';
 import { dedupeAndSortFares, splitFlightTimeRange } from './flight-results.js';
 import { initSiteChrome } from './site-chrome.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from './airline-brand.js';
 import { buildFlightCardHtml } from './flight-card.js';
-import { handBaggageKg, resolveCheckInBaggageKg } from '../shared/airline-baggage.js';
+import {
+  handBaggageKg,
+  resolveCheckInBaggageKg,
+  formatCheckInBaggageText,
+  formatHandBaggageText,
+  formatBaggageAllowanceShort,
+} from '../shared/airline-baggage.js';
 
 const ENQUIRY_WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/enquiry';
+
+// `flight_details` is world-readable and small (one doc per airline+sector), so
+// one lazy fetch per page load backs every fare list on the site.
+let _flightTimeResolverPromise = null;
+function loadFlightTimeResolver() {
+  if (!_flightTimeResolverPromise) {
+    _flightTimeResolverPromise = getFlightDetails()
+      .then(details => buildFlightTimeResolver(details))
+      // A failed read must not blank out the fare list — fall back to whatever
+      // the fare itself stores.
+      .catch(() => (fare => String(fare?.flightTime || '').trim()));
+  }
+  return _flightTimeResolverPromise;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -153,10 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const today = new Date();
           today.setHours(0,0,0,0);
 
-          const fares = dedupeAndSortFares(await getFares({
-            sectorId: sector.id,
-            startDate: today.toISOString()
-          }));
+          const [rawFares, resolveFlightTime] = await Promise.all([
+            getFares({ sectorId: sector.id, startDate: today.toISOString() }),
+            loadFlightTimeResolver(),
+          ]);
+          const fares = dedupeAndSortFares(rawFares, { resolveFlightTime });
 
           if (fares.length > 0) {
             hasFares = true;
@@ -449,12 +471,13 @@ async function searchFlights() {
       const today = new Date();
       today.setHours(0,0,0,0);
 
-      const fares = dedupeAndSortFares(await getFares({
-        sectorId: sector.id,
-        startDate: today.toISOString()
-      }));
-      
-      const airlines = await getAirlines();
+      const [rawFares, resolveFlightTime, airlines] = await Promise.all([
+        getFares({ sectorId: sector.id, startDate: today.toISOString() }),
+        loadFlightTimeResolver(),
+        getAirlines(),
+      ]);
+      const fares = dedupeAndSortFares(rawFares, { resolveFlightTime });
+
       const airlineMap = new Map(airlines.map((airline) => [airline.id, airline]));
       
       data = fares.map(fare => {
@@ -466,11 +489,11 @@ async function searchFlights() {
         const airlineBrand = resolveAirlineBrand(airlineMap.get(fare.airlineId));
 
         // Baggage is airline policy, not fare data — legacy rows are corrected here.
-        const checkInKg = resolveCheckInBaggageKg(airlineBrand.code, fare.baggage);
-        const handKg = handBaggageKg(airlineBrand.code);
-        const checkInBaggageStr = `Check-in ${checkInKg} KG`;
-        const cabinBaggageStr = `Hand ${handKg} KG`;
-        const baggageLabelStr = `${checkInKg} + ${handKg}KG`;
+        // Formatting lives in shared/airline-baggage.js so every surface agrees
+        // on the unit spelling.
+        const checkInBaggageStr = formatCheckInBaggageText(airlineBrand.code, fare.baggage);
+        const cabinBaggageStr = formatHandBaggageText(airlineBrand.code);
+        const baggageLabelStr = formatBaggageAllowanceShort(airlineBrand.code, fare.baggage);
 
         return {
           airline: airlineBrand.name,

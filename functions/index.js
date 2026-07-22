@@ -18,8 +18,13 @@ const {
 const {
   resolveFlightTime,
   normalizeFlightTimeRange,
-  buildFlightTimeMap,
 } = require("./flightTime");
+const {
+  buildFlightDetailIndex,
+  buildFlightDetailKey,
+  normalizeScheduleWindows,
+  resolveScheduledFlightTime,
+} = require("./flightSchedule");
 
 initializeApp();
 const db = getFirestore();
@@ -517,7 +522,9 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
   // Configured flight times per airline+sector. n8n only echoes times back when
   // its parser found them in the paste, so this is the fallback that keeps
   // agent_fares.flightTime populated — posters render the stored value verbatim.
-  const flightTimeMap = buildFlightTimeMap(await db.collection("flight_details").get());
+  // Indexed case-insensitively and resolved per travel date, so a seasonal
+  // schedule window beats the doc's default `flightTime`.
+  const flightDetailIndex = buildFlightDetailIndex(await db.collection("flight_details").get());
 
   const BATCH_LIMIT = 400;
   let saved = 0;
@@ -536,7 +543,11 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
       
       const agentIdStr = String(row.agent_id);
       const flightDate = Timestamp.fromDate(new Date(row.date + "T00:00:00Z"));
-      const flightTimeStr = resolveFlightTime(row, flightTimeMap[`${airlineId}_${sectorId}`]);
+      const configuredDetail = flightDetailIndex.get(buildFlightDetailKey(airlineId, sectorId));
+      const flightTimeStr = resolveFlightTime(
+        row,
+        resolveScheduledFlightTime(configuredDetail, row.date, normalizeFlightTimeRange),
+      );
 
       // Use agent's stored commission; n8n payload can override if explicitly provided
       const commission = (row.commission !== undefined && row.commission !== null)
@@ -638,6 +649,20 @@ exports.exportFlightDetailsForN8n = onRequest({ region: "asia-south1", cors: tru
         const key = `${airlineCode}_${sectorCode}`;
         const flightTime = normalizeFlightTimeRange(d.flightTime);
         const [timeStart = "", timeEnd = ""] = flightTime.split(" - ");
+        // Seasonal overrides. n8n picks the window covering each parsed travel
+        // date; when it doesn't, ingestFaresFromN8n resolves the same windows
+        // server-side, so the payload only ever needs to carry them.
+        const schedules = normalizeScheduleWindows(d.schedules, normalizeFlightTimeRange)
+          .map((window) => {
+            const [start = "", end = ""] = window.flightTime.split(" - ");
+            return {
+              start_date: window.startDate,
+              end_date: window.endDate,
+              flightTime: window.flightTime,
+              time_start: start,
+              time_end: end,
+            };
+          });
         details[key] = {
           airlineId: d.airlineId,
           sectorId: d.sectorId,
@@ -646,6 +671,8 @@ exports.exportFlightDetailsForN8n = onRequest({ region: "asia-south1", cors: tru
           flightTime,
           time_start: timeStart,
           time_end: timeEnd,
+          schedules,
+          hasSchedules: schedules.length > 0,
           // Baggage comes from the airline rules, not the stored free-text
           // value — ingestFaresFromN8n enforces the same weights on the way in.
           baggage: resolveCheckInBaggageKg(airlineCode, d.baggage),

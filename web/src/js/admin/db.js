@@ -234,6 +234,22 @@ export async function getFlightDetails() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * Strips a `schedules` array down to what Firestore should store: plain
+ * `{ startDate, endDate, flightTime }` objects with no undefined members
+ * (Firestore rejects `undefined` inside arrays).
+ */
+function sanitizeFlightSchedules(schedules) {
+  if (!Array.isArray(schedules)) return [];
+  return schedules
+    .map(w => ({
+      startDate: String(w?.startDate || '').trim(),
+      endDate: String(w?.endDate || '').trim(),
+      flightTime: String(w?.flightTime || '').trim(),
+    }))
+    .filter(w => w.flightTime && (w.startDate || w.endDate));
+}
+
 /** Add a new flight detail mapping */
 export async function addFlightDetail(data) {
   if (!data.airlineId || !data.sectorId) throw new Error("Airline and Sector are required");
@@ -243,6 +259,8 @@ export async function addFlightDetail(data) {
     airlineId: data.airlineId,
     sectorId: data.sectorId,
     flightTime: data.flightTime || '',
+    // Date-ranged overrides of `flightTime`; empty means "same time year-round".
+    schedules: sanitizeFlightSchedules(data.schedules),
     baggage: data.baggage || '',
     extraBaggage: Number(data.extraBaggage) || 0,
     createdAt: serverTimestamp(),
@@ -253,10 +271,9 @@ export async function addFlightDetail(data) {
 
 /** Update an existing flight detail mapping */
 export async function updateFlightDetail(id, data) {
-  await updateDoc(doc(db, 'flight_details', id), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  const payload = { ...data, updatedAt: serverTimestamp() };
+  if ('schedules' in payload) payload.schedules = sanitizeFlightSchedules(payload.schedules);
+  await updateDoc(doc(db, 'flight_details', id), payload);
 }
 
 /** Delete a flight detail mapping */

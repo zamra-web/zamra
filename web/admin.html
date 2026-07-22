@@ -1292,6 +1292,18 @@ Example:
                         </div>
                     </div>
                     <div class="flex items-center gap-2 flex-wrap">
+                        <!-- White-label exports drop the Zamra letterhead AND the
+                             Agent / SP Rate / Commission columns, so a sheet can be
+                             forwarded on without revealing the buying position. -->
+                        <label id="report-white-label-wrap"
+                            class="no-print flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 h-[38px] cursor-pointer select-none hover:border-primary transition-colors"
+                            title="Removes the agency name, contact details, supplier and margin columns from the export">
+                            <input type="checkbox" id="report-white-label"
+                                class="w-4 h-4 accent-[var(--color-primary,#1a73e8)] cursor-pointer">
+                            <span class="text-[12px] font-bold text-navy whitespace-nowrap">
+                                <i class="bi bi-incognito"></i> Hide agency details
+                            </span>
+                        </label>
                         <button id="download-report-csv"
                             class="admin-btn admin-btn-secondary opacity-50 pointer-events-none">
                             <i class="bi bi-file-earmark-spreadsheet-fill text-green-500"></i> Export CSV
@@ -1589,7 +1601,18 @@ Example:
                             <p class="text-[11px] uppercase tracking-[0.12em] text-slate-300">Preview Ready</p>
                             <p class="text-sm font-semibold">Review ticket details, then print or save as PDF.</p>
                         </div>
-                        <div class="flex flex-wrap gap-3">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <!-- Hides the letterhead (logo, address, phone, email)
+                                 and the footer sign-off for both the preview and
+                                 every download while it is on. -->
+                            <label id="et-white-label-wrap"
+                                class="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 h-[38px] cursor-pointer select-none hover:border-white/50 transition-colors"
+                                title="Removes the agency name, logo and contact details from the ticket">
+                                <input type="checkbox" id="et-white-label" class="w-4 h-4 accent-white cursor-pointer">
+                                <span class="text-[12px] font-bold text-white whitespace-nowrap">
+                                    <i class="bi bi-incognito"></i> Hide agency details
+                                </span>
+                            </label>
                             <button id="et-print-btn" class="admin-btn admin-btn-secondary px-6 !text-slate-900">
                                 <i class="bi bi-printer-fill"></i> Print / Save as PDF
                             </button>
@@ -1607,8 +1630,11 @@ Example:
                     <div class="flex-1 bg-white rounded-[15px] border-2 border-[#c9a227] overflow-hidden flex flex-col">
 
                         <!-- ── Letterhead ─────────────────────────────────────────── -->
+                        <!-- data-brand-identity marks every node that names or
+                             contacts the agency. The white-label download hides
+                             exactly these; nothing else in the ticket changes. -->
                         <header class="flex items-stretch justify-between gap-4">
-                            <div class="flex items-center gap-5 px-7 py-5">
+                            <div class="flex items-center gap-5 px-7 py-5" data-brand-identity>
                                 <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[72px] w-auto object-contain">
                                 <div class="space-y-1.5">
                                     <p class="flex items-center gap-2 text-[11.5px] text-[#334155]">
@@ -1851,7 +1877,7 @@ Example:
 
                         <!-- ── Footer ─────────────────────────────────────────────── -->
                         <footer class="mt-auto bg-[#0f2a55] px-7 py-5 text-center">
-                            <p class="text-[16px] font-bold text-white">
+                            <p class="text-[16px] font-bold text-white" data-brand-identity>
                                 Thank You for Choosing <span class="text-[#e8c46a]">ZAMRA TRAVELS</span> <span class="text-[#ef4444]">&#9829;</span>
                             </p>
                             <p class="ticket-script text-[#e8c46a] text-[22px] leading-tight mt-1">Have a Safe &amp; Pleasant Journey</p>

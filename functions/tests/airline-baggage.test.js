@@ -10,6 +10,10 @@ const {
   defaultCheckInBaggageKg,
   resolveCheckInBaggageKg,
   hasVariableCheckInBaggage,
+  formatBaggageKg,
+  formatCheckInBaggageText,
+  formatHandBaggageText,
+  formatBaggageAllowanceShort,
   baggageSummary,
 } = require("../airlineBaggage");
 
@@ -69,4 +73,28 @@ test("baggageSummary renders one row per airline in table order", () => {
   assert.equal(rows.length, STANDARD_AIRLINE_CODES.length);
   assert.deepEqual(rows[5], { code: "OV", checkInBaggage: [20, 40], handBaggage: 5 });
   assert.deepEqual(rows[7], { code: "SV", checkInBaggage: [20, 30, 40], handBaggage: 7 });
+});
+
+// The display helpers are mirrored too — same expectations as the ESM suite.
+test("formatBaggageKg spells the unit one way and drops empty weights", () => {
+  assert.equal(formatBaggageKg(30), "30 kg");
+  assert.equal(formatBaggageKg("30kg"), "30 kg");
+  assert.equal(formatBaggageKg(7.5), "7.5 kg");
+  assert.equal(formatBaggageKg(0), "");
+  assert.equal(formatBaggageKg(null), "");
+});
+
+test("baggage display text is labelled and consistently spelled", () => {
+  assert.equal(formatCheckInBaggageText("IX", 30), "Check-in 30 kg");
+  assert.equal(formatCheckInBaggageText("IX", 45), "Check-in 30 kg");
+  assert.equal(formatCheckInBaggageText("SV", 40), "Check-in 40 kg");
+  assert.equal(formatHandBaggageText("IX"), "Hand 7 kg");
+  assert.equal(formatHandBaggageText("G9"), "Hand 10 kg");
+  assert.equal(formatHandBaggageText("OV"), "Hand 5 kg");
+});
+
+test("formatBaggageAllowanceShort shares one trailing unit", () => {
+  assert.equal(formatBaggageAllowanceShort("IX", 30), "30 + 7 kg");
+  assert.equal(formatBaggageAllowanceShort("G9", 30), "30 + 10 kg");
+  assert.equal(formatBaggageAllowanceShort("OV", 20), "20 + 5 kg");
 });

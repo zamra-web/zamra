@@ -143,7 +143,7 @@ export function buildFlightCardHtml(item) {
                 <div class="text-left">
                   <div class="text-[14px] font-bold text-navy mb-3">Luggage</div>
                   <div class="text-[13px] text-text-muted font-medium mb-1.5 flex items-center">${item.checkInBaggage}</div>
-                  <div class="text-[14px] font-bold text-navy flex items-center">${item.cabinBaggage}</div>
+                  <div class="text-[13px] text-text-muted font-medium flex items-center">${item.cabinBaggage}</div>
                 </div>
               </div>
 

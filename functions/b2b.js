@@ -14,6 +14,12 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { compareSectorDisplayOrder } = require("./sectorOrdering");
+const { normalizeFlightTimeRange } = require("./flightTime");
+const {
+  buildFlightDetailIndex,
+  buildFlightDetailKey,
+  resolveScheduledFlightTime,
+} = require("./flightSchedule");
 
 const B2B_EMAIL_DOMAIN = "b2b.zamratravels.com";
 const DEFAULT_B2B_MARKUP = 200;
@@ -447,7 +453,7 @@ function build(db, requireAdmin) {
     const sectorData = sectorSnap.data();
     const { originCode, destCode } = parseSectorCodes(sectorData.sectorCode);
 
-    const [config, faresSnap] = await Promise.all([
+    const [config, faresSnap, flightDetailsSnap] = await Promise.all([
       getB2BConfig(),
       db.collection("agent_fares")
         .where("sectorId", "==", sectorId)
@@ -455,9 +461,25 @@ function build(db, requireAdmin) {
         .where("flightDate", ">=", Timestamp.fromDate(getUtcMidnightToday()))
         .orderBy("flightDate", "asc")
         .get(),
+      db.collection("flight_details").get(),
     ]);
 
-    const fares = computeB2BFares(faresSnap.docs.map((d) => d.data()), agent, config);
+    // Fares ingested before the n8n time round-trip was fixed store an empty
+    // flightTime, which renders as "TBA" in the portal. Fill it from the
+    // configured per-route default (date-aware) before pricing, so the dedupe
+    // key and what the agent sees agree.
+    const flightDetailIndex = buildFlightDetailIndex(flightDetailsSnap);
+    const fareDocs = faresSnap.docs.map((d) => {
+      const fare = d.data();
+      if (normalizeFlightTimeRange(fare.flightTime)) return fare;
+      const detail = flightDetailIndex.get(buildFlightDetailKey(fare.airlineId, fare.sectorId));
+      return {
+        ...fare,
+        flightTime: resolveScheduledFlightTime(detail, fare.flightDate, normalizeFlightTimeRange),
+      };
+    });
+
+    const fares = computeB2BFares(fareDocs, agent, config);
 
     return {
       sector: {

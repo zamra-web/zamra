@@ -19,15 +19,35 @@ export function splitFlightTimeRange(flightTime = '') {
   return { departure, arrival };
 }
 
-export function dedupeAndSortFares(fares = []) {
+/**
+ * Dedupes fares to the cheapest per (sector, airline, date, time) and sorts by
+ * date then price.
+ *
+ * `resolveFlightTime` fills in a fare's missing `flightTime` from the configured
+ * `flight_details` default before grouping. Rows ingested before the n8n time
+ * round-trip was fixed store an empty `flightTime`, and without this the public
+ * site printed "TBA" for routes whose time was configured all along. Resolving
+ * before grouping also keeps the dedupe key in agreement with what renders.
+ *
+ * @param {Array} fares
+ * @param {{ resolveFlightTime?: (fare: object) => string }} [options]
+ */
+export function dedupeAndSortFares(fares = [], options = {}) {
+  const resolveFlightTime = typeof options.resolveFlightTime === 'function'
+    ? options.resolveFlightTime
+    : (fare) => String(fare?.flightTime || '').trim();
+
   const groupedFaresMap = new Map();
 
-  fares.forEach((fare) => {
+  fares.forEach((rawFare) => {
+    const flightTime = String(resolveFlightTime(rawFare) || '').trim();
+    const fare = flightTime === rawFare?.flightTime ? rawFare : { ...rawFare, flightTime };
+
     const key = [
       fare?.sectorId || '',
       fare?.airlineId || '',
       resolveFlightDateMs(fare?.flightDate),
-      String(fare?.flightTime || '').trim(),
+      flightTime,
     ].join('_');
 
     const existing = groupedFaresMap.get(key);

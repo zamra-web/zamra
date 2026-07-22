@@ -4,7 +4,12 @@
  */
 
 const { getFirestore, Timestamp } = require("firebase-admin/firestore");
-const { normalizeFlightTimeRange, buildFlightTimeMap } = require("../flightTime");
+const { normalizeFlightTimeRange } = require("../flightTime");
+const {
+  buildFlightDetailIndex,
+  buildFlightDetailKey,
+  resolveScheduledFlightTime,
+} = require("../flightSchedule");
 
 function startOfTodayUTC() {
   const d = new Date();
@@ -39,7 +44,8 @@ async function fetchDailyFares(sectorId, opts = {}) {
 
   // Fares uploaded before the flight time round-trip was fixed store "", so
   // fall back to the configured per-route time rather than printing "—".
-  const flightTimeMap = buildFlightTimeMap(flightDetailsSnap);
+  // The fallback is date-aware: a seasonal window beats the doc default.
+  const flightDetailIndex = buildFlightDetailIndex(flightDetailsSnap);
 
   const dedup = new Map();
   for (const doc of snap.docs) {
@@ -47,7 +53,11 @@ async function fetchDailyFares(sectorId, opts = {}) {
     const date = f.flightDate?.toDate?.() || f.flightDate;
     if (!date) continue;
     const flightTime = normalizeFlightTimeRange(f.flightTime) ||
-      flightTimeMap[`${f.airlineId}_${f.sectorId || sectorId}`] || "";
+      resolveScheduledFlightTime(
+        flightDetailIndex.get(buildFlightDetailKey(f.airlineId, f.sectorId || sectorId)),
+        date,
+        normalizeFlightTimeRange,
+      );
     const key = `${f.airlineId}_${date.getTime()}_${normalizeTime(flightTime)}`;
     const rate = Number(f.finalRate) || Infinity;
     const existing = dedup.get(key);

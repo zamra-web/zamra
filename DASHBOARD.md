@@ -158,6 +158,12 @@ web/
 - **Pagination** — 10 airlines per page
 - **Logo upload** — uploads to Firebase Storage (`/airline_logos/`), stores URL in Firestore
 - Data from Firestore `airlines` collection (fields: `name`, `code`, `logoUrl`)
+- **Flight Defaults table** (`flight_details`) — one row per airline + sector, holding the default flight time and the baggage defaults injected during n8n rate uploads. The Time column shows the default plus a `N date ranges` badge when seasonal overrides exist.
+- **Flight Defaults modal** — three sections:
+  - *Default Flight Time (all dates)* — used whenever no date range covers the travel date.
+  - *Seasonal Schedules* — repeatable `From / To / Flight Time` rows for routes whose schedule changes mid-season (e.g. FlyDubai DXB–CCJ at `01:30 - 06:50` from 22 Jul to 1 Aug, then `14:20 - 19:35` to 30 Aug). Adding a range pre-fills its start as the day after the last range ends. Incomplete rows and overlapping ranges raise an inline warning instead of being silently dropped or silently resolved.
+  - **Apply to All Dates** — promotes one time to the default and clears every range in a single click, for routes whose schedule never changes. Confirms first when ranges would be discarded.
+  - Saving requires either a default time or at least one range. See [Flight Time Resolution](#flight-time-resolution).
 
 ### 6. 📈 Reports Tab
 - **Filter Bar** — premium card with icon header. Fields: Sector (optional), Agent (optional), From Date (optional), To Date (optional), and a gradient **Generate Report** button with a lightning icon.
@@ -186,8 +192,30 @@ web/
   - Inline per-row **Delete** and **Hide/Show** — update `_reportFares` in place without re-fetching
 - **Export CSV** — greyed out until data is loaded; unlocked automatically after a successful report fetch. Downloads full filtered set (not just current page). All IDs resolved to human-readable names. UTF-8 BOM prefix for correct Excel rendering.
 - **Export PDF** — one-click PDF download of the report results table (multi-page when needed).
+- **Hide agency details** — a checkbox beside the export buttons that switches both exports to **white-label** output. See [Export Ordering & White-Label](#export-ordering--white-label).
 
 > **Implementation note:** `renderReportCharts()` populates the stat cards and both charts, then wires the CSV button via `cloneNode` to avoid duplicate listeners. `renderReportFaresTable()` injects only the `<table>` + pagination footer into `#report-fares-results` — it does **not** wrap in its own card (the outer HTML card in `admin.html` already wraps it).
+
+## Export Ordering & White-Label
+
+Ordering and CSV assembly live in [web/src/js/admin/report-export.js](web/src/js/admin/report-export.js), kept free of DOM and Firebase imports so `web/tests/report-export.test.js` can exercise them directly.
+
+**Ordering.** Exports used to inherit whatever order Firestore returned, which reads as random. `sortFaresForExport()` now orders rows: **sector (POS display order) → date → departure time → airline → rate → id**. The sector tier uses the persisted `sortOrder` on `sectors` — the same order the dashboard, the posters and the POS render — so a downloaded sheet matches what the POS shows, grouped `Calicut–Jeddah`, then `Calicut–Riyadh`, and so on. Every tier is a total order, so the same input always produces byte-identical output. Sectors missing from the rank map sort after all known ones, and rows with no parseable time sort **last within their day** rather than first.
+
+The Reports table itself defaults to this same order (`tableSort.reportFares.key === 'sectorOrder'`), so the sheet you download matches the rows you were just looking at. Clicking any other column header still switches to the plain field sort.
+
+**White-label.** The "Hide agency details" toggle produces output safe to forward to a sub-agent or customer. It removes **both** the identity and the commercial position:
+
+| | Standard | White-label |
+|---|---|---|
+| CSV letterhead (name, phone, email) | ✅ | ❌ |
+| `Agent` / `SP Rate` / `Commission` columns | ✅ | ❌ |
+| `Rate` (customer-facing price) | ✅ | ✅ |
+| File name | `zamra-fares-<date>` | `fare-report-<date>` |
+
+Dropping the margin columns is the point, not a side effect — hiding the letterhead while leaving `SP Rate` and `Commission` in the sheet would expose exactly what the feature exists to hide. The PDF path derives the columns to drop **from the rendered header row** rather than hard-coding indexes, so reordering the table cannot silently leak one back in.
+
+The E-Ticket tab has the same toggle. It hides every `data-brand-identity` node (the letterhead block and the footer sign-off) using `visibility: hidden` rather than `display: none`, so the A4 layout does not reflow, and it applies to the live preview, Print, and Download alike.
 
 ### 7. 🗃️ Database Tab
 - **Spreadsheet View for `agent_fares`** — dedicated sheet-style table for admins to manage all fare rows in one place.
@@ -341,6 +369,29 @@ The round-trip through n8n used to drop it: `exportFlightDetailsForN8n` handed o
 Every shape is normalized to 24-hour `HH:MM - HH:MM` (`1940`, `19.40`, `7:40 PM`, en/em dashes and `to` separators all parse; junk like `TBA` resolves to `''` rather than being stored). `exportFlightDetailsForN8n` now emits `time_start` / `time_end` alongside `flightTime` so either shape round-trips.
 
 Both poster renderers apply the same `flight_details` fallback at render time — [functions/poster/fetchFares.js](functions/poster/fetchFares.js) for the daily auto-poster and `dedupeAndSortPosterFares()` in `admin/main.js` for the admin poster, video export, social publishing, and clipboard text. Fares uploaded before the fix therefore show their times without a backfill. `loadGlobalData()` fetches `flight_details` so the fallback works even when the Flights tab was never opened.
+
+**The public site and the B2B portal apply it too.** They previously did not, which is why the SpiceJet CCJ–DXB time showed as `TBA` on the site while being correctly configured in the backend. `web/src/js/web/main.js` passes a `resolveFlightTime` callback into `dedupeAndSortFares()` (built once per page load by `buildFlightTimeResolver()`), and `getB2BFares` fills blank times before pricing. Resolving *before* the dedupe matters: the flight time is part of the grouping key, so resolving afterwards would group rows that then render differently.
+
+Lookup is **case-insensitive on both ids** (`buildFlightDetailKey()`), because a fare whose `airlineId` differs only in case from its `flight_details` doc used to miss the fallback silently.
+
+### Date-ranged schedules
+
+`flight_details.schedules` is an optional array of seasonal overrides of the doc's default `flightTime`:
+
+```js
+{
+  airlineId: 'air-fz', sectorId: 'dxb-ccj',
+  flightTime: '01:30 - 06:50',            // default — applies outside every window
+  schedules: [
+    { startDate: '2026-07-22', endDate: '2026-08-01', flightTime: '01:30 - 06:50' },
+    { startDate: '2026-08-01', endDate: '2026-08-30', flightTime: '14:20 - 19:35' },
+  ],
+}
+```
+
+Resolution is **narrowest window first**, tie-broken on the later `startDate` — so a short window deliberately overrides a longer one that surrounds it, and the airline's newer schedule wins a shared changeover day. Falling through every window yields the default `flightTime`. The rules live in [web/src/js/shared/flight-schedule.js](web/src/js/shared/flight-schedule.js) with a CommonJS mirror at [functions/flightSchedule.js](functions/flightSchedule.js) — **any change must be made in both files**, and both test suites cover the same table.
+
+Overlapping windows are legal but almost always a mistake, so the Flights-tab editor warns about them (`findScheduleOverlaps()`) rather than silently picking one. **Apply to All Dates** promotes a single time to the default and clears every window in one click — the button for routes whose schedule never changes. `exportFlightDetailsForN8n` publishes the windows as `schedules[]` with `start_date` / `end_date`, and `ingestFaresFromN8n` resolves them per travel date server-side, so n8n does not have to.
 
 ## Firestore Database Schema
 

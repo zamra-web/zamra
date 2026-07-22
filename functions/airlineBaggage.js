@@ -64,6 +64,55 @@ function formatCheckInBaggageLabel(airlineCode) {
   return checkInBaggageOptions(airlineCode).join(", ");
 }
 
+// ── Display formatting ───────────────────────────────────────────────────────
+// One spelling of the unit everywhere: a space before it, lowercase "kg".
+
+/**
+ * A bare weight with its unit, e.g. "30 kg".
+ * @param {*} kg
+ * @return {string} "" when there is no usable weight.
+ */
+function formatBaggageKg(kg) {
+  const n = parseKg(kg);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return `${Number.isInteger(n) ? n : Number(n.toFixed(1))} kg`;
+}
+
+/**
+ * Labelled check-in allowance, e.g. "Check-in 30 kg".
+ * @param {*} airlineCode
+ * @param {*} requested
+ * @return {string}
+ */
+function formatCheckInBaggageText(airlineCode, requested) {
+  const text = formatBaggageKg(resolveCheckInBaggageKg(airlineCode, requested));
+  return text ? `Check-in ${text}` : "Check-in as per airline";
+}
+
+/**
+ * Labelled cabin allowance, e.g. "Hand 7 kg".
+ * @param {*} airlineCode
+ * @return {string}
+ */
+function formatHandBaggageText(airlineCode) {
+  const text = formatBaggageKg(handBaggageKg(airlineCode));
+  return text ? `Hand ${text}` : "Hand as per airline";
+}
+
+/**
+ * Compact badge for tight layouts, e.g. "30 + 7 kg".
+ * @param {*} airlineCode
+ * @param {*} requested
+ * @return {string}
+ */
+function formatBaggageAllowanceShort(airlineCode, requested) {
+  const checkIn = parseKg(resolveCheckInBaggageKg(airlineCode, requested));
+  const hand = parseKg(handBaggageKg(airlineCode));
+  const parts = [checkIn, hand].filter((n) => Number.isFinite(n) && n > 0);
+  if (!parts.length) return "As per airline";
+  return `${parts.join(" + ")} kg`;
+}
+
 function baggageSummary(codes) {
   return (codes || STANDARD_AIRLINE_CODES).map((code) => ({
     code: normalizeAirlineCode(code),
@@ -83,5 +132,9 @@ module.exports = {
   defaultCheckInBaggageKg,
   resolveCheckInBaggageKg,
   formatCheckInBaggageLabel,
+  formatBaggageKg,
+  formatCheckInBaggageText,
+  formatHandBaggageText,
+  formatBaggageAllowanceShort,
   baggageSummary,
 };
