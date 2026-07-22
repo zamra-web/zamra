@@ -2426,6 +2426,12 @@ input[type="date"]::-webkit-clear-button {
     display: none;
 }
 
+/* ─── E-Ticket letterhead script (tagline + footer sign-off) ───────────────── */
+.ticket-script {
+    font-family: 'Great Vibes', 'Segoe Script', cursive;
+    font-weight: 400;
+}
+
 /* ─── Web/Print E-Ticket Styles ─── */
 @media print {
     html,

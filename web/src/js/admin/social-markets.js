@@ -1,3 +1,5 @@
+import { AIRPORT_ALIASES } from '../shared/airports.js';
+
 export const POSTER_SOCIAL_MARKET_ORDER = ['saudi', 'uae', 'qatar', 'oman', 'kuwait', 'bahrain'];
 export const POSTER_SOCIAL_COUNTRY_ORDER = ['ccj', 'cok', 'cnn', 'trv', 'ixe'];
 
@@ -104,32 +106,9 @@ const INDIA_COUNTRY_KEY_BY_CODE = Object.fromEntries(
   }),
 );
 
-const LOCATION_CODE_MAP = {
-  KOZHIKODE: 'CCJ',
-  CALICUT: 'CCJ',
-  KOCHI: 'COK',
-  COCHIN: 'COK',
-  KANNUR: 'CNN',
-  TRIVANDRUM: 'TRV',
-  THIRUVANANTHAPURAM: 'TRV',
-  MANGALORE: 'IXE',
-  JEDDAH: 'JED',
-  RIYADH: 'RUH',
-  DAMMAM: 'DMM',
-  DAMAM: 'DMM',
-  DMM: 'DMM',
-  DOHA: 'DOH',
-  MUSCAT: 'MCT',
-  BAHRAIN: 'BAH',
-  KUWAIT: 'KWI',
-  DUBAI: 'DXB',
-  SHARJAH: 'SHJ',
-  'ABU DHABI': 'AUH',
-  AUH: 'AUH',
-  'RAS AL KHAIMAH': 'RKT',
-  'AL AIN': 'AAN',
-  FUJAIRAH: 'FJR',
-};
+// Label→code lookups come from the shared airport directory so a new airport is
+// only ever added in one place. See `shared/airports.js`.
+const LOCATION_CODE_MAP = AIRPORT_ALIASES;
 
 function normalizeToken(value = '') {
   return String(value || '')

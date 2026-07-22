@@ -213,13 +213,17 @@ web/
 
 ### 9. 🎟️ E-Ticket Tab
 - **Manual E-Ticket Generator** — issue professional, branded e-tickets directly from the dashboard.
-- **Premium Layout System** — ticket output now uses a structured document layout (header meta, route summary cards, flight table, passenger manifest, advisory block) optimized for both on-screen preview and A4 print/PDF.
+- **Poster-style A4 layout** — the ticket is a full-bleed navy/gold document: Zamra letterhead with the "Your Journey, Our Priority" script panel, an airline/PNR/status strip, a booking-meta strip (booking date · customer phone · booking ref), a navy route bar, a departure→arrival flight-details board, the passenger table, a barcode plus baggage-allowance card, an "Important Information" grid, and a navy footer sign-off. The inner card is `flex flex-col` with a `mt-auto` footer so a one-passenger ticket still fills the A4 page.
 - **Dynamic Selectors** — pulls active airlines, origins, and destinations from Firestore to pre-populate dropdowns.
 - **Airline Logos** — dynamically fetches and embeds airline logos from Firebase Storage into the ticket header.
-- **Dynamic Passenger Rows** — allows adding multiple passengers and specifying check-in/carry-on baggage per passenger.
-- **Automated Formatting** — precisely structured classic ticket layout with travel details, pax details, passenger flight segments, dynamic baggage mapping, explicit top-level passenger counts, tightened airline PNR spacing, and appended travel rules.
+- **IATA codes are resolved, never guessed** — `DMM` / `CCJ` come from, in order: an explicit code in the dropdown label (`Kozhikode (CCJ)`), the matched sector's `sectorCode`, the shared airport directory ([web/src/js/shared/airports.js](web/src/js/shared/airports.js)), another sector starting/ending at the same city, and only then the first three letters. The old code skipped the sector lookup whenever the route matched exactly, which is why `Calicut → Dubai` printed `CAL`/`DUB`. `web/tests/airports.test.js` locks the behaviour in.
+- **Airport names and terminals** — the directory also supplies the printed airport name ("King Fahd International Airport"); terminals are optional free-text fields.
+- **Optional booking fields** — booking reference (auto-generated and written back into the form so re-generating keeps the same number, and it seeds the barcode), supplier/GDS PNR (its column hides when blank), booking status (drives the pill colour), cabin class, booking date, a duration override for cross-timezone sectors, and per-terminal text.
+- **Next-day arrivals** — an arrival clock time earlier than departure rolls the printed arrival date forward one day and is folded into the computed duration.
+- **Dynamic Passenger Rows** — multiple passengers with ticket number, frequent flyer, seat, and per-passenger check-in/carry-on baggage.
+- **Zero-baggage children and infants** — selecting Child or Infant adds a `0 Kg (No Baggage)` option to both baggage dropdowns (Infant defaults both to 0), and the ticket prints "0 Kg Cabin Baggage / + 0 Kg Check-in Baggage". Adults never see the 0 Kg option — their weights stay fixed airline policy. The amber allowance card collapses to two lines when everyone shares an allowance and otherwise lists one line per passenger type.
 - **Print / PDF Export** — specifically engineered with strict CSS `@media print` overrides (removing borders, shadows, and rounded corners) to guarantee a clean, borderless A4-native document generation via the browser's native print dialog.
-- **Download PDF** — one-click PDF download using html2canvas + jsPDF for quick saves, while the Print button remains the crisp, vector-quality option.
+- **Download PDF** — one-click PDF download using html2canvas + jsPDF for quick saves, while the Print button remains the crisp, vector-quality option. Ticket colours are written as literal hex (`bg-[#0f2a55]`), never Tailwind palette classes, because those compile to `oklch()` which html2canvas cannot parse.
 
 ### 10. 🛂 Visas Tab
 - **Comprehensive Visa Services Management** — Full CRUD management for four distinct service types via isolated inner tabs:
@@ -321,7 +325,7 @@ Enforcement points:
 
 - **`ingestFaresFromN8n`** overwrites the baggage on every incoming row — hand baggage is always the rule value, check-in is snapped onto the airline's allowed weights. n8n cannot override it.
 - **`exportFlightDetailsForN8n`** returns rule-derived `baggage` / `extraBaggage` per mapping, plus `checkInBaggageOptions`, `handBaggage`, and a top-level `baggageRules` table.
-- **Admin dashboard** — the Database tab's inline editor, the Add Fare modal, the Flights tab's flight-defaults modal, and the E-Ticket passenger rows all rebuild their baggage dropdowns when the airline changes, and re-derive the values again on submit.
+- **Admin dashboard** — the Database tab's inline editor, the Add Fare modal, the Flights tab's flight-defaults modal, and the E-Ticket passenger rows all rebuild their baggage dropdowns when the airline changes, and re-derive the values again on submit. The single exception is the E-Ticket builder's Child/Infant rows, which additionally offer `0 Kg (No Baggage)` — a passenger-level fact about a specific booking, not a change to the airline table.
 - **Public site, B2B portal, and both poster renderers** resolve baggage from the airline code at render time, so legacy rows with stale weights display correctly without a backfill.
 
 ## Flight Time Resolution

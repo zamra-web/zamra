@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&family=Great+Vibes&display=swap"
         rel="stylesheet">
 
     <!-- Icons -->
@@ -1501,6 +1501,60 @@ Example:
                     </section>
 
                     <section class="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
+                        <div class="flex items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 class="font-bold text-[15px] text-navy tracking-[0.02em]">Booking References & Cabin</h3>
+                                <p class="text-[12px] text-text-muted mt-0.5">Optional — leave blank and sensible values are filled in automatically.</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Booking Reference</label>
+                                <input id="et-booking-ref" name="etBookingRef" type="text" placeholder="Auto-generated" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none uppercase font-mono bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Supplier / GDS PNR</label>
+                                <input id="et-supplier-ref" name="etSupplierRef" type="text" placeholder="Hidden when blank" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none uppercase font-mono bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Booking Status</label>
+                                <select id="et-status" name="etStatus" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                    <option value="CONFIRMED">Confirmed</option>
+                                    <option value="ON HOLD">On Hold</option>
+                                    <option value="PENDING">Pending</option>
+                                    <option value="CANCELLED">Cancelled</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Cabin Class</label>
+                                <select id="et-cabin" name="etCabin" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                    <option value="Economy">Economy</option>
+                                    <option value="Premium Economy">Premium Economy</option>
+                                    <option value="Business">Business</option>
+                                    <option value="First">First</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Flight Duration</label>
+                                <input id="et-duration" name="etDuration" type="text" placeholder="Auto from times — e.g. 4h 50m" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                                <p class="text-[11px] text-text-muted mt-1">Override for cross-timezone sectors, where clock times understate the flight.</p>
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Booking Date</label>
+                                <input id="et-booking-date" name="etBookingDate" type="datetime-local" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Departure Terminal</label>
+                                <input id="et-dep-terminal" name="etDepTerminal" type="text" placeholder="e.g. Terminal 1" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold text-text-muted mb-1.5 uppercase tracking-[0.06em]">Arrival Terminal</label>
+                                <input id="et-arr-terminal" name="etArrTerminal" type="text" placeholder="e.g. Terminal 1" class="w-full border border-border rounded-xl h-11 px-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
                         <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
                             <div>
                                 <h3 class="font-bold text-[15px] text-navy tracking-[0.02em]">Passenger Manifest</h3>
@@ -1547,103 +1601,193 @@ Example:
                 </div>
 
                 <!-- THE TICKET -->
-                <div class="ticket-paper max-w-5xl mx-auto bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-[0_30px_80px_-35px_rgba(15,23,42,0.45)] text-slate-800 min-h-[1122px]" id="eticket-print-area">
-                    <div class="h-1.5 bg-gradient-to-r from-slate-900 via-blue-700 to-slate-900"></div>
+                <!-- Colours are literal hex on purpose: Tailwind palette classes compile to
+                     oklch(), which html2canvas cannot parse during Download PDF. -->
+                <div class="ticket-paper max-w-[860px] mx-auto flex bg-[#0f2a55] p-[7px] rounded-[22px] overflow-hidden shadow-[0_30px_80px_-35px_rgba(15,23,42,0.45)] text-[#1e293b] min-h-[1122px]" id="eticket-print-area">
+                    <div class="flex-1 bg-white rounded-[15px] border-2 border-[#c9a227] overflow-hidden flex flex-col">
 
-                    <div class="px-8 md:px-10 py-8 md:py-10 text-[12px] leading-relaxed">
-                        <header class="grid grid-cols-1 md:grid-cols-[1.2fr_auto] gap-6 border-b border-slate-200 pb-6">
-                            <div>
-                                <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Zamra Travels</p>
-                                <h2 class="mt-1 text-[24px] md:text-[28px] font-semibold text-slate-900 tracking-[0.02em] font-serif">Electronic Travel Ticket</h2>
-                                <p class="mt-2 text-[12px] text-slate-600">Kizhakkethala, Down Hill, Malappuram, Kerala 676519, India</p>
-                                <p class="text-[12px] text-slate-600">Email: zamratravelsmlp@gmail.com | Mobile: +91 98466 06739</p>
+                        <!-- ── Letterhead ─────────────────────────────────────────── -->
+                        <header class="flex items-stretch justify-between gap-4">
+                            <div class="flex items-center gap-5 px-7 py-5">
+                                <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[72px] w-auto object-contain">
+                                <div class="space-y-1.5">
+                                    <p class="flex items-center gap-2 text-[11.5px] text-[#334155]">
+                                        <svg viewBox="0 0 16 16" width="14" height="14" fill="#0f2a55"><path d="M8 0a5 5 0 0 0-5 5c0 3.5 5 11 5 11s5-7.5 5-11a5 5 0 0 0-5-5zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
+                                        Down Hill, Malappuram, Kerala 676519, India
+                                    </p>
+                                    <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-[#334155]">
+                                        <span class="flex items-center gap-2">
+                                            <svg viewBox="0 0 16 16" width="14" height="14" fill="#0f2a55"><path d="M3.7 1.2a1.3 1.3 0 0 0-1.8.1L1.2 2a2.6 2.6 0 0 0-.3 3C2.4 8 4.3 10.6 7 12.6c1.4 1 3.2 2.2 4.6 2.3a2.6 2.6 0 0 0 1.9-.8l.7-.7a1.3 1.3 0 0 0 .1-1.8l-1.7-1.9a1.3 1.3 0 0 0-1.8-.1l-1 .8a25 25 0 0 1-3.3-3.3l.8-1a1.3 1.3 0 0 0-.1-1.8L3.7 1.2z"/></svg>
+                                            +91 98466 06739
+                                        </span>
+                                        <span class="text-[#cbd5e1]">|</span>
+                                        <span class="flex items-center gap-2">
+                                            <svg viewBox="0 0 16 16" width="14" height="14" fill="#0f2a55"><path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h11A1.5 1.5 0 0 1 15 3.5v.2L8 8.4.999 3.7l.001-.2zM1 5.4V12a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 15 12V5.4L8.4 9.8a.75.75 0 0 1-.8 0L1 5.4z"/></svg>
+                                            zamratravelsmlp@gmail.com
+                                        </span>
+                                    </p>
+                                </div>
                             </div>
-                            <div class="md:text-right">
-                                <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Airline PNR</p>
-                                <p id="t-pnr" class="text-[30px] md:text-[34px] font-bold tracking-[0.05em] text-slate-900 mt-1 uppercase">XXXXXX</p>
-                                <p class="text-[11px] text-slate-500 mt-1">Document Type: Passenger Itinerary Receipt</p>
+                            <div class="bg-[#0f2a55] rounded-bl-[80px] pl-16 pr-9 py-7 flex items-center justify-end shrink-0">
+                                <p class="ticket-script text-[#e8c46a] text-[26px] leading-[1.15] text-right">Your Journey,<br>Our Priority</p>
                             </div>
                         </header>
 
-                        <section class="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-4 mt-5">
-                            <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-                                <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Issuing Airline</p>
-                                <div class="mt-2 flex items-center gap-3">
-                                    <div class="h-12 w-24 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center px-2">
-                                        <img id="t-airline-logo" src="" class="h-8 object-contain hidden" alt="Airline Logo">
-                                        <span id="t-issued-by-fallback" class="text-[10px] text-slate-500 uppercase">No logo</span>
-                                    </div>
-                                    <div>
-                                        <p id="t-issued-by" class="text-[14px] font-semibold uppercase text-slate-900">AIRLINE</p>
-                                        <p class="text-[11px] text-slate-500">Ticket status: Confirmed</p>
-                                    </div>
+                        <!-- ── Airline · PNR · Status ─────────────────────────────── -->
+                        <section class="grid grid-cols-[1.05fr_0.95fr_0.95fr_1.25fr] items-center border-t border-b border-[#e2e8f0] px-7 py-4">
+                            <div class="pr-5 flex items-center">
+                                <img id="t-airline-logo" src="" alt="Airline" class="h-[38px] max-w-[150px] object-contain object-left hidden">
+                                <span id="t-issued-by-fallback" class="text-[13px] font-bold uppercase tracking-[0.04em] text-[#0f2a55]">Airline</span>
+                            </div>
+                            <div class="border-l border-[#e2e8f0] px-5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748b]">Airline PNR</p>
+                                <p id="t-pnr" class="text-[22px] font-extrabold tracking-[0.06em] text-[#0f2a55] mt-0.5 uppercase">XXXXXX</p>
+                            </div>
+                            <div id="t-supplier-ref-block" class="border-l border-[#e2e8f0] px-5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748b]">Booking PNR</p>
+                                <p id="t-supplier-ref" class="text-[22px] font-extrabold tracking-[0.06em] text-[#0f2a55] mt-0.5 uppercase">—</p>
+                            </div>
+                            <div class="pl-5 text-right">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748b] mb-1.5">Booking Status</p>
+                                <span id="t-status-pill" class="inline-flex items-center gap-2.5 rounded-xl bg-[#16a34a] px-5 py-2.5 text-white">
+                                    <svg viewBox="0 0 16 16" width="20" height="20" fill="#ffffff"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.9 5.6-4.6 5.2a.9.9 0 0 1-1.3.05L3.6 8.6a.9.9 0 1 1 1.2-1.3l1.7 1.6 4-4.5a.9.9 0 0 1 1.4 1.2z"/></svg>
+                                    <span id="t-status-text" class="text-[19px] font-extrabold tracking-[0.03em] uppercase">Confirmed</span>
+                                </span>
+                            </div>
+                        </section>
+
+                        <!-- ── Booking meta strip ─────────────────────────────────── -->
+                        <section class="mx-7 mt-5 rounded-2xl bg-[#f1f5f9] px-6 py-4 grid grid-cols-3">
+                            <div class="flex items-center gap-3 pr-5">
+                                <svg viewBox="0 0 16 16" width="26" height="26" fill="#0f2a55"><path d="M4.5 0a.5.5 0 0 1 .5.5V2h6V.5a.5.5 0 0 1 1 0V2h.5A1.5 1.5 0 0 1 14 3.5v10A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-10A1.5 1.5 0 0 1 3.5 2H4V.5a.5.5 0 0 1 .5-.5zM3 6v7.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V6H3z"/></svg>
+                                <div>
+                                    <p class="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#64748b]">Booking Date</p>
+                                    <p id="t-booked-on" class="text-[13px] font-bold text-[#0f2a55] mt-0.5">—</p>
                                 </div>
                             </div>
-                            <div class="rounded-2xl bg-slate-900 text-white px-4 py-3.5">
-                                <p class="text-[10px] uppercase tracking-[0.14em] text-slate-300">Booking Meta</p>
-                                <div class="mt-2 space-y-1.5">
-                                    <p class="text-[12px]"><span class="text-slate-300">Customer Phone:</span> <span id="t-customer-phone" class="font-semibold"></span></p>
-                                    <p class="text-[12px]"><span class="text-slate-300">Booked On:</span> <span id="t-booked-on" class="font-semibold"></span></p>
+                            <div class="flex items-center gap-3 px-5 border-l border-[#dbe3ec]">
+                                <svg viewBox="0 0 16 16" width="26" height="26" fill="#0f2a55"><path d="M3.7 1.2a1.3 1.3 0 0 0-1.8.1L1.2 2a2.6 2.6 0 0 0-.3 3C2.4 8 4.3 10.6 7 12.6c1.4 1 3.2 2.2 4.6 2.3a2.6 2.6 0 0 0 1.9-.8l.7-.7a1.3 1.3 0 0 0 .1-1.8l-1.7-1.9a1.3 1.3 0 0 0-1.8-.1l-1 .8a25 25 0 0 1-3.3-3.3l.8-1a1.3 1.3 0 0 0-.1-1.8L3.7 1.2z"/></svg>
+                                <div>
+                                    <p class="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#64748b]">Customer Phone</p>
+                                    <p id="t-customer-phone" class="text-[13px] font-bold text-[#0f2a55] mt-0.5">—</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 pl-5 border-l border-[#dbe3ec]">
+                                <svg viewBox="0 0 16 16" width="26" height="26" fill="#0f2a55"><path d="M1 4.5A1.5 1.5 0 0 1 2.5 3h11A1.5 1.5 0 0 1 15 4.5v1a1.5 1.5 0 0 0 0 5v1A1.5 1.5 0 0 1 13.5 13h-11A1.5 1.5 0 0 1 1 11.5v-1a1.5 1.5 0 0 0 0-5v-1zM4.5 5.5v5h1v-5h-1zm2.5 0v5h1v-5H7zm2.5 0v5h1v-5h-1z"/></svg>
+                                <div>
+                                    <p class="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#64748b]">Booking Ref.</p>
+                                    <p id="t-booking-ref" class="text-[13px] font-bold text-[#0f2a55] mt-0.5 uppercase">—</p>
                                 </div>
                             </div>
                         </section>
 
-                        <section class="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <p class="text-[10px] uppercase tracking-[0.12em] text-slate-500">Route</p>
-                                <p id="t-route-code" class="text-[14px] font-bold text-slate-900 mt-1">CCJ - JED</p>
-                                <p id="t-route-long" class="text-[11px] text-slate-500 mt-0.5">KOZHIKODE to JEDDAH</p>
+                        <!-- ── Route bar ──────────────────────────────────────────── -->
+                        <section class="mx-7 mt-4 rounded-xl bg-[#0f2a55] text-white px-6 py-4 grid grid-cols-[1.45fr_0.85fr_1.35fr_0.85fr]">
+                            <div class="pr-5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a8bcd8]">Route</p>
+                                <div class="mt-1.5 flex items-center gap-3">
+                                    <span id="t-route-from-code" class="text-[26px] font-extrabold leading-none tracking-[0.03em]">—</span>
+                                    <svg viewBox="0 0 24 24" width="22" height="22" fill="#e8c46a"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-4.5L21 16z"/></svg>
+                                    <span id="t-route-to-code" class="text-[26px] font-extrabold leading-none tracking-[0.03em]">—</span>
+                                </div>
+                                <div class="mt-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.08em] text-[#a8bcd8]">
+                                    <span id="t-route-from-city">—</span>
+                                    <span>&rarr;</span>
+                                    <span id="t-route-to-city">—</span>
+                                </div>
                             </div>
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <p class="text-[10px] uppercase tracking-[0.12em] text-slate-500">Flight Number</p>
-                                <p id="t-flight-code" class="text-[14px] font-bold text-slate-900 mt-1">XY-328</p>
+                            <div class="px-5 border-l border-[#2a4877]">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a8bcd8]">Flight Number</p>
+                                <p class="mt-2 flex items-center gap-2">
+                                    <svg viewBox="0 0 24 24" width="17" height="17" fill="#e8c46a"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-4.5L21 16z"/></svg>
+                                    <span id="t-flight-code" class="text-[18px] font-bold tracking-[0.04em]">—</span>
+                                </p>
                             </div>
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <p class="text-[10px] uppercase tracking-[0.12em] text-slate-500">Travel Date</p>
-                                <p id="t-travel-date" class="text-[14px] font-bold text-slate-900 mt-1">SAT, 03 MAY 2025</p>
+                            <div class="px-5 border-l border-[#2a4877]">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a8bcd8]">Travel Date</p>
+                                <p class="mt-2 flex items-center gap-2">
+                                    <svg viewBox="0 0 16 16" width="16" height="16" fill="#e8c46a" class="shrink-0"><path d="M4.5 0a.5.5 0 0 1 .5.5V2h6V.5a.5.5 0 0 1 1 0V2h.5A1.5 1.5 0 0 1 14 3.5v10A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-10A1.5 1.5 0 0 1 3.5 2H4V.5a.5.5 0 0 1 .5-.5zM3 6v7.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V6H3z"/></svg>
+                                    <span id="t-travel-date" class="text-[15px] font-bold tracking-[0.02em] whitespace-nowrap">—</span>
+                                </p>
                             </div>
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <p class="text-[10px] uppercase tracking-[0.12em] text-slate-500">No. of Passengers</p>
-                                <p id="t-top-pax-count" class="text-[14px] font-bold text-slate-900 mt-1">1</p>
+                            <div class="pl-5 border-l border-[#2a4877]">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a8bcd8]">Duration</p>
+                                <p class="mt-2 flex items-center gap-2">
+                                    <svg viewBox="0 0 16 16" width="16" height="16" fill="#e8c46a"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm.75 3.5v4.2l3 1.8-.75 1.25L7.25 8.5v-5h1.5z"/></svg>
+                                    <span id="t-duration" class="text-[16px] font-bold tracking-[0.03em]">—</span>
+                                </p>
                             </div>
                         </section>
 
-                        <section class="mt-7">
-                            <div class="flex items-center justify-between bg-slate-100 border border-slate-200 px-3 py-2 rounded-t-lg">
-                                <h3 class="text-[11px] uppercase tracking-[0.14em] font-semibold text-slate-600">Flight Details</h3>
-                                <p class="text-[10px] text-slate-500">All timings are local airport time</p>
+                        <!-- ── Flight details ─────────────────────────────────────── -->
+                        <section class="px-7 pt-6">
+                            <div class="flex items-baseline gap-2">
+                                <h3 class="text-[15px] font-extrabold uppercase tracking-[0.06em] text-[#0f2a55]">Flight Details</h3>
+                                <span class="text-[10.5px] text-[#64748b]">(All timings are local airport time)</span>
                             </div>
-                            <table class="w-full border-collapse border border-t-0 border-slate-200 text-[12px] text-left table-fixed">
-                                <thead class="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th class="p-2.5 font-semibold w-[26%]">Flight</th>
-                                        <th class="p-2.5 font-semibold w-[29%] border-l border-slate-200">Departure</th>
-                                        <th class="p-2.5 font-semibold w-[29%] border-l border-slate-200">Arrival</th>
-                                        <th class="p-2.5 font-semibold w-[16%] border-l border-slate-200 text-center">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="t-travel-tbody">
-                                    <!-- Generated via JS -->
-                                </tbody>
-                            </table>
+
+                            <div class="mt-3.5 grid grid-cols-[1fr_230px_1fr] items-center gap-x-4">
+                                <div class="justify-self-start">
+                                    <span class="inline-block rounded-full bg-[#0f2a55] px-4 py-1 text-[9.5px] font-bold uppercase tracking-[0.14em] text-white">Departure</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="flex-1 border-t-2 border-dashed border-[#cbd5e1]"></span>
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="#0f2a55"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-4.5L21 16z"/></svg>
+                                    <span class="flex-1 border-t-2 border-dashed border-[#cbd5e1]"></span>
+                                </div>
+                                <div class="justify-self-end">
+                                    <span class="inline-block rounded-full bg-[#0f2a55] px-4 py-1 text-[9.5px] font-bold uppercase tracking-[0.14em] text-white">Arrival</span>
+                                </div>
+                            </div>
+
+                            <div class="mt-2 grid grid-cols-[1fr_230px_1fr] items-start gap-x-4">
+                                <div class="text-left">
+                                    <p id="t-dep-time" class="text-[30px] font-extrabold leading-none text-[#0f2a55]">—</p>
+                                    <p id="t-dep-date" class="text-[10.5px] text-[#64748b] mt-1">—</p>
+                                    <p id="t-dep-code" class="text-[24px] font-extrabold tracking-[0.04em] text-[#0f2a55] mt-2.5">—</p>
+                                    <p id="t-dep-city" class="text-[12px] font-bold text-[#334155]">—</p>
+                                    <p id="t-dep-airport" class="text-[10px] text-[#64748b] mt-0.5">—</p>
+                                    <p id="t-dep-terminal" class="text-[10px] text-[#64748b]"></p>
+                                </div>
+
+                                <div class="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 text-center">
+                                    <p class="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Airline</p>
+                                    <p id="t-center-airline" class="text-[12.5px] font-bold text-[#0f2a55] mt-0.5">—</p>
+                                    <div class="my-2.5 border-t border-[#e2e8f0]"></div>
+                                    <p class="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Flight Duration</p>
+                                    <p id="t-center-duration" class="text-[12.5px] font-bold text-[#0f2a55] mt-0.5">—</p>
+                                    <div class="my-2.5 border-t border-[#e2e8f0]"></div>
+                                    <p class="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Cabin Class</p>
+                                    <p id="t-cabin-class" class="text-[12.5px] font-bold text-[#0f2a55] mt-0.5">Economy</p>
+                                </div>
+
+                                <div class="text-right">
+                                    <p id="t-arr-time" class="text-[30px] font-extrabold leading-none text-[#0f2a55]">—</p>
+                                    <p id="t-arr-date" class="text-[10.5px] text-[#64748b] mt-1">—</p>
+                                    <p id="t-arr-code" class="text-[24px] font-extrabold tracking-[0.04em] text-[#0f2a55] mt-2.5">—</p>
+                                    <p id="t-arr-city" class="text-[12px] font-bold text-[#334155]">—</p>
+                                    <p id="t-arr-airport" class="text-[10px] text-[#64748b] mt-0.5">—</p>
+                                    <p id="t-arr-terminal" class="text-[10px] text-[#64748b]"></p>
+                                </div>
+                            </div>
                         </section>
 
-                        <section class="mt-7">
-                            <div class="flex items-center justify-between bg-slate-100 border border-slate-200 px-3 py-2 rounded-t-lg">
-                                <h3 class="text-[11px] uppercase tracking-[0.14em] font-semibold text-slate-600">Passenger Manifest</h3>
-                                <p class="text-[10px] text-slate-500"><span id="t-pax-count">0</span> traveller(s)</p>
+                        <!-- ── Passenger details ──────────────────────────────────── -->
+                        <section class="px-7 pt-6">
+                            <div class="flex items-baseline gap-2 mb-3">
+                                <h3 class="text-[15px] font-extrabold uppercase tracking-[0.06em] text-[#0f2a55]">Passenger Details</h3>
+                                <span class="text-[10.5px] text-[#64748b]">(<span id="t-pax-count">0</span> Traveller<span id="t-pax-plural"></span>)</span>
                             </div>
-                            <table class="w-full border-collapse border border-t-0 border-slate-200 text-[12px]">
-                                <thead class="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th class="p-2.5 font-semibold text-left w-[6%]">#</th>
-                                        <th class="p-2.5 font-semibold text-left w-[23%] border-l border-slate-200">Passenger</th>
-                                        <th class="p-2.5 font-semibold text-left w-[10%] border-l border-slate-200">Type</th>
-                                        <th class="p-2.5 font-semibold text-left w-[16%] border-l border-slate-200">Segment</th>
-                                        <th class="p-2.5 font-semibold text-left w-[13%] border-l border-slate-200">Flight</th>
-                                        <th class="p-2.5 font-semibold text-left w-[12%] border-l border-slate-200">PNR</th>
-                                        <th class="p-2.5 font-semibold text-left w-[10%] border-l border-slate-200">Cabin</th>
-                                        <th class="p-2.5 font-semibold text-left w-[10%] border-l border-slate-200">Check-in</th>
+                            <table class="w-full border-collapse border border-[#0f2a55] text-[10.5px] table-fixed">
+                                <thead>
+                                    <tr class="bg-[#0f2a55] text-white text-left">
+                                        <th class="px-2 py-2.5 font-bold uppercase tracking-[0.06em] w-[5%] text-center">#</th>
+                                        <th class="px-2.5 py-2.5 font-bold uppercase tracking-[0.06em] w-[27%]">Passenger Name</th>
+                                        <th class="px-2 py-2.5 font-bold uppercase tracking-[0.06em] w-[8%]">Type</th>
+                                        <th class="px-2 py-2.5 font-bold uppercase tracking-[0.06em] w-[13%]">Ticket No.</th>
+                                        <th class="px-2 py-2.5 font-bold uppercase tracking-[0.06em] w-[14%]">Frequent Flyer</th>
+                                        <th class="px-2 py-2.5 font-bold uppercase tracking-[0.06em] w-[8%]">Seat</th>
+                                        <th class="px-2.5 py-2.5 font-bold uppercase tracking-[0.06em] w-[25%]">Baggage</th>
                                     </tr>
                                 </thead>
                                 <tbody id="t-passengers-tbody">
@@ -1652,15 +1796,66 @@ Example:
                             </table>
                         </section>
 
-                        <section class="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                            <h3 class="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-600 mb-3">Important Travel Advisory</h3>
-                            <ul class="list-disc pl-5 space-y-2 text-[11px] text-slate-700 leading-relaxed">
-                                <li>Passengers are responsible for visa and transit eligibility based on nationality and passport type.</li>
-                                <li>Please verify latest travel requirements from airline advisories and official immigration sources before departure.</li>
-                                <li>Dangerous goods are prohibited: flammables, corrosives, explosives, toxic substances and similar restricted items.</li>
-                                <li>Lithium batteries and power banks must remain in hand baggage unless airline policy specifically allows otherwise.</li>
-                            </ul>
+                        <!-- ── Barcode + baggage allowance ────────────────────────── -->
+                        <section class="px-7 pt-5 grid grid-cols-[1fr_1.1fr] gap-6 items-center">
+                            <div>
+                                <div id="t-barcode" class="flex items-end gap-[2px] h-[46px]"></div>
+                                <p id="t-barcode-text" class="mt-1.5 text-[10px] font-mono tracking-[0.35em] text-[#334155] uppercase"></p>
+                            </div>
+                            <div class="rounded-xl bg-[#fdf3d7] border border-[#f0dca8] px-5 py-4 flex items-start gap-4">
+                                <svg viewBox="0 0 16 16" width="34" height="34" fill="#b8860b" class="shrink-0 mt-0.5"><path d="M6 1a1 1 0 0 0-1 1v1H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 12.5 3H11V2a1 1 0 0 0-1-1H6zm0 2V2h4v1H6zM5.5 5a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0v-6a.5.5 0 0 1 .5-.5zm5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0v-6a.5.5 0 0 1 .5-.5z"/></svg>
+                                <div>
+                                    <p class="text-[11.5px] font-extrabold uppercase tracking-[0.08em] text-[#8a6d1f]">Baggage Allowance</p>
+                                    <ul id="t-baggage-allowance-list" class="mt-1.5 space-y-1 text-[11.5px] font-semibold text-[#5c4a12]"></ul>
+                                </div>
+                            </div>
                         </section>
+
+                        <!-- ── Important information ──────────────────────────────── -->
+                        <section class="mx-7 mt-5 rounded-xl border border-[#dbe7f5] bg-[#f7fafd] px-5 py-4">
+                            <div class="flex items-center gap-2 mb-3">
+                                <svg viewBox="0 0 16 16" width="18" height="18" fill="#0f2a55"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm.9 4.2a.9.9 0 1 1-1.8 0 .9.9 0 0 1 1.8 0zM7.1 7h1.8v5.2H7.1V7z"/></svg>
+                                <h3 class="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#0f2a55]">Important Information</h3>
+                            </div>
+                            <div class="grid grid-cols-4 gap-4">
+                                <div class="flex items-start gap-2.5">
+                                    <svg viewBox="0 0 16 16" width="24" height="24" fill="#0f2a55" class="shrink-0"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H4zm4 2.8a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM4.4 12c.3-1.6 1.8-2.6 3.6-2.6s3.3 1 3.6 2.6H4.4z"/></svg>
+                                    <div>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.06em] text-[#0f2a55]">Travel Documents</p>
+                                        <p class="text-[9.5px] text-[#475569] leading-snug mt-0.5">Carry original passport and valid visa (if applicable) for travel.</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-2.5">
+                                    <svg viewBox="0 0 16 16" width="24" height="24" fill="#0f2a55" class="shrink-0"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm.75 3.5v4.2l3 1.8-.75 1.25L7.25 8.5v-5h1.5z"/></svg>
+                                    <div>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.06em] text-[#0f2a55]">Arrival at Airport</p>
+                                        <p class="text-[9.5px] text-[#475569] leading-snug mt-0.5">Report at the airport at least 3 hours before departure time.</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-2.5">
+                                    <svg viewBox="0 0 16 16" width="24" height="24" fill="#0f2a55" class="shrink-0"><path d="M6 1a1 1 0 0 0-1 1v1H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 12.5 3H11V2a1 1 0 0 0-1-1H6zm0 2V2h4v1H6z"/></svg>
+                                    <div>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.06em] text-[#0f2a55]">Check-in</p>
+                                        <p class="text-[9.5px] text-[#475569] leading-snug mt-0.5">Check-in counters will close 60 minutes before departure.</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-2.5">
+                                    <svg viewBox="0 0 16 16" width="24" height="24" fill="#0f2a55" class="shrink-0"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM2.6 8a5.4 5.4 0 0 1 8.5-4.4L3.6 11.1A5.4 5.4 0 0 1 2.6 8zm5.4 5.4c-1.2 0-2.3-.4-3.1-1l7.5-7.5a5.4 5.4 0 0 1-4.4 8.5z"/></svg>
+                                    <div>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.06em] text-[#0f2a55]">Prohibited Items</p>
+                                        <p class="text-[9.5px] text-[#475569] leading-snug mt-0.5">Carriage of dangerous goods and restricted items is not allowed.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- ── Footer ─────────────────────────────────────────────── -->
+                        <footer class="mt-auto bg-[#0f2a55] px-7 py-5 text-center">
+                            <p class="text-[16px] font-bold text-white">
+                                Thank You for Choosing <span class="text-[#e8c46a]">ZAMRA TRAVELS</span> <span class="text-[#ef4444]">&#9829;</span>
+                            </p>
+                            <p class="ticket-script text-[#e8c46a] text-[22px] leading-tight mt-1">Have a Safe &amp; Pleasant Journey</p>
+                        </footer>
                     </div>
                 </div>
             </div>

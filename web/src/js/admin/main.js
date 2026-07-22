@@ -55,6 +55,7 @@ import {
   getOriginCountryShortcut,
   POSTER_COUNTRY_ML_LABELS,
 } from './social-markets.js';
+import { airportCity, airportName, resolveAirportCode } from '../shared/airports.js';
 import { appendVideoSlidesLimited } from './social-image-carousels.js';
 import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
 
@@ -534,26 +535,34 @@ function airlineCodeById(airlineId) {
 /**
  * Check-in options an airline actually allows — 30 kg by default, 20/40 for OV,
  * 20/30/40 for SV. See `shared/airline-baggage.js`.
+ *
+ * `allowZero` adds a "0 Kg (No Baggage)" choice. It is only ever passed on the
+ * e-ticket builder for infants/children travelling without an allowance —
+ * never on fare uploads, where the weights are fixed airline policy.
  */
-function buildCheckInBagOptionsHtml(airlineCode, selectedValue) {
-  return buildKgOptionsHtml(checkInBaggageOptions(airlineCode), resolveCheckInBaggageKg(airlineCode, selectedValue));
+function buildCheckInBagOptionsHtml(airlineCode, selectedValue, allowZero = false) {
+  const requested = parseBaggageNumber(selectedValue);
+  const selected = (allowZero && requested === 0) ? 0 : resolveCheckInBaggageKg(airlineCode, selectedValue);
+  return buildKgOptionsHtml(checkInBaggageOptions(airlineCode), selected, allowZero);
 }
 
 /** Hand baggage is fixed per airline, so it renders as the only selectable value. */
-function buildHandBagOptionsHtml(airlineCode) {
+function buildHandBagOptionsHtml(airlineCode, selectedValue, allowZero = false) {
   const kg = handBaggageKg(airlineCode);
-  return `<option value="${kg}" selected>${kg} Kg</option>`;
+  if (!allowZero) return `<option value="${kg}" selected>${kg} Kg</option>`;
+  return buildKgOptionsHtml([kg], parseBaggageNumber(selectedValue), true);
 }
 
-function buildKgOptionsHtml(options = [], selectedValue = 0) {
+function buildKgOptionsHtml(options = [], selectedValue = 0, allowZero = false) {
   const selected = Math.max(0, parseBaggageNumber(selectedValue));
   const unique = [...new Set(options.map(v => Math.max(0, parseBaggageNumber(v))))]
     .filter(v => v > 0)
     .sort((a, b) => a - b);
+  if (allowZero) unique.unshift(0);
   if (!unique.length) return '';
-  const resolvedSelected = unique.includes(selected) ? selected : unique[0];
+  const resolvedSelected = unique.includes(selected) ? selected : unique.find(v => v > 0) ?? unique[0];
   return unique
-    .map(v => `<option value="${v}" ${v === resolvedSelected ? 'selected' : ''}>${v} Kg</option>`)
+    .map(v => `<option value="${v}" ${v === resolvedSelected ? 'selected' : ''}>${v === 0 ? '0 Kg (No Baggage)' : `${v} Kg`}</option>`)
     .join('');
 }
 
@@ -561,15 +570,6 @@ function parseBaggageNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   const n = parseFloat(String(value).replace(/[^\d.]/g, ''));
   return Number.isFinite(n) ? n : 0;
-}
-
-function toKgDisplay(value, fallback = '—') {
-  if (value === null || value === undefined || value === '') return fallback;
-  const raw = String(value).trim();
-  if (!raw) return fallback;
-  const isNumericKg = /^\d+(\.\d+)?(\s*kg)?$/i.test(raw);
-  if (isNumericKg) return `${parseBaggageNumber(raw)} Kg`;
-  return raw.toUpperCase();
 }
 
 function asDate(value) {
@@ -8782,11 +8782,14 @@ async function downloadETicketPDF() {
         if (target) {
           sanitizeUnsupportedColorFunctions(target);
           inlineColorsForCanvas(target);
+          // The status pill is a solid badge — inlineColorsForCanvas() would
+          // otherwise resolve its palette through the light-theme computed
+          // styles and flatten the white text onto the coloured background.
           const statusPill = target.querySelector('#t-status-pill');
           if (statusPill) {
-            statusPill.style.backgroundColor = '#d1fae5';
-            statusPill.style.color = '#047857';
-            statusPill.style.borderColor = '#a7f3d0';
+            statusPill.style.backgroundColor = statusPill.dataset.exportBg || '#16a34a';
+            statusPill.style.color = '#ffffff';
+            statusPill.querySelectorAll('*').forEach((node) => { node.style.color = '#ffffff'; });
           }
         }
       }
@@ -8904,6 +8907,26 @@ async function renderETicketTab() {
       });
     };
 
+    // Children and infants frequently travel on a no-baggage fare, so their
+    // rows get a "0 Kg (No Baggage)" choice that adults never see — adult
+    // weights stay fixed airline policy. Infants default to no baggage.
+    const paxTypeAllowsZeroBaggage = (paxType) => paxType === 'CHD' || paxType === 'INF';
+
+    const syncPassengerBaggageOptions = (row, { resetToZero = false } = {}) => {
+      if (!row) return;
+      const airlineCode = selectedAirlineCode();
+      const paxType = (row.querySelector('select[name="paxType[]"]')?.value || 'ADT').toUpperCase();
+      const allowZero = paxTypeAllowsZeroBaggage(paxType);
+
+      const carrySel = row.querySelector('select[name="paxCarryBag[]"]');
+      const checkSel = row.querySelector('select[name="paxCheckBag[]"]');
+      const carryValue = resetToZero ? 0 : carrySel?.value;
+      const checkValue = resetToZero ? 0 : checkSel?.value;
+
+      if (carrySel) carrySel.innerHTML = buildHandBagOptionsHtml(airlineCode, carryValue, allowZero);
+      if (checkSel) checkSel.innerHTML = buildCheckInBagOptionsHtml(airlineCode, checkValue, allowZero);
+    };
+
     // Add Passenger Row Logic
     addPaxBtn?.addEventListener('click', () => {
       const rowHtml = `
@@ -8927,7 +8950,7 @@ async function renderETicketTab() {
               </select>
             </div>
 
-            <div class="md:col-span-4">
+            <div class="md:col-span-5">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Passenger Name *</label>
               <input type="text" name="paxName[]" required placeholder="e.g. JOHN DOE" class="admin-control h-10 uppercase placeholder:normal-case">
             </div>
@@ -8941,14 +8964,29 @@ async function renderETicketTab() {
               </select>
             </div>
 
+            <div class="md:col-span-3">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Ticket No.</label>
+              <input type="text" name="paxTicketNo[]" placeholder="Optional" class="admin-control h-10 uppercase placeholder:normal-case">
+            </div>
+
+            <div class="md:col-span-4">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Frequent Flyer</label>
+              <input type="text" name="paxFrequentFlyer[]" placeholder="Optional" class="admin-control h-10 uppercase placeholder:normal-case">
+            </div>
+
             <div class="md:col-span-2">
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Seat</label>
+              <input type="text" name="paxSeat[]" placeholder="Optional" class="admin-control h-10 uppercase placeholder:normal-case">
+            </div>
+
+            <div class="md:col-span-3">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Hand Bag</label>
-              <select name="paxCarryBag[]" class="admin-control h-10" title="Fixed by airline policy">
+              <select name="paxCarryBag[]" class="admin-control h-10" title="Fixed by airline policy (0 Kg allowed for child/infant)">
                 ${buildHandBagOptionsHtml(selectedAirlineCode())}
               </select>
             </div>
 
-            <div class="md:col-span-2">
+            <div class="md:col-span-3">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Check-in Bag</label>
               <select name="paxCheckBag[]" class="admin-control h-10">
                 ${buildCheckInBagOptionsHtml(selectedAirlineCode(), 0)}
@@ -8964,13 +9002,18 @@ async function renderETicketTab() {
     // Switching airline re-points every passenger's baggage selects at that
     // airline's allowed weights, keeping the selected check-in weight if valid.
     airlineSelect?.addEventListener('change', () => {
-      const airlineCode = selectedAirlineCode();
-      paxContainer?.querySelectorAll('select[name="paxCheckBag[]"]').forEach((sel) => {
-        sel.innerHTML = buildCheckInBagOptionsHtml(airlineCode, sel.value);
-      });
-      paxContainer?.querySelectorAll('select[name="paxCarryBag[]"]').forEach((sel) => {
-        sel.innerHTML = buildHandBagOptionsHtml(airlineCode);
-      });
+      paxContainer?.querySelectorAll('.et-pax-row').forEach((row) => syncPassengerBaggageOptions(row));
+    });
+
+    // Category change re-opens (or closes) the 0 Kg choice; picking Infant also
+    // zeroes both bags, which is the overwhelmingly common case.
+    paxContainer?.addEventListener('change', (event) => {
+      const typeSelect = event.target.closest('select[name="paxType[]"]');
+      if (!typeSelect) return;
+      syncPassengerBaggageOptions(
+        typeSelect.closest('.et-pax-row'),
+        { resetToZero: typeSelect.value.toUpperCase() === 'INF' },
+      );
     });
 
     paxContainer?.addEventListener('click', (event) => {
@@ -9016,6 +9059,9 @@ async function renderETicketTab() {
           if (index > 0) child.remove();
         });
         if (paxContainer.children.length === 0) addPaxBtn?.click();
+        // The native reset restores the category to Adult, so the surviving row
+        // must drop any 0 Kg option it picked up while it was a child/infant.
+        paxContainer.querySelectorAll('.et-pax-row').forEach((row) => syncPassengerBaggageOptions(row));
         syncPassengerRows();
         document.getElementById('eticket-output-wrapper')?.classList.add('hidden');
       }, 10);
@@ -9024,119 +9070,279 @@ async function renderETicketTab() {
   }
 }
 
+const ETICKET_STATUS_COLORS = {
+  CONFIRMED: '#16a34a',
+  'ON HOLD': '#d97706',
+  PENDING: '#d97706',
+  CANCELLED: '#dc2626',
+};
+
+const ETICKET_DAY_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const ETICKET_MONTH_NAMES = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const ETICKET_PAX_TYPE_LABELS = { ADT: 'Adult', CHD: 'Child', INF: 'Infant' };
+
+/** "SAT, 03 MAY 2025" — the long form printed across the ticket. */
+function formatETicketDate(date) {
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  const day = ETICKET_DAY_NAMES[date.getDay()];
+  const month = ETICKET_MONTH_NAMES[date.getMonth()];
+  return `${day}, ${String(date.getDate()).padStart(2, '0')} ${month} ${date.getFullYear()}`;
+}
+
+/** "15 Jan 2026  16:19" — booking timestamp in the meta strip. */
+function formatETicketStamp(date) {
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  const month = ETICKET_MONTH_NAMES[date.getMonth()];
+  const pretty = month.charAt(0) + month.slice(1).toLowerCase();
+  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return `${String(date.getDate()).padStart(2, '0')} ${pretty} ${date.getFullYear()}  ${time}`;
+}
+
+function parseETicketTimeToMinutes(value) {
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value || '');
+  if (!match) return null;
+  return (Number(match[1]) * 60) + Number(match[2]);
+}
+
+/** Title-case a passenger title so it prints "Mrs" rather than "MRS". */
+function formatETicketTitle(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+}
+
+/** 9-character booking reference in the airline style ("GOFB6XILC"). */
+function generateETicketBookingRef() {
+  const alphabet = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
+  let ref = '';
+  for (let i = 0; i < 9; i += 1) {
+    ref += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+  }
+  return ref;
+}
+
+/**
+ * Resolve the 3-letter IATA codes for a sector.
+ *
+ * Order matters — this is the fix for tickets that printed "CAL"/"DUB" instead
+ * of "CCJ"/"DXB": the old code only consulted the sector list when the exact
+ * route was NOT found, so a perfectly matched sector fell through to a
+ * first-three-letters guess.
+ *   1. an explicit code in the dropdown label — "Kozhikode (CCJ)"
+ *   2. the matched sector's `sectorCode` ("CCJ JED")
+ *   3. the shared airport directory, by city name
+ *   4. any other sector that starts (or ends) at the same city
+ *   5. first three letters, as an absolute last resort
+ */
+function resolveETicketRouteCodes({ origin, dest, fullOrg, fullDst, matchedSector }) {
+  const fromSector = getSectorRouteCodes(matchedSector || { sectorFrom: fullOrg, sectorTo: fullDst });
+
+  const scanSectors = (side) => {
+    if (typeof _sectors === 'undefined' || !Array.isArray(_sectors)) return '';
+    const label = side === 'from' ? fullOrg : fullDst;
+    if (!label) return '';
+    const match = _sectors.find(s => (side === 'from' ? s.sectorFrom : s.sectorTo) === label && s.sectorCode);
+    if (!match) return '';
+    const codes = getSectorRouteCodes(match);
+    return side === 'from' ? codes.fromCode : codes.toCode;
+  };
+
+  const firstLetters = (city = '') => (city.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3) || '---');
+
+  const originCode = origin.code
+    || fromSector.fromCode
+    || resolveAirportCode(fullOrg)
+    || scanSectors('from')
+    || firstLetters(origin.city || fullOrg);
+
+  const destCode = dest.code
+    || fromSector.toCode
+    || resolveAirportCode(fullDst)
+    || scanSectors('to')
+    || firstLetters(dest.city || fullDst);
+
+  return {
+    originCode: String(originCode).toUpperCase(),
+    destCode: String(destCode).toUpperCase(),
+  };
+}
+
+/** Deterministic Code-128-looking bar pattern derived from the booking ref. */
+function renderETicketBarcode(container, seedText) {
+  if (!container) return;
+  const seed = String(seedText || 'ZAMRA').toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+
+  const bars = [];
+  for (let i = 0; i < 58; i += 1) {
+    hash = (hash * 1103515245 + 12345) & 0x7fffffff;
+    const width = 1 + (hash % 3);
+    const isGap = i % 2 === 1;
+    bars.push(
+      `<span style="display:inline-block;width:${width}px;height:100%;background:${isGap ? '#ffffff' : '#0f172a'}"></span>`,
+    );
+  }
+  container.innerHTML = bars.join('');
+}
+
+/**
+ * Bullets for the amber baggage card. One line per weight when every traveller
+ * shares an allowance (the common case), otherwise one line per passenger type
+ * so a 0 Kg infant is never hidden behind an adult's 30 Kg.
+ */
+function buildETicketBaggageAllowanceHtml(passengers = []) {
+  if (!passengers.length) return '';
+
+  const groups = new Map();
+  passengers.forEach((pax) => {
+    const key = `${pax.type}|${pax.carryKg}|${pax.checkKg}`;
+    if (!groups.has(key)) groups.set(key, pax);
+  });
+
+  const distinctWeights = new Set([...groups.values()].map(p => `${p.carryKg}|${p.checkKg}`));
+  const bullet = (text) => `<li>&bull; ${escapeHtml(text)}</li>`;
+
+  if (distinctWeights.size === 1) {
+    const { carryKg, checkKg } = [...groups.values()][0];
+    return [
+      bullet(`${carryKg} KG Cabin Baggage`),
+      bullet(`${checkKg} KG Check-in Baggage`),
+    ].join('');
+  }
+
+  return [...groups.values()]
+    .map((pax) => {
+      const label = ETICKET_PAX_TYPE_LABELS[pax.type] || pax.type;
+      if (pax.carryKg === 0 && pax.checkKg === 0) return bullet(`${label}: No baggage allowance`);
+      return bullet(`${label}: ${pax.carryKg} KG Cabin + ${pax.checkKg} KG Check-in`);
+    })
+    .join('');
+}
+
 async function generateETicket(formData) {
-  const pnr = formData.get('etPnr')?.toUpperCase();
-  const airline = formData.get('etAirline')?.toUpperCase();
-  const flightNo = formData.get('etFlightNo')?.toUpperCase();
+  const el = (id) => document.getElementById(id);
+  const setText = (id, value) => { const node = el(id); if (node) node.textContent = value; };
+
+  const pnr = (formData.get('etPnr') || '').toUpperCase();
+  const airline = (formData.get('etAirline') || '').toUpperCase();
+  const flightNo = (formData.get('etFlightNo') || '').toUpperCase();
   const dateRaw = formData.get('etDate');
   const depTime = formData.get('etDepTime');
   const arrTime = formData.get('etArrTime');
   const phone = formData.get('etPhone');
+  const supplierRef = (formData.get('etSupplierRef') || '').trim().toUpperCase();
+  const status = (formData.get('etStatus') || 'CONFIRMED').toUpperCase();
+  const cabin = (formData.get('etCabin') || 'Economy').trim();
+  const durationOverride = (formData.get('etDuration') || '').trim();
+  const depTerminal = (formData.get('etDepTerminal') || '').trim();
+  const arrTerminal = (formData.get('etArrTerminal') || '').trim();
 
-  const escapeHtml = (value = '') => String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+  // Booking reference sticks once generated so a re-render of the same booking
+  // keeps printing (and barcoding) the same number.
+  let bookingRef = (formData.get('etBookingRef') || '').trim().toUpperCase();
+  if (!bookingRef) {
+    bookingRef = generateETicketBookingRef();
+    const bookingRefInput = el('et-booking-ref');
+    if (bookingRefInput) bookingRefInput.value = bookingRef;
+  }
 
-  const parseTimeToMinutes = (value) => {
-    const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value || '');
-    if (!match) return null;
-    return (Number(match[1]) * 60) + Number(match[2]);
-  };
-
-  const cityToCode = (city = '') => {
-    const letters = city.replace(/[^A-Za-z]/g, '').toUpperCase();
-    return letters.slice(0, 3) || '---';
-  };
-
-  // Parse origin and destination into array to split city and airport code if formatted like "Kozhikode (CCJ)"
+  // "Kozhikode (CCJ)" → { city: 'Kozhikode', code: 'CCJ' }
   const parseLoc = (val) => {
     const raw = (val || '').trim();
-    let city = raw;
-    let code = '';
     const match = raw.match(/^(.*?)\s*\((.*?)\)$/);
-    if (match) {
-      city = match[1].trim();
-      code = match[2].trim();
-    }
-    return { city, code };
+    if (match) return { city: match[1].trim(), code: match[2].trim().toUpperCase() };
+    return { city: raw, code: '' };
   };
 
-  const origin = parseLoc(formData.get('etOrigin'));
-  const dest = parseLoc(formData.get('etDest'));
-  const fullOrg = formData.get('etOrigin') || '—';
-  const fullDst = formData.get('etDest') || '—';
+  const fullOrg = formData.get('etOrigin') || '';
+  const fullDst = formData.get('etDest') || '';
+  const origin = parseLoc(fullOrg);
+  const dest = parseLoc(fullDst);
 
-  // Format date to "SAT, 03 MAY 2025"
-  let formattedDate = '—';
-  if (dateRaw) {
-    const d = new Date(dateRaw);
-    if (!isNaN(d.getTime())) {
-      const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      formattedDate = `${days[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    }
-  }
+  const matchedSector = (typeof _sectors !== 'undefined' && Array.isArray(_sectors))
+    ? _sectors.find(s => s.sectorFrom === fullOrg && s.sectorTo === fullDst) || null
+    : null;
 
-  const el = (id) => document.getElementById(id);
+  const { originCode, destCode } = resolveETicketRouteCodes({ origin, dest, fullOrg, fullDst, matchedSector });
 
-  // Find codes if not present in dropdown value
-  let originCode = origin.code;
-  let destCode = dest.code;
-  let matchedSector = null;
+  const depDate = dateRaw ? new Date(dateRaw) : null;
+  const depMinutes = parseETicketTimeToMinutes(depTime);
+  const arrMinutes = parseETicketTimeToMinutes(arrTime);
 
-  if (typeof _sectors !== 'undefined') {
-    matchedSector = _sectors.find(s => s.sectorFrom === fullOrg && s.sectorTo === fullDst);
-    if (!matchedSector && fullOrg) {
-      const match = _sectors.find(s => s.sectorFrom === fullOrg);
-      if (match && match.sectorCode) originCode = match.sectorCode.split(/[ -]+/)[0];
-    }
-    if (!matchedSector && fullDst) {
-      const match = _sectors.find(s => s.sectorTo === fullDst);
-      if (match && match.sectorCode) destCode = match.sectorCode.split(/[ -]+/).pop();
-    }
-  }
+  // An arrival clock time earlier than departure means the flight lands the
+  // next calendar day — the ticket has to say so.
+  const crossesMidnight = depMinutes !== null && arrMinutes !== null && arrMinutes < depMinutes;
+  const arrDate = (depDate && !Number.isNaN(depDate.getTime()))
+    ? new Date(depDate.getTime() + (crossesMidnight ? 24 * 60 * 60 * 1000 : 0))
+    : null;
 
-  const resolvedOriginCode = (originCode || cityToCode(origin.city)).toUpperCase();
-  const resolvedDestCode = (destCode || cityToCode(dest.city)).toUpperCase();
-  const routeCode = `${resolvedOriginCode} - ${resolvedDestCode}`;
-  const routeLong = `${(origin.city || fullOrg || 'ORIGIN').toUpperCase()} to ${(dest.city || fullDst || 'DESTINATION').toUpperCase()}`;
-  const originDisplay = (origin.city || fullOrg || '—').toUpperCase();
-  const destDisplay = (dest.city || fullDst || '—').toUpperCase();
-
-  const depMinutes = parseTimeToMinutes(depTime);
-  const arrMinutes = parseTimeToMinutes(arrTime);
   let durationText = 'N/A';
   if (depMinutes !== null && arrMinutes !== null) {
-    let diff = arrMinutes - depMinutes;
-    if (diff < 0) diff += 24 * 60;
-    const hours = Math.floor(diff / 60);
-    const minutes = diff % 60;
-    durationText = `${hours}h ${String(minutes).padStart(2, '0')}m`;
+    const diff = crossesMidnight ? (arrMinutes + (24 * 60)) - depMinutes : arrMinutes - depMinutes;
+    durationText = `${Math.floor(diff / 60)}h ${String(diff % 60).padStart(2, '0')}m`;
   }
+  if (durationOverride) durationText = durationOverride;
 
-  if (el('t-pnr')) el('t-pnr').textContent = pnr || '—';
-  if (el('t-issued-by')) el('t-issued-by').textContent = airline || '—';
-  if (el('t-customer-phone')) el('t-customer-phone').textContent = phone || '—';
-  if (el('t-flight-code')) el('t-flight-code').textContent = flightNo || '—';
-  if (el('t-travel-date')) el('t-travel-date').textContent = formattedDate || '—';
-  if (el('t-route-code')) el('t-route-code').textContent = routeCode;
-  if (el('t-route-long')) el('t-route-long').textContent = routeLong;
-  // duration text was removed, we use t-top-pax-count below
+  const bookingDateRaw = formData.get('etBookingDate');
+  const bookedOn = bookingDateRaw ? new Date(bookingDateRaw) : new Date();
 
-  // Booked on - today
-  const today = new Date();
-  const dmonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const bookedOnText = `${String(today.getDate()).padStart(2, '0')} ${dmonths[today.getMonth()]} ${today.getFullYear()} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
-  if (el('t-booked-on')) el('t-booked-on').textContent = bookedOnText;
+  const travelDateText = formatETicketDate(depDate);
+  const arrivalDateText = formatETicketDate(arrDate);
 
-  // Set airline logo (requires looking up _airlines array)
+  // ── Header / references ────────────────────────────────────────────────────
+  setText('t-pnr', pnr || '—');
+  setText('t-booking-ref', bookingRef);
+  setText('t-customer-phone', phone || '—');
+  setText('t-booked-on', formatETicketStamp(bookedOn));
+
+  const supplierBlock = el('t-supplier-ref-block');
+  if (supplierBlock) supplierBlock.classList.toggle('invisible', !supplierRef);
+  setText('t-supplier-ref', supplierRef || '—');
+
+  const statusPill = el('t-status-pill');
+  if (statusPill) {
+    const color = ETICKET_STATUS_COLORS[status] || ETICKET_STATUS_COLORS.CONFIRMED;
+    statusPill.style.backgroundColor = color;
+    statusPill.dataset.exportBg = color;
+  }
+  setText('t-status-text', status);
+
+  // ── Route bar ──────────────────────────────────────────────────────────────
+  setText('t-route-from-code', originCode);
+  setText('t-route-to-code', destCode);
+  setText('t-route-from-city', airportCity(originCode, origin.city || fullOrg).toUpperCase() || '—');
+  setText('t-route-to-city', airportCity(destCode, dest.city || fullDst).toUpperCase() || '—');
+  setText('t-flight-code', flightNo || '—');
+  setText('t-travel-date', travelDateText);
+  setText('t-duration', durationText);
+
+  // ── Flight details ─────────────────────────────────────────────────────────
+  setText('t-dep-time', depTime || '—');
+  setText('t-dep-date', travelDateText);
+  setText('t-dep-code', originCode);
+  setText('t-dep-city', airportCity(originCode, origin.city || fullOrg) || '—');
+  setText('t-dep-airport', airportName(originCode) || '—');
+  setText('t-dep-terminal', depTerminal);
+
+  setText('t-arr-time', arrTime || '—');
+  setText('t-arr-date', arrivalDateText);
+  setText('t-arr-code', destCode);
+  setText('t-arr-city', airportCity(destCode, dest.city || fullDst) || '—');
+  setText('t-arr-airport', airportName(destCode) || '—');
+  setText('t-arr-terminal', arrTerminal);
+
+  setText('t-center-airline', airline || '—');
+  setText('t-center-duration', durationText);
+  setText('t-cabin-class', cabin || 'Economy');
+
+  // ── Airline logo ───────────────────────────────────────────────────────────
   const logoEl = el('t-airline-logo');
   const logoFallbackEl = el('t-issued-by-fallback');
   if (logoEl) {
-    const matchedAirline = typeof _airlines !== 'undefined' ? _airlines.find(a => a.name.toUpperCase() === airline) : null;
+    const matchedAirline = typeof _airlines !== 'undefined'
+      ? _airlines.find(a => (a.name || '').toUpperCase() === airline)
+      : null;
     if (matchedAirline && matchedAirline.logoUrl) {
       logoEl.src = matchedAirline.logoUrl;
       logoEl.classList.remove('hidden');
@@ -9146,88 +9352,79 @@ async function generateETicket(formData) {
       logoEl.classList.add('hidden');
       if (logoFallbackEl) {
         logoFallbackEl.classList.remove('hidden');
-        logoFallbackEl.textContent = (airline || 'No logo').toUpperCase();
+        logoFallbackEl.textContent = airline || 'Airline';
       }
     }
   }
 
-  // Extract passenger arrays
+  // ── Passenger manifest ─────────────────────────────────────────────────────
   const paxTitles = formData.getAll('paxTitle[]');
   const paxNames = formData.getAll('paxName[]');
   const paxTypes = formData.getAll('paxType[]');
+  const paxTicketNos = formData.getAll('paxTicketNo[]');
+  const paxFrequentFlyers = formData.getAll('paxFrequentFlyer[]');
+  const paxSeats = formData.getAll('paxSeat[]');
   const paxCheckBag = formData.getAll('paxCheckBag[]');
   const paxCarryBag = formData.getAll('paxCarryBag[]');
-  if (el('t-pax-count')) el('t-pax-count').textContent = String(paxNames.length);
-  if (el('t-top-pax-count')) el('t-top-pax-count').textContent = String(paxNames.length);
 
-  const paxTbody = document.getElementById('t-passengers-tbody');
+  const passengers = paxNames.map((name, i) => ({
+    title: formatETicketTitle(paxTitles[i] || 'Mr'),
+    name: (name || '').toUpperCase(),
+    type: (paxTypes[i] || 'ADT').toUpperCase(),
+    ticketNo: (paxTicketNos[i] || '').toUpperCase(),
+    frequentFlyer: (paxFrequentFlyers[i] || '').toUpperCase(),
+    seat: (paxSeats[i] || '').toUpperCase(),
+    // parseBaggageNumber keeps an explicit 0 as 0 — that is the child/infant
+    // "no baggage" case, and it must print as "0 Kg", not as a dash.
+    carryKg: parseBaggageNumber(paxCarryBag[i]),
+    checkKg: parseBaggageNumber(paxCheckBag[i]),
+  }));
+
+  setText('t-pax-count', String(passengers.length));
+  setText('t-pax-plural', passengers.length === 1 ? '' : 's');
+
+  const paxTbody = el('t-passengers-tbody');
   if (paxTbody) {
-    const rowHtml = paxNames.map((_, i) => {
-      const title = escapeHtml((paxTitles[i] || 'MR').toUpperCase());
-      const name = escapeHtml((paxNames[i] || '').toUpperCase());
-      const type = escapeHtml((paxTypes[i] || 'ADT').toUpperCase());
-      const checkBag = escapeHtml(toKgDisplay(paxCheckBag[i]));
-      const carryBag = escapeHtml(toKgDisplay(paxCarryBag[i]));
-      const segment = matchedSector && matchedSector.sectorCode
-        ? escapeHtml(matchedSector.sectorCode.toUpperCase())
-        : escapeHtml(routeCode);
-      const rowShade = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/80';
-
+    const rows = passengers.map((pax, i) => {
+      const shade = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const cell = 'px-2 py-2.5 border-t border-[#e2e8f0] align-middle';
       return `
-        <tr class="${rowShade} text-slate-800">
-          <td class="p-2.5 border-t border-slate-200 align-top font-semibold">${i + 1}</td>
-          <td class="p-2.5 border-l border-t border-slate-200 align-top">${title}. ${name}</td>
-          <td class="p-2.5 border-l border-t border-slate-200 align-top">${type}</td>
-          <td class="p-2.5 border-l border-t border-slate-200 align-top">${segment}</td>
-          <td class="p-2.5 border-l border-t border-slate-200 align-top">${escapeHtml(flightNo || '—')}</td>
-          <td class="p-2.5 border-l border-t border-slate-200 align-top font-semibold">${escapeHtml(pnr || '—')}</td>
-          <td class="p-2.5 border-l border-t border-slate-200 align-top">${carryBag}</td>
-          <td class="p-2.5 border-l border-t border-slate-200 align-top">${checkBag}</td>
+        <tr style="background-color:${shade}">
+          <td class="${cell} text-center font-bold text-[#0f2a55]">${i + 1}</td>
+          <td class="${cell} px-2.5 font-bold text-[#0f2a55] leading-snug">${escapeHtml(`${pax.title} ${pax.name}`.trim())}</td>
+          <td class="${cell}">${escapeHtml(pax.type)}</td>
+          <td class="${cell}">${escapeHtml(pax.ticketNo || '-')}</td>
+          <td class="${cell}">${escapeHtml(pax.frequentFlyer || '-')}</td>
+          <td class="${cell}">${escapeHtml(pax.seat || '-')}</td>
+          <td class="${cell} px-2.5 leading-snug">
+            ${escapeHtml(`${pax.carryKg} Kg Cabin Baggage`)}<br>
+            ${escapeHtml(`+ ${pax.checkKg} Kg Check-in Baggage`)}
+          </td>
         </tr>
       `;
     }).join('');
 
-    paxTbody.innerHTML = rowHtml || `
+    paxTbody.innerHTML = rows || `
       <tr>
-        <td colspan="8" class="p-3 text-center text-slate-500 border-t border-slate-200">No passengers found.</td>
+        <td colspan="7" class="px-2.5 py-3 text-center text-[#64748b] border-t border-[#e2e8f0]">No passengers found.</td>
       </tr>
     `;
   }
 
-  // Travel Details Row
-  const travelTbody = document.getElementById('t-travel-tbody');
-  if (travelTbody) {
-    travelTbody.innerHTML = `
-      <tr class="text-slate-800">
-        <td class="p-2.5 border-t border-slate-200 align-top">
-          <div class="font-semibold">${escapeHtml(flightNo || '—')}</div>
-          <div class="text-[10px] text-slate-500 mt-1">Economy | Non-Refundable</div>
-        </td>
-        <td class="p-2.5 border-l border-t border-slate-200 align-top">
-          <div class="font-semibold uppercase">${escapeHtml(originDisplay)}</div>
-          <div class="text-[10px] text-slate-500 uppercase">${escapeHtml(resolvedOriginCode)}</div>
-          <div class="text-[13px] mt-1"><span class="font-bold">${escapeHtml(depTime || '—')}</span> <span class="text-slate-500 ml-1 text-[11px]">${escapeHtml(formattedDate || '—')}</span></div>
-        </td>
-        <td class="p-2.5 border-l border-t border-slate-200 align-top">
-          <div class="font-semibold uppercase">${escapeHtml(destDisplay)}</div>
-          <div class="text-[10px] text-slate-500 uppercase">${escapeHtml(resolvedDestCode)}</div>
-          <div class="text-[13px] mt-1"><span class="font-bold">${escapeHtml(arrTime || '—')}</span> <span class="text-slate-500 ml-1 text-[11px]">${escapeHtml(formattedDate || '—')}</span></div>
-        </td>
-        <td class="p-2.5 border-l border-t border-slate-200 align-middle text-center">
-          <span id="t-status-pill" class="inline-flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold px-2.5 py-1">Confirmed</span>
-        </td>
-      </tr>
-    `;
-  }
+  const allowanceList = el('t-baggage-allowance-list');
+  if (allowanceList) allowanceList.innerHTML = buildETicketBaggageAllowanceHtml(passengers);
+
+  // ── Barcode ────────────────────────────────────────────────────────────────
+  renderETicketBarcode(el('t-barcode'), `${bookingRef}${pnr}`);
+  setText('t-barcode-text', bookingRef);
 
   // Show the preview wrapper
-  const wrapper = document.getElementById('eticket-output-wrapper');
+  const wrapper = el('eticket-output-wrapper');
   if (wrapper) {
     wrapper.classList.remove('hidden');
     wrapper.scrollIntoView({ behavior: 'smooth' });
   }
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TOAST NOTIFICATIONS
