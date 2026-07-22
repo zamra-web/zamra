@@ -9,6 +9,17 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { buildSequentialSectorSortUpdates } = require("./sectorOrdering");
+const {
+  handBaggageKg,
+  checkInBaggageOptions,
+  resolveCheckInBaggageKg,
+  baggageSummary,
+} = require("./airlineBaggage");
+const {
+  resolveFlightTime,
+  normalizeFlightTimeRange,
+  buildFlightTimeMap,
+} = require("./flightTime");
 
 initializeApp();
 const db = getFirestore();
@@ -503,6 +514,11 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
       agentCommissionMap[a.id] = d.commission !== undefined ? Number(d.commission) : 500;
   });
 
+  // Configured flight times per airline+sector. n8n only echoes times back when
+  // its parser found them in the paste, so this is the fallback that keeps
+  // agent_fares.flightTime populated — posters render the stored value verbatim.
+  const flightTimeMap = buildFlightTimeMap(await db.collection("flight_details").get());
+
   const BATCH_LIMIT = 400;
   let saved = 0;
   
@@ -520,22 +536,31 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
       
       const agentIdStr = String(row.agent_id);
       const flightDate = Timestamp.fromDate(new Date(row.date + "T00:00:00Z"));
-      const flightTimeStr = (row.time_start && row.time_end) ? `${row.time_start} - ${row.time_end}` : "";
+      const flightTimeStr = resolveFlightTime(row, flightTimeMap[`${airlineId}_${sectorId}`]);
 
       // Use agent's stored commission; n8n payload can override if explicitly provided
       const commission = (row.commission !== undefined && row.commission !== null)
         ? Number(row.commission)
         : (agentCommissionMap[agentIdStr] ?? 500);
 
+      // A rate sheet quotes the supplier's special rate. The B2C selling price
+      // is that plus commission — derive it here so the n8n parser only has to
+      // extract what is actually printed. An explicit `rate` still wins.
+      const specialRate = row.sp_rate ? Number(row.sp_rate) : 0;
+      const finalRate = row.rate ? Number(row.rate) : specialRate + commission;
+
       batch.set(newRef, {
         agentId: agentIdStr,
         sectorId,
         airlineId,
         flightDate,
-        specialRate: row.sp_rate ? Number(row.sp_rate) : 0,
-        finalRate: row.rate ? Number(row.rate) : 0,
-        baggage: String(row.baggage || ""),
-        extraBaggage: row.extra_baggage ? Number(row.extra_baggage) : 0,
+        specialRate,
+        finalRate,
+        // Baggage weights are fixed policy, not payload. Hand baggage is always
+        // the airline's rule value; check-in is snapped onto the airline's
+        // allowed weights so a bad upload can never reach the public site.
+        baggage: resolveCheckInBaggageKg(n8nFlightCode, row.baggage),
+        extraBaggage: handBaggageKg(n8nFlightCode),
         commission,
         supplierRate: 0,
         isHidden: row.show === "no",
@@ -611,17 +636,27 @@ exports.exportFlightDetailsForN8n = onRequest({ region: "asia-south1", cors: tru
       if (airlineCode && sectorCode) {
         // Create key like "IX_CCJJED"
         const key = `${airlineCode}_${sectorCode}`;
+        const flightTime = normalizeFlightTimeRange(d.flightTime);
+        const [timeStart = "", timeEnd = ""] = flightTime.split(" - ");
         details[key] = {
           airlineId: d.airlineId,
           sectorId: d.sectorId,
-          flightTime: d.flightTime || "",
-          baggage: d.baggage || "",
-          extraBaggage: d.extraBaggage || 0
+          // Both shapes, because n8n echoes back whichever one it kept and
+          // ingestFaresFromN8n accepts either (plus this map as its fallback).
+          flightTime,
+          time_start: timeStart,
+          time_end: timeEnd,
+          // Baggage comes from the airline rules, not the stored free-text
+          // value — ingestFaresFromN8n enforces the same weights on the way in.
+          baggage: resolveCheckInBaggageKg(airlineCode, d.baggage),
+          extraBaggage: handBaggageKg(airlineCode),
+          checkInBaggageOptions: checkInBaggageOptions(airlineCode),
+          handBaggage: handBaggageKg(airlineCode)
         };
       }
     });
 
-    res.status(200).json({ success: true, details });
+    res.status(200).json({ success: true, details, baggageRules: baggageSummary() });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

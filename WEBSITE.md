@@ -292,6 +292,8 @@ cd web && npm run build        # outputs to web/dist/
 | `sectors` | `sectorFrom`, `sectorTo`, `sectorCode`, `sortOrder` |
 | `airlines` | `name`, `code`, `logoUrl` |
 | `agent_fares` | `sectorId`, `airlineId`, `flightDate`, `finalRate`, `baggage`, `extraBaggage`, `flightTime`, `isHidden` |
+
+Baggage is **not** read from the fare row for display. `baggage` (check-in) and `extraBaggage` (hand) are re-derived from the airline's IATA code at render time via `shared/airline-baggage.js`, so stale weights on legacy rows never reach a flight card. See the baggage rules table in [DASHBOARD.md](DASHBOARD.md#baggage-rules).
 | `services` | `serviceType`, `title`, `basePrice`, `isActive` |
 | `visas` | `countryName`, `visaType`, `processingTime`, `rate`, `flagUrl` |
 | `visa_stamping` | `country`, `description`, `processingTime`, `cost`, `posterUrl` |

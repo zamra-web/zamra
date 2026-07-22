@@ -204,9 +204,10 @@ web/
 - **AI Rate Intake** — premium step-by-step UI for agent selection and raw fare submission
 - **Agent selector** — chips populated from live Firestore `agents` list (manual override supported)
 - **Paste raw rate text** — WhatsApp, email, or plain-text fare dumps
+- **Upload rate sheet images** — click, drag-and-drop, or paste a screenshot straight into the textarea. Thumbnails are removable, capped at 10 images / 8 MB each / 20 MB total, and held in memory only (nothing is written to Storage or `localStorage`). Text and images can be submitted together or independently — images alone enable the submit button, since `quickParse` reads text only and the AI parser handles the images.
 - **Live preview** — lightweight client-side parse shows detected entries before submit
-- **Submit** — Sends raw text payload (plus lightweight parsed preview rows) securely to the **n8n AI webhook** at `https://n8n.srv1491832.hstgr.cloud/webhook/zamra-rates`. The UI stays in “processing” state until the workflow completes, then shows success/failure + the `saved` count returned by the final node.
-- **N8n Processing** — N8n extracts structured flight data via an LLM and then calls the `ingestFaresFromN8n` Cloud Function to securely save fares into `agent_fares` in Firestore.
+- **Submit** — Sends raw text payload (plus lightweight parsed preview rows and any images) securely to the **n8n AI webhook** at `https://n8n.srv1491832.hstgr.cloud/webhook/zamra-rates`. Images travel as `images: [{ name, mime_type, size, data }]` where `data` is bare base64 (n8n rebuilds `data:<mime_type>;base64,<data>` if it needs a data URL). The UI stays in “processing” state until the workflow completes, then shows success/failure + the `saved` count returned by the final node.
+- **N8n Processing** — The workflow fetches the live route catalogue from `exportFlightDetailsForN8n`, sends the text and images to `gpt-5-mini` (vision + strict structured outputs) constrained to those sector/airline codes, validates and dedupes the extracted rows, then calls `ingestFaresFromN8n` to save them to `agent_fares`. The deployed workflow is mirrored in [n8n/](n8n/) with its rollback procedure; its Code nodes are covered by `functions/tests/n8n-workflow.test.js`.
 - **Session cards** — local browser stats (submissions + entries) and recent submissions list stored in `localStorage` (last 15 sessions)
 - **Staggered reveal** — cards animate in on tab activation for a premium feel (respects `prefers-reduced-motion`)
 
@@ -293,6 +294,50 @@ Supplier rules are **signed** — positive marks up, negative discounts — and 
 
 Fares are grouped by sector + airline + date + time keeping the **minimum final price**. Comparing final price rather than raw base matters once supplier rules exist: a supplier with a higher raw rate but a discount rule can undercut a cheaper supplier carrying a markup.
 
+## Baggage rules
+
+Baggage weights are **policy, not data**. They are never typed in freely and never taken from an upload — every surface derives them from the airline's IATA code.
+
+| Flight | Check-in Baggage | Hand Baggage |
+|---|---|---|
+| IX | 30 | 7 |
+| 6E | 30 | 7 |
+| G9 | 30 | **10** |
+| XY | 30 | 7 |
+| WY | 30 | 7 |
+| OV | **20, 40** | **5** |
+| AI | 30 | 7 |
+| SV | **20, 30, 40** | 7 |
+| QP | 30 | 7 |
+| FZ | 30 | 7 |
+| J9 | 30 | 7 |
+| SG | 30 | 7 |
+
+Defaults are 30 kg check-in and 7 kg hand for every airline, including any code not listed above; only G9, OV, and SV deviate. OV and SV are the only airlines with more than one allowed check-in weight, so they are the only ones where the check-in dropdown offers a choice — everywhere else it is a single fixed value. `agent_fares.baggage` holds check-in kg and `agent_fares.extraBaggage` holds hand kg.
+
+The rules live in two mirrored modules that **must be edited together**: [web/src/js/shared/airline-baggage.js](web/src/js/shared/airline-baggage.js) (ES module, browser surfaces) and [functions/airlineBaggage.js](functions/airlineBaggage.js) (CommonJS, Cloud Functions). The paired test suites `web/tests/airline-baggage.test.js` and `functions/tests/airline-baggage.test.js` both assert the full table, so drift between the copies fails the build.
+
+Enforcement points:
+
+- **`ingestFaresFromN8n`** overwrites the baggage on every incoming row — hand baggage is always the rule value, check-in is snapped onto the airline's allowed weights. n8n cannot override it.
+- **`exportFlightDetailsForN8n`** returns rule-derived `baggage` / `extraBaggage` per mapping, plus `checkInBaggageOptions`, `handBaggage`, and a top-level `baggageRules` table.
+- **Admin dashboard** — the Database tab's inline editor, the Add Fare modal, the Flights tab's flight-defaults modal, and the E-Ticket passenger rows all rebuild their baggage dropdowns when the airline changes, and re-derive the values again on submit.
+- **Public site, B2B portal, and both poster renderers** resolve baggage from the airline code at render time, so legacy rows with stale weights display correctly without a backfill.
+
+## Flight Time Resolution
+
+`agent_fares.flightTime` is a single display string (`'19:40 - 22:55'`) that posters and the public site render verbatim. The canonical per-route value is configured in the Flights tab and stored on `flight_details`, keyed `<airlineId>_<sectorId>`.
+
+The round-trip through n8n used to drop it: `exportFlightDetailsForN8n` handed out a combined `flightTime` string, but `ingestFaresFromN8n` only read split `time_start` / `time_end` keys, so every ingested fare stored `''` and the poster Time column printed `—`. Resolution now happens in [functions/flightTime.js](functions/flightTime.js), most-specific-first:
+
+1. `row.time_start` + `row.time_end` (or `timeStart` / `timeEnd`)
+2. a combined payload key — `flight_time`, `flightTime`, `flight_timing`, `timing`, or `time`
+3. the configured `flight_details` value for that airline + sector
+
+Every shape is normalized to 24-hour `HH:MM - HH:MM` (`1940`, `19.40`, `7:40 PM`, en/em dashes and `to` separators all parse; junk like `TBA` resolves to `''` rather than being stored). `exportFlightDetailsForN8n` now emits `time_start` / `time_end` alongside `flightTime` so either shape round-trips.
+
+Both poster renderers apply the same `flight_details` fallback at render time — [functions/poster/fetchFares.js](functions/poster/fetchFares.js) for the daily auto-poster and `dedupeAndSortPosterFares()` in `admin/main.js` for the admin poster, video export, social publishing, and clipboard text. Fares uploaded before the fix therefore show their times without a backfill. `loadGlobalData()` fetches `flight_details` so the fallback works even when the Flights tab was never opened.
+
 ## Firestore Database Schema
 
 ### `admins`
@@ -341,8 +386,8 @@ Fares are grouped by sector + airline + date + time keeping the **minimum final 
 | `flightDate` | Timestamp | Date of flight |
 | `specialRate` | Number | Base fare in ₹ |
 | `finalRate` | Number | Final selling rate |
-| `baggage` | String | e.g. `'30kg'` |
-| `extraBaggage` | Number | Extra baggage allowance in kg |
+| `baggage` | Number | **Check-in** allowance in kg — fixed by airline policy, see [Baggage rules](#baggage-rules) |
+| `extraBaggage` | Number | **Hand** allowance in kg — fixed by airline policy, see [Baggage rules](#baggage-rules) |
 | `commission` | Number | Agent commission in ₹ — sourced from `agents.commission` at ingest time |
 | `supplierRate` | Number | Supplier cost (currently always 0) |
 | `flightTime` | String | e.g. `'19:40 - 22:55'` |
@@ -489,7 +534,7 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `bulkToggleAgentVisibility` | Sets `isActive` on agent + `isHidden` on all their fares |
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
 | `generateAgentReport` | Aggregates fares with fully optional filters (sector, agent, date range). **All filters are optional** — passing no filters returns stats across the entire dataset. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
-| `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, and **`agents`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. Batch-writes to `agent_fares`. |
+| `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, **`agents`**, and **`flight_details`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. `finalRate` is `sp_rate + commission` unless the payload sends an explicit `rate`. Baggage is forced onto the airline rules and flight time is resolved payload-first with a `flight_details` fallback (see [Flight Time Resolution](#flight-time-resolution)). Batch-writes to `agent_fares`. An empty `firebaseData` array is valid and returns `saved: 0`. |
 | `refreshSocialPublishingHealth` | Admin callable. Rebuilds the saved posting setup snapshot from configured/fallback channel IDs and API-key presence without making any Buffer API calls. |
 | `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next minute cron. |
 | `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a non-posted errored job item without mutating the old queue record. |

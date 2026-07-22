@@ -13,6 +13,7 @@ import { splitFlightTimeRange } from '../web/flight-results.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from '../web/airline-brand.js';
 import { buildFlightCardHtml } from '../web/flight-card.js';
 import { initSiteChrome } from '../web/site-chrome.js';
+import { handBaggageKg, resolveCheckInBaggageKg } from '../shared/airline-baggage.js';
 
 const getB2BPortalContext = httpsCallable(functions, 'getB2BPortalContext');
 const getB2BFares = httpsCallable(functions, 'getB2BFares');
@@ -347,13 +348,14 @@ function renderResults() {
     const dateStr = new Date(fare.flightDate).toLocaleDateString('en-GB', dateOptions).replace(/,/g, '');
     const { departure: dep, arrival: arr } = splitFlightTimeRange(fare.flightTime);
 
-    const baggageVal = Number(fare.baggage) || 0;
-    const extraBaggageVal = Number(fare.extraBaggage) || 0;
-    const checkInBaggageStr = baggageVal ? `${baggageVal} KG` : 'No Check-in';
-    const cabinBaggageStr = extraBaggageVal ? `+ ${extraBaggageVal} KG` : '';
-    const totalBaggage = baggageVal + extraBaggageVal;
-    const baggageLabelStr = totalBaggage > 0 ? `${totalBaggage}KG` : '0KG';
     const airlineBrand = resolveAirlineBrand(_airlineMap.get(fare.airlineId));
+
+    // Baggage is airline policy, not fare data — legacy rows are corrected here.
+    const checkInKg = resolveCheckInBaggageKg(airlineBrand.code, fare.baggage);
+    const handKg = handBaggageKg(airlineBrand.code);
+    const checkInBaggageStr = `Check-in ${checkInKg} KG`;
+    const cabinBaggageStr = `Hand ${handKg} KG`;
+    const baggageLabelStr = `${checkInKg} + ${handKg}KG`;
     const price = '₹' + roundFare(fare.price).toLocaleString('en-IN');
 
     const item = {

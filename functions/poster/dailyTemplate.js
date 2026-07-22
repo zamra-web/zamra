@@ -4,6 +4,8 @@
  * Simpler than the admin poster: single sector, single page, single theme.
  */
 
+const { handBaggageKg, resolveCheckInBaggageKg } = require("../airlineBaggage");
+
 function escapeHtml(s) {
   return String(s || "")
     .replace(/&/g, "&amp;")
@@ -74,7 +76,11 @@ function buildDailyPosterHtml({ sector, fares, airlineMap, logoMap }) {
       timeCell = `<span style="font-weight:700;font-size:16px;color:#0f172a;white-space:nowrap;">${escapeHtml(parts.join(" - "))}</span>`;
     }
 
-    const baggageLabel = formatPosterBaggage(f.baggage, f.extraBaggage);
+    // Baggage is airline policy, not fare data — see functions/airlineBaggage.js.
+    const baggageLabel = formatPosterBaggage(
+      resolveCheckInBaggageKg(airline?.code, f.baggage),
+      handBaggageKg(airline?.code)
+    );
     const baggageCell = baggageLabel === "—"
       ? "<span style=\"color:#94a3b8;\">—</span>"
       : `<span style="display:inline-block;background:rgba(37,99,235,0.12);color:#2563eb;padding:6px 12px;border-radius:9999px;font-weight:800;font-size:15px;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;

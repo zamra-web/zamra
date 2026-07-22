@@ -5,6 +5,7 @@ import { dedupeAndSortFares, splitFlightTimeRange } from './flight-results.js';
 import { initSiteChrome } from './site-chrome.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from './airline-brand.js';
 import { buildFlightCardHtml } from './flight-card.js';
+import { handBaggageKg, resolveCheckInBaggageKg } from '../shared/airline-baggage.js';
 
 const ENQUIRY_WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/enquiry';
 
@@ -462,13 +463,14 @@ async function searchFlights() {
         
         const { departure: dep, arrival: arr } = splitFlightTimeRange(fare.flightTime);
         
-        const baggageVal = Number(fare.baggage) || 0;
-        const extraBaggageVal = Number(fare.extraBaggage) || 0;
-        const checkInBaggageStr = baggageVal ? `${baggageVal} KG` : 'No Check-in';
-        const cabinBaggageStr = extraBaggageVal ? `+ ${extraBaggageVal} KG` : '';
-        const totalBaggage = baggageVal + extraBaggageVal;
-        const baggageLabelStr = totalBaggage > 0 ? `${totalBaggage}KG` : '0KG';
         const airlineBrand = resolveAirlineBrand(airlineMap.get(fare.airlineId));
+
+        // Baggage is airline policy, not fare data — legacy rows are corrected here.
+        const checkInKg = resolveCheckInBaggageKg(airlineBrand.code, fare.baggage);
+        const handKg = handBaggageKg(airlineBrand.code);
+        const checkInBaggageStr = `Check-in ${checkInKg} KG`;
+        const cabinBaggageStr = `Hand ${handKg} KG`;
+        const baggageLabelStr = `${checkInKg} + ${handKg}KG`;
 
         return {
           airline: airlineBrand.name,

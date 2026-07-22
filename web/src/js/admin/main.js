@@ -34,6 +34,13 @@ import {
 
 import { downloadVideoPoster as renderVideoPoster } from './video-export.js';
 import { formatPosterBaggageDisplay } from './poster-baggage-display.js';
+import {
+  handBaggageKg,
+  checkInBaggageOptions,
+  resolveCheckInBaggageKg,
+  formatCheckInBaggageLabel,
+  hasVariableCheckInBaggage,
+} from '../shared/airline-baggage.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
 import { createSocialPublishingController } from './social-publishing.js';
 import {
@@ -518,8 +525,25 @@ function toSafeNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-const ETICKET_CABIN_BAG_OPTIONS = [5, 7, 10];
-const ETICKET_CHECKIN_BAG_OPTIONS = [20, 25, 30, 35, 40];
+/** Airline IATA code for a Firestore airline id, '' when unknown. */
+function airlineCodeById(airlineId) {
+  if (!airlineId) return '';
+  return _airlines.find(a => a.id === airlineId)?.code || '';
+}
+
+/**
+ * Check-in options an airline actually allows — 30 kg by default, 20/40 for OV,
+ * 20/30/40 for SV. See `shared/airline-baggage.js`.
+ */
+function buildCheckInBagOptionsHtml(airlineCode, selectedValue) {
+  return buildKgOptionsHtml(checkInBaggageOptions(airlineCode), resolveCheckInBaggageKg(airlineCode, selectedValue));
+}
+
+/** Hand baggage is fixed per airline, so it renders as the only selectable value. */
+function buildHandBagOptionsHtml(airlineCode) {
+  const kg = handBaggageKg(airlineCode);
+  return `<option value="${kg}" selected>${kg} Kg</option>`;
+}
 
 function buildKgOptionsHtml(options = [], selectedValue = 0) {
   const selected = Math.max(0, parseBaggageNumber(selectedValue));
@@ -830,16 +854,20 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Pre-load global lookup data ───────────────────────────────────────────────
 async function loadGlobalData() {
   try {
-    const [agents, sectors, airlines, visas] = await Promise.all([
+    const [agents, sectors, airlines, visas, flightDetails] = await Promise.all([
       getAgents(),
       getSectors(),
       getAirlines(),
-      getVisas()
+      getVisas(),
+      // Posters fall back to these for flight times, so they must be loaded
+      // even when the Flights tab was never opened this session.
+      getFlightDetails()
     ]);
     _agents = agents;
     _sectors = normalizeSectors(sectors);
     _airlines = airlines;
     _visas = visas;
+    _flightDetails = flightDetails;
     refreshSectorDrivenControls();
   } catch (e) {
     console.error('loadGlobalData error:', e);
@@ -2396,12 +2424,33 @@ function buildPosterAirlineHelpers() {
   return { getAirline, toAirlineKey };
 }
 
+/**
+ * Flight time configured for an airline+sector in the Flight Details tab.
+ * Fares uploaded before the n8n round-trip was fixed store an empty
+ * `flightTime`; without this fallback the poster's Time column prints "—".
+ */
+function getConfiguredFlightTime(fare) {
+  if (!fare?.airlineId || !fare?.sectorId) return '';
+  const detail = _flightDetails.find(
+    (d) => d.airlineId === fare.airlineId && d.sectorId === fare.sectorId,
+  );
+  return normalizeFlightTime(detail?.flightTime);
+}
+
+function resolvePosterFlightTime(fare) {
+  return normalizeFlightTime(fare?.flightTime) || getConfiguredFlightTime(fare);
+}
+
 function dedupeAndSortPosterFares(fares, toAirlineKey) {
   const groupedFaresMap = new Map();
-  fares.forEach((fare) => {
+  fares.forEach((rawFare) => {
+    // Resolve up front so the dedupe key, the poster Time column and the
+    // clipboard text all agree on one flight time.
+    const flightTime = resolvePosterFlightTime(rawFare);
+    const fare = flightTime === rawFare.flightTime ? rawFare : { ...rawFare, flightTime };
     const dtTime = fare.flightDate instanceof Date ? fare.flightDate.getTime() : fare.flightDate;
     const airlineKey = toAirlineKey(fare.airlineId);
-    const timeKey = normalizeFlightTime(fare.flightTime).replace(/\s+/g, '');
+    const timeKey = flightTime.replace(/\s+/g, '');
     const key = `${fare.sectorId}_${airlineKey}_${dtTime}_${timeKey}`;
     if (!groupedFaresMap.has(key) || Number(fare.finalRate) < Number(groupedFaresMap.get(key).finalRate)) {
       groupedFaresMap.set(key, fare);
@@ -2978,7 +3027,10 @@ async function populatePosterRenderStack(fares, selection, stack, templateFrame,
           }
         }
 
-        const baggageLabel = formatPosterBaggageDisplay(fare.baggage, fare.extraBaggage);
+        const baggageLabel = formatPosterBaggageDisplay(
+          resolveCheckInBaggageKg(airline?.code, fare.baggage),
+          handBaggageKg(airline?.code)
+        );
         const baggageCell = baggageLabel === '—'
           ? `<span style="color:#94a3b8;font-size:${Math.max(layout.baggageFont - 1, 12)}px;">—</span>`
           : `<span style="font-weight:700;color:${sectorChipText};background-color:${sectorChipBg};padding:${layout.baggagePadding};border-radius:999px;font-size:${layout.baggageFont}px;text-align:center;white-space:nowrap;">${escapeHtml(baggageLabel)}</span>`;
@@ -4601,8 +4653,8 @@ function renderReportFaresTable(fares) {
           ${TH('specialRate', 'SP Rate (₹)')}
           ${TH('finalRate', 'Rate (₹)')}
           ${TH('commission', 'Comm (₹)')}
-          ${TH('baggage', 'Bag')}
-          ${TH('extraBaggage', 'Ex.Bag')}
+          ${TH('baggage', 'Check-in')}
+          ${TH('extraBaggage', 'Hand')}
           ${TH('isHidden', 'Status')}
           <th class="whitespace-nowrap">Actions</th>
         </tr></thead>
@@ -4623,8 +4675,8 @@ function renderReportFaresTable(fares) {
               <td class="whitespace-nowrap text-[13px] text-text-muted">₹${(f.specialRate || 0).toLocaleString()}</td>
               <td class="whitespace-nowrap font-black text-navy text-[14px]">₹${(f.finalRate || 0).toLocaleString()}</td>
               <td class="whitespace-nowrap text-[12px] text-text-muted" id="comm-${f.id}">₹${(f.commission || 0).toLocaleString()}</td>
-              <td class="whitespace-nowrap text-[12px]">${f.baggage ? f.baggage + ' kg' : '—'}</td>
-              <td class="whitespace-nowrap text-[12px]">${f.extraBaggage ? f.extraBaggage + ' kg' : '—'}</td>
+              <td class="whitespace-nowrap text-[12px]">${resolveCheckInBaggageKg(airlineMap[f.airlineId], f.baggage)} kg</td>
+              <td class="whitespace-nowrap text-[12px]">${handBaggageKg(airlineMap[f.airlineId])} kg</td>
               <td class="whitespace-nowrap">
                 <span class="admin-status-pill ${f.isHidden ? 'admin-status-hidden' : 'admin-status-live'}">
                   ${f.isHidden ? '● Hidden' : '● Live'}
@@ -6163,8 +6215,8 @@ function flightDetailRow(fd) {
     <td class="font-semibold">${airlineName}</td>
     <td><span class="font-mono font-bold text-primary">${sectorCode}</span></td>
     <td>${fd.flightTime || '<span class="text-text-muted text-[11px] italic">Not set</span>'}</td>
-    <td>${fd.baggage || '<span class="text-text-muted text-[11px] italic">Not set</span>'}</td>
-    <td class="font-mono font-medium">${fd.extraBaggage}</td>
+    <td class="font-mono font-medium">${resolveCheckInBaggageKg(airline?.code, fd.baggage)} kg</td>
+    <td class="font-mono font-medium">${handBaggageKg(airline?.code)} kg</td>
     <td class="text-right">
       <div class="flex gap-1 items-center justify-end">
         <button data-action="edit-flight-detail" data-id="${fd.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
@@ -6248,12 +6300,18 @@ function openFlightDetailModal(fd) {
             <input name="flightTime" placeholder="e.g. 19:40 - 22:55" value="${fd?.flightTime || ''}" class="admin-control">
           </div>
           <div class="admin-field">
-            <label class="admin-label">Baggage Info</label>
-            <input name="baggage" placeholder="e.g. 30kg + 7kg" value="${fd?.baggage || ''}" class="admin-control">
+            <label class="admin-label">Check-in Baggage (kg)</label>
+            <select name="baggage" id="fd-bag" class="admin-control">
+              ${buildCheckInBagOptionsHtml(airlineCodeById(fd?.airlineId), fd?.baggage)}
+            </select>
+            <p class="admin-help" id="fd-bag-help">Allowed: ${formatCheckInBaggageLabel(airlineCodeById(fd?.airlineId))} kg</p>
           </div>
           <div class="admin-field">
-            <label class="admin-label">Extra Baggage (kg)</label>
-            <input name="extraBaggage" type="number" min="0" placeholder="e.g. 7" value="${fd?.extraBaggage || 0}" class="admin-control font-mono">
+            <label class="admin-label">Hand Baggage (kg)</label>
+            <select name="extraBaggage" id="fd-exbag" class="admin-control">
+              ${buildHandBagOptionsHtml(airlineCodeById(fd?.airlineId))}
+            </select>
+            <p class="admin-help">Fixed by airline policy.</p>
           </div>
         </div>
       </div>
@@ -6267,18 +6325,34 @@ function openFlightDetailModal(fd) {
     </form>`);
 
   document.getElementById('modal-cancel')?.addEventListener('click', () => document.getElementById('admin-modal').close());
+
+  // Baggage follows the selected airline; both selects re-point when it changes.
+  const fdAirlineSelect = document.querySelector('#flight-detail-form [name="airlineId"]');
+  fdAirlineSelect?.addEventListener('change', () => {
+    const airlineCode = airlineCodeById(fdAirlineSelect.value);
+    const bagSelect = document.getElementById('fd-bag');
+    const handBagSelect = document.getElementById('fd-exbag');
+    const bagHelp = document.getElementById('fd-bag-help');
+    if (bagSelect) bagSelect.innerHTML = buildCheckInBagOptionsHtml(airlineCode, bagSelect.value);
+    if (handBagSelect) handBagSelect.innerHTML = buildHandBagOptionsHtml(airlineCode);
+    if (bagHelp) bagHelp.textContent = `Allowed: ${formatCheckInBaggageLabel(airlineCode)} kg`;
+  });
+
   document.getElementById('flight-detail-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fdData = new FormData(e.target);
+    // The airline select is disabled while editing, so fall back to the stored id.
+    const airlineId = isEdit ? fd.airlineId : fdData.get('airlineId');
+    const airlineCode = airlineCodeById(airlineId);
     const data = {
       flightTime: fdData.get('flightTime'),
-      baggage: fdData.get('baggage'),
-      extraBaggage: fdData.get('extraBaggage') || 0
+      baggage: resolveCheckInBaggageKg(airlineCode, fdData.get('baggage')),
+      extraBaggage: handBaggageKg(airlineCode)
     };
-    
+
     // For new entries, we need to extract from select
     if (!isEdit) {
-      data.airlineId = fdData.get('airlineId');
+      data.airlineId = airlineId;
       data.sectorId = fdData.get('sectorId');
     }
 
@@ -6852,7 +6926,7 @@ function downloadReportCSV(fares) {
   // Helper: escape a value for CSV (wrap in quotes, escape internal quotes)
   const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-  const headers = ['Date', 'Time', 'Sector', 'Airline', 'Agent', 'SP Rate (INR)', 'Rate (INR)', 'Commission (INR)', 'Baggage (kg)', 'Extra Baggage (kg)', 'Status'];
+  const headers = ['Date', 'Time', 'Sector', 'Airline', 'Agent', 'SP Rate (INR)', 'Rate (INR)', 'Commission (INR)', 'Check-in Baggage (kg)', 'Hand Baggage (kg)', 'Status'];
   const rows = fares.map(f => {
     const dt = f.flightDate instanceof Date
       ? f.flightDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -6866,8 +6940,8 @@ function downloadReportCSV(fares) {
       esc(f.specialRate || 0),
       esc(f.finalRate || 0),
       esc(f.commission || 0),
-      esc(f.baggage || ''),
-      esc(f.extraBaggage || ''),
+      esc(resolveCheckInBaggageKg(airlineCodeById(f.airlineId), f.baggage)),
+      esc(handBaggageKg(airlineCodeById(f.airlineId))),
       esc(f.isHidden ? 'Hidden' : 'Live')
     ].join(',');
   });
@@ -7190,6 +7264,27 @@ function wireDatabaseTableEvents() {
       if (agentCommission !== baseCommission) nextDraft.commission = agentCommission;
       else delete nextDraft.commission;
       updateDerivedRateInRow(row);
+    }
+
+    if (field === 'airlineId') {
+      // Baggage is airline policy — re-point both selects at the new airline's
+      // allowed weights so the row can never be saved with an invalid one.
+      const airlineCode = airlineCodeById(draftValue);
+      const bagSelect = row.querySelector('[data-db-field="baggage"]');
+      const handSelect = row.querySelector('[data-db-field="extraBaggage"]');
+
+      if (bagSelect) {
+        bagSelect.innerHTML = buildCheckInBagOptionsHtml(airlineCode, bagSelect.value);
+        const checkInKg = parseBaggageNumber(bagSelect.value);
+        if (checkInKg !== normalizeFieldForBase('baggage', baseFare.baggage)) nextDraft.baggage = checkInKg;
+        else delete nextDraft.baggage;
+      }
+      if (handSelect) {
+        handSelect.innerHTML = buildHandBagOptionsHtml(airlineCode);
+        const handKg = handBaggageKg(airlineCode);
+        if (handKg !== normalizeFieldForBase('extraBaggage', baseFare.extraBaggage)) nextDraft.extraBaggage = handKg;
+        else delete nextDraft.extraBaggage;
+      }
     }
 
     if (Object.keys(nextDraft).length) _databaseDrafts[fareId] = nextDraft;
@@ -7664,15 +7759,15 @@ function renderDatabaseTable() {
               </td>
               <td class="whitespace-nowrap text-[12px]">
                 ${isEditing ? `
-                <select data-db-field="baggage" class="db-cell-select min-w-[90px]">
-                  ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, parseBaggageNumber(fare.baggage))}
+                <select data-db-field="baggage" class="db-cell-select min-w-[90px]" ${hasVariableCheckInBaggage(airlineCodeById(fare.airlineId)) ? '' : 'title="Fixed by airline policy"'}>
+                  ${buildCheckInBagOptionsHtml(airlineCodeById(fare.airlineId), fare.baggage)}
                 </select>
                 ` : (fare.baggage ? fare.baggage + ' kg' : '—')}
               </td>
               <td class="whitespace-nowrap text-[12px]">
                 ${isEditing ? `
-                <select data-db-field="extraBaggage" class="db-cell-select min-w-[90px]">
-                  ${buildKgOptionsHtml(ETICKET_CABIN_BAG_OPTIONS, toSafeNumber(fare.extraBaggage, 0))}
+                <select data-db-field="extraBaggage" class="db-cell-select min-w-[90px]" title="Hand baggage is fixed by airline policy">
+                  ${buildHandBagOptionsHtml(airlineCodeById(fare.airlineId))}
                 </select>
                 ` : (fare.extraBaggage ? fare.extraBaggage + ' kg' : '—')}
               </td>
@@ -7929,21 +8024,23 @@ function openDatabaseAddFareModal() {
         <div class="admin-form-section-head">
           <div>
             <p class="admin-form-section-title">Baggage &amp; Status</p>
-            <p class="admin-form-section-desc">Check-in, extra baggage, and visibility.</p>
+            <p class="admin-form-section-desc">Weights follow airline policy — pick the airline first.</p>
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="admin-field">
-            <label class="admin-label">Baggage (kg)</label>
+            <label class="admin-label">Check-in Baggage (kg)</label>
             <select id="db-add-bag" class="admin-control">
-              ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 30)}
+              ${buildCheckInBagOptionsHtml('', 0)}
             </select>
+            <p class="admin-help" id="db-add-bag-help">Allowed: ${formatCheckInBaggageLabel('')} kg</p>
           </div>
           <div class="admin-field">
-            <label class="admin-label">Extra Baggage (kg)</label>
+            <label class="admin-label">Hand Baggage (kg)</label>
             <select id="db-add-exbag" class="admin-control">
-              ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 20)}
+              ${buildHandBagOptionsHtml('')}
             </select>
+            <p class="admin-help">Fixed by airline policy.</p>
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
@@ -7983,10 +8080,23 @@ function openDatabaseAddFareModal() {
     commInput.value = String(agentCommission);
     syncAddRate();
   };
+  const airlineSelect = document.getElementById('db-add-airline');
+  const bagSelect = document.getElementById('db-add-bag');
+  const handBagSelect = document.getElementById('db-add-exbag');
+  const bagHelp = document.getElementById('db-add-bag-help');
+  const syncAddBaggage = () => {
+    const airlineCode = airlineCodeById(airlineSelect?.value);
+    if (bagSelect) bagSelect.innerHTML = buildCheckInBagOptionsHtml(airlineCode, bagSelect.value);
+    if (handBagSelect) handBagSelect.innerHTML = buildHandBagOptionsHtml(airlineCode);
+    if (bagHelp) bagHelp.textContent = `Allowed: ${formatCheckInBaggageLabel(airlineCode)} kg`;
+  };
+
   spInput?.addEventListener('input', syncAddRate);
   agentSelect?.addEventListener('change', syncAddCommission);
+  airlineSelect?.addEventListener('change', syncAddBaggage);
   syncAddCommission();
   syncAddRate();
+  syncAddBaggage();
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -8006,17 +8116,20 @@ function openDatabaseAddFareModal() {
       const commission = Math.max(0, toSafeNumber(document.getElementById('db-add-comm')?.value, 0));
       const finalRate = getCalculatedFinalRate(specialRate, commission);
 
+      const airlineId = document.getElementById('db-add-airline')?.value || '';
+      const airlineCode = airlineCodeById(airlineId);
+
       await addFare({
         agentId: document.getElementById('db-add-agent')?.value || '',
         sectorId: document.getElementById('db-add-sector')?.value || '',
-        airlineId: document.getElementById('db-add-airline')?.value || '',
+        airlineId,
         flightDate,
         flightTime: document.getElementById('db-add-time')?.value?.trim() || '',
         specialRate,
         finalRate,
         commission,
-        baggage: parseBaggageNumber(document.getElementById('db-add-bag')?.value),
-        extraBaggage: toSafeNumber(document.getElementById('db-add-exbag')?.value, 0),
+        baggage: resolveCheckInBaggageKg(airlineCode, document.getElementById('db-add-bag')?.value),
+        extraBaggage: handBaggageKg(airlineCode),
         isHidden: (document.getElementById('db-add-status')?.value || 'live') === 'hidden',
       });
 
@@ -8044,6 +8157,110 @@ const AIR_RX = /\b(IX|6E|G9|SV|WY|XY|QP|FZ|OV|AI|J9|SG)\b/;
 let selAgent = null;
 let rateHistory = JSON.parse(localStorage.getItem('zt_hist') || '[]');
 
+// ── Rate sheet images ────────────────────────────────────────────────────────
+// Suppliers often send rates as a WhatsApp screenshot rather than text. Images
+// ride along in the same n8n webhook payload as base64 so the AI parser reads
+// both together; they are never persisted client-side.
+const RATE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const RATE_IMAGE_MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+const RATE_IMAGE_MAX_COUNT = 10;
+
+let rateImages = [];
+let rateImageSeq = 0;
+
+function formatRateImageSize(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function addRateImages(fileList) {
+  const files = Array.from(fileList || []).filter(f => f && f.type.startsWith('image/'));
+  if (!files.length) return;
+
+  const skipped = [];
+  for (const file of files) {
+    const totalBytes = rateImages.reduce((sum, img) => sum + img.size, 0);
+    if (rateImages.length >= RATE_IMAGE_MAX_COUNT) {
+      skipped.push(`${file.name} (max ${RATE_IMAGE_MAX_COUNT} images)`);
+      continue;
+    }
+    if (file.size > RATE_IMAGE_MAX_BYTES) {
+      skipped.push(`${file.name} (over ${formatRateImageSize(RATE_IMAGE_MAX_BYTES)})`);
+      continue;
+    }
+    if (totalBytes + file.size > RATE_IMAGE_MAX_TOTAL_BYTES) {
+      skipped.push(`${file.name} (total over ${formatRateImageSize(RATE_IMAGE_MAX_TOTAL_BYTES)})`);
+      continue;
+    }
+
+    try {
+      rateImageSeq += 1;
+      rateImages.push({
+        id: `rate-img-${rateImageSeq}`,
+        name: file.name || `screenshot-${rateImageSeq}.png`,
+        mime: file.type,
+        size: file.size,
+        dataUrl: await readFileAsDataUrl(file),
+      });
+    } catch {
+      skipped.push(`${file.name} (unreadable)`);
+    }
+  }
+
+  if (skipped.length) toast('warning', 'Some Images Skipped', skipped.join(', '));
+  renderRateImages();
+  validate();
+}
+
+function removeRateImage(id) {
+  rateImages = rateImages.filter(img => img.id !== id);
+  renderRateImages();
+  validate();
+}
+
+function clearRateImages() {
+  rateImages = [];
+  const input = document.getElementById('rateImageInput');
+  if (input) input.value = '';
+  renderRateImages();
+}
+
+function renderRateImages() {
+  const count = document.getElementById('rateImageCount');
+  if (count) {
+    const totalBytes = rateImages.reduce((sum, img) => sum + img.size, 0);
+    count.textContent = rateImages.length
+      ? `${rateImages.length} image${rateImages.length === 1 ? '' : 's'} · ${formatRateImageSize(totalBytes)}`
+      : 'No images attached';
+  }
+
+  const grid = document.getElementById('rateImageGrid');
+  if (!grid) return;
+  grid.classList.toggle('on', rateImages.length > 0);
+  grid.innerHTML = rateImages.map(img => `
+    <div class="relative rounded-xl border border-border bg-white overflow-hidden">
+      <img src="${img.dataUrl}" alt="${escapeHtml(img.name)}" class="w-full h-24 object-cover">
+      <button type="button" data-remove-image="${img.id}" aria-label="Remove ${escapeHtml(img.name)}"
+        class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-red-500 transition-colors">
+        <i class="bi bi-x-lg text-[10px]"></i>
+      </button>
+      <div class="px-2 py-1.5 border-t border-border">
+        <div class="text-[10px] font-bold text-navy truncate" title="${escapeHtml(img.name)}">${escapeHtml(img.name)}</div>
+        <div class="text-[10px] text-text-muted">${formatRateImageSize(img.size)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
 function initAgentSheets() {
   // Agent chips will be built after global data is loaded (called from onAuthChange)
   const ta = document.getElementById('rateData');
@@ -8057,12 +8274,57 @@ function initAgentSheets() {
       if (n > 15) window._previewTimer = setTimeout(() => doPreview(this.value), 500);
       else hidePrev();
     });
+
+    // Ctrl+V of a screenshot lands here rather than in the file picker.
+    ta.addEventListener('paste', (e) => {
+      const files = Array.from(e.clipboardData?.items || [])
+        .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+      if (!files.length) return;
+      e.preventDefault();
+      addRateImages(files);
+    });
   }
+
+  const dropZone = document.getElementById('rateDrop');
+  const imageInput = document.getElementById('rateImageInput');
+  if (dropZone && imageInput) {
+    dropZone.addEventListener('click', () => imageInput.click());
+    dropZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); imageInput.click(); }
+    });
+
+    imageInput.addEventListener('change', async () => {
+      // Copy before clearing — resetting `value` empties the live FileList.
+      // Clearing it is what lets the same file be picked twice in a row.
+      const picked = Array.from(imageInput.files || []);
+      imageInput.value = '';
+      await addRateImages(picked);
+    });
+
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('drag'); });
+    });
+    ['dragleave', 'dragend', 'drop'].forEach(evt => {
+      dropZone.addEventListener(evt, () => dropZone.classList.remove('drag'));
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      addRateImages(e.dataTransfer?.files);
+    });
+  }
+
+  document.getElementById('rateImageGrid')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-image]');
+    if (btn) removeRateImage(btn.dataset.removeImage);
+  });
 
   document.getElementById('resetBtn')?.addEventListener('click', () => {
     if (ta) ta.value = '';
     const cc = document.getElementById('charCount');
     if (cc) cc.textContent = '0 characters';
+    clearRateImages();
     hidePrev(); validate();
   });
 
@@ -8082,6 +8344,7 @@ function initAgentSheets() {
 
   updateStats();
   renderHistory();
+  renderRateImages();
 }
 
 function isSameDayAsToday(timestampOrDate) {
@@ -8194,7 +8457,9 @@ function syncPill() {
 function validate() {
   const ta = document.getElementById('rateData');
   const btn = document.getElementById('submitBtn');
-  if (btn) btn.disabled = !(selAgent && ta && ta.value.trim().length > 10);
+  // Images alone are a valid submission — the parser reads them without text.
+  const hasText = !!ta && ta.value.trim().length > 10;
+  if (btn) btn.disabled = !(selAgent && (hasText || rateImages.length > 0));
 }
 
 // Quick client-side parser
@@ -8264,7 +8529,7 @@ async function handleSheetSubmit() {
   } catch(e) {}
 
   const ta = document.getElementById('rateData');
-  if (!selAgent || !ta?.value.trim()) return;
+  if (!selAgent || (!ta?.value.trim() && !rateImages.length)) return;
 
   const btn = document.getElementById('submitBtn');
   const orig = btn.innerHTML;
@@ -8278,11 +8543,21 @@ async function handleSheetSubmit() {
   const iv = setInterval(() => { prog = Math.min(prog + Math.random() * 13, 85); if (fill) fill.style.width = prog + '%'; }, 280);
 
   const parsedRows = quickParse(ta.value);
+  // quickParse only reads text; images are parsed server-side by n8n, so an
+  // image-only submission legitimately starts with zero client-parsed rows.
+  const submittedImages = rateImages.map(img => ({
+    name: img.name,
+    mime_type: img.mime,
+    size: img.size,
+    // Bare base64 — n8n rebuilds `data:<mime_type>;base64,<data>` if it needs a
+    // data URL. Sending both shapes would double the payload.
+    data: img.dataUrl.slice(img.dataUrl.indexOf(',') + 1),
+  }));
 
   const hEntry = {
     id: Date.now(), agent: selAgent,
     time: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
-    rows: parsedRows.length, saved: null, status: 'pen',
+    rows: parsedRows.length, images: submittedImages.length, saved: null, status: 'pen',
   };
   rateHistory.unshift(hEntry);
   if (rateHistory.length > 15) rateHistory.pop();
@@ -8297,6 +8572,8 @@ async function handleSheetSubmit() {
         raw_text: ta.value.trim(),
         parsed_rows: parsedRows,
         parsed_count: parsedRows.length,
+        images: submittedImages,
+        image_count: submittedImages.length,
         timestamp: new Date().toISOString(),
         source: 'zamra-portal',
       }),
@@ -8366,7 +8643,7 @@ async function handleSheetSubmit() {
       firstRow.classList.add('bg-emerald-50', 'border-emerald-200');
     }
 
-    setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; hidePrev(); validate(); }, 500);
+    setTimeout(() => { ta.value = ''; const cc = document.getElementById('charCount'); if (cc) cc.textContent = '0 characters'; clearRateImages(); hidePrev(); validate(); }, 500);
   } catch (err) {
     clearInterval(iv);
     if (fill) fill.style.width = '100%';
@@ -8414,9 +8691,10 @@ function renderHistory() {
       : h.status === 'err'
         ? 'text-red-500'
         : 'text-amber-600';
+    const imageCount = Number(h.images) || 0;
     return `<div class="flex items-center gap-4 bg-white p-3 rounded-lg border border-border/50 shadow-sm mb-2 transition-transform hover:-translate-y-0.5">
       <div class="w-10 h-10 rounded-full bg-primary-light text-primary font-bold flex items-center justify-center shrink-0 text-xs text-center">${agentName.split(' ')[0].slice(0, 3)}</div>
-      <div class="flex-1"><div class="text-sm font-bold text-navy">${agentName}</div><div class="text-[11px] font-semibold text-text-muted mt-0.5">${h.time}</div></div>
+      <div class="flex-1"><div class="text-sm font-bold text-navy">${agentName}</div><div class="text-[11px] font-semibold text-text-muted mt-0.5 flex items-center gap-1.5">${h.time}${imageCount ? `<span class="inline-flex items-center gap-1 text-primary"><i class="bi bi-image text-[10px]"></i>${imageCount}</span>` : ''}</div></div>
       <div class="text-right"><div class="text-[15px] font-black tracking-tight text-navy">${countValue}</div><div class="text-[10px] font-bold uppercase text-text-muted">${countLabel}</div></div>
       <div class="flex items-center gap-2">
         <div class="w-2.5 h-2.5 rounded-full ${h.status === 'ok' ? 'bg-green-500' : h.status === 'err' ? 'bg-red-500' : 'bg-yellow-400'}"></div>
@@ -8587,9 +8865,14 @@ async function renderETicketTab() {
 
     // Populate dropdowns with current global data
     if (airlineSelect && _airlines) {
-      airlineSelect.innerHTML = '<option value="">Select Airline</option>' +
-        _airlines.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+      // The value stays the airline name (the ticket template matches on it);
+      // data-code carries the IATA code the baggage rules key off.
+      airlineSelect.innerHTML = '<option value="" data-code="">Select Airline</option>' +
+        _airlines.map(a => `<option value="${a.name}" data-code="${escapeHtml(a.code || '')}">${a.name}</option>`).join('');
     }
+
+    const selectedAirlineCode = () =>
+      airlineSelect?.selectedOptions?.[0]?.dataset.code || '';
 
     if (originSelect && _sectors) {
       const uniqueOrigins = [...new Set(_sectors.map(s => s.sectorFrom).filter(Boolean))].sort();
@@ -8659,16 +8942,16 @@ async function renderETicketTab() {
             </div>
 
             <div class="md:col-span-2">
-              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Cabin Bag</label>
-              <select name="paxCarryBag[]" class="admin-control h-10">
-                ${buildKgOptionsHtml(ETICKET_CABIN_BAG_OPTIONS, 7)}
+              <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Hand Bag</label>
+              <select name="paxCarryBag[]" class="admin-control h-10" title="Fixed by airline policy">
+                ${buildHandBagOptionsHtml(selectedAirlineCode())}
               </select>
             </div>
 
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold text-text-muted mb-1 uppercase tracking-[0.08em]">Check-in Bag</label>
               <select name="paxCheckBag[]" class="admin-control h-10">
-                ${buildKgOptionsHtml(ETICKET_CHECKIN_BAG_OPTIONS, 30)}
+                ${buildCheckInBagOptionsHtml(selectedAirlineCode(), 0)}
               </select>
             </div>
           </div>
@@ -8676,6 +8959,18 @@ async function renderETicketTab() {
       `;
       paxContainer.insertAdjacentHTML('beforeend', rowHtml);
       syncPassengerRows();
+    });
+
+    // Switching airline re-points every passenger's baggage selects at that
+    // airline's allowed weights, keeping the selected check-in weight if valid.
+    airlineSelect?.addEventListener('change', () => {
+      const airlineCode = selectedAirlineCode();
+      paxContainer?.querySelectorAll('select[name="paxCheckBag[]"]').forEach((sel) => {
+        sel.innerHTML = buildCheckInBagOptionsHtml(airlineCode, sel.value);
+      });
+      paxContainer?.querySelectorAll('select[name="paxCarryBag[]"]').forEach((sel) => {
+        sel.innerHTML = buildHandBagOptionsHtml(airlineCode);
+      });
     });
 
     paxContainer?.addEventListener('click', (event) => {
