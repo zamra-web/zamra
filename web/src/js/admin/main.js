@@ -30,6 +30,8 @@ import {
   getB2BAgents, updateB2BAgent, callCreateB2BAgent, callResetB2BAgentPassword,
   callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
   saveB2BSupplierDefaults,
+  getEnquiries, addEnquiry, updateEnquiry, deleteEnquiry,
+  getDealLinks, saveDealLink, deleteDealLink, dealLinkExists,
 } from './db.js';
 
 import { downloadVideoPoster as renderVideoPoster } from './video-export.js';
@@ -71,6 +73,18 @@ import {
 } from '../shared/flight-schedule.js';
 import { appendVideoSlidesLimited } from './social-image-carousels.js';
 import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
+import { buildFareTextSection, buildFareTextBlocks } from '../shared/fare-text-list.js';
+import { matchFaresToEnquiry, evaluateEnquiryAlerts } from '../shared/enquiry-alerts.js';
+import {
+  normalizeDealSlug,
+  resolveDealWindow,
+  buildDealLinkUrl,
+} from '../shared/deal-links.js';
+import {
+  annotateFarePriceDrops,
+  formatRelativeTime,
+  formatAbsoluteTime,
+} from '../shared/fare-price-history.js';
 
 // ── Global State ──────────────────────────────────────────────────────────────
 let _agents = [];
@@ -433,6 +447,7 @@ function populateReportsSectorSelect(selectEl = document.getElementById('reports
 
 function refreshSectorDrivenControls() {
   populatePosterSectorSelect(document.getElementById('poster-sector-sel'));
+  populatePosterSectorSelect(document.getElementById('textgen-sector-sel'));
   populateReportsSectorSelect();
   populateDatabaseFilterSelects();
 
@@ -672,10 +687,14 @@ let tableSort = {
   // it so the sheet you download matches the rows you were just looking at.
   reportFares: { key: 'sectorOrder', asc: true },
   databaseFares: { key: 'flightDate', asc: true },
+  // Newest enquiry first — staff work the top of the list.
+  enquiries: { key: 'createdAt', asc: false },
 };
-let tableSearch = { agents: '', b2bAgents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '', tours: '', hajjUmrah: '' };
-let tablePage = { agents: 1, b2bAgents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, tours: 1, hajjUmrah: 1, reportFares: 1, databaseFares: 1 };
-let tableLimit = { agents: 10, b2bAgents: 25, sectors: 25, airlines: 10, visas: 10, visaStampings: 10, attestations: 10, passportServices: 10, tours: 10, hajjUmrah: 10, reportFares: 10, databaseFares: 25 };
+let tableSearch = { agents: '', b2bAgents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '', tours: '', hajjUmrah: '', enquiries: '' };
+let tablePage = { agents: 1, b2bAgents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, tours: 1, hajjUmrah: 1, reportFares: 1, databaseFares: 1, enquiries: 1 };
+// databaseFares must match an option in #database-limit (20/50/100/250) or the
+// select paints blank on first render.
+let tableLimit = { agents: 10, b2bAgents: 25, sectors: 25, airlines: 10, visas: 10, visaStampings: 10, attestations: 10, passportServices: 10, tours: 10, hajjUmrah: 10, reportFares: 10, databaseFares: 20, enquiries: 10 };
 
 const databaseFilters = {
   search: '',
@@ -683,6 +702,7 @@ const databaseFilters = {
   sectorId: 'all',
   airlineId: 'all',
   status: 'all',
+  priceDrops: 'all',
   startDate: '',
   endDate: '',
 };
@@ -821,6 +841,7 @@ document.addEventListener('click', (e) => {
   else if (tab === 'hajjUmrah') renderHajjUmrahTab(false);
   else if (tab === 'reportFares' && _reportFares.length) renderReportFaresTable(_reportFares);
   else if (tab === 'databaseFares') renderDatabaseTable();
+  else if (tab === 'enquiries') renderEnquiryTable();
 });
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
@@ -884,6 +905,11 @@ async function loadGlobalData() {
     _visas = visas;
     _flightDetails = flightDetails;
     refreshSectorDrivenControls();
+
+    // Surface target-fare hits on the nav as soon as the dashboard is up, so
+    // staff see them without opening the Enquiry tab. Deliberately not awaited
+    // — the dashboard must not wait on it, and it swallows its own errors.
+    refreshEnquiryAlerts();
   } catch (e) {
     console.error('loadGlobalData error:', e);
   }
@@ -945,6 +971,7 @@ async function renderActiveTab() {
   else if (id === 'socials-tab') await renderSocialsTab();
   else if (id === 'reports-tab') await renderReportsTab();
   else if (id === 'database-tab') await renderDatabaseTab();
+  else if (id === 'enquiry-tab') await renderEnquiryTab();
   else if (id === 'visas-tab') await renderVisasTab();
   else if (id === 'tours-tab') await renderToursTab();
   else if (id === 'hajjumrah-tab') await renderHajjUmrahTab();
@@ -2625,9 +2652,20 @@ function formatPosterClipboardAirlineLabel(rawLabel) {
   return normalized || 'AIRLINE';
 }
 
-function buildPosterClipboardSections(fares, selection) {
+/**
+ * Group fares into per-sector text blocks.
+ *
+ * Column padding and the lowest-fare marker live in shared/fare-text-list.js so
+ * the poster's Copy Text and the standalone text generator can never drift.
+ *
+ * @param {object[]} fares
+ * @param {object}   selection
+ * @param {{ includeBaggage?: boolean, highlightLowest?: boolean }} [options]
+ */
+function buildPosterClipboardSections(fares, selection, options = {}) {
   if (!Array.isArray(fares) || !fares.length) return [];
 
+  const { includeBaggage = false, highlightLowest = false } = options;
   const { getAirline, toAirlineKey } = buildPosterAirlineHelpers();
   const sortedFares = dedupeAndSortPosterFares(fares, toAirlineKey);
   const faresBySector = new Map();
@@ -2643,27 +2681,28 @@ function buildPosterClipboardSections(fares, selection) {
     const sectionFares = faresBySector.get(sectorId) || [];
     if (!sectionFares.length) return null;
 
-    const heading = getPosterClipboardSectorHeading(sectorId);
-    const maxDateLabelLength = Math.max(
-      6,
-      ...sectionFares.map((fare) => formatPosterClipboardDate(fare.flightDate).length),
-    );
-    const maxAirlineLabelLength = Math.max(
-      'AIRLINE'.length,
-      ...sectionFares.map((fare) => {
-        const airline = getAirline(fare.airlineId);
-        return formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE').length;
-      }),
-    );
-    const lines = sectionFares.map((fare) => {
+    const rows = sectionFares.map((fare) => {
       const airline = getAirline(fare.airlineId);
-      const airlineLabel = formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE');
-      const dateLabel = formatPosterClipboardDate(fare.flightDate).padEnd(maxDateLabelLength, ' ');
-      return `${dateLabel} ${airlineLabel.padEnd(maxAirlineLabelLength, ' ')} = ${formatPosterClipboardRate(fare.finalRate)}`;
+      return {
+        dateLabel: formatPosterClipboardDate(fare.flightDate),
+        airlineLabel: formatPosterClipboardAirlineLabel(airline?.name || fare.airlineId || 'AIRLINE'),
+        // Baggage is airline policy, never the raw upload value — same
+        // resolution the poster table uses.
+        baggageLabel: formatPosterBaggageDisplay(
+          resolveCheckInBaggageKg(airline?.code, fare.baggage),
+          handBaggageKg(airline?.code),
+        ),
+        rate: fare.finalRate,
+      };
     });
 
-    return { heading, lines };
-  }).filter(Boolean);
+    return buildFareTextSection({
+      heading: getPosterClipboardSectorHeading(sectorId),
+      rows,
+      includeBaggage,
+      highlightLowest,
+    });
+  }).filter((section) => section && section.lines.length);
 }
 
 function buildCopyTextHeader(shortcut, date = new Date()) {
@@ -2759,13 +2798,12 @@ function resolveClipboardShortcut(selection, fares) {
   return null;
 }
 
-function buildPosterClipboardPayload(fares, selection) {
-  const sections = buildPosterClipboardSections(fares, selection);
+function buildPosterClipboardPayload(fares, selection, options = {}) {
+  const { includeBaggage = true, highlightLowest = true } = options;
+  const sections = buildPosterClipboardSections(fares, selection, { includeBaggage, highlightLowest });
   if (!sections.length) return { text: '', html: '' };
 
-  const bodyText = sections.map(({ heading, lines }) => {
-    return `*${heading}*\n\`\`\`\n${lines.join('\n')}\n\`\`\``;
-  }).join('\n\n');
+  const bodyText = buildFareTextBlocks(sections, { highlightLowest });
 
   // Determine if this is an origin-country shortcut selection (header/footer applies)
   const ocShortcut = resolveClipboardShortcut(selection, fares);
@@ -2967,6 +3005,190 @@ async function copyPosterText(scopeKey = 'all') {
     }
     renderPosterCopyMenu();
   }
+}
+
+// ── WhatsApp Text List Generator ──────────────────────────────────────────────
+// Same builders as the poster's Copy Text, but driven by its own sector + date
+// inputs so staff can produce a broadcast without rendering a poster first.
+
+let _textGenPayload = null;
+
+function populateTextGenSectorSelect() {
+  populatePosterSectorSelect(document.getElementById('textgen-sector-sel'));
+}
+
+function getTextGenOptions() {
+  return {
+    includeBaggage: document.getElementById('textgen-include-baggage')?.checked !== false,
+    highlightLowest: document.getElementById('textgen-highlight-lowest')?.checked !== false,
+  };
+}
+
+function setTextGenEmpty(message) {
+  _textGenPayload = null;
+  const result = document.getElementById('textgen-result');
+  const empty = document.getElementById('textgen-empty');
+  if (result) result.classList.add('hidden');
+  if (empty) {
+    empty.classList.remove('hidden');
+    const title = empty.querySelector('.admin-empty-state-title');
+    if (title && message) title.textContent = message;
+  }
+}
+
+async function generateTextList() {
+  const btn = document.getElementById('textgen-generate-btn');
+  const sectorSel = document.getElementById('textgen-sector-sel');
+  const startInput = document.getElementById('textgen-start-date');
+  const endInput = document.getElementById('textgen-end-date');
+
+  const selection = resolvePosterSectorSelection(sectorSel?.value);
+  if (selection.kind === 'none') {
+    toast('warning', 'Select a Sector', 'Choose a sector, country, or airport first.');
+    return;
+  }
+
+  const { startDate, endDate } = getPosterDateRange(startInput, endInput);
+  const originalHtml = btn?.innerHTML || 'Generate Text';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = 'Generating…';
+  }
+
+  try {
+    const fares = await getPosterSelectionFares(selection, { startDate, endDate });
+    if (!fares.length) {
+      setTextGenEmpty('No live fares in that sector and date range');
+      toast('warning', 'No Fares', 'Nothing matched that sector and date range.');
+      return;
+    }
+
+    const payload = buildPosterClipboardPayload(fares, selection, getTextGenOptions());
+    if (!payload.text) {
+      setTextGenEmpty('No live fares in that sector and date range');
+      return;
+    }
+
+    _textGenPayload = payload;
+
+    const output = document.getElementById('textgen-output');
+    if (output) output.textContent = payload.text;
+
+    const routeCount = countPosterClipboardRoutes(fares);
+    const meta = document.getElementById('textgen-meta');
+    if (meta) {
+      meta.textContent = `${routeCount} route${routeCount === 1 ? '' : 's'} · ${fares.length} fare${fares.length === 1 ? '' : 's'}`;
+    }
+
+    document.getElementById('textgen-result')?.classList.remove('hidden');
+    document.getElementById('textgen-empty')?.classList.add('hidden');
+    toast('success', 'Text Ready', `${selection.label || 'Selection'} list generated.`);
+  } catch (err) {
+    setTextGenEmpty('Could not load fares — try again');
+    toast('error', 'Generate Failed', err.message || 'Could not load fares.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
+async function copyTextGenOutput() {
+  if (!_textGenPayload?.text) {
+    toast('warning', 'Nothing to Copy', 'Generate the text list first.');
+    return;
+  }
+
+  const btn = document.getElementById('textgen-copy-btn');
+  const originalHtml = btn?.innerHTML || '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-clipboard-check"></i> Copying…';
+  }
+
+  try {
+    await writeTextToClipboard(_textGenPayload.text, _textGenPayload.html);
+    toast('success', 'Copied!', 'Fare list copied to clipboard.');
+  } catch (err) {
+    toast('error', 'Copy Failed', err.message || 'Clipboard access is unavailable.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
+// wa.me carries the message in the URL, and long lists blow past what browsers
+// and WhatsApp will accept. Past the limit, copy-paste is the reliable route.
+const TEXTGEN_WA_MAX_LENGTH = 1500;
+
+function openTextGenWhatsApp() {
+  const text = _textGenPayload?.text;
+  if (!text) {
+    toast('warning', 'Nothing to Send', 'Generate the text list first.');
+    return;
+  }
+
+  if (text.length > TEXTGEN_WA_MAX_LENGTH) {
+    toast(
+      'warning',
+      'List Too Long',
+      'This list is too long for a WhatsApp link — use Copy Text and paste it instead.',
+    );
+    return;
+  }
+
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+}
+
+function wireTextGenControls() {
+  const generateBtn = document.getElementById('textgen-generate-btn');
+  if (generateBtn && !generateBtn.dataset.wired) {
+    generateBtn.dataset.wired = '1';
+    generateBtn.addEventListener('click', generateTextList);
+  }
+
+  const copyBtn = document.getElementById('textgen-copy-btn');
+  if (copyBtn && !copyBtn.dataset.wired) {
+    copyBtn.dataset.wired = '1';
+    copyBtn.addEventListener('click', copyTextGenOutput);
+  }
+
+  const waBtn = document.getElementById('textgen-whatsapp-btn');
+  if (waBtn && !waBtn.dataset.wired) {
+    waBtn.dataset.wired = '1';
+    waBtn.addEventListener('click', openTextGenWhatsApp);
+  }
+
+  const usePosterBtn = document.getElementById('textgen-use-poster-btn');
+  if (usePosterBtn && !usePosterBtn.dataset.wired) {
+    usePosterBtn.dataset.wired = '1';
+    usePosterBtn.addEventListener('click', () => {
+      const sectorSel = document.getElementById('textgen-sector-sel');
+      const posterSector = document.getElementById('poster-sector-sel');
+      if (sectorSel && posterSector) sectorSel.value = posterSector.value;
+
+      const start = document.getElementById('textgen-start-date');
+      const end = document.getElementById('textgen-end-date');
+      if (start) start.value = document.getElementById('poster-start-date')?.value || '';
+      if (end) end.value = document.getElementById('poster-end-date')?.value || '';
+
+      toast('info', 'Selection Copied', 'Poster selection applied — press Generate Text.');
+    });
+  }
+
+  // Re-render from the cached fares when a display toggle flips, so the staff
+  // can compare with/without baggage without re-querying Firestore.
+  ['textgen-include-baggage', 'textgen-highlight-lowest'].forEach((id) => {
+    const toggle = document.getElementById(id);
+    if (!toggle || toggle.dataset.wired) return;
+    toggle.dataset.wired = '1';
+    toggle.addEventListener('change', () => {
+      if (_textGenPayload) generateTextList();
+    });
+  });
 }
 
 async function populatePosterRenderStack(fares, selection, stack, templateFrame, options = {}) {
@@ -4090,6 +4312,17 @@ async function renderDashboardTab() {
   wirePosterCopyMenu();
   renderPosterCopyMenu();
 
+  // WhatsApp text generator shares the tab but keeps its own inputs.
+  populateTextGenSectorSelect();
+  getPosterDateRange(
+    document.getElementById('textgen-start-date'),
+    document.getElementById('textgen-end-date'),
+  );
+  wireTextGenControls();
+
+  // Deal links live in the same tab — the curation is the poster selection.
+  renderDealLinksPanel();
+
   // Hook up Generate Poster button
   const generateBtn = document.getElementById('poster-generate-btn');
   if (generateBtn && !generateBtn.dataset.wired) {
@@ -4940,6 +5173,7 @@ function renderPaginationFooter(tabName, total, totalPages, start, limit) {
       else if (tabName === 'airlines') renderFlightsTab(false);
       else if (tabName === 'reportFares') renderReportFaresTable(_reportFares);
       else if (tabName === 'databaseFares') renderDatabaseTable();
+      else if (tabName === 'enquiries') renderEnquiryTable();
     });
   }
 }
@@ -7709,6 +7943,7 @@ function wireDatabaseControls(tab) {
   const sectorSel = document.getElementById('database-sector-filter');
   const airlineSel = document.getElementById('database-airline-filter');
   const statusSel = document.getElementById('database-status-filter');
+  const dropsSel = document.getElementById('database-drops-filter');
   const startDateInput = document.getElementById('database-start-date');
   const endDateInput = document.getElementById('database-end-date');
   const limitSel = document.getElementById('database-limit');
@@ -7758,6 +7993,14 @@ function wireDatabaseControls(tab) {
     });
   }
 
+  if (dropsSel) {
+    dropsSel.addEventListener('change', (e) => {
+      databaseFilters.priceDrops = e.target.value || 'all';
+      tablePage.databaseFares = 1;
+      renderDatabaseTable();
+    });
+  }
+
   if (startDateInput) {
     startDateInput.addEventListener('change', (e) => {
       databaseFilters.startDate = e.target.value || '';
@@ -7790,6 +8033,7 @@ function wireDatabaseControls(tab) {
       databaseFilters.sectorId = 'all';
       databaseFilters.airlineId = 'all';
       databaseFilters.status = 'all';
+      databaseFilters.priceDrops = 'all';
       databaseFilters.startDate = '';
       databaseFilters.endDate = '';
 
@@ -7798,6 +8042,7 @@ function wireDatabaseControls(tab) {
       if (sectorSel) sectorSel.value = 'all';
       if (airlineSel) airlineSel.value = 'all';
       if (statusSel) statusSel.value = 'all';
+      if (dropsSel) dropsSel.value = 'all';
       if (startDateInput) startDateInput.value = '';
       if (endDateInput) endDateInput.value = '';
 
@@ -7856,11 +8101,27 @@ async function renderDatabaseTab(fetchData = true) {
   renderDatabaseTable();
 }
 
+// Price-drop detection has to look at every loaded row, not the filtered view:
+// a drop is a relationship between duplicate rows, and the older sibling that
+// proves it may well be filtered out. Cached against the array identity, which
+// is safe because _databaseFares is always reassigned, never mutated in place.
+let _databaseDropSource = null;
+let _databaseDropMap = new Map();
+
+function getDatabaseDropMap() {
+  if (_databaseDropSource !== _databaseFares) {
+    _databaseDropSource = _databaseFares;
+    _databaseDropMap = annotateFarePriceDrops(_databaseFares);
+  }
+  return _databaseDropMap;
+}
+
 function getFilteredDatabaseRows() {
   const { agentNameById, sectorCodeById, airlineLabelById } = getDatabaseLookupMaps();
   const q = databaseFilters.search.trim().toLowerCase();
   const fromMs = startOfDayMs(databaseFilters.startDate);
   const toMs = endOfDayMs(databaseFilters.endDate);
+  const drops = getDatabaseDropMap();
 
   const filtered = _databaseFares
     .map(f => getMergedDatabaseFare(f))
@@ -7870,6 +8131,7 @@ function getFilteredDatabaseRows() {
       if (databaseFilters.airlineId !== 'all' && f.airlineId !== databaseFilters.airlineId) return false;
       if (databaseFilters.status === 'live' && f.isHidden) return false;
       if (databaseFilters.status === 'hidden' && !f.isHidden) return false;
+      if (databaseFilters.priceDrops === 'drops' && !drops.has(f.id)) return false;
 
       const dtMs = asDate(f.flightDate)?.getTime?.() || null;
       if (fromMs !== null && (dtMs === null || dtMs < fromMs)) return false;
@@ -7918,11 +8180,54 @@ function getFilteredDatabaseRows() {
   });
 }
 
+/**
+ * "Uploaded 3d ago" / "Edited 2h ago" under the status pill.
+ *
+ * updatedAt is stamped on every write, so it only means something different
+ * from createdAt once a row has actually been touched.
+ */
+function buildDatabaseStampHtml(fare) {
+  const created = fare.createdAt;
+  const updated = fare.updatedAt;
+
+  const createdMs = created instanceof Date ? created.getTime() : null;
+  const updatedMs = updated instanceof Date ? updated.getTime() : null;
+
+  // A second of slack: the two serverTimestamps of a create are not identical.
+  const wasEdited = createdMs !== null && updatedMs !== null && (updatedMs - createdMs) > 1000;
+  const stamp = wasEdited ? updated : created;
+  if (!stamp) return '';
+
+  const label = wasEdited ? 'Edited' : 'Uploaded';
+  const relative = formatRelativeTime(stamp);
+  if (!relative) return '';
+
+  const absolute = wasEdited && createdMs !== null
+    ? `Uploaded ${formatAbsoluteTime(created)} · Edited ${formatAbsoluteTime(updated)}`
+    : `${label} ${formatAbsoluteTime(stamp)}`;
+
+  return `<span class="admin-fare-stamp" title="${escapeHtml(absolute)}">${label} ${escapeHtml(relative)}</span>`;
+}
+
+/** Green "▼ ₹1,600" badge for a fare whose price just came down. */
+function buildDatabaseDropHtml(drop) {
+  if (!drop) return '';
+
+  const delta = `₹${Math.round(drop.delta).toLocaleString('en-IN')}`;
+  const from = `₹${Math.round(drop.previousRate).toLocaleString('en-IN')}`;
+  const reason = drop.kind === 'edit'
+    ? `Edited down from ${from}`
+    : `Re-uploaded cheaper than an earlier row at ${from}`;
+
+  return `<span class="admin-fare-drop" title="${escapeHtml(reason)}"><i class="bi bi-arrow-down-short"></i>${escapeHtml(delta)}</span>`;
+}
+
 function renderDatabaseTable() {
   const wrap = document.getElementById('database-table-wrap');
   if (!wrap) return;
 
   const rows = getFilteredDatabaseRows();
+  const drops = getDatabaseDropMap();
   const { agentNameById, sectorCodeById, airlineLabelById, airlineCodeById } = getDatabaseLookupMaps();
   const totalEl = document.getElementById('database-total-count');
   if (totalEl) totalEl.textContent = rows.length.toLocaleString();
@@ -8082,6 +8387,8 @@ function renderDatabaseTable() {
                 <span class="admin-status-pill ${fare.isHidden ? 'admin-status-hidden' : 'admin-status-live'}">
                   ${fare.isHidden ? '● Hidden' : '● Live'}
                 </span>
+                ${buildDatabaseStampHtml(fare)}
+                ${buildDatabaseDropHtml(drops.get(fare.id))}
                 `}
               </td>
               <td class="whitespace-nowrap">
@@ -8148,12 +8455,36 @@ async function persistDatabaseRow(fareId, { silent = false } = {}) {
     isHidden: merged.isHidden === true,
   };
 
+  // The rate the row held before this edit. db.js turns a change into
+  // previousFinalRate + rateChangedAt so the table can badge the drop.
+  // Number(null) is 0, so screen the empties out before coercing — otherwise a
+  // fare with no stored rate would record a phantom "was ₹0".
+  const rawPreviousRate = baseFare.finalRate;
+  const previousFinalRate = (rawPreviousRate === null || rawPreviousRate === undefined || rawPreviousRate === '')
+    ? null
+    : toSafeNumber(rawPreviousRate, null);
+  const rateChanged = previousFinalRate !== null && previousFinalRate !== finalRate;
+
   try {
-    await updateFare(fareId, payload);
-    _databaseFares = _databaseFares.map(f => f.id === fareId ? { ...f, ...payload } : f);
+    await updateFare(fareId, payload, { previousFinalRate });
+
+    // Mirror what the server just stored so the badge appears without a refetch.
+    const localPatch = rateChanged
+      ? { ...payload, previousFinalRate, rateChangedAt: new Date(), updatedAt: new Date() }
+      : { ...payload, updatedAt: new Date() };
+
+    _databaseFares = _databaseFares.map(f => f.id === fareId ? { ...f, ...localPatch } : f);
     delete _databaseDrafts[fareId];
     _databaseEditing.delete(fareId);
-    if (!silent) toast('success', 'Saved', 'Fare row updated.');
+    if (!silent) {
+      toast(
+        'success',
+        'Saved',
+        rateChanged && finalRate < previousFinalRate
+          ? `Fare updated — rate dropped by ₹${(previousFinalRate - finalRate).toLocaleString('en-IN')}.`
+          : 'Fare row updated.',
+      );
+    }
     return true;
   } catch (err) {
     if (!silent) toast('error', 'Save Failed', err.message);
@@ -8430,6 +8761,848 @@ function openDatabaseAddFareModal() {
       }
     }
   });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ENQUIRY TAB — log a customer request, search fares against it, share the match
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _enquiries = [];
+let _enquiryAlerts = [];
+let _enquiryResults = null;   // { enquiry, fares } for the results panel
+const enquiryFilters = { search: '', status: 'all' };
+
+const ENQUIRY_STATUS_PILL = {
+  open: 'admin-status-live',
+  quoted: 'admin-status-active',
+  closed: 'admin-status-hidden',
+};
+
+function formatEnquiryDateRange(enquiry) {
+  const fmt = (value) => {
+    const date = asDate(value);
+    return date ? date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—';
+  };
+  return `${fmt(enquiry.startDate)} → ${fmt(enquiry.endDate)}`;
+}
+
+function getEnquiryAlert(enquiryId) {
+  return _enquiryAlerts.find((alert) => alert.enquiryId === enquiryId) || null;
+}
+
+function getFilteredEnquiries() {
+  const { sectorCodeById } = getDatabaseLookupMaps();
+  const q = enquiryFilters.search.trim().toLowerCase();
+
+  const filtered = _enquiries.filter((enquiry) => {
+    if (enquiryFilters.status !== 'all' && (enquiry.status || 'open') !== enquiryFilters.status) return false;
+    if (!q) return true;
+
+    return [
+      enquiry.customerName,
+      enquiry.customerPhone,
+      enquiry.notes,
+      enquiry.sectorId,
+      sectorCodeById[enquiry.sectorId] || '',
+    ].join(' ').toLowerCase().includes(q);
+  });
+
+  const { key, asc } = tableSort.enquiries;
+  return filtered.sort((a, b) => {
+    const toSortValue = (row) => {
+      if (key === 'sectorId') return (sectorCodeById[row.sectorId] || row.sectorId || '').toLowerCase();
+      if (key === 'startDate') return asDate(row.startDate)?.getTime?.() || 0;
+      if (key === 'createdAt') return asDate(row.createdAt)?.getTime?.() || 0;
+      if (key === 'targetFare') return toSafeNumber(row.targetFare, 0);
+      if (key === 'customerName') return String(row.customerName || '').toLowerCase();
+      if (key === 'status') return String(row.status || 'open').toLowerCase();
+      return row[key];
+    };
+
+    const valA = toSortValue(a);
+    const valB = toSortValue(b);
+    if (valA < valB) return asc ? -1 : 1;
+    if (valA > valB) return asc ? 1 : -1;
+    return 0;
+  });
+}
+
+function renderEnquiryTable() {
+  const tbody = document.getElementById('enquiry-table-body');
+  if (!tbody) return;
+
+  const rows = getFilteredEnquiries();
+  const { sectorCodeById } = getDatabaseLookupMaps();
+
+  const totalEl = document.getElementById('enquiry-total-count');
+  if (totalEl) totalEl.textContent = rows.length.toLocaleString();
+
+  const limit = tableLimit.enquiries;
+  const totalPages = Math.max(1, Math.ceil(rows.length / limit));
+  if (tablePage.enquiries > totalPages) tablePage.enquiries = totalPages;
+  const start = (tablePage.enquiries - 1) * limit;
+  const pageData = rows.slice(start, start + limit);
+
+  if (!pageData.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10">
+      <div class="admin-empty-state">
+        <div class="admin-empty-state-card">
+          <div class="admin-empty-state-icon"><i class="bi bi-chat-left-text"></i></div>
+          <p class="admin-empty-state-title">No enquiries yet</p>
+        </div>
+      </div>
+    </td></tr>`;
+  } else {
+    tbody.innerHTML = pageData.map((enquiry) => {
+      const status = enquiry.status || 'open';
+      const alert = getEnquiryAlert(enquiry.id);
+      const sectorCode = sectorCodeById[enquiry.sectorId] || enquiry.sectorId || '—';
+
+      const targetCell = enquiry.targetFare === null || enquiry.targetFare === undefined
+        ? '<span class="text-text-soft text-[12px]">—</span>'
+        : `<span class="font-bold text-navy text-[13px]">₹${Number(enquiry.targetFare).toLocaleString('en-IN')}</span>${
+          alert?.meetsTarget
+            ? `<span class="admin-fare-drop" title="Best live fare is ₹${Number(alert.bestRate).toLocaleString('en-IN')}"><i class="bi bi-check-circle-fill"></i>Hit</span>`
+            : ''
+        }`;
+
+      return `
+        <tr>
+          <td>
+            <span class="font-semibold text-navy text-[13px]">${escapeHtml(enquiry.customerName || 'Unnamed')}</span>
+            ${enquiry.customerPhone ? `<span class="admin-fare-stamp">${escapeHtml(enquiry.customerPhone)}</span>` : ''}
+          </td>
+          <td><span class="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md text-[12px]">${escapeHtml(sectorCode)}</span></td>
+          <td class="whitespace-nowrap text-[12px] text-text-muted">${escapeHtml(formatEnquiryDateRange(enquiry))}</td>
+          <td class="whitespace-nowrap">${targetCell}</td>
+          <td>
+            <span class="admin-status-pill ${ENQUIRY_STATUS_PILL[status] || 'admin-status-inactive'}">● ${escapeHtml(status)}</span>
+            ${alert && alert.matchCount ? `<span class="admin-fare-stamp">${alert.matchCount} match${alert.matchCount === 1 ? '' : 'es'}${alert.bestRate !== null ? ` · from ₹${Number(alert.bestRate).toLocaleString('en-IN')}` : ''}</span>` : ''}
+          </td>
+          <td class="whitespace-nowrap">
+            <div class="flex gap-1">
+              <button data-action="search-enquiry" data-id="${enquiry.id}" class="admin-action-btn admin-action-show"><i class="bi bi-search"></i>Show</button>
+              <button data-action="edit-enquiry" data-id="${enquiry.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil"></i>Edit</button>
+              <button data-action="delete-enquiry" data-id="${enquiry.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Del</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  renderPaginationFooter('enquiries', rows.length, totalPages, start, limit);
+  updateSortIcons('enquiries');
+  wireEnquiryActions();
+}
+
+function wireEnquiryActions() {
+  const tbody = document.getElementById('enquiry-table-body');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const enquiry = _enquiries.find((row) => row.id === id);
+    if (!enquiry) return;
+
+    if (action === 'edit-enquiry') {
+      openEnquiryModal(enquiry);
+      return;
+    }
+
+    if (action === 'search-enquiry') {
+      await runEnquirySearch(enquiry);
+      return;
+    }
+
+    if (action === 'delete-enquiry') {
+      if (!confirm(`Delete the enquiry from ${enquiry.customerName || 'this customer'}? This cannot be undone.`)) return;
+      btn.disabled = true;
+      try {
+        await deleteEnquiry(id);
+        toast('success', 'Deleted', 'Enquiry removed.');
+        if (_enquiryResults?.enquiry?.id === id) closeEnquiryResults();
+        await renderEnquiryTab();
+      } catch (err) {
+        toast('error', 'Delete Failed', err.message);
+        btn.disabled = false;
+      }
+    }
+  });
+}
+
+function openEnquiryModal(enquiry = null) {
+  const isEdit = !!enquiry;
+  const tpl = document.getElementById('modal-enquiry-form');
+  if (!tpl) return;
+
+  openModal(isEdit ? 'Edit Enquiry' : 'New Enquiry', tpl.innerHTML, true);
+
+  // The template's own nodes are inert — everything must be re-queried from the
+  // clone the modal just rendered.
+  const form = document.getElementById('enquiry-form');
+  const sectorSel = document.getElementById('enquiry-sector');
+  if (sectorSel) {
+    sectorSel.innerHTML = '<option value="">Select Sector</option>' + _sectors.map((sector) =>
+      `<option value="${escapeHtml(sector.id)}">${escapeHtml(sector.sectorCode || sector.id)}</option>`
+    ).join('');
+  }
+
+  if (isEdit) {
+    document.getElementById('enquiry-id').value = enquiry.id;
+    document.getElementById('enquiry-customer-name').value = enquiry.customerName || '';
+    document.getElementById('enquiry-customer-phone').value = enquiry.customerPhone || '';
+    if (sectorSel) sectorSel.value = enquiry.sectorId || '';
+    document.getElementById('enquiry-start-date').value = toDateInputValue(enquiry.startDate);
+    document.getElementById('enquiry-end-date').value = toDateInputValue(enquiry.endDate);
+    document.getElementById('enquiry-target-fare').value =
+      enquiry.targetFare === null || enquiry.targetFare === undefined ? '' : enquiry.targetFare;
+    document.getElementById('enquiry-status').value = enquiry.status || 'open';
+    document.getElementById('enquiry-notes').value = enquiry.notes || '';
+  } else {
+    document.getElementById('enquiry-start-date').value = toDateInputValue(new Date());
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const original = submitBtn?.textContent;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+    }
+
+    const payload = {
+      customerName: document.getElementById('enquiry-customer-name').value,
+      customerPhone: document.getElementById('enquiry-customer-phone').value,
+      sectorId: document.getElementById('enquiry-sector').value,
+      startDate: document.getElementById('enquiry-start-date').value,
+      endDate: document.getElementById('enquiry-end-date').value,
+      targetFare: document.getElementById('enquiry-target-fare').value,
+      status: document.getElementById('enquiry-status').value,
+      notes: document.getElementById('enquiry-notes').value,
+    };
+
+    try {
+      if (isEdit) {
+        await updateEnquiry(enquiry.id, payload);
+        toast('success', 'Saved', 'Enquiry updated.');
+      } else {
+        await addEnquiry(payload);
+        toast('success', 'Logged', 'Enquiry saved.');
+      }
+      document.getElementById('admin-modal').close();
+      await renderEnquiryTab();
+    } catch (err) {
+      toast('error', 'Save Failed', err.message);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = original;
+      }
+    }
+  });
+}
+
+function closeEnquiryResults() {
+  _enquiryResults = null;
+  document.getElementById('enquiry-results-panel')?.classList.add('hidden');
+}
+
+/** Filter the fare database with the enquiry's own parameters. */
+async function runEnquirySearch(enquiry) {
+  const panel = document.getElementById('enquiry-results-panel');
+  const wrap = document.getElementById('enquiry-results-wrap');
+  const meta = document.getElementById('enquiry-results-meta');
+  if (!panel || !wrap) return;
+
+  panel.classList.remove('hidden');
+  wrap.innerHTML = '<div class="admin-empty-state"><div class="admin-empty-state-card"><p class="admin-empty-state-title">Searching…</p></div></div>';
+
+  try {
+    const fares = await getFares({
+      sectorId: enquiry.sectorId,
+      startDate: asDate(enquiry.startDate)?.toISOString(),
+      endDate: asDate(enquiry.endDate)?.toISOString(),
+    });
+
+    const matches = matchFaresToEnquiry(enquiry, fares);
+    _enquiryResults = { enquiry, fares: matches };
+
+    const { sectorCodeById } = getDatabaseLookupMaps();
+    const sectorCode = sectorCodeById[enquiry.sectorId] || enquiry.sectorId;
+    if (meta) {
+      const target = enquiry.targetFare === null || enquiry.targetFare === undefined
+        ? ''
+        : ` · target ₹${Number(enquiry.targetFare).toLocaleString('en-IN')}`;
+      meta.textContent = `${enquiry.customerName || 'Customer'} · ${sectorCode} · ${formatEnquiryDateRange(enquiry)}${target} — ${matches.length} match${matches.length === 1 ? '' : 'es'}`;
+    }
+
+    if (!matches.length) {
+      wrap.innerHTML = `<div class="admin-empty-state">
+        <div class="admin-empty-state-card">
+          <div class="admin-empty-state-icon"><i class="bi bi-search"></i></div>
+          <p class="admin-empty-state-title">No live fares match this enquiry</p>
+        </div>
+      </div>`;
+      return;
+    }
+
+    const { airlineLabelById } = getDatabaseLookupMaps();
+    const target = toSafeNumber(enquiry.targetFare, null);
+
+    wrap.innerHTML = `
+      <table class="admin-database-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Airline</th><th>Time</th><th>Baggage</th><th>Fare</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${matches.map((fare) => {
+      const airline = _airlines.find((a) => a.id === fare.airlineId);
+      const rate = toSafeNumber(fare.finalRate, 0);
+      const underTarget = target !== null && rate <= target;
+      return `
+              <tr class="${underTarget ? 'bg-emerald-50/60' : ''}">
+                <td class="whitespace-nowrap font-semibold text-navy text-[13px]">${escapeHtml(asDate(fare.flightDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) || '—')}</td>
+                <td class="whitespace-nowrap text-[13px]">${escapeHtml(airlineLabelById[fare.airlineId] || fare.airlineId || '—')}</td>
+                <td class="whitespace-nowrap text-[12px] text-text-muted">${escapeHtml(fare.flightTime || '—')}</td>
+                <td class="whitespace-nowrap text-[12px]">${escapeHtml(formatPosterBaggageDisplay(
+        resolveCheckInBaggageKg(airline?.code, fare.baggage),
+        handBaggageKg(airline?.code),
+      ))}</td>
+                <td class="whitespace-nowrap"><span class="font-black text-navy text-[14px]">₹${rate.toLocaleString('en-IN')}</span>${underTarget ? '<span class="admin-fare-drop"><i class="bi bi-check-circle-fill"></i>Target</span>' : ''}</td>
+              </tr>
+            `;
+    }).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    wrap.innerHTML = `<div class="admin-empty-state"><div class="admin-empty-state-card"><p class="admin-empty-state-title">Search failed</p></div></div>`;
+    toast('error', 'Search Failed', err.message);
+  }
+}
+
+/** WhatsApp-ready text for the fares currently in the results panel. */
+function buildEnquiryShareText() {
+  if (!_enquiryResults?.fares?.length) return null;
+
+  const { enquiry, fares } = _enquiryResults;
+  const selection = resolvePosterSectorSelection(enquiry.sectorId);
+  const payload = buildPosterClipboardPayload(fares, selection, {
+    includeBaggage: true,
+    highlightLowest: true,
+  });
+  if (!payload.text) return null;
+
+  const greeting = enquiry.customerName ? `Hello ${enquiry.customerName},\n\n` : '';
+  return {
+    text: `${greeting}${payload.text}`,
+    html: payload.html,
+  };
+}
+
+async function copyEnquiryResults() {
+  const payload = buildEnquiryShareText();
+  if (!payload) {
+    toast('warning', 'Nothing to Share', 'Run a search with at least one match first.');
+    return;
+  }
+
+  try {
+    await writeTextToClipboard(payload.text, payload.html);
+    toast('success', 'Copied!', 'Matching fares copied — paste into the chat.');
+  } catch (err) {
+    toast('error', 'Copy Failed', err.message || 'Clipboard access is unavailable.');
+  }
+}
+
+function sendEnquiryResultsToWhatsApp() {
+  const payload = buildEnquiryShareText();
+  if (!payload) {
+    toast('warning', 'Nothing to Share', 'Run a search with at least one match first.');
+    return;
+  }
+
+  if (payload.text.length > TEXTGEN_WA_MAX_LENGTH) {
+    toast('warning', 'List Too Long', 'Too long for a WhatsApp link — use Copy for Customer instead.');
+    return;
+  }
+
+  // A stored phone number opens the customer's chat directly; without one the
+  // agent picks the recipient in WhatsApp.
+  const phone = String(_enquiryResults.enquiry.customerPhone || '').replace(/\D/g, '');
+  const base = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
+  window.open(`${base}?text=${encodeURIComponent(payload.text)}`, '_blank', 'noopener');
+}
+
+function wireEnquiryControls(tab) {
+  if (!tab || tab.dataset.controlsWired) return;
+  tab.dataset.controlsWired = '1';
+
+  const searchInput = document.getElementById('enquiry-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      enquiryFilters.search = e.target.value || '';
+      tablePage.enquiries = 1;
+      renderEnquiryTable();
+    });
+  }
+
+  const statusSel = document.getElementById('enquiry-status-filter');
+  if (statusSel) {
+    statusSel.addEventListener('change', (e) => {
+      enquiryFilters.status = e.target.value || 'all';
+      tablePage.enquiries = 1;
+      renderEnquiryTable();
+    });
+  }
+
+  const limitSel = document.getElementById('enquiry-limit');
+  if (limitSel) {
+    limitSel.value = String(tableLimit.enquiries);
+    limitSel.addEventListener('change', (e) => {
+      tableLimit.enquiries = parseInt(e.target.value, 10) || 10;
+      tablePage.enquiries = 1;
+      renderEnquiryTable();
+    });
+  }
+
+  const clearBtn = document.getElementById('enquiry-clear-filters');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      enquiryFilters.search = '';
+      enquiryFilters.status = 'all';
+      if (searchInput) searchInput.value = '';
+      if (statusSel) statusSel.value = 'all';
+      tablePage.enquiries = 1;
+      renderEnquiryTable();
+    });
+  }
+
+  document.getElementById('enquiry-add-btn')?.addEventListener('click', () => openEnquiryModal());
+  document.getElementById('enquiry-refresh-btn')?.addEventListener('click', () => renderEnquiryTab());
+  document.getElementById('enquiry-results-share-btn')?.addEventListener('click', copyEnquiryResults);
+  document.getElementById('enquiry-results-whatsapp-btn')?.addEventListener('click', sendEnquiryResultsToWhatsApp);
+  document.getElementById('enquiry-results-close-btn')?.addEventListener('click', closeEnquiryResults);
+}
+
+/**
+ * Score open enquiries against live fares and paint the nav dot.
+ *
+ * Runs client-side on dashboard load and on Refresh — it only needs to be true
+ * while someone is looking at the dashboard, so it costs nothing when idle.
+ * Never allowed to throw: a failed alert check must not block tab rendering.
+ */
+async function refreshEnquiryAlerts({ enquiries = null } = {}) {
+  try {
+    const rows = enquiries || await getEnquiries();
+    _enquiries = rows;
+
+    const watched = rows.filter((row) => (row.status || 'open') === 'open' && row.targetFare !== null && row.targetFare !== undefined);
+    if (!watched.length) {
+      _enquiryAlerts = [];
+      paintEnquiryAlertDot(0);
+      return;
+    }
+
+    const fares = await getFares({ includeHidden: false });
+    _enquiryAlerts = evaluateEnquiryAlerts(rows, fares);
+    paintEnquiryAlertDot(_enquiryAlerts.filter((alert) => alert.meetsTarget).length);
+  } catch (err) {
+    console.error('Enquiry alert check failed:', err);
+    _enquiryAlerts = [];
+    paintEnquiryAlertDot(0);
+  }
+}
+
+function paintEnquiryAlertDot(count) {
+  const dot = document.getElementById('enquiry-nav-dot');
+  if (dot) dot.classList.toggle('hidden', count < 1);
+
+  const pill = document.getElementById('enquiry-alert-pill');
+  if (pill) {
+    pill.classList.toggle('hidden', count < 1);
+    pill.textContent = `${count} below target`;
+  }
+}
+
+async function renderEnquiryTab(fetchData = true) {
+  const tab = document.getElementById('enquiry-tab');
+  if (!tab) return;
+
+  wireEnquiryControls(tab);
+
+  if (fetchData) {
+    try {
+      const enquiries = await getEnquiries();
+      await refreshEnquiryAlerts({ enquiries });
+    } catch (err) {
+      toast('error', 'Load Failed', err.message);
+      const tbody = document.getElementById('enquiry-table-body');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-text-muted text-[13px]">Could not load enquiries.</td></tr>';
+      return;
+    }
+  }
+
+  renderEnquiryTable();
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SHAREABLE DEAL LINKS — curated public /deals/<slug> pages
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _dealLinks = [];
+
+function describeDealLinkCoverage(link) {
+  const count = Array.isArray(link.sectorIds) ? link.sectorIds.length : 0;
+  if (link.selectionKind === 'shortcut' && link.shortcutKey) {
+    const shortcut = POSTER_SECTOR_SHORTCUTS.find((s) => s.key === link.shortcutKey);
+    if (shortcut) return `${shortcut.label} · ${count} sector${count === 1 ? '' : 's'}`;
+  }
+  return `${count} sector${count === 1 ? '' : 's'}`;
+}
+
+function describeDealLinkWindow(link) {
+  if (link.windowMode === 'fixed') {
+    const fmt = (v) => asDate(v)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) || '—';
+    return `${fmt(link.startDate)} → ${fmt(link.endDate)}`;
+  }
+  return `Next ${Number(link.rollingDays) || 30} days`;
+}
+
+function renderDealLinksTable() {
+  const tbody = document.getElementById('deallink-table-body');
+  if (!tbody) return;
+
+  if (!_dealLinks.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10">
+      <div class="admin-empty-state">
+        <div class="admin-empty-state-card">
+          <div class="admin-empty-state-icon"><i class="bi bi-link-45deg"></i></div>
+          <p class="admin-empty-state-title">No deal links yet</p>
+        </div>
+      </div>
+    </td></tr>`;
+    wireDealLinkActions();
+    return;
+  }
+
+  const origin = window.location.origin;
+
+  tbody.innerHTML = _dealLinks.map((link) => `
+    <tr>
+      <td>
+        <span class="font-semibold text-navy text-[13px]">${escapeHtml(link.title || link.slug)}</span>
+        ${link.subtitle ? `<span class="admin-fare-stamp">${escapeHtml(link.subtitle)}</span>` : ''}
+      </td>
+      <td><span class="admin-deallink-url">/deals/${escapeHtml(link.slug)}</span></td>
+      <td class="whitespace-nowrap text-[12px] text-text-muted">${escapeHtml(describeDealLinkCoverage(link))}</td>
+      <td class="whitespace-nowrap text-[12px] text-text-muted">${escapeHtml(describeDealLinkWindow(link))}</td>
+      <td>
+        <span class="admin-status-pill ${link.isActive ? 'admin-status-live' : 'admin-status-hidden'}">
+          ${link.isActive ? '● Live' : '● Off'}
+        </span>
+      </td>
+      <td class="whitespace-nowrap">
+        <div class="flex gap-1">
+          <button data-action="copy-deallink" data-slug="${escapeHtml(link.slug)}" data-url="${escapeHtml(buildDealLinkUrl(link.slug, origin))}" class="admin-action-btn admin-action-show"><i class="bi bi-clipboard"></i>Copy</button>
+          <button data-action="toggle-deallink" data-slug="${escapeHtml(link.slug)}" class="admin-action-btn admin-action-toggle"><i class="bi bi-power"></i>${link.isActive ? 'Off' : 'On'}</button>
+          <button data-action="edit-deallink" data-slug="${escapeHtml(link.slug)}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil"></i>Edit</button>
+          <button data-action="delete-deallink" data-slug="${escapeHtml(link.slug)}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Del</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  wireDealLinkActions();
+}
+
+function wireDealLinkActions() {
+  const tbody = document.getElementById('deallink-table-body');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, slug } = btn.dataset;
+    const link = _dealLinks.find((row) => row.slug === slug);
+
+    if (action === 'copy-deallink') {
+      try {
+        await writeTextToClipboard(btn.dataset.url || '');
+        toast('success', 'Copied!', 'Deal link copied — paste it into WhatsApp.');
+      } catch (err) {
+        toast('error', 'Copy Failed', err.message);
+      }
+      return;
+    }
+
+    if (!link) return;
+
+    if (action === 'edit-deallink') {
+      openDealLinkModal(link);
+      return;
+    }
+
+    if (action === 'toggle-deallink') {
+      btn.disabled = true;
+      try {
+        await saveDealLink(slug, { ...link, isActive: !link.isActive });
+        toast('success', 'Updated', `Link is now ${link.isActive ? 'off' : 'live'}.`);
+        await renderDealLinksPanel();
+      } catch (err) {
+        toast('error', 'Update Failed', err.message);
+        btn.disabled = false;
+      }
+      return;
+    }
+
+    if (action === 'delete-deallink') {
+      if (!confirm(`Delete "${link.title || slug}"? Anyone holding the link will get a dead page.`)) return;
+      btn.disabled = true;
+      try {
+        await deleteDealLink(slug);
+        toast('success', 'Deleted', 'Deal link removed.');
+        await renderDealLinksPanel();
+      } catch (err) {
+        toast('error', 'Delete Failed', err.message);
+        btn.disabled = false;
+      }
+    }
+  });
+}
+
+function openDealLinkModal(link = null, seed = null) {
+  const isEdit = !!link;
+  const current = link || seed || {};
+
+  openModal(isEdit ? 'Edit Deal Link' : 'New Deal Link', `
+    <form id="deallink-form" class="admin-modal-form">
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">Link</p>
+            <p class="admin-form-section-desc">The headline customers see, and the address you share.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Title *</label>
+            <input type="text" id="deallink-title" class="admin-control" placeholder="e.g. All Saudi Offers" value="${escapeHtml(current.title || '')}" required>
+          </div>
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Subtitle</label>
+            <input type="text" id="deallink-subtitle" class="admin-control" placeholder="e.g. Lowest fares from Kerala" value="${escapeHtml(current.subtitle || '')}">
+          </div>
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Link Address *</label>
+            <input type="text" id="deallink-slug" class="admin-control" placeholder="all-saudi-offers" value="${escapeHtml(current.slug || '')}" ${isEdit ? 'readonly' : ''} required>
+            <p class="admin-help">${isEdit
+      ? 'The address cannot change once shared — create a new link instead.'
+      : 'Lowercase letters, numbers and hyphens. Leave blank to build it from the title.'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">What it covers</p>
+            <p class="admin-form-section-desc">Sectors are resolved and stored now; fares are always read live.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Sector / Country / Airport *</label>
+            <select id="deallink-selection" class="admin-control" required></select>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Date Window</label>
+            <select id="deallink-window-mode" class="admin-control">
+              <option value="rolling" ${current.windowMode !== 'fixed' ? 'selected' : ''}>Rolling (recommended)</option>
+              <option value="fixed" ${current.windowMode === 'fixed' ? 'selected' : ''}>Fixed dates</option>
+            </select>
+            <p class="admin-help">Rolling re-anchors to today on every visit, so the link never goes stale.</p>
+          </div>
+          <div class="admin-field" data-deallink-rolling>
+            <label class="admin-label">Days Ahead</label>
+            <input type="number" id="deallink-rolling-days" class="admin-control" min="1" max="365" value="${Number(current.rollingDays) || 30}">
+          </div>
+          <div class="admin-field hidden" data-deallink-fixed>
+            <label class="admin-label">From</label>
+            <input type="date" id="deallink-start-date" class="admin-control" value="${toDateInputValue(current.startDate)}">
+          </div>
+          <div class="admin-field hidden" data-deallink-fixed>
+            <label class="admin-label">To</label>
+            <input type="date" id="deallink-end-date" class="admin-control" value="${toDateInputValue(current.endDate)}">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Max Fares per Sector</label>
+            <input type="number" id="deallink-max-per-sector" class="admin-control" min="0" max="50" value="${Number(current.maxPerSector) || 0}">
+            <p class="admin-help">0 shows every fare in the window.</p>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Status</label>
+            <label class="admin-toggle">
+              <input type="checkbox" id="deallink-active" ${current.isActive !== false ? 'checked' : ''}>
+              <span>Link is live</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Link</button>
+      </div>
+    </form>
+  `, true);
+
+  const selectionSel = document.getElementById('deallink-selection');
+  populatePosterSectorSelect(selectionSel);
+  if (selectionSel) {
+    selectionSel.value = current.selectionRaw
+      || current.shortcutKey
+      || (current.sectorIds?.length === 1 ? current.sectorIds[0] : '')
+      || '';
+  }
+
+  const modeSel = document.getElementById('deallink-window-mode');
+  const syncWindowMode = () => {
+    const fixed = modeSel?.value === 'fixed';
+    document.querySelectorAll('[data-deallink-fixed]').forEach((el) => el.classList.toggle('hidden', !fixed));
+    document.querySelectorAll('[data-deallink-rolling]').forEach((el) => el.classList.toggle('hidden', fixed));
+  };
+  modeSel?.addEventListener('change', syncWindowMode);
+  syncWindowMode();
+
+  const form = document.getElementById('deallink-form');
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const original = submitBtn?.textContent;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+    }
+
+    const restore = () => {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = original;
+      }
+    };
+
+    try {
+      const title = document.getElementById('deallink-title').value.trim();
+      const slug = isEdit
+        ? current.slug
+        : normalizeDealSlug(document.getElementById('deallink-slug').value || title);
+
+      if (!slug) {
+        toast('warning', 'Bad Address', 'Use at least 3 letters or numbers for the link address.');
+        restore();
+        return;
+      }
+
+      // Resolve the selection to concrete sector ids now, so the public page
+      // never has to carry the shortcut lookup tables.
+      const rawSelection = document.getElementById('deallink-selection').value;
+      const selection = resolvePosterSectorSelection(rawSelection);
+      if (selection.kind === 'none') {
+        toast('warning', 'Select a Sector', 'Choose a sector, country, or airport.');
+        restore();
+        return;
+      }
+
+      const sectorIds = selection.kind === 'all'
+        ? _sectors.map((sector) => sector.id)
+        : selection.sectorIds;
+
+      if (!sectorIds.length) {
+        toast('warning', 'Nothing Covered', 'That selection resolves to no sectors.');
+        restore();
+        return;
+      }
+
+      if (!isEdit && await dealLinkExists(slug)) {
+        toast('warning', 'Address Taken', `"${slug}" already exists — pick another.`);
+        restore();
+        return;
+      }
+
+      await saveDealLink(slug, {
+        title,
+        subtitle: document.getElementById('deallink-subtitle').value,
+        selectionKind: selection.kind === 'shortcut' ? 'shortcut' : 'sectors',
+        shortcutKey: selection.kind === 'shortcut' ? (selection.key || '') : '',
+        selectionRaw: rawSelection,
+        sectorIds,
+        windowMode: document.getElementById('deallink-window-mode').value,
+        rollingDays: document.getElementById('deallink-rolling-days').value,
+        startDate: document.getElementById('deallink-start-date')?.value || null,
+        endDate: document.getElementById('deallink-end-date')?.value || null,
+        maxPerSector: document.getElementById('deallink-max-per-sector').value,
+        isActive: document.getElementById('deallink-active').checked,
+      }, { isNew: !isEdit });
+
+      document.getElementById('admin-modal').close();
+      toast('success', 'Saved', `Link live at /deals/${slug}`);
+      await renderDealLinksPanel();
+    } catch (err) {
+      toast('error', 'Save Failed', err.message);
+      restore();
+    }
+  });
+}
+
+function wireDealLinkControls() {
+  const createBtn = document.getElementById('deallink-create-btn');
+  if (createBtn && !createBtn.dataset.wired) {
+    createBtn.dataset.wired = '1';
+    createBtn.addEventListener('click', () => openDealLinkModal());
+  }
+
+  const fromPosterBtn = document.getElementById('deallink-from-poster-btn');
+  if (fromPosterBtn && !fromPosterBtn.dataset.wired) {
+    fromPosterBtn.dataset.wired = '1';
+    fromPosterBtn.addEventListener('click', () => {
+      const rawSelection = document.getElementById('poster-sector-sel')?.value || '';
+      const selection = resolvePosterSectorSelection(rawSelection);
+      if (selection.kind === 'none') {
+        toast('warning', 'No Selection', 'Pick a sector in the poster generator first.');
+        return;
+      }
+
+      openDealLinkModal(null, {
+        title: selection.label || '',
+        selectionRaw: rawSelection,
+        shortcutKey: selection.key || '',
+        windowMode: 'rolling',
+        rollingDays: 30,
+        isActive: true,
+      });
+    });
+  }
+}
+
+async function renderDealLinksPanel() {
+  wireDealLinkControls();
+  try {
+    _dealLinks = await getDealLinks();
+  } catch (err) {
+    console.error('Deal links load failed:', err);
+    _dealLinks = [];
+  }
+  renderDealLinksTable();
 }
 
 

@@ -365,12 +365,20 @@ export async function getFares(filters = {}) {
   constraints.push(orderBy('flightDate', 'asc'));
 
   const snap = await getDocs(query(q, ...constraints));
-  return snap.docs.map(d => ({
-    id: d.id,
-    ...d.data(),
-    // Convert Timestamp to JS Date for easy use
-    flightDate: d.data().flightDate?.toDate?.() || d.data().flightDate,
-  }));
+  return snap.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      // Convert Timestamp to JS Date for easy use. The audit stamps matter as
+      // much as flightDate now — the Database tab prints them and the
+      // price-drop detection orders duplicate rows by createdAt.
+      flightDate: data.flightDate?.toDate?.() || data.flightDate,
+      createdAt: data.createdAt?.toDate?.() || data.createdAt,
+      updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+      rateChangedAt: data.rateChangedAt?.toDate?.() || data.rateChangedAt,
+    };
+  });
 }
 
 /**
@@ -419,12 +427,29 @@ export async function saveFares(parsedRows, agentId, sectorMap, airlineMap) {
   return saved;
 }
 
-/** Update a single fare record */
-export async function updateFare(fareId, data) {
-  await updateDoc(doc(db, 'agent_fares', fareId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+/**
+ * Update a single fare record.
+ *
+ * Pass `opts.previousFinalRate` (the rate the row held before this edit) to
+ * record the change on the document. The Database tab reads it back to badge
+ * fares whose price just came down. `serverTimestamp` lives here rather than in
+ * main.js so the tab controllers stay off the Firestore SDK.
+ *
+ * @param {string} fareId
+ * @param {object} data
+ * @param {{ previousFinalRate?: number }} [opts]
+ */
+export async function updateFare(fareId, data, opts = {}) {
+  const payload = { ...data, updatedAt: serverTimestamp() };
+
+  const previous = Number(opts.previousFinalRate);
+  const next = Number(data?.finalRate);
+  if (Number.isFinite(previous) && Number.isFinite(next) && previous !== next) {
+    payload.previousFinalRate = previous;
+    payload.rateChangedAt = serverTimestamp();
+  }
+
+  await updateDoc(doc(db, 'agent_fares', fareId), payload);
 }
 
 /** Delete a single fare record */
@@ -1264,5 +1289,150 @@ export async function updateAgentRatesUploadedTimestamp(agentId) {
     lastRatesUploadedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENQUIRIES
+// Customer fare requests. Admin-only in firestore.rules — these documents hold
+// customer names and phone numbers.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function toEnquiryDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export async function getEnquiries() {
+  const snap = await getDocs(query(collection(db, 'enquiries'), orderBy('createdAt', 'desc')));
+  return snap.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      startDate: data.startDate?.toDate?.() || data.startDate,
+      endDate: data.endDate?.toDate?.() || data.endDate,
+      createdAt: data.createdAt?.toDate?.() || data.createdAt,
+      updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+    };
+  });
+}
+
+function buildEnquiryPayload(data) {
+  const startDate = toEnquiryDate(data.startDate);
+  const endDate = toEnquiryDate(data.endDate);
+  const targetFare = data.targetFare === '' || data.targetFare === null || data.targetFare === undefined
+    ? null
+    : Number(data.targetFare);
+
+  return {
+    customerName: String(data.customerName || '').trim(),
+    customerPhone: String(data.customerPhone || '').trim(),
+    sectorId: String(data.sectorId || '').trim(),
+    startDate: startDate ? Timestamp.fromDate(startDate) : null,
+    endDate: endDate ? Timestamp.fromDate(endDate) : null,
+    targetFare: Number.isFinite(targetFare) ? targetFare : null,
+    status: data.status || 'open',
+    notes: String(data.notes || '').trim(),
+  };
+}
+
+export async function addEnquiry(data) {
+  if (!data?.customerName) throw new Error('Customer name is required.');
+  if (!data?.sectorId) throw new Error('Sector is required.');
+
+  const docRef = await addDoc(collection(db, 'enquiries'), {
+    ...buildEnquiryPayload(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateEnquiry(enquiryId, data) {
+  await updateDoc(doc(db, 'enquiries', enquiryId), {
+    ...buildEnquiryPayload(data),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Flip just the workflow status without rewriting the whole enquiry. */
+export async function setEnquiryStatus(enquiryId, status) {
+  await updateDoc(doc(db, 'enquiries', enquiryId), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteEnquiry(enquiryId) {
+  await deleteDoc(doc(db, 'enquiries', enquiryId));
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEAL LINKS
+// Curated public deal pages. The document id IS the slug, so /deals/<slug>
+// resolves with one getDoc and needs no index.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getDealLinks() {
+  const snap = await getDocs(collection(db, 'deal_links'));
+  return snap.docs
+    .map(d => {
+      const data = d.data();
+      return {
+        slug: d.id,
+        id: d.id,
+        ...data,
+        startDate: data.startDate?.toDate?.() || data.startDate,
+        endDate: data.endDate?.toDate?.() || data.endDate,
+        createdAt: data.createdAt?.toDate?.() || data.createdAt,
+        updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+      };
+    })
+    .sort((a, b) => (b.createdAt?.getTime?.() || 0) - (a.createdAt?.getTime?.() || 0));
+}
+
+/**
+ * Create or update a deal link. `setDoc` with merge keeps createdAt intact on
+ * an edit while letting the slug stay the document id.
+ */
+export async function saveDealLink(slug, data, { isNew = false } = {}) {
+  if (!slug) throw new Error('A link slug is required.');
+
+  const startDate = toEnquiryDate(data.startDate);
+  const endDate = toEnquiryDate(data.endDate);
+
+  const payload = {
+    title: String(data.title || '').trim(),
+    subtitle: String(data.subtitle || '').trim(),
+    selectionKind: data.selectionKind === 'sectors' ? 'sectors' : 'shortcut',
+    shortcutKey: String(data.shortcutKey || '').trim(),
+    sectorIds: Array.isArray(data.sectorIds) ? data.sectorIds.filter(Boolean) : [],
+    windowMode: data.windowMode === 'fixed' ? 'fixed' : 'rolling',
+    rollingDays: Number(data.rollingDays) || 30,
+    startDate: startDate ? Timestamp.fromDate(startDate) : null,
+    endDate: endDate ? Timestamp.fromDate(endDate) : null,
+    maxPerSector: Number(data.maxPerSector) || 0,
+    isActive: data.isActive !== false,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (isNew) payload.createdAt = serverTimestamp();
+
+  await setDoc(doc(db, 'deal_links', slug), payload, { merge: true });
+  return slug;
+}
+
+/** True when a slug is already taken — the create form checks before writing. */
+export async function dealLinkExists(slug) {
+  if (!slug) return false;
+  const snap = await getDoc(doc(db, 'deal_links', slug));
+  return snap.exists();
+}
+
+export async function deleteDealLink(slug) {
+  await deleteDoc(doc(db, 'deal_links', slug));
 }
 

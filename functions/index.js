@@ -795,3 +795,12 @@ exports.deleteB2BAgent = b2b.deleteB2BAgent;
 exports.getB2BPortalContext = b2b.getB2BPortalContext;
 exports.getB2BFares = b2b.getB2BFares;
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 9. PUBLIC DEALS
+//    Serves /deals/<slug>. Unauthenticated by design — the gate is the link's
+//    own `isActive` flag. Fares are projected to display fields only, so
+//    specialRate / commission / supplier agentId never reach the browser.
+// ══════════════════════════════════════════════════════════════════════════════
+exports.getPublicDeals = require("./publicDeals").buildGetPublicDeals(db);
+

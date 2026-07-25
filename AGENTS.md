@@ -94,6 +94,7 @@ zamra/                              # Firebase project root — run firebase CLI
     ├── visa.html                   # Visa services page
     ├── tours.html                  # Tours listing page
     ├── hajj-umrah.html             # Hajj & Umrah packages page
+    ├── deals.html                  # Curated live-fare deal page (/deals/<slug>)
     ├── vite.config.js              # Multi-page Vite config
     ├── package.json                # vite, tailwindcss, firebase SDK
     │
@@ -109,6 +110,14 @@ zamra/                              # Firebase project root — run firebase CLI
             ├── web/tours.js        # Tours listing (fetch, filter chips, search)
             ├── web/hajj-umrah.js   # Hajj & Umrah page (fetch, filter, render grid)
             ├── web/site-chrome.js  # Shared header/nav + mobile menu behavior
+            ├── web/deals.js        # Deal-link page (calls getPublicDeals; no Firebase SDK)
+            ├── shared/             # ★ Pure, testable logic shared across surfaces
+            │   ├── airline-baggage.js    # Baggage policy (CJS mirror in functions/)
+            │   ├── flight-schedule.js    # Date-ranged schedules (CJS mirror in functions/)
+            │   ├── fare-text-list.js     # WhatsApp text columns + lowest-fare marker
+            │   ├── fare-price-history.js # Price-drop detection (edits + re-uploads)
+            │   ├── enquiry-alerts.js     # Enquiry↔fare matching + target alerts
+            │   └── deal-links.js         # Slug/window/chunking rules for deal links
             └── admin/
                 ├── firebase-config.js  # Firebase init (auth, db, storage, functions)
                 ├── auth.js             # Auth state helpers
@@ -213,6 +222,17 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Flight-detail lookups are case-insensitive** — always key them with `buildFlightDetailKey(airlineId, sectorId)`. A fare whose `airlineId` differed only in case from its `flight_details` doc used to miss the fallback silently.
 - **Date-ranged flight schedules resolve narrowest-window-first** — `flight_details.schedules[]` holds `{startDate, endDate, flightTime}` overrides of the doc's default `flightTime`. The narrowest window covering a travel date wins, ties break on the later `startDate` (so the newer schedule takes a shared changeover day), and falling through every window yields the default. Rules live in mirrored modules that must be edited together: `web/src/js/shared/flight-schedule.js` (ESM) and `functions/flightSchedule.js` (CJS), each with its own test suite. Overlaps are legal but warned about in the Flights-tab editor rather than silently resolved.
 - **Poster theme variety** — poster exports (JPEG/PDF + video) now generate brand‑safe palettes on the fly (effectively infinite). Do not revert to deterministic per‑sector coloring; the variety is intentional for social sharing.
+- **`ingestFaresFromN8n` creates a NEW document per row, every upload** — it calls `db.collection("agent_fares").doc()` with no ID and never updates or dedupes. Re-uploading a rate sheet therefore produces duplicate rows for the same sector+airline+date+time, and every downstream surface copes by collapsing to the cheapest. This is why a price drop cannot be read off a single document: `annotateFarePriceDrops()` in `web/src/js/shared/fare-price-history.js` handles the edit case (`previousFinalRate` + `rateChangedAt`, written by `updateFare`) *and* the re-upload case (compare each row against its strictly-older siblings in the same group). Do not "fix" the ingest to update in place without checking what depends on the duplicates.
+- **Price-drop detection must see every loaded row, not the filtered view** — the older row that proves a drop is frequently filtered out. `getDatabaseDropMap()` runs over all of `_databaseFares` and caches against the **array identity**, which is only safe because that array is always reassigned, never mutated in place. Keep it that way.
+- **WhatsApp text formatting has two hard rules** — the lowest-fare marker goes at *end of line* (a prefix shifts every column out of alignment inside the ``` fence), and the bold `🔥 *LOWEST: …*` summary must sit *outside* the fence, because WhatsApp does not render `*bold*` inside a code block. Both live in `web/src/js/shared/fare-text-list.js`; `buildPosterClipboardSections()` delegates to it so the poster's Copy Text and the standalone text generator cannot drift.
+- **`wa.me` links have a practical length ceiling** — roughly 1500 characters. Past that the URL silently fails or truncates, so both WhatsApp send buttons refuse and tell the operator to use Copy instead. Do not remove the guard.
+- **An unauthenticated query over `agent_fares` MUST carry `where('isHidden','==',false)`** — the rule is a *document-level* condition, so a query missing the predicate is rejected outright rather than filtered. `getFares()` adds it whenever `includeHidden` is falsy. `getPublicDeals` keeps it too even though the Admin SDK bypasses rules: hidden fares must never reach a public page.
+- **Firestore `in` caps at 30 values and fails the whole query when exceeded** — a country-wide deal link can cover more sectors than that. Use `chunkSectorIds()` and run the chunks in parallel. It exists in **both** mirrors: `web/src/js/shared/deal-links.js` (ESM) and `functions/dealLinks.js` (CJS), with paired test suites — edit them together, like the baggage and flight-schedule modules.
+- **The `/deals` page never touches Firestore, and that is the point** — `agent_fares` rows carry `specialRate`, `commission` and the supplier `agentId`, and this page is broadcast to thousands of people. `getPublicDeals` (`functions/publicDeals.js`) projects fares to a display-only allow-list server-side. `functions/tests/public-deals.test.js` pins that exact key list *and* names the forbidden fields, so widening `projectDealFare()` fails the suite instead of silently publishing supplier economics. Do not "simplify" this back to a direct Firestore read. It also keeps the whole page at ~11 kB of JS with no Firebase SDK.
+- **`deal_links` is admin-only in the rules even though it powers a public page** — the public path is the endpoint, not the collection. That is also what makes `viewCount` possible: counting from the browser would need a publicly writable field on a publicly readable document.
+- **Deal-link slugs are immutable once created** — the whole point of the feature is that a link shared on WhatsApp keeps working while its contents change. The edit form makes the slug read-only; coverage, window, title and active state stay editable against the same URL. The slug is the **document ID**, so a lookup is one `getDoc` and no index.
+- **New admin tab? Four edits, plus four dispatch chains** — nav link, mobile `#admin-tab-select` option, and the `.tab-content` section (all in `web/admin.html`), plus an `else if` in `renderActiveTab()`. A sortable/paginated table additionally needs entries in `tableSort` / `tableSearch` / `tablePage` / `tableLimit`, the sort-header click delegation, and the `renderPaginationFooter` re-render chain. Miss one and the symptom is a silently dead control, not an error.
+- **`tableLimit` defaults must match an option in the matching `<select>`** — `databaseFares` defaulted to `25` while `#database-limit` only offered 20/50/100/250, so the select rendered blank on first paint. Fixed to `20`; keep them in step.
 - **Poster footer contact** — keep the poster footer phone as `+91 9846606739` in both HTML posters and video exports.
 - **Poster video slideshow** — if a route spans multiple pages, the video export merges them into one clean poster-page slideshow. Do not re‑introduce per‑page video exports for the same route.
 - **Poster video progress** — the Poster UI shows an inline progress pill during video rendering; keep it in sync with generation status.

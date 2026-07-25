@@ -1117,6 +1117,72 @@ html[data-theme="dark"] {
         font-size: 0.8125rem;
         color: var(--text-muted);
     }
+
+    /* ── WhatsApp text generator ─────────────────────────────────────────── */
+    /* Monospace so the padded columns line up on screen exactly as they will
+       inside WhatsApp's code fence. */
+    .admin-textgen-output {
+        margin: 0;
+        padding: 1rem 1.1rem;
+        border-radius: 0.9rem;
+        border: 1px solid var(--border);
+        background: #f8fafc;
+        color: var(--text-main);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        font-size: 0.78rem;
+        line-height: 1.55;
+        white-space: pre;
+        overflow-x: auto;
+        max-height: 26rem;
+        overflow-y: auto;
+    }
+
+    /* ── Fare audit stamps + price drops ─────────────────────────────────── */
+    .admin-fare-stamp {
+        display: block;
+        margin-top: 0.2rem;
+        font-size: 0.65rem;
+        font-weight: 600;
+        line-height: 1.2;
+        color: var(--text-soft);
+        white-space: nowrap;
+    }
+
+    .admin-fare-drop {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        margin-top: 0.25rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 999px;
+        border: 1px solid #bbf7d0;
+        background: #dcfce7;
+        color: #15803d;
+        font-size: 0.65rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+    }
+
+    /* ── Nav alert dot (Enquiry target hits) ─────────────────────────────── */
+    .admin-nav-dot {
+        display: inline-block;
+        width: 0.45rem;
+        height: 0.45rem;
+        margin-left: 0.3rem;
+        border-radius: 999px;
+        background: #16a34a;
+        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+        vertical-align: middle;
+    }
+
+    /* ── Deal links ──────────────────────────────────────────────────────── */
+    .admin-deallink-url {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.72rem;
+        color: var(--primary);
+        word-break: break-all;
+    }
 }
 
 .premium-hover-lift {
@@ -1941,6 +2007,27 @@ html[data-theme="dark"] .admin-modal-header #modal-close-btn:hover {
 html[data-theme="dark"] .admin-toggle {
     background: #0f172a;
     border-color: #273a56;
+}
+
+html[data-theme="dark"] .admin-textgen-output {
+    background: #0f172a;
+    border-color: #273a56;
+    color: #e2e8f0;
+}
+
+html[data-theme="dark"] .admin-fare-drop {
+    background: rgba(22, 163, 74, 0.18);
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #86efac;
+}
+
+html[data-theme="dark"] .admin-nav-dot {
+    background: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+}
+
+html[data-theme="dark"] .admin-deallink-url {
+    color: #93c5fd;
 }
 
 html[data-theme="dark"] .admin-file {

@@ -38,6 +38,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | `web/tours.html` | `/tours.html` | Tours listing page — category filter chips, search, tour card grid |
 | `web/hajj-umrah.html` | `/hajj-umrah.html` | Hajj & Umrah packages page — filters, search, package grid |
 | `web/connect.html` | `/gcc` | GCC flight deals landing page |
+| `web/deals.html` | `/deals/<slug>` | Curated live-fare deal page — see below |
 | `web/login.html` | `/login.html` | Admin login page (Firebase Auth) |
 | `web/admin.html` | `/admin.html` | Admin dashboard (auth-gated, see DASHBOARD.md) |
 | `web/b2b-login.html` | `b2b.zamratravels.com/b2b-login` | B2B agent login (agent claim) |
@@ -191,6 +192,57 @@ Tour details now open in a modal directly from the listing page. There is no sta
 - **CTA strip** — Contact buttons for custom Hajj & Umrah packages.
 - Logic in `src/js/web/hajj-umrah.js` — fetches only `isActive === true` packages from the `hajj_umrah_packages` collection.
   - Query uses **only** `where('isActive', '==', true)` — no `orderBy` clause. This avoids requiring a Firestore composite index. Results are sorted **client-side** by `departureDate` (ascending) after fetch.
+
+---
+
+## Deals Page (`deals.html` + `web/deals.js`)
+
+A shareable, always-current fare page. Staff create a curated link in the admin Poster tab; the URL is broadcast on WhatsApp and **never has to be reissued** — the page reads fares live from Firestore on every visit, so an admin editing a rate is reflected immediately.
+
+**Routing.** `/deals/<slug>` — the slug is the `deal_links` document ID, so the link resolves with a single `getDoc`. `web/vercel.json` carries the rewrite:
+
+```json
+{ "source": "/deals/(.*)", "destination": "/deals.html" }
+```
+
+`?s=<slug>` works as a fallback (bare `/deals` is already served by `cleanUrls`). Parsing is in `parseDealSlugFromLocation()`.
+
+**This page never touches Firestore.** It calls one endpoint, `getPublicDeals`, and renders the JSON.
+
+That is a deliberate departure from every other public page. Reading `agent_fares` from the browser hands the visitor `specialRate`, `commission` and the supplier's `agentId` on every row, even though only the selling price is ever displayed. The rest of the public site carries that exposure (the gap CLAUDE.md flags); a link designed to be broadcast to thousands of people is the wrong place to repeat it. `getPublicDeals` projects each fare down to a display-only allow-list server-side:
+
+```
+date · time · airlineName · airlineCode · airlineLogo · checkInBaggageKg · handBaggageKg · price
+```
+
+`functions/tests/public-deals.test.js` asserts that exact key list **and** names the forbidden fields explicitly, so widening the projection fails loudly rather than quietly publishing supplier economics.
+
+The side benefit is weight: with no Firebase SDK, the whole page is **~11 kB of JS**, which matters when it opens over mobile data from a WhatsApp thread.
+
+**Endpoint.** `GET https://asia-south1-zamra-web-01.cloudfunctions.net/getPublicDeals?slug=<slug>`
+- `200` → `{ success, link: { title, subtitle, windowStart, windowEnd }, sections: [...] }`
+- `404 LINK_NOT_AVAILABLE` → link missing **or** `isActive !== true`. Both are "the offer is gone" to a visitor, so the page shows one honest state for both.
+- `400 MISSING_SLUG`, `500 LOOKUP_FAILED`
+- Sets `s-maxage=60` — a link that just went out to a group gets opened hundreds of times in a minute.
+
+**Server-side behaviour** (`functions/publicDeals.js`):
+- Fares collapse to the cheapest per sector + airline + date + time, with flight times resolved from `flight_details` **before** grouping (flight time is part of the key).
+- Baggage is re-derived from airline policy, never trusted from the stored row.
+- Sections keep the curator's sector order; empty sectors produce no card.
+- `viewCount` is incremented with `FieldValue.increment(1)` plus a `lastViewedAt` stamp — fire-and-forget, because a failed counter must never cost a visitor their page. Doing this server-side is the only way to count views without exposing a publicly writable field on a publicly readable document.
+
+**Two query constraints that will bite if changed:**
+1. `where('isHidden', '==', false)` is **mandatory** on any `agent_fares` query. Even from the Admin SDK it is kept, because hidden fares must never reach a public page.
+2. Firestore caps `in` at 30 values, and a country-wide link can cover more sectors than that. `chunkSectorIds()` splits them and the chunks run in parallel. Exceeding the cap fails the entire query rather than truncating it.
+
+The existing `isHidden, sectorId, flightDate` composite index already covers this — an `in` filter uses the same index as `==`.
+
+**Client behaviour.**
+- Rolling date windows re-anchor to today on every request, which is what keeps an old link useful.
+- Refreshes on demand and automatically when the tab is re-focused after 5+ minutes idle — cheaper than holding a listener open per viewer.
+- Per-fare WhatsApp "Book" deep links pre-fill the route, date and price.
+
+**Routing recap.** `deal_links` is admin-only in `firestore.rules`; the public path is the endpoint, not the collection. `web/vercel.json` rewrites `/deals/(.*)` → `/deals.html`, and `?s=<slug>` works as a fallback.
 
 ---
 

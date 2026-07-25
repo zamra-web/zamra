@@ -73,6 +73,25 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── enquiries ────────────────────────────────────────────────────────────
+    // Internal log of customer fare requests. Holds customer names and phone
+    // numbers, so it is never public — admin only, both ways.
+    match /enquiries/{enquiryId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── deal_links ───────────────────────────────────────────────────────────
+    // Curated public deal pages (/deals/<slug>). The doc id IS the slug.
+    //
+    // Admin-only from the client. The public page never touches Firestore — it
+    // calls the getPublicDeals endpoint, which reads through the Admin SDK and
+    // returns fares projected down to display fields. That keeps specialRate /
+    // commission / supplier agentId off the wire, and lets the endpoint own the
+    // view counter rather than exposing a publicly writable field here.
+    match /deal_links/{slug} {
+      allow read, write: if isAdmin();
+    }
+
     // ── services ─────────────────────────────────────────────────────────────
     // Public can read active services; only admins can write
     match /services/{serviceId} {

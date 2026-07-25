@@ -61,6 +61,8 @@
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-bar-chart-line"></i><span>Reports</span></a>
                         <a href="#" data-tab="database-tab" data-title="Database"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-table"></i><span>Database</span></a>
+                        <a href="#" data-tab="enquiry-tab" data-title="Enquiry"
+                            class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-chat-left-text"></i><span>Enquiry</span><span id="enquiry-nav-dot" class="admin-nav-dot hidden"></span></a>
                         <a href="#" data-tab="agents-tab" data-title="Agents"
                             class="nav-link text-text-muted hover:text-primary font-medium text-[13px] xl:text-[14px]"><i class="bi bi-people"></i><span>Agents</span></a>
                         <a href="#" data-tab="b2b-agents-tab" data-title="B2B Agents"
@@ -105,6 +107,7 @@
                 <option value="design-tab">Design</option>
                 <option value="reports-tab">Reports</option>
                 <option value="database-tab">Database</option>
+                <option value="enquiry-tab">Enquiry</option>
                 <option value="agents-tab">Agents</option>
                 <option value="b2b-agents-tab">B2B Agents</option>
                 <option value="sectors-tab">Sectors</option>
@@ -253,6 +256,113 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- WhatsApp Text List Generator -->
+            <div class="admin-panel p-6 text-text-main mt-8">
+                <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+                    <div>
+                        <h2 class="text-xl font-bold text-navy">WhatsApp Text List</h2>
+                        <p class="text-sm text-text-muted mt-1">Build a ready-to-send fare list straight from the database — no poster needed.</p>
+                    </div>
+                    <button id="textgen-use-poster-btn" class="admin-btn admin-btn-ghost h-[34px] px-3 whitespace-nowrap">
+                        <i class="bi bi-arrow-down-up text-[12px]"></i> Use poster selection
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                    <div class="md:col-span-1">
+                        <label class="admin-label text-[11px]">Select Sector / Country / Airport *</label>
+                        <select id="textgen-sector-sel" class="admin-control">
+                            <option value="">Choose Sector, Country, or Airport</option>
+                            <option value="all">All Sectors</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-1">
+                        <label class="admin-label text-[11px]">Start Date</label>
+                        <input id="textgen-start-date" type="date" class="admin-control">
+                    </div>
+                    <div class="md:col-span-1">
+                        <label class="admin-label text-[11px]">End Date</label>
+                        <input id="textgen-end-date" type="date" class="admin-control">
+                    </div>
+                    <div class="md:col-span-1">
+                        <button id="textgen-generate-btn" class="admin-btn admin-btn-primary w-full">Generate Text</button>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4 mt-4">
+                    <label class="admin-toggle">
+                        <input id="textgen-include-baggage" type="checkbox" checked>
+                        <span>Include baggage column</span>
+                    </label>
+                    <label class="admin-toggle">
+                        <input id="textgen-highlight-lowest" type="checkbox" checked>
+                        <span>Highlight lowest fare</span>
+                    </label>
+                </div>
+
+                <div id="textgen-result" class="hidden mt-6">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <p class="text-[12px] text-text-muted font-semibold">
+                            <span id="textgen-meta">0 routes · 0 fares</span>
+                        </p>
+                        <div class="flex gap-2">
+                            <button id="textgen-copy-btn" class="admin-btn admin-btn-secondary h-[36px] px-4">
+                                <i class="bi bi-clipboard text-[12px]"></i> Copy Text
+                            </button>
+                            <button id="textgen-whatsapp-btn" class="admin-btn admin-btn-social h-[36px] px-4">
+                                <i class="bi bi-whatsapp text-[12px]"></i> Send on WhatsApp
+                            </button>
+                        </div>
+                    </div>
+                    <pre id="textgen-output" class="admin-textgen-output"></pre>
+                </div>
+
+                <div id="textgen-empty" class="admin-empty-state mt-6">
+                    <div class="admin-empty-state-card">
+                        <div class="admin-empty-state-icon">
+                            <i class="bi bi-chat-square-text"></i>
+                        </div>
+                        <p class="admin-empty-state-title">Pick a sector and date range, then Generate Text</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shareable Deal Links -->
+            <div class="admin-panel p-6 text-text-main mt-8">
+                <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+                    <div>
+                        <h2 class="text-xl font-bold text-navy">Shareable Deal Links</h2>
+                        <p class="text-sm text-text-muted mt-1">One link per curated offer. The page pulls live fares on every visit, so edits show up without reissuing the link.</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button id="deallink-from-poster-btn" class="admin-btn admin-btn-ghost h-[38px] px-3 whitespace-nowrap">
+                            <i class="bi bi-magic text-[12px]"></i> From poster selection
+                        </button>
+                        <button id="deallink-create-btn" class="admin-btn admin-btn-primary h-[38px] px-4">
+                            <i class="bi bi-plus-lg text-[12px]"></i> New Link
+                        </button>
+                    </div>
+                </div>
+
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Link</th>
+                                <th>Covers</th>
+                                <th>Window</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deallink-table-body">
+                            <tr><td colspan="6" class="text-center py-8 text-text-muted text-[13px]">Loading links...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -1401,6 +1511,13 @@ Example:
                         </select>
                     </div>
                     <div>
+                        <label class="admin-label text-[11px]">Price Change</label>
+                        <select id="database-drops-filter" class="admin-control">
+                            <option value="all">All Fares</option>
+                            <option value="drops">Recent Price Drops</option>
+                        </select>
+                    </div>
+                    <div>
                         <label class="admin-label text-[11px]">From Date</label>
                         <input id="database-start-date" type="date" class="admin-control">
                     </div>
@@ -1446,6 +1563,106 @@ Example:
                     </div>
                 </div>
                 <div id="databaseFares-pagination-footer" class="border-t border-slate-100 bg-slate-50 rounded-b-[20px]"></div>
+            </div>
+        </div>
+
+        <!-- ENQUIRY TAB -->
+        <div id="enquiry-tab" class="tab-content">
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+                    <div>
+                        <h2 class="font-bold text-[18px] text-navy leading-tight">Customer Enquiries</h2>
+                        <p class="text-[12px] text-text-muted mt-1">Log what a customer asked for, search the fare database against it, and share the matches back.</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span id="enquiry-alert-pill" class="hidden inline-flex items-center gap-1 px-3 h-[34px] rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold uppercase tracking-[0.06em]">
+                            0 below target
+                        </span>
+                        <button id="enquiry-refresh-btn" class="admin-btn admin-btn-secondary h-[38px] px-4">
+                            <i class="bi bi-arrow-clockwise text-[12px]"></i> Refresh
+                        </button>
+                        <button id="enquiry-add-btn" class="admin-btn admin-btn-primary h-[38px] px-4">
+                            <i class="bi bi-plus-lg text-[12px]"></i> New Enquiry
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
+                    <div class="xl:col-span-2">
+                        <label class="admin-label text-[11px]">Search</label>
+                        <input id="enquiry-search" type="text" class="admin-control" placeholder="Search by customer, phone, sector, notes...">
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">Status</label>
+                        <select id="enquiry-status-filter" class="admin-control">
+                            <option value="all">All</option>
+                            <option value="open">Open</option>
+                            <option value="quoted">Quoted</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-label text-[11px]">Table Controls</label>
+                        <div class="flex gap-2">
+                            <select id="enquiry-limit" class="admin-control admin-control-sm">
+                                <option value="10">10 rows</option>
+                                <option value="25">25 rows</option>
+                                <option value="50">50 rows</option>
+                            </select>
+                            <button id="enquiry-clear-filters" class="admin-btn admin-btn-ghost h-[32px] px-3 whitespace-nowrap">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel overflow-hidden mb-6">
+                <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-50 to-white">
+                    <div>
+                        <h3 class="font-bold text-[15px] text-navy">Logged Enquiries</h3>
+                        <p class="text-[12px] text-text-muted mt-0.5"><span id="enquiry-total-count">0</span> enquiries</p>
+                    </div>
+                </div>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="enquiries" data-sort-key="customerName">Customer <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="enquiries" data-sort-key="sectorId">Sector <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="enquiries" data-sort-key="startDate">Date Range <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="enquiries" data-sort-key="targetFare">Target <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th class="cursor-pointer group whitespace-nowrap" data-sort-tab="enquiries" data-sort-key="status">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="enquiry-table-body">
+                            <tr><td colspan="6" class="text-center py-8 text-text-muted text-[13px]">Loading enquiries...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="enquiries-pagination-footer" class="border-t border-slate-100 bg-slate-50 rounded-b-[20px]"></div>
+            </div>
+
+            <div id="enquiry-results-panel" class="admin-panel overflow-hidden hidden">
+                <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-50 to-white">
+                    <div>
+                        <h3 class="font-bold text-[15px] text-navy">Matching Fares</h3>
+                        <p class="text-[12px] text-text-muted mt-0.5" id="enquiry-results-meta">—</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="enquiry-results-share-btn" class="admin-btn admin-btn-secondary h-[36px] px-4">
+                            <i class="bi bi-clipboard text-[12px]"></i> Copy for Customer
+                        </button>
+                        <button id="enquiry-results-whatsapp-btn" class="admin-btn admin-btn-social h-[36px] px-4">
+                            <i class="bi bi-whatsapp text-[12px]"></i> Send on WhatsApp
+                        </button>
+                        <button id="enquiry-results-close-btn" class="admin-btn admin-btn-ghost h-[36px] px-3">
+                            <i class="bi bi-x-lg text-[12px]"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="enquiry-results-wrap" class="admin-database-wrap"></div>
             </div>
         </div>
 
@@ -2164,6 +2381,79 @@ Example:
             <div class="admin-modal-footer">
                 <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
                 <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- Customer Enquiry Modal -->
+    <template id="modal-enquiry-form">
+        <form id="enquiry-form" class="admin-modal-form">
+            <input type="hidden" id="enquiry-id">
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Customer</p>
+                        <p class="admin-form-section-desc">Who asked, and how to reach them.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="admin-field">
+                        <label class="admin-label">Customer Name *</label>
+                        <input type="text" id="enquiry-customer-name" class="admin-control" placeholder="e.g. Rashid" required>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">Phone</label>
+                        <input type="text" id="enquiry-customer-phone" class="admin-control" placeholder="e.g. 919846606739">
+                        <p class="admin-help">With country code — used for the WhatsApp share.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Request</p>
+                        <p class="admin-form-section-desc">The route and travel window they are looking for.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="admin-field sm:col-span-2">
+                        <label class="admin-label">Sector *</label>
+                        <select id="enquiry-sector" class="admin-control" required>
+                            <option value="">Select Sector</option>
+                        </select>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">From Date *</label>
+                        <input type="date" id="enquiry-start-date" class="admin-control" required>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">To Date *</label>
+                        <input type="date" id="enquiry-end-date" class="admin-control" required>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">Target Fare (₹)</label>
+                        <input type="number" id="enquiry-target-fare" class="admin-control" placeholder="Optional" min="0" step="1">
+                        <p class="admin-help">Leave blank for a plain record. Set it and the Enquiry tab flags a green dot when a live fare reaches it.</p>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">Status</label>
+                        <select id="enquiry-status" class="admin-control">
+                            <option value="open">Open</option>
+                            <option value="quoted">Quoted</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    <div class="admin-field sm:col-span-2">
+                        <label class="admin-label">Notes</label>
+                        <textarea id="enquiry-notes" class="admin-control" rows="2" placeholder="Anything worth remembering about this request"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-modal-footer">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Enquiry</button>
             </div>
         </form>
     </template>

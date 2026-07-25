@@ -123,6 +123,37 @@ web/
 - Calls `getFares({ sectorId, startDate, endDate, includeHidden: false })` — only live fares shown on posters
 - All data from Firestore `agent_fares` + `airlines`
 
+#### WhatsApp Text List (same tab, below the poster)
+A standalone text generator with **its own** sector + date inputs, so a broadcast can be produced without rendering a poster first (the poster's own **Copy Text** still requires a generated preview).
+
+- Output columns: **Date · Airline · Baggage · Fare**, padded to a common width and wrapped in a WhatsApp ``` fence so they line up on a phone.
+- The lowest fare is marked at **end of line** (a prefix would break the column alignment) and repeated as a bold `🔥 *LOWEST: …*` summary **outside** the fence — WhatsApp does not render `*bold*` inside a code block.
+- Baggage and lowest-fare highlighting are toggles; flipping one re-renders from the same query.
+- **Use poster selection** copies the poster's sector and dates across.
+- **Send on WhatsApp** opens `wa.me` with the text pre-filled, and refuses past ~1500 characters — beyond that a URL is unreliable, so Copy Text is the path.
+
+Column padding and the lowest-fare logic live in [web/src/js/shared/fare-text-list.js](web/src/js/shared/fare-text-list.js); `buildPosterClipboardSections()` delegates to it so the poster's Copy Text and this panel can never drift apart.
+
+#### Shareable Deal Links (same tab, below the text generator)
+Creates and manages `deal_links` documents — one shareable URL per curated offer, served publicly at `/deals/<slug>`.
+
+- **From poster selection** seeds a new link from whatever the poster generator is showing.
+- The sector picker is the same shortcut-aware select as the poster; the selection is **resolved to concrete `sectorIds` at save time** so the public bundle never carries the shortcut tables.
+- The slug is fixed once created — a shared link must keep working. Editing everything else (title, coverage, window, status) keeps the same URL live, which is the whole point of the feature.
+- **Copy** puts the absolute URL on the clipboard; **Off/On** toggles `isActive`, which takes the public page down or brings it back immediately via the security rule.
+
+### 7b. 💬 Enquiry Tab
+Customer fare requests, logged and worked from one place.
+
+- **Log form** (modal) — customer name, phone, sector, travel window, optional **target fare**, status (`open` / `quoted` / `closed`), and notes.
+- **Show** runs the enquiry's own parameters against `agent_fares` and lists only the matching live fares, cheapest first, with any fare at or below the target tinted green.
+- **Copy for Customer / Send on WhatsApp** turn those matches into the same WhatsApp text format the poster tab produces, greeted with the customer's name. A stored phone number opens that customer's chat directly.
+- **Target Price Alert** — enquiries that are `open` *and* carry a numeric target are scored against live fares; when the best matching fare reaches the target, a green dot appears on the **Enquiry** nav link and a "N below target" pill appears in the tab.
+
+The alert check is **client-side**: it runs at the end of `loadGlobalData()` (post-auth) and on the tab's Refresh button. It only needs to be true while someone is looking at the dashboard, so it costs nothing when idle. It swallows its own errors — a failed alert check must never block the dashboard from rendering. Matching and scoring are pure functions in [web/src/js/shared/enquiry-alerts.js](web/src/js/shared/enquiry-alerts.js).
+
+> An enquiry with no `targetFare` is a record, not a watch — it never alerts. Hidden fares never match, since quoting an unsellable fare is worse than showing nothing.
+
 ### 2. 📣 Socials Tab
 - **Social Publishing workspace** — five airport-group cards (`Calicut (CCJ)`, `Kochi (COK)`, `Kannur (CNN)`, `Trivandrum (TRV)`, `Mangalore (IXE)`) drive the publishing queue from a dedicated tab instead of the Poster screen
 - **Independent date range controls** — image and video queue actions use the Socials tab’s selected start/end dates rather than the current poster preview
@@ -225,8 +256,25 @@ The E-Ticket tab has the same toggle. It hides every `data-brand-identity` node 
 - **Row Actions** — per-row **Edit** / **Save** / **Cancel** / **Reset**, **Share** (copies WhatsApp-formatted enquiry text to clipboard), and Delete controls.
 - **Bulk Operations** — multi-select checkboxes + **Delete Selected** action.
 - **Save All Workflow** — tracks unsaved rows and allows saving all pending edits in one action.
-- **Filters + Search** — filter by agent, sector, airline, status, and date range; plus free-text search.
+- **Filters + Search** — filter by agent, sector, airline, status, **price change**, and date range; plus free-text search.
 - **Add Fare** — opens a modal form to insert a brand-new fare row into Firestore.
+- **Audit stamps** — under each status pill, "Uploaded 3d ago" (from `createdAt`) flips to "Edited 2h ago" once `updatedAt` diverges by more than a second. Hovering shows both absolute timestamps.
+- **Price-drop badges** — a green `▼ ₹1,600` marks any fare that recently got cheaper. See below.
+
+#### Price drop detection
+
+A fare gets cheaper two different ways, and only one of them is visible on a single document:
+
+| Path | What lands in Firestore | How it is detected |
+|---|---|---|
+| Admin edits a row down | `previousFinalRate` + `rateChangedAt` on the same doc | Read straight off the document |
+| A cheaper rate sheet is re-uploaded | **A brand-new document** — `ingestFaresFromN8n` calls `.doc()` with no ID and never updates or dedupes | Compared against older sibling rows |
+
+`annotateFarePriceDrops()` in [web/src/js/shared/fare-price-history.js](web/src/js/shared/fare-price-history.js) handles both. It groups rows by `sectorId + airlineId + flightDate + flightTime` — the same key the poster and public site dedupe on — orders each group by `createdAt`, and flags any row that undercuts the cheapest of its strictly-older siblings. Drops older than 7 days are ignored by default.
+
+Two things to know when touching this:
+- The drop map is computed over **all** loaded fares, never the filtered view. The older row that proves a drop is often filtered out.
+- It is cached against the `_databaseFares` array identity, which is safe only because that array is always reassigned, never mutated in place.
 
 ### 8. 📋 Rate Upload Tab
 - **AI Rate Intake** — premium step-by-step UI for agent selection and raw fare submission
@@ -447,8 +495,49 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `supplierRate` | Number | Supplier cost (currently always 0) |
 | `flightTime` | String | e.g. `'19:40 - 22:55'` |
 | `isHidden` | Boolean | `true` = hidden from public site |
-| `createdAt` | Timestamp | Server timestamp |
-| `updatedAt` | Timestamp | Server timestamp |
+| `createdAt` | Timestamp | Server timestamp — shown as "Uploaded …" in the Database tab |
+| `updatedAt` | Timestamp | Server timestamp — shown as "Edited …" once it diverges from `createdAt` |
+| `previousFinalRate` | Number | Optional. The rate before the most recent edit that changed it |
+| `rateChangedAt` | Timestamp | Optional. When `finalRate` last changed via an admin edit |
+
+> `previousFinalRate` / `rateChangedAt` are written only by `updateFare(fareId, data, { previousFinalRate })`. They cover **edited** fares. A price drop that arrives as a *re-upload* has no such fields — `ingestFaresFromN8n` creates a new document per row — and is derived instead by `annotateFarePriceDrops()`. See [Price drop detection](#price-drop-detection).
+
+### `enquiries`
+Internal log of customer fare requests. **Admin-only in `firestore.rules`, both read and write** — these documents hold customer names and phone numbers.
+
+| Field | Type | Notes |
+|---|---|---|
+| `customerName` | String | Required |
+| `customerPhone` | String | With country code; drives the WhatsApp share |
+| `sectorId` | String | Ref to `sectors` doc ID |
+| `startDate` / `endDate` | Timestamp | Requested travel window, inclusive of both days |
+| `targetFare` | Number \| null | Optional. `null` means "record only" — no alert is ever raised |
+| `status` | String | `open` \| `quoted` \| `closed`. Only `open` enquiries can alert |
+| `notes` | String | Free text |
+| `createdAt` / `updatedAt` | Timestamp | Server timestamps |
+
+### `deal_links`
+Curated public deal pages served at `/deals/<slug>`. **The document ID is the slug**, so a link resolves with a single `getDoc` — no query and no index.
+
+**Admin-only from the client.** The public page never reads this collection; it calls the `getPublicDeals` endpoint, which reads through the Admin SDK. That keeps supplier fields off the wire and lets the endpoint own the view counter instead of exposing a publicly writable field.
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` / `subtitle` | String | Shown in the page hero |
+| `selectionKind` | String | `shortcut` \| `sectors` — how the curation was picked |
+| `shortcutKey` | String | The `POSTER_SECTOR_SHORTCUTS` key, when one was used |
+| `selectionRaw` | String | The raw select value, so the edit form can restore the picker |
+| `sectorIds` | Array\<String\> | **Resolved at save time.** The public page reads only this, so it never needs the shortcut tables |
+| `windowMode` | String | `rolling` \| `fixed` |
+| `rollingDays` | Number | Days *ahead* of today; the last day runs to 23:59. Defaults to 30 |
+| `startDate` / `endDate` | Timestamp \| null | Only used when `windowMode == 'fixed'` |
+| `maxPerSector` | Number | `0` shows every fare in the window |
+| `isActive` | Boolean | `false` takes the public page down immediately — `getPublicDeals` 404s it |
+| `viewCount` | Number | Incremented server-side per page view via `FieldValue.increment(1)` |
+| `lastViewedAt` | Timestamp | Server timestamp of the most recent view |
+| `createdAt` / `updatedAt` | Timestamp | Server timestamps |
+
+> Because `sectorIds` is resolved when the link is saved, a sector added to a country *after* the link was created is not picked up until the link is edited. Fares, by contrast, are always live.
 
 ### `services`
 | Field | Type | Notes |
@@ -581,6 +670,7 @@ Passwords are generated server-side, returned once, and never stored.
 Callable functions are **HTTPS Callable**, deployed to `asia-south1`, running on **Node.js 22 (2nd Gen)**.  
 They require `admin: true` custom claim — enforced server-side via `requireAdmin()` helper.  
 `ingestFaresFromN8n` is an **HTTPS onRequest** endpoint secured via Bearer token (used by n8n).  
+`getPublicDeals` is an **HTTPS onRequest** endpoint that is deliberately unauthenticated — it serves the public `/deals/<slug>` page and is gated by the link's `isActive` flag.  
 `purgeOldFaresDaily` is a **scheduled** function that auto-cleans old fares.
 
 | Function | What it does |
@@ -593,6 +683,7 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `refreshSocialPublishingHealth` | Admin callable. Rebuilds the saved posting setup snapshot from configured/fallback channel IDs and API-key presence without making any Buffer API calls. |
 | `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next minute cron. |
 | `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a non-posted errored job item without mutating the old queue record. |
+| `getPublicDeals` | HTTPS onRequest endpoint, **unauthenticated by design** — the gate is the link's own `isActive` flag, not a token. Resolves `deal_links/<slug>`, applies the link's rolling or fixed window, queries `agent_fares` in `in`-safe chunks, collapses duplicates to the cheapest per sector+airline+date+time, and returns fares **projected to display fields only** (`date`, `time`, `airlineName`, `airlineCode`, `airlineLogo`, `checkInBaggageKg`, `handBaggageKg`, `price`). `specialRate`, `commission`, `finalRate`, `supplierRate` and the supplier `agentId` never leave the server. Bumps `viewCount` fire-and-forget. `404`s a missing or inactive link. |
 | `purgeOldFaresDaily` | Scheduled cleanup. Deletes `agent_fares` with `flightDate` earlier than **today − 2 days** (UTC midnight). Keeps the most recent two days of fares plus today. |
 
 **Social publishing scheduled workers**
@@ -607,6 +698,11 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 ### Firestore (`firestore.rules`)
 - **Public read:** `sectors`, `airlines`, `agent_fares` (only if `isHidden==false` and agent `isActive==true`)
 - **Admin read/write:** All collections — requires `request.auth.token.admin == true`
+- **Admin-only, never public:** `enquiries` (holds customer names and phone numbers), `deal_links`, `config`, `social_queue`, `social_jobs`
+
+> `agent_fares` uses a **document-level** read condition. An unauthenticated *query* over it must therefore carry `where('isHidden','==',false)` or the whole query is rejected — not filtered, rejected. `getFares()` adds it automatically whenever `includeHidden` is falsy.
+
+> `deal_links` is admin-only even though it powers a public page: `getPublicDeals` reads it through the Admin SDK and returns a projected payload. Serving through a function rather than opening the rule is what keeps `specialRate` / `commission` / supplier `agentId` off the wire and makes view counting possible without a publicly writable field.
 
 ### Storage (`storage.rules`)
 - **Public read:** All files
@@ -630,6 +726,10 @@ Sectors:  getSectors(), addSector(), updateSector(), deleteSector()
 Airlines: getAirlines(), addAirline(), updateAirline(), deleteAirline()
 Fares:    getFares(filters), addFare(data), deleteFare(), updateFare()
           getFares({ agentId?, sectorId?, startDate?, endDate?, includeHidden? })
+          updateFare(id, data, { previousFinalRate? })  — the opt records a rate change
+Enquiries: getEnquiries(), addEnquiry(), updateEnquiry(), setEnquiryStatus(), deleteEnquiry()
+DealLinks: getDealLinks(), saveDealLink(slug, data, { isNew? }), dealLinkExists(slug),
+           deleteDealLink(slug)
 Visas:    getVisas(), addVisa(), updateVisa(), deleteVisa()
           getVisaStampings(), addVisaStamping(), updateVisaStamping(), deleteVisaStamping()
           getAttestations(), addAttestation(), updateAttestation(), deleteAttestation()

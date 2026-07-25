@@ -119,11 +119,16 @@ test("Build Vision Request pins the model, schema, and route catalogue", () => {
   const item = jsonSchema.schema.properties.rows.items;
   assert.equal(item.additionalProperties, false);
   assert.deepEqual(item.required.sort(), Object.keys(item.properties).sort());
+  // route_text carries the printed direction so Build Firebase Payload can catch
+  // an origin/destination the model transposed.
+  assert.ok(item.properties.route_text, "row schema must include route_text");
+  assert.ok(item.required.includes("route_text"), "route_text must be required");
 
   const system = req.messages[0];
   assert.equal(system.role, "system");
   assert.ok(system.content.includes("CCJ JED, CCJ SHJ, COK DXB"));
   assert.ok(/Today is \d{4}-\d{2}-\d{2}/.test(system.content), "year inference needs today's date");
+  assert.ok(/DIRECTION/i.test(system.content), "the prompt must warn the model about route direction");
 });
 
 test("Build Vision Request accepts an images-only submission", () => {
@@ -183,6 +188,56 @@ test("Build Firebase Payload drops every row that fails validation", () => {
   assert.equal(out.parsed_count, 2);
   assert.equal(out.rejected.length, 5, "unknown sector/airline, bad date, and both out-of-band rates");
   assert.equal(out.notes, "One sector unreadable.");
+});
+
+test("Build Firebase Payload repairs a transposed origin/destination", () => {
+  // Both directions are sellable; the model saved the reverse of what the sheet
+  // prints. route_text names the two codes in the printed order, so the guard
+  // flips sector_code back rather than saving a Jeddah->Calicut fare.
+  const meta = { ...META, valid_sectors: ["CCJ JED", "JED CCJ", "COK DXB"] };
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "JED CCJ", route_text: "CCJ-JED", flight_code: "IX", date: "2026-03-04", sp_rate: 15500, show: "yes" },
+      { sector_code: "CCJ JED", route_text: "CCJ/JED", flight_code: "IX", date: "2026-03-05", sp_rate: 15600, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": meta },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData.map((r) => [r.sector_code, r.date]), [
+    ["CCJ JED", "2026-03-04"],
+    ["CCJ JED", "2026-03-05"],
+  ]);
+});
+
+test("Build Firebase Payload drops a reversed fare when the flip is not sellable", () => {
+  // Only the outbound direction is valid. The model transposed it and the sheet
+  // confirms the outbound order — but "AUH CCJ" is not a sector, so rather than
+  // guess we reject the row.
+  const meta = { ...META, valid_sectors: ["CCJ AUH", "COK DXB"] };
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ AUH", route_text: "AUH-CCJ", flight_code: "IX", date: "2026-03-04", sp_rate: 15500, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": meta },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData, []);
+  assert.equal(out.rejected.length, 1);
+  assert.match(out.rejected[0], /direction conflicts/);
+});
+
+test("Build Firebase Payload leaves direction alone when route_text is city names", () => {
+  // City-name route_text contains no matching IATA codes, so the guard cannot
+  // second-guess the model — it must trust the extracted sector_code.
+  const meta = { ...META, valid_sectors: ["CCJ JED", "JED CCJ"] };
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ JED", route_text: "Calicut to Jeddah", flight_code: "IX", date: "2026-03-04", sp_rate: 15500, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": meta },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData.map((r) => r.sector_code), ["CCJ JED"]);
 });
 
 test("Build Firebase Payload emits only fields the sheet actually states", () => {
