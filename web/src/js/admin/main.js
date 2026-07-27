@@ -8228,7 +8228,9 @@ function renderDatabaseTable() {
 
   const rows = getFilteredDatabaseRows();
   const drops = getDatabaseDropMap();
-  const { agentNameById, sectorCodeById, airlineLabelById, airlineCodeById } = getDatabaseLookupMaps();
+  // NOTE: the lookup map is aliased — a binding named `airlineCodeById` would
+  // shadow the module-level airlineCodeById() function the baggage selects call.
+  const { agentNameById, sectorCodeById, airlineLabelById, airlineCodeById: airlineCodeMap } = getDatabaseLookupMaps();
   const totalEl = document.getElementById('database-total-count');
   if (totalEl) totalEl.textContent = rows.length.toLocaleString();
 
@@ -8300,7 +8302,7 @@ function renderDatabaseTable() {
     const agentName = agentNameById[fare.agentId] || fare.agentId;
     const sectorName = sectorCodeById[fare.sectorId] || fare.sectorId;
     const airlineName = airlineLabelById[fare.airlineId] || fare.airlineId;
-    const airlineCode = airlineCodeById[fare.airlineId] || fare.airlineId;
+    const airlineCode = airlineCodeMap[fare.airlineId] || fare.airlineId;
 
     const dateStr = fare.flightDate instanceof Date
       ? fare.flightDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
