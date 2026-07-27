@@ -202,8 +202,10 @@ A shareable, always-current fare page. Staff create a curated link in the admin 
 **Routing.** `/deals/<slug>` — the slug is the `deal_links` document ID, so the link resolves with a single `getDoc`. `web/vercel.json` carries the rewrite:
 
 ```json
-{ "source": "/deals/(.*)", "destination": "/deals.html" }
+{ "source": "/deals/(.*)", "destination": "/deals" }
 ```
+
+**The destination must stay extensionless.** `cleanUrls: true` registers every built page in Vercel's routing filesystem *without* its `.html` — that is what makes `/deals.html` 308-redirect to `/deals`. Rewrites are matched only after the filesystem misses, and the destination resolves against that same extensionless table, so `"/deals.html"` points at a path that no longer exists and Vercel answers a bare **404: NOT_FOUND**. This shipped broken once and took every rewrite in the file down with it (`/gcc` and `/admin/*` too) while `redirects` and `/deals` itself kept working, which makes it look like a page problem rather than a config one. `web/tests/vercel-routing.test.js` now fails on any `.html` in a rewrite or redirect path.
 
 `?s=<slug>` works as a fallback (bare `/deals` is already served by `cleanUrls`). Parsing is in `parseDealSlugFromLocation()`.
 
@@ -242,7 +244,7 @@ The existing `isHidden, sectorId, flightDate` composite index already covers thi
 - Refreshes on demand and automatically when the tab is re-focused after 5+ minutes idle — cheaper than holding a listener open per viewer.
 - Per-fare WhatsApp "Book" deep links pre-fill the route, date and price.
 
-**Routing recap.** `deal_links` is admin-only in `firestore.rules`; the public path is the endpoint, not the collection. `web/vercel.json` rewrites `/deals/(.*)` → `/deals.html`, and `?s=<slug>` works as a fallback.
+**Routing recap.** `deal_links` is admin-only in `firestore.rules`; the public path is the endpoint, not the collection. `web/vercel.json` rewrites `/deals/(.*)` → `/deals` (extensionless — see Routing above), and `?s=<slug>` works as a fallback.
 
 ---
 

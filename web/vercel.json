@@ -18,15 +18,15 @@
     "rewrites": [
         {
             "source": "/admin(.*)",
-            "destination": "/admin.html"
+            "destination": "/admin"
         },
         {
             "source": "/gcc",
-            "destination": "/connect.html"
+            "destination": "/connect"
         },
         {
             "source": "/deals/(.*)",
-            "destination": "/deals.html"
+            "destination": "/deals"
         }
     ]
 }
