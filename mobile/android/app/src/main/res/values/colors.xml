@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared brand palette, mirroring the web tokens in web/src/styles/web/style.css.
+  Each flavour overrides ic_launcher_background so the two apps are told apart at a glance
+  in the launcher (see app/src/admin and app/src/b2b).
+-->
+<resources>
+    <color name="colorPrimary">#0c4a8a</color>
+    <color name="colorPrimaryDark">#073160</color>
+    <color name="colorAccent">#1e67c2</color>
+    <color name="splash_background">#0c4a8a</color>
+</resources>

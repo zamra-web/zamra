@@ -4,9 +4,17 @@
 node_modules/
 functions/node_modules/
 web/node_modules/
+mobile/node_modules/
 
 # Build outputs
 web/dist
+mobile/dist/
+
+# Android signing — losing these means never being able to ship an update to an
+# already-installed app. Keep an off-machine backup; see mobile/README.md.
+mobile/android/keystore.properties
+mobile/android/*.jks
+mobile/android/*.keystore
 
 # Firebase/Vercel caches
 .firebase/

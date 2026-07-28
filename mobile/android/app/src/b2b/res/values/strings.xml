@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Zamra B2B</string>
+    <string name="title_activity_main">Zamra B2B</string>
+    <string name="package_name">com.zamratravels.b2b</string>
+    <string name="custom_url_scheme">com.zamratravels.b2b</string>
+</resources>

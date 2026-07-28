@@ -1,0 +1,26 @@
+{
+  "name": "zamra-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android shells for the Zamra admin dashboard and B2B agent portal",
+  "scripts": {
+    "build": "bash scripts/build-apks.sh",
+    "build:admin": "bash scripts/build-apks.sh admin",
+    "build:b2b": "bash scripts/build-apks.sh b2b",
+    "assets": "node scripts/build-brand-assets.mjs",
+    "test": "node --test tests/*.test.js"
+  },
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "dependencies": {
+    "@capacitor/android": "^7.6.8",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.8",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.8"
+  }
+}

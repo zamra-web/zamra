@@ -9,6 +9,7 @@ Detailed docs already exist and are the source of truth for their surfaces — r
 - [AGENTS.md](AGENTS.md) — build system, repo layout, and a long "Key Gotchas" list of hard-won invariants (poster export, social publishing, pagination bugs, event-wiring guards). **Read the gotchas before touching poster, social, or reports code.**
 - [WEBSITE.md](WEBSITE.md) — public site pages, features, Firestore reads, styling.
 - [DASHBOARD.md](DASHBOARD.md) — admin dashboard tabs, Firestore schema per collection, Cloud Functions, rules.
+- [mobile/README.md](mobile/README.md) — the two Android apps (admin + B2B), how the download bridge works, signing and icon generation. **Read it before touching anything under `mobile/`.**
 
 ## Commands
 
@@ -22,6 +23,11 @@ cd web && npm test                       # node --test, discovers web/tests/*.te
 cd functions && npm install
 cd functions && npm test                 # node --test → functions/tests/*.test.js
 cd functions && npm run lint             # eslint (google config)
+
+cd mobile && npm install
+cd mobile && npm test                    # node --test → mobile/tests/*.test.js
+cd mobile && ./scripts/build-apks.sh     # signed release APKs → mobile/dist/
+cd mobile && npm run assets              # regenerate launcher icons + splash screens
 ```
 
 Run a single test file / single test:
@@ -51,6 +57,8 @@ Each HTML entry in [vite.config.js](web/vite.config.js) is a separate page bundl
 | Public site | `index/visa/tours/hajj-umrah/connect.html` | `src/js/web/` | none (public Firestore reads) |
 | Admin dashboard | `admin.html`, `login.html` | `src/js/admin/` | `admin: true` custom claim |
 | B2B agent portal | `b2b.html`, `b2b-login.html` | `src/js/b2b/` | `{ agent: true, b2bAgentId }` claims |
+
+Two of those surfaces also ship as Android apps from [mobile/](mobile/) — `Zamra Admin` and `Zamra B2B`, product flavours of one Capacitor shell. They load the **live production URLs** rather than a bundled build, so a Vercel deploy updates them with no APK release. The one thing that needed native code is file exports: a WebView ignores `<a download>` on `blob:`/`data:` URLs, so jsPDF, html2canvas and CSV downloads only work because of the injected shim described in [mobile/README.md](mobile/README.md). Any new export path in the web app should be checked against it.
 
 **Data access layering.** `src/js/admin/db.js` is the only module that talks to the Firestore/Storage/Functions SDKs for the admin surface — [main.js](web/src/js/admin/main.js) (~9.7k lines of tab controllers) must call through it, never the SDK directly. Bulk mutations are Cloud Function callables wrapped as `callXxx()` in `db.js`. The B2B portal reads *nothing* from Firestore directly: [b2b/main.js](web/src/js/b2b/main.js) calls the `getB2BPortalContext` / `getB2BFares` callables so pricing stays server-side.
 

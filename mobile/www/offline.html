@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>No connection</title>
+    <style>
+        :root {
+            --bg: #0a101b;
+            --card: #111c2e;
+            --border: #1e3050;
+            --text: #e8eef7;
+            --muted: #93a4bd;
+            --primary: #1e67c2;
+            --primary-hover: #2a79db;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 360px;
+            padding: 32px 24px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: var(--card);
+            text-align: center;
+        }
+
+        .glyph {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(30, 103, 194, 0.14);
+        }
+
+        .glyph svg { width: 32px; height: 32px; stroke: var(--primary); }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        p {
+            margin: 0 0 24px;
+            font-size: 14px;
+            line-height: 1.55;
+            color: var(--muted);
+        }
+
+        button {
+            width: 100%;
+            padding: 13px 20px;
+            border: 0;
+            border-radius: 11px;
+            background: var(--primary);
+            color: #fff;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        button:active { background: var(--primary-hover); transform: scale(0.985); }
+        button[disabled] { opacity: 0.65; pointer-events: none; }
+
+        .host {
+            margin: 18px 0 0;
+            font-size: 12px;
+            color: var(--muted);
+            opacity: 0.75;
+            word-break: break-all;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f1f5f9;
+                --card: #ffffff;
+                --border: #dbe3ee;
+                --text: #0f1e33;
+                --muted: #5b6b84;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <div class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 1l22 22" />
+                <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+                <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+                <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+                <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <path d="M12 20h.01" />
+            </svg>
+        </div>
+        <h1>You're offline</h1>
+        <p>This app needs an internet connection. Check your mobile data or Wi-Fi, then try again.</p>
+        <button id="retry" type="button">Try again</button>
+        <p class="host" id="host"></p>
+    </main>
+
+    <script>
+        (function () {
+            var btn = document.getElementById('retry');
+            var host = document.getElementById('host');
+
+            function native() {
+                return (typeof window.ZamraNative !== 'undefined') ? window.ZamraNative : null;
+            }
+
+            try {
+                var n = native();
+                if (n && n.getStartUrl) host.textContent = n.getStartUrl();
+            } catch (e) { /* label is decorative */ }
+
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                btn.textContent = 'Reconnecting…';
+                var n = native();
+                if (n && n.reload) {
+                    n.reload();
+                } else {
+                    window.location.reload();
+                }
+                setTimeout(function () {
+                    btn.disabled = false;
+                    btn.textContent = 'Try again';
+                }, 4000);
+            });
+        })();
+    </script>
+</body>
+</html>

@@ -7,6 +7,7 @@
 | **[AGENTS.md](./AGENTS.md)** ← you are here | Build system, file structure, AI agent rules |
 | **[WEBSITE.md](./WEBSITE.md)** | Public website — pages, features, Firestore reads, styling |
 | **[DASHBOARD.md](./DASHBOARD.md)** | Admin dashboard — all tabs, Firebase backend, schema, Cloud Functions, rules |
+| **[mobile/README.md](./mobile/README.md)** | Android apps — the two flavours, download bridge, signing, icon generation |
 
 ---
 
@@ -40,12 +41,15 @@ Zamra Travels is a premium flight booking and travel services web portal with a 
 ```bash
 cd web && npm run dev      # local dev server → http://localhost:5173
 cd web && npm run build    # production build → web/dist/
+
+cd mobile && ./scripts/build-apks.sh   # signed Android APKs → mobile/dist/
 ```
 
 **Install commands (first-time or after cleanup):**
 ```bash
 cd web && npm install
 cd functions && npm install
+cd mobile && npm install   # only needed to build the Android apps
 ```
 
 > Functions expect **Node.js 22**. Use Node 22 locally to avoid engine warnings.
@@ -79,6 +83,16 @@ zamra/                              # Firebase project root — run firebase CLI
 │   │                               # generateAgentReport (callable),
 │   │                               # ingestFaresFromN8n (HTTPS onRequest)
 │   └── package.json                # firebase-admin, firebase-functions
+│
+├── mobile/                         # Android apps (Capacitor) — see mobile/README.md
+│   ├── capacitor.config.json       # Base config only; flavours override it at build time
+│   ├── www/offline.html            # The one local page — shown when the network is down
+│   ├── scripts/                    # build-apks.sh, build-brand-assets.mjs
+│   └── android/app/src/
+│       ├── main/                   # Shared shell: MainActivity, ZamraNative, SaveSession,
+│       │                           # ZamraWebViewClient, res/raw/zamra_shim.js
+│       ├── admin/                  # Zamra Admin: start URL, name, navy icon
+│       └── b2b/                    # Zamra B2B: start URL, name, orange icon
 │
 ├── scripts/                        # One-off maintenance scripts
 │   ├── delete-hajj-umrah-tours.cjs # Cleanup helper for legacy tours data
@@ -213,6 +227,8 @@ zamra/                              # Firebase project root — run firebase CLI
 - **Cloud Functions region** is `asia-south1` — this matches the `getFunctions(app, 'asia-south1')` call in `firebase-config.js`. Do not change one without changing the other.
 - **Baggage weights are policy, never data** — hand and check-in allowances are derived from the airline IATA code, not from the fare row or the n8n payload. The rules live in two mirrored modules that must be edited together: `web/src/js/shared/airline-baggage.js` (ESM) and `functions/airlineBaggage.js` (CJS); paired test suites assert the full table in both. `agent_fares.baggage` is check-in kg and `agent_fares.extraBaggage` is hand kg — do not reintroduce the old "total = baggage + extraBaggage" label, they are different bags. Full table in `DASHBOARD.md`. **Display strings also come from those modules** — `formatCheckInBaggageText()`, `formatHandBaggageText()`, `formatBaggageAllowanceShort()` and `formatBaggageKg()`. Do not hand-build `${kg} KG` at a call site: the public site, B2B portal, e-ticket table and e-ticket allowance card each had their own spelling (`30 KG`, `30Kg`, `30 + 7KG`) before this was centralised.
 - **Poster export relies on CDN scripts** — `html2canvas` and `jsPDF` are loaded via `<script>` tags in `admin.html` (not npm). Do not import them via ES modules.
+- **Every new file export must work in the Android apps too** — the apps load the live site in a WebView, and a WebView silently ignores `<a download>` when the href is a `blob:` or `data:` URL. Nothing happens: no file, no error. `mobile/android/app/src/main/res/raw/zamra_shim.js` is injected into every page and covers the three ways this codebase clicks a download link — `link.click()`, `dispatchEvent(new MouseEvent('click'))` on a **detached** anchor (jsPDF's `saveAs`), and a real tap on an `a[download]`. If you add an export that produces files another way (`window.open`, a service worker, `showSaveFilePicker`), it will work in Chrome and do nothing in the apps until the shim is extended.
+- **The Android apps point at production, not a bundled build** — `server.url` in each flavour's `capacitor.config.json` is the live URL, so a Vercel deploy reaches installed apps immediately. The upside is no APK release per web change; the catch is that a broken deploy breaks the apps too, and any change to the `/admin` or `/b2b-login` routes must keep those exact paths reachable. `mobile/tests/flavors.test.js` guards the URLs.
 - **Airline logos in posters** — `renderPoster()` is `async` and pre-fetches all logos as `blob:` URLs using `fetch()` before building HTML. This sidesteps Firebase Storage CORS for `html2canvas`. Never reintroduce external image URLs (e.g. `weserv.nl` proxy) inside the poster HTML — it breaks canvas export.
 - **Poster date floor** — poster generation always clamps the start date to today (even if the input is blank or earlier) to avoid expired fares; keep this behavior intact.
 - **Poster dedupe normalization** — posters and poster videos normalize airline + flight time before deduping so duplicates across agents collapse to the cheapest fare.

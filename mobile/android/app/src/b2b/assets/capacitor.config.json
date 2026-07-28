@@ -1,0 +1,31 @@
+{
+  "appId": "com.zamratravels.b2b",
+  "appName": "Zamra B2B",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#0c4a8a",
+    "adjustMarginsForEdgeToEdge": "auto",
+    "appendUserAgent": "ZamraB2BApp"
+  },
+  "server": {
+    "url": "https://b2b.zamratravels.com/b2b-login",
+    "cleartext": false,
+    "errorPath": "offline.html",
+    "allowNavigation": [
+      "b2b.zamratravels.com"
+    ]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#0c4a8a",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": false,
+      "splashImmersive": false
+    }
+  }
+}
