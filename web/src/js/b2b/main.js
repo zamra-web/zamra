@@ -7,7 +7,7 @@
  */
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../admin/firebase-config.js';
-import { onAuthChange, logoutUser } from '../admin/auth.js';
+import { onAuthChange, logoutUser, reauthenticateCurrentUser } from '../admin/auth.js';
 import { getAirlines, getVisas, getVisaStampings, getAttestations } from '../admin/db.js';
 import { splitFlightTimeRange } from '../web/flight-results.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from '../web/airline-brand.js';
@@ -21,6 +21,8 @@ import {
 
 const getB2BPortalContext = httpsCallable(functions, 'getB2BPortalContext');
 const getB2BFares = httpsCallable(functions, 'getB2BFares');
+const recordB2BAgentActivity = httpsCallable(functions, 'recordB2BAgentActivity');
+const changeB2BAgentPassword = httpsCallable(functions, 'changeB2BAgentPassword');
 
 let _context = null;        // { agent, whatsappNumber, defaultOrigin, sectors }
 let _airlineMap = new Map();
@@ -101,6 +103,123 @@ async function boot() {
 
   initRouteSelects();
   loadVisaServices();
+  startActivityHeartbeat();
+  wireAccountControls();
+}
+
+// ── Presence heartbeat ───────────────────────────────────────────────────────
+// Feeds the "Online" badge and the last-login column in the admin dashboard.
+// The server throttles the writes (see recordB2BAgentActivity), so this can beat
+// steadily without turning into a write storm.
+
+const HEARTBEAT_MS = 60 * 1000;
+let _heartbeatTimer = null;
+
+/** Fire-and-forget: presence must never break, or interrupt, the portal. */
+async function sendActivity(event) {
+  try {
+    await recordB2BAgentActivity({ event });
+  } catch (err) {
+    // A deactivated agent gets permission-denied here first — the next search
+    // would hit the same wall, so log them out now rather than let them work
+    // in a portal that will refuse every query.
+    if (isAgentBlockedError(err)) {
+      stopActivityHeartbeat();
+      await forceLogout('Your account is not active. Contact Zamra Travels.');
+      return;
+    }
+    console.debug('Activity ping failed (ignored):', err?.message || err);
+  }
+}
+
+function stopActivityHeartbeat() {
+  if (_heartbeatTimer) clearInterval(_heartbeatTimer);
+  _heartbeatTimer = null;
+}
+
+function startActivityHeartbeat() {
+  if (_heartbeatTimer) return;
+  sendActivity('login');
+  _heartbeatTimer = setInterval(() => {
+    // A hidden tab is not an agent using the portal — skipping the beat is what
+    // makes the badge drop to Offline a few minutes after they walk away.
+    if (document.visibilityState === 'visible') sendActivity('heartbeat');
+  }, HEARTBEAT_MS);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sendActivity('heartbeat');
+  });
+}
+
+// ── Self-service password change ─────────────────────────────────────────────
+
+function wireAccountControls() {
+  const modal = document.getElementById('b2b-password-modal');
+  const openBtn = document.getElementById('b2b-account-btn');
+  const form = document.getElementById('b2b-password-form');
+  if (!modal || !openBtn || !form) return;
+
+  const errorBox = document.getElementById('b2b-password-error');
+  const successBox = document.getElementById('b2b-password-success');
+  const submitBtn = document.getElementById('b2b-password-submit');
+
+  const setMessage = (box, text) => {
+    box.textContent = text || '';
+    box.classList.toggle('hidden', !text);
+  };
+  const clearMessages = () => { setMessage(errorBox, ''); setMessage(successBox, ''); };
+
+  const close = () => { modal.close(); form.reset(); clearMessages(); };
+
+  openBtn.addEventListener('click', () => {
+    clearMessages();
+    form.reset();
+    modal.showModal();
+    document.getElementById('b2b-current-password')?.focus();
+  });
+  document.getElementById('b2b-password-close')?.addEventListener('click', close);
+  document.getElementById('b2b-password-cancel')?.addEventListener('click', close);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMessages();
+
+    const current = form.elements.currentPassword.value;
+    const next = form.elements.newPassword.value;
+    const confirm = form.elements.confirmPassword.value;
+
+    // Mirrors validateCustomPassword() in functions/b2bCredentials.js so a
+    // typo is caught before a round trip; the server still enforces it.
+    if (next !== confirm) return setMessage(errorBox, 'The two new passwords do not match.');
+    if (next.length < 8) return setMessage(errorBox, 'New password must be at least 8 characters.');
+    if (/\s/.test(next)) return setMessage(errorBox, 'New password cannot contain spaces.');
+    if (!/[A-Za-z]/.test(next) || !/[0-9]/.test(next)) {
+      return setMessage(errorBox, 'New password must contain at least one letter and one number.');
+    }
+    if (next === current) return setMessage(errorBox, 'Choose a password different from your current one.');
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Updating…';
+    try {
+      // Proves the current password, and refreshes auth_time for the callable's
+      // freshness check.
+      const reauth = await reauthenticateCurrentUser(current);
+      if (!reauth.success) {
+        setMessage(errorBox, reauth.error);
+        return;
+      }
+      await changeB2BAgentPassword({ newPassword: next });
+      form.reset();
+      setMessage(successBox, 'Password updated. Use it the next time you sign in.');
+    } catch (err) {
+      setMessage(errorBox, /REAUTH_REQUIRED/.test(err?.message || '')
+        ? 'That took too long. Please re-enter your current password and try again.'
+        : (err?.message || 'Could not update your password. Please try again.'));
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Update password';
+    }
+  });
 }
 
 // ── Route selects (built from the agent's allowed sectors only) ─────────────

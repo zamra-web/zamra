@@ -266,6 +266,10 @@ Auth-gated partner portal on `b2b.zamratravels.com`. Shares the public site's st
 
 **States.** First load shows a "pick a route" prompt; empty results and filtered-to-zero have distinct copy; the three service lists render shimmer skeletons before data lands.
 
+**Presence heartbeat.** `startActivityHeartbeat()` calls `recordB2BAgentActivity` once on boot (`event: 'login'`) and every 60s **while `document.visibilityState === 'visible'`**, plus once on every `visibilitychange` back to visible. Skipping hidden tabs is deliberate: it is what makes the admin dashboard's Online badge decay a few minutes after an agent walks away, instead of showing every stale tab as live forever. Pings are fire-and-forget — a failure is logged and swallowed, with one exception: `permission-denied` means the account was deactivated mid-session, so the portal logs the agent out immediately rather than letting them work in a portal that will refuse the next search.
+
+**Change password** (`#b2b-account-btn` → `#b2b-password-modal`). A native `<dialog>`, so Esc and the backdrop come free. The current password is verified in the browser by `reauthenticateCurrentUser()` (`web/src/js/admin/auth.js`), which reauthenticates against Firebase Auth and then forces an ID-token refresh; only then does `changeB2BAgentPassword` run, and it rejects a token whose `auth_time` is over 10 minutes old. The Admin SDK cannot check a password, so **both halves are load-bearing** — dropping the client reauth removes the only proof of the current password, and dropping the server freshness check lets a stale token change it. The client-side length/character checks mirror `validateCustomPassword` in `functions/b2bCredentials.js` purely to catch typos before a round trip; the server is the authority. The agent stays signed in on the current device after a change.
+
 ---
 
 ## Styling System

@@ -1,9 +1,11 @@
 // Firebase Authentication Module for Admin Dashboard
 import { auth } from './firebase-config.js';
-import { 
-  signInWithEmailAndPassword, 
-  onAuthStateChanged, 
-  signOut 
+import {
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 
 /**
@@ -63,4 +65,40 @@ export function onAuthChange(callback) {
  */
 export function getCurrentUser() {
   return auth.currentUser;
+}
+
+/**
+ * Re-verify the signed-in user's password.
+ *
+ * The Admin SDK cannot check a password, so self-service password changes prove
+ * "you are really this person" here in the browser and the Cloud Function then
+ * enforces that the resulting token's `auth_time` is fresh. Callers must run
+ * this immediately before calling changeB2BAgentPassword.
+ *
+ * @param {string} currentPassword
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function reauthenticateCurrentUser(currentPassword) {
+  const user = auth.currentUser;
+  if (!user?.email) return { success: false, error: 'You are not signed in.' };
+
+  try {
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+    // Force a token refresh so the callable sees the reauthenticated auth_time
+    // rather than a cached token minted at the original sign-in.
+    await user.getIdToken(true);
+    return { success: true };
+  } catch (error) {
+    switch (error.code) {
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        return { success: false, error: 'Your current password is incorrect.' };
+      case 'auth/too-many-requests':
+        return { success: false, error: 'Too many attempts. Please wait a few minutes and try again.' };
+      case 'auth/user-disabled':
+        return { success: false, error: 'This account has been deactivated.' };
+      default:
+        return { success: false, error: error.message || 'Could not verify your current password.' };
+    }
+  }
 }

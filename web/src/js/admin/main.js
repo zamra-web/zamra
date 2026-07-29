@@ -27,7 +27,8 @@ import {
   createSocialJobItem, updateSocialJobItem,
   subscribeSocialPublishingConfig, subscribeRecentSocialJobs, subscribeSocialJobItems,
   callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
-  getB2BAgents, updateB2BAgent, callCreateB2BAgent, callResetB2BAgentPassword,
+  getB2BAgents, subscribeB2BAgents, updateB2BAgent, callCreateB2BAgent,
+  callResetB2BAgentPassword, callGetB2BAgentCredentials,
   callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
   saveB2BSupplierDefaults,
   getEnquiries, addEnquiry, updateEnquiry, deleteEnquiry,
@@ -64,6 +65,7 @@ import {
   POSTER_COUNTRY_ML_LABELS,
 } from './social-markets.js';
 import { airportCity, airportName, resolveAirportCode } from '../shared/airports.js';
+import { describeAgentActivity } from '../shared/b2b-presence.js';
 import {
   buildFlightDetailKey,
   normalizeScheduleWindows,
@@ -782,6 +784,17 @@ function applySortAndFilter(data, tab) {
       let valA = a[key], valB = b[key];
       if (valA instanceof Date) valA = valA.getTime();
       if (valB instanceof Date) valB = valB.getTime();
+      // Firestore Timestamps (b2bAgents.lastActiveAt) compare as plain objects
+      // otherwise — every pair returns 0 and the column silently never sorts.
+      if (typeof valA?.toMillis === 'function') valA = valA.toMillis();
+      if (typeof valB?.toMillis === 'function') valB = valB.toMillis();
+      if (key === 'lastActiveAt') {
+        // Agents who have never opened the portal sort as oldest, not as ties.
+        const ta = Number.isFinite(valA) ? valA : -Infinity;
+        const tb = Number.isFinite(valB) ? valB : -Infinity;
+        if (ta !== tb) return asc ? ta - tb : tb - ta;
+        return 0;
+      }
       if (key === 'sortOrder') {
         const sa = normalizeSectorSortOrder(valA) ?? Number.MAX_SAFE_INTEGER;
         const sb = normalizeSectorSortOrder(valB) ?? Number.MAX_SAFE_INTEGER;
@@ -877,6 +890,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const logoutBtn = document.getElementById('admin-logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
+      // Drop the b2b_agents listener first — signing out while it is live makes
+      // it fire a permission-denied error against rules that no longer match us.
+      stopB2BPresenceWatch();
       const result = await logoutUser();
       if (result.success) window.location.href = '/login.html';
     });
@@ -5253,6 +5269,57 @@ function openAgentModal(agent) {
 // instant per-route price adjustments (b2b.zamratravels.com)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Live presence plumbing. The snapshot listener reacts to heartbeat writes;
+// the ticker exists because "Online" also expires with nothing but the passage
+// of time — no write arrives when an agent simply closes the tab.
+let _b2bAgentsUnsub = null;
+let _b2bPresenceTimer = null;
+const B2B_PRESENCE_TICK_MS = 30 * 1000;
+
+/**
+ * Keeps the agents table in sync with the b2b_agents collection.
+ *
+ * Idempotent: the tab re-renders on every visit, and re-subscribing each time
+ * would stack listeners (and their re-render callbacks) exactly the way the
+ * `dataset.actionsWired` guards prevent for click handlers.
+ */
+function startB2BPresenceWatch() {
+  if (!_b2bAgentsUnsub) {
+    _b2bAgentsUnsub = subscribeB2BAgents((agents) => {
+      _b2bAgents = agents;
+      // Only repaint while the tab is on screen — a background repaint would
+      // fight whatever tab the admin is actually looking at.
+      if (isTabActive('b2b-agents-tab')) renderB2BAgentsTab(false);
+    });
+  }
+  if (!_b2bPresenceTimer) {
+    _b2bPresenceTimer = setInterval(() => {
+      if (isTabActive('b2b-agents-tab')) renderB2BAgentsTab(false);
+    }, B2B_PRESENCE_TICK_MS);
+  }
+}
+
+function stopB2BPresenceWatch() {
+  if (_b2bAgentsUnsub) _b2bAgentsUnsub();
+  _b2bAgentsUnsub = null;
+  if (_b2bPresenceTimer) clearInterval(_b2bPresenceTimer);
+  _b2bPresenceTimer = null;
+}
+
+/** Live count of who has the portal open right now. */
+function renderB2BPresenceSummary() {
+  const el = document.getElementById('b2b-presence-summary');
+  if (!el) return;
+  const states = _b2bAgents.map(a => describeAgentActivity(a).presence);
+  const online = states.filter(s => s === 'online').length;
+  const idle = states.filter(s => s === 'idle').length;
+
+  const dotClass = online ? 'b2b-presence-online' : 'b2b-presence-offline';
+  const idleText = idle ? ` · ${idle} idle` : '';
+  el.innerHTML = `<span class="b2b-presence ${dotClass}"><span class="b2b-presence-dot"></span>${online} online now</span>
+    <span class="text-text-muted">${idleText} · ${_b2bAgents.length} agent${_b2bAgents.length === 1 ? '' : 's'}</span>`;
+}
+
 async function renderB2BAgentsTab(fetchData = true) {
   if (fetchData) {
     // Suppliers drive the markup-rules table; loadGlobalData() usually has them
@@ -5290,11 +5357,14 @@ async function renderB2BAgentsTab(fetchData = true) {
   const start = (tablePage.b2bAgents - 1) * limit;
   const pageData = sorted.slice(start, start + limit);
 
+  const now = Date.now();
   tbody.innerHTML = pageData.length
-    ? pageData.map(a => b2bAgentRow(a)).join('')
-    : `<tr><td colspan="8" class="text-center py-8 text-text-muted">No B2B agents yet. Click "+ Add B2B Agent" to create the first login.</td></tr>`;
+    ? pageData.map(a => b2bAgentRow(a, now)).join('')
+    : `<tr><td colspan="9" class="text-center py-8 text-text-muted">No B2B agents yet. Click "+ Add B2B Agent" to create the first login.</td></tr>`;
 
   renderPaginationFooter('b2bAgents', sorted.length, totalPages, start, limit);
+  renderB2BPresenceSummary();
+  startB2BPresenceWatch();
   wireB2BAgentActions();
   wireB2BSettingsForm();
 
@@ -5307,7 +5377,27 @@ async function renderB2BAgentsTab(fetchData = true) {
   updateSortIcons('b2bAgents');
 }
 
-function b2bAgentRow(a) {
+/**
+ * Activity cell — live presence badge over the last-login line.
+ *
+ * `now` is passed in so every row in one repaint is judged against the same
+ * instant; rows computing their own Date.now() would drift across a long page.
+ */
+function b2bActivityCell(a, now) {
+  const act = describeAgentActivity(a, now);
+  const badge = `<span class="b2b-presence b2b-presence-${act.presence}" title="${act.lastActiveTitle ? `Last seen ${act.lastActiveTitle}` : 'Never seen in the portal'}">
+      <span class="b2b-presence-dot"></span>${act.label}</span>`;
+
+  if (!act.everSeen) {
+    return `${badge}<span class="b2b-activity-meta">Never logged in</span>`;
+  }
+  const meta = act.presence === 'online'
+    ? `Logged in ${act.lastLoginText || '—'}`
+    : `Last seen ${act.lastActiveText || act.lastLoginText || '—'}`;
+  return `${badge}<span class="b2b-activity-meta" title="${act.lastLoginTitle ? `Last login ${act.lastLoginTitle}` : ''}">${escapeHtml(meta)}</span>`;
+}
+
+function b2bAgentRow(a, now = Date.now()) {
   const statusBadge = a.isActive !== false
     ? `<span class="admin-status-pill admin-status-active">Active</span>`
     : `<span class="admin-status-pill admin-status-inactive">Disabled</span>`;
@@ -5327,11 +5417,13 @@ function b2bAgentRow(a) {
     <td>${a.phone || '—'}</td>
     <td class="font-semibold text-navy">${markup}</td>
     <td class="text-xs text-text-muted">${restrictions.join('<br>') || '—'}</td>
+    <td>${b2bActivityCell(a, now)}</td>
     <td>${statusBadge}</td>
     <td>
       <div class="flex gap-1 flex-wrap items-center">
         <button data-action="edit-b2b-agent" data-id="${a.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
-        <button data-action="reset-b2b-password" data-id="${a.id}" class="admin-action-btn admin-action-show"><i class="bi bi-key"></i>Reset PW</button>
+        <button data-action="view-b2b-credentials" data-id="${a.id}" class="admin-action-btn admin-action-show"><i class="bi bi-eye"></i>Credentials</button>
+        <button data-action="reset-b2b-password" data-id="${a.id}" class="admin-action-btn admin-action-show"><i class="bi bi-key"></i>Set PW</button>
         <button data-action="toggle-b2b-agent" data-id="${a.id}" data-active="${a.isActive !== false}"
           class="admin-action-btn ${a.isActive !== false ? 'admin-action-toggle' : 'admin-action-show'}">
           <i class="bi ${a.isActive !== false ? 'bi-slash-circle' : 'bi-check-circle'}"></i>${a.isActive !== false ? 'Deactivate' : 'Activate'}</button>
@@ -5357,15 +5449,23 @@ function wireB2BAgentActions() {
 
     if (action === 'edit-b2b-agent') openB2BAgentModal(agent);
 
-    if (action === 'reset-b2b-password') {
-      if (!confirm(`Generate a NEW password for "${agent.loginId}"? The old password stops working immediately.`)) return;
+    if (action === 'view-b2b-credentials') {
       btn.disabled = true;
       try {
-        const res = await callResetB2BAgentPassword(id);
-        openB2BCredentialsModal('Password Reset', res.loginId, res.password);
-      } catch (err) { toast('error', 'Reset Failed', err.message); }
+        const res = await callGetB2BAgentCredentials(id);
+        if (res.available) {
+          openB2BCredentialsModal(`Credentials — ${res.loginId}`, res.loginId, res.password, {
+            changedBy: res.changedBy,
+            updatedAt: res.updatedAt,
+          });
+        } else {
+          openB2BCredentialsUnavailableModal(agent, res.reason);
+        }
+      } catch (err) { toast('error', 'Could Not Load Credentials', err.message); }
       btn.disabled = false;
     }
+
+    if (action === 'reset-b2b-password') openB2BSetPasswordModal(agent);
 
     if (action === 'toggle-b2b-agent') {
       const newStatus = btn.dataset.active !== 'true';
@@ -5815,7 +5915,7 @@ function openB2BAgentModal(agent) {
         <div class="admin-form-section-head">
           <div>
             <p class="admin-form-section-title">Agent Profile</p>
-            <p class="admin-form-section-desc">${isEdit ? 'Login ID cannot be changed after creation.' : 'A password is generated automatically and shown once after saving.'}</p>
+            <p class="admin-form-section-desc">${isEdit ? 'Login ID cannot be changed after creation. Use "Set PW" on the row to change the password.' : 'Set a password below, or leave it blank to generate one.'}</p>
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -5840,6 +5940,13 @@ function openB2BAgentModal(agent) {
             <label class="admin-label">Place</label>
             <input name="place" value="${agent?.place || ''}" class="admin-control" placeholder="e.g. Malappuram">
           </div>
+          ${isEdit ? '' : `
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Password</label>
+            <input name="password" type="text" class="admin-control font-mono" autocomplete="off"
+              placeholder="Leave blank to generate one automatically">
+            <p class="admin-help">Minimum 8 characters with at least one letter and one number, no spaces. The agent can change it themselves from the portal, and you can view the current one any time via "Credentials".</p>
+          </div>`}
         </div>
       </div>
 
@@ -5886,7 +5993,7 @@ function openB2BAgentModal(agent) {
 
       <div class="admin-modal-footer">
         <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
-        <button type="submit" class="admin-btn admin-btn-primary text-sm">${isEdit ? 'Save Changes' : 'Create Agent & Generate Password'}</button>
+        <button type="submit" class="admin-btn admin-btn-primary text-sm">${isEdit ? 'Save Changes' : 'Create Agent'}</button>
       </div>
     </form>`, true);
 
@@ -5932,44 +6039,155 @@ function openB2BAgentModal(agent) {
         toast('success', 'Updated', `B2B agent "${agent.loginId}" updated. Changes apply on their next search.`);
         document.getElementById('admin-modal').close();
       } else {
-        const res = await callCreateB2BAgent({ ...data, loginId: form.elements.loginId.value.trim() });
-        openB2BCredentialsModal('B2B Agent Created', res.loginId, res.password);
+        const customPassword = form.elements.password?.value || '';
+        const res = await callCreateB2BAgent({
+          ...data,
+          loginId: form.elements.loginId.value.trim(),
+          // Omit the key entirely when blank — the server reads "absent" as
+          // "generate one", but would try to validate an empty string.
+          ...(customPassword ? { password: customPassword } : {}),
+        });
+        openB2BCredentialsModal('B2B Agent Created', res.loginId, res.password, { stored: res.stored });
       }
       await renderB2BAgentsTab();
     } catch (err) {
       toast('error', 'Save Failed', err.message);
-      btn.disabled = false; btn.textContent = isEdit ? 'Save Changes' : 'Create Agent & Generate Password';
+      btn.disabled = false; btn.textContent = isEdit ? 'Save Changes' : 'Create Agent';
     }
   });
 }
 
-function openB2BCredentialsModal(title, loginId, password) {
-  openModal(title, `
-    <div class="space-y-4">
+/**
+ * Set (or regenerate) an agent's portal password.
+ *
+ * Replaces the old one-click "Reset PW" so an admin can hand an agent a
+ * password they will actually remember. Leaving the field blank keeps the old
+ * behaviour of generating one.
+ */
+function openB2BSetPasswordModal(agent) {
+  openModal(`Set Password — ${agent.loginId}`, `
+    <form id="b2b-set-pw-form" class="admin-modal-form">
       <div class="rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm p-3">
         <i class="bi bi-exclamation-triangle-fill"></i>
-        This password is shown <strong>only once</strong> and is not stored anywhere.
-        Copy it now and share it with the agent.
+        The agent's current password stops working immediately and they are signed out of any open session.
+      </div>
+      <div class="admin-field mt-4">
+        <label class="admin-label">New Password</label>
+        <input name="password" type="text" class="admin-control font-mono" autocomplete="off"
+          placeholder="Leave blank to generate a random one">
+        <p class="admin-help">Minimum 8 characters with at least one letter and one number, no spaces.</p>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
+        <button type="submit" class="admin-btn admin-btn-primary text-sm">Set Password</button>
+      </div>
+    </form>`);
+
+  document.getElementById('modal-cancel')?.addEventListener('click', () => document.getElementById('admin-modal').close());
+
+  document.getElementById('b2b-set-pw-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('[type=submit]');
+    const custom = e.target.elements.password.value;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await callResetB2BAgentPassword(agent.id, custom || undefined);
+      openB2BCredentialsModal('Password Updated', res.loginId, res.password, { stored: res.stored });
+      await renderB2BAgentsTab();
+    } catch (err) {
+      toast('error', 'Could Not Set Password', err.message);
+      btn.disabled = false; btn.textContent = 'Set Password';
+    }
+  });
+}
+
+/** Shown when there is no readable stored password (pre-existing agent, or rotated key). */
+function openB2BCredentialsUnavailableModal(agent, reason) {
+  openModal(`Credentials — ${agent.loginId}`, `
+    <div class="space-y-4">
+      <div class="rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm p-3">
+        <i class="bi bi-exclamation-triangle-fill"></i> ${escapeHtml(reason || 'This password cannot be shown.')}
       </div>
       <div class="admin-field">
         <label class="admin-label">Login ID</label>
         <div class="flex gap-2">
-          <input readonly value="${loginId}" class="admin-control font-mono flex-1">
-          <button type="button" data-copy="${loginId}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
+          <input readonly value="${escapeHtml(agent.loginId || '')}" class="admin-control font-mono flex-1">
+          <button type="button" data-copy="${escapeHtml(agent.loginId || '')}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
+        </div>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" id="b2b-cred-done" class="admin-btn admin-btn-ghost px-6 text-sm">Close</button>
+        <button type="button" id="b2b-cred-reset" class="admin-btn admin-btn-primary px-6 text-sm"><i class="bi bi-key"></i> Set a New Password</button>
+      </div>
+    </div>`);
+
+  const body = document.getElementById('modal-body');
+  body?.addEventListener('click', async (e) => {
+    const copyBtn = e.target.closest('[data-copy]');
+    if (copyBtn) {
+      try {
+        await navigator.clipboard.writeText(copyBtn.dataset.copy);
+        toast('success', 'Copied', 'Copied to clipboard.');
+      } catch { toast('error', 'Copy Failed', 'Select and copy manually.'); }
+    }
+    if (e.target.closest('#b2b-cred-done')) document.getElementById('admin-modal').close();
+    if (e.target.closest('#b2b-cred-reset')) openB2BSetPasswordModal(agent);
+  });
+}
+
+/**
+ * Shows an agent's ID and password with copy helpers.
+ *
+ * Used both right after a create/reset and later on demand from the
+ * "Credentials" row action — the password is retrievable because a copy is kept
+ * encrypted server-side (see functions/b2bCredentials.js). `meta.stored: false`
+ * means that copy failed to write, so this really is the last look at it.
+ *
+ * @param {{changedBy?: string, updatedAt?: string, stored?: boolean}} [meta]
+ */
+function openB2BCredentialsModal(title, loginId, password, meta = {}) {
+  const setByText = meta.changedBy === 'agent'
+    ? 'Chosen by the agent in the portal'
+    : meta.changedBy === 'admin' ? 'Set from this dashboard' : '';
+  const whenText = meta.updatedAt
+    ? new Date(meta.updatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  const banner = meta.stored === false
+    ? `<div class="rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm p-3">
+         <i class="bi bi-exclamation-triangle-fill"></i>
+         The password was set, but the viewable copy could not be saved — this is the
+         <strong>only</strong> time it will be shown. Copy it now.
+       </div>`
+    : `<div class="rounded-lg border border-sky-300 bg-sky-50 text-sky-800 text-sm p-3">
+         <i class="bi bi-info-circle-fill"></i>
+         These credentials stay viewable from the <strong>Credentials</strong> button on the agent's row.
+         ${setByText || whenText ? `<span class="block mt-1 text-[12px] opacity-80">${escapeHtml([setByText, whenText].filter(Boolean).join(' · '))}</span>` : ''}
+       </div>`;
+
+  openModal(title, `
+    <div class="space-y-4">
+      ${banner}
+      <div class="admin-field">
+        <label class="admin-label">Login ID</label>
+        <div class="flex gap-2">
+          <input readonly value="${escapeHtml(loginId)}" class="admin-control font-mono flex-1">
+          <button type="button" data-copy="${escapeHtml(loginId)}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
         </div>
       </div>
       <div class="admin-field">
         <label class="admin-label">Password</label>
         <div class="flex gap-2">
-          <input readonly value="${password}" class="admin-control font-mono flex-1">
-          <button type="button" data-copy="${password}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
+          <input id="b2b-cred-password" readonly type="password" value="${escapeHtml(password)}" class="admin-control font-mono flex-1">
+          <button type="button" id="b2b-cred-reveal" class="admin-btn admin-btn-ghost px-4" title="Show password"><i class="bi bi-eye"></i></button>
+          <button type="button" data-copy="${escapeHtml(password)}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
         </div>
       </div>
       <div class="admin-field">
         <label class="admin-label">Both (ready to send)</label>
         <div class="flex gap-2">
-          <input readonly value="Zamra B2B Portal — ID: ${loginId}  Password: ${password}" class="admin-control font-mono text-xs flex-1">
-          <button type="button" data-copy="Zamra B2B Portal — ID: ${loginId}  Password: ${password}  Login: https://b2b.zamratravels.com" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
+          <input readonly value="${escapeHtml(`Zamra B2B Portal — ID: ${loginId}  Password: ${password}`)}" class="admin-control font-mono text-xs flex-1">
+          <button type="button" data-copy="${escapeHtml(`Zamra B2B Portal — ID: ${loginId}  Password: ${password}  Login: https://b2b.zamratravels.com`)}" class="admin-btn admin-btn-ghost px-4"><i class="bi bi-clipboard"></i></button>
         </div>
       </div>
       <div class="admin-modal-footer">
@@ -5985,6 +6203,16 @@ function openB2BCredentialsModal(title, loginId, password) {
         await navigator.clipboard.writeText(copyBtn.dataset.copy);
         toast('success', 'Copied', 'Copied to clipboard.');
       } catch { toast('error', 'Copy Failed', 'Select and copy manually.'); }
+    }
+    const revealBtn = e.target.closest('#b2b-cred-reveal');
+    if (revealBtn) {
+      // Masked by default so a shared screen or a shoulder does not leak it —
+      // the copy button works either way.
+      const input = document.getElementById('b2b-cred-password');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      revealBtn.innerHTML = `<i class="bi bi-eye${show ? '-slash' : ''}"></i>`;
+      revealBtn.title = show ? 'Hide password' : 'Show password';
     }
     if (e.target.closest('#b2b-cred-done')) document.getElementById('admin-modal').close();
   });

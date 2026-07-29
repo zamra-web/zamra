@@ -44,6 +44,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── b2b_credentials ──────────────────────────────────────────────────────
+    // Encrypted copies of B2B agent passwords, kept so admins can re-read an
+    // agent's current credentials (Firebase Auth cannot give a password back).
+    //
+    // Denied to EVERY client, admins included: the only reader is the
+    // getB2BAgentCredentials callable, which runs on the Admin SDK and bypasses
+    // these rules. Keeping it out of b2b_agents matters because that doc is
+    // readable by the agent it belongs to.
+    match /b2b_credentials/{agentId} {
+      allow read, write: if false;
+    }
+
     // ── sectors ──────────────────────────────────────────────────────────────
     // Public can read sectors; only admins can write
     match /sectors/{sectorId} {
@@ -137,8 +149,13 @@ service cloud.firestore {
 
     // ── config ────────────────────────────────────────────────────────────────
     // Admin-managed operational config (e.g. social publishing health/channel ids)
+    //
+    // config/b2b_secure is carved out: it holds the key that encrypts the
+    // b2b_credentials copies, and rules are OR-ed across matches, so a separate
+    // `match /config/b2b_secure { allow read: if false }` would NOT override an
+    // allow here — the exclusion has to live in this condition.
     match /config/{configId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() && configId != 'b2b_secure';
     }
 
     // ── social_queue ──────────────────────────────────────────────────────────

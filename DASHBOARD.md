@@ -347,12 +347,39 @@ Portal logins, pricing controls, and route visibility for `b2b.zamratravels.com`
 
 > **Naming trap:** `agents` = rate **suppliers** (Mushtaq, Ameen, Lafi…). `b2b_agents` = travel-agency **customers** who log into the portal. The two are unrelated collections.
 
-- **Full CRUD** — Add / Edit / Reset Password / Activate / Delete, all via Cloud Function callables (`createB2BAgent`, `resetB2BAgentPassword`, `setB2BAgentStatus`, `deleteB2BAgent`).
+- **Full CRUD** — Add / Edit / Credentials / Set PW / Activate / Delete, all via Cloud Function callables (`createB2BAgent`, `getB2BAgentCredentials`, `resetB2BAgentPassword`, `setB2BAgentStatus`, `deleteB2BAgent`).
 - **Global B2B Settings** — default markup (₹) and portal WhatsApp number, stored on `config/b2b`.
 - **Supplier Markup Rules** — per-supplier price adjustments, optionally scoped to a single agent. See the pricing waterfall below.
 - **Route Visibility** — hide whole departure airports or individual sectors per agent.
 - **Instant Price Adjustments** — per-route ± amount per agent (`routeAdjustments`).
-- **Table columns:** Login ID · Name · Agency · Phone · Markup · Restrictions · Status · Actions
+- **Table columns:** Login ID · Name · Agency · Phone · Markup · Restrictions · Activity · Status · Actions
+
+#### Live presence & last login
+The **Activity** column shows an Online / Idle / Offline badge over a "last seen" or "last login" line, and a roll-up count sits under the tab title.
+
+The portal calls `recordB2BAgentActivity` on boot (`event: 'login'`) and every 60s while the tab is **visible** — a backgrounded tab stops beating, which is what lets the badge decay to Offline a few minutes after an agent walks away. The server throttles writes to one per 45s (login events always write), so an open portal costs about one write a minute.
+
+Thresholds live in two places and **must stay in step**: `ONLINE_WINDOW_MS` / `IDLE_WINDOW_MS` in [functions/b2bCredentials.js](functions/b2bCredentials.js) and the same constants in [web/src/js/shared/b2b-presence.js](web/src/js/shared/b2b-presence.js). Drift shows up as agents flickering offline while the portal is open.
+
+The dashboard reads presence through a `b2b_agents` **snapshot listener** (`subscribeB2BAgents`) plus a 30s local ticker. Both are needed: the listener catches heartbeat writes, and the ticker catches the case where nothing is written at all because the agent simply closed the tab. `startB2BPresenceWatch()` is idempotent — re-subscribing on each tab visit would stack listeners the same way un-guarded click handlers stack.
+
+#### Credential visibility
+Admins can re-read an agent's login ID and **current** password at any time via the **Credentials** row action, not only at creation.
+
+Firebase Auth stores password hashes and cannot return a password, so this works by keeping our own copy: AES-256-GCM ciphertext in `b2b_credentials/{agentId}`, written on every create / admin reset / agent self-service change. [firestore.rules](firestore.rules) denies that collection to **every** client including admins — the only reader is the `getB2BAgentCredentials` callable, which runs on the Admin SDK. It is kept out of the `b2b_agents` doc because that doc is readable by the agent it belongs to.
+
+The key comes from `B2B_CRED_KEY` when the env var is set, otherwise a random key generated once and parked on `config/b2b_secure`. That doc is carved out of the `config/{configId}` admin rule by an explicit `configId != 'b2b_secure'` — Firestore OR-s all matching rules, so a separate `match /config/b2b_secure { allow read: if false }` would **not** override the broader allow.
+
+Treat this as "protected at rest and behind an admin claim", not as hashing: it is reversible by design. Agents predating the feature, and any ciphertext orphaned by a key rotation, report `available: false` and prompt for a reset — the honest answer, since the original really is unrecoverable.
+
+#### Custom passwords
+Both sides can now choose a password instead of taking a generated one:
+- **Admin** — the Password field in the Add modal and the "Set PW" modal. Blank still generates one. An admin reset revokes refresh tokens, so the agent is signed out everywhere.
+- **Agent** — the **Password** button in the portal header (`changeB2BAgentPassword`). The agent stays signed in.
+
+Policy (`validateCustomPassword`): 8–64 characters, at least one letter and one number, no spaces. Enforced server-side; the portal and dashboard mirror it only to catch typos early.
+
+The Admin SDK cannot verify a password, so the agent flow splits the check across two places: the browser proves the current password with Firebase Auth `reauthenticateWithCredential` (then forces an ID-token refresh), and the callable requires the resulting token's `auth_time` to be under 10 minutes old. Dropping either half would let a stale token change a password.
 
 > **DOM gotcha:** this tab holds **two** `.admin-table` elements — the Supplier Markup Rules table comes first, the agents table second. Both tbodies carry explicit ids (`#b2b-rules-body`, `#b2b-agents-body`) and the JS must address them by id. A bare `document.querySelector('#b2b-agents-tab .admin-table tbody')` resolves to the **rules** table and silently breaks the tab three ways: agent rows overwrite the rules, the agents table renders empty under a correct row count, and `wireB2BAgentActions()` hits the rules tbody's already-set `actionsWired` flag so Edit / Reset PW / Deactivate / Delete never bind. Fixed in `renderB2BAgentsTab()` and `wireB2BAgentActions()`.
 
@@ -631,9 +658,29 @@ Travel-agency customers of the B2B portal — **not** the `agents` (supplier) co
 | `routeAdjustments` | Map\<sectorId, Number\> | Signed ₹ per route |
 | `hiddenOrigins` | Array\<String\> | Departure airport codes hidden from this agent |
 | `hiddenSectorIds` | Array\<String\> | Individual sectors hidden from this agent |
-| `createdAt` / `updatedAt` | Timestamp | Server timestamps |
+| `lastLoginAt` | Timestamp | Last portal sign-in (`recordB2BAgentActivity` with `event: 'login'`) |
+| `lastActiveAt` | Timestamp | Last heartbeat — drives the Online badge |
+| `loginCount` | Number | Incremented on each login event |
+| `passwordUpdatedAt` | Timestamp | When the password last changed |
+| `passwordSetBy` | String | `'admin'` or `'agent'` |
+| `createdAt` / `updatedAt` | Timestamp | Server timestamps. **The heartbeat deliberately does not touch `updatedAt`** — it tracks admin edits, and a beat bumping it would make every agent look freshly edited |
 
-Passwords are generated server-side, returned once, and never stored.
+Passwords may be admin-set, agent-chosen, or generated. A reversible copy is kept in `b2b_credentials` so admins can re-read them — see *Credential visibility* above.
+
+### `b2b_credentials`
+Encrypted copies of B2B portal passwords, one doc per agent (doc id = the `b2b_agents` id). **Denied to every client** in [firestore.rules](firestore.rules); reachable only through the Admin SDK inside `getB2BAgentCredentials`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `secret` | Map | `{ alg: 'aes-256-gcm', iv, tag, data }` — all base64 |
+| `changedBy` | String | `'admin'` or `'agent'` |
+| `updatedAt` | Timestamp | When the password was last set |
+| `lastViewedAt` / `lastViewedBy` | Timestamp / String | Audit stamp written whenever an admin reveals it |
+
+Deleted alongside the agent in `deleteB2BAgent`.
+
+### `config/b2b_secure`
+Holds `credKey` — the encryption key for `b2b_credentials`, generated once on first use when `B2B_CRED_KEY` is unset. Excluded from the admin `config/{configId}` rule by an explicit `configId != 'b2b_secure'` condition, because Firestore OR-s matching rules and a separate deny would not override the allow.
 
 ### `config/b2b`
 | Field | Type | Notes |

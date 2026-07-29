@@ -814,8 +814,29 @@ export async function updateB2BAgent(agentId, data) {
 }
 
 /**
+ * Live-subscribe to the B2B agent list.
+ *
+ * Presence (lastActiveAt) is written by the recordB2BAgentActivity heartbeat,
+ * so the admin table only shows an accurate "Online" badge if it is watching the
+ * collection rather than polling — hence a snapshot listener here.
+ *
+ * @param {(agents: Array<object>) => void} onData
+ * @param {(err: Error) => void} [onError]
+ * @returns {() => void} unsubscribe
+ */
+export function subscribeB2BAgents(onData, onError) {
+  return onSnapshot(
+    query(collection(db, 'b2b_agents'), orderBy('loginIdLower')),
+    (snap) => onData(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    (err) => { if (onError) onError(err); else console.error('B2B agents listener failed:', err); },
+  );
+}
+
+/**
  * Create a B2B agent (Auth account + Firestore doc) via Cloud Function.
- * @returns {Promise<{agentId, loginId, email, password}>} password is shown ONCE.
+ * @param {object} data  profile + pricing fields; optional `password` sets a
+ *   custom password instead of a generated one.
+ * @returns {Promise<{agentId, loginId, email, password, isCustom, stored}>}
  */
 export async function callCreateB2BAgent(data) {
   const fn = httpsCallable(functions, 'createB2BAgent');
@@ -823,9 +844,27 @@ export async function callCreateB2BAgent(data) {
   return result.data;
 }
 
-/** Generate a new password for a B2B agent. Returned once, never stored. */
-export async function callResetB2BAgentPassword(agentId) {
+/**
+ * Set a B2B agent's password. Omit `password` to generate one.
+ * @returns {Promise<{loginId, password, isCustom, stored}>}
+ */
+export async function callResetB2BAgentPassword(agentId, password) {
   const fn = httpsCallable(functions, 'resetB2BAgentPassword');
+  const result = await fn(password ? { agentId, password } : { agentId });
+  return result.data;
+}
+
+/**
+ * Re-read a B2B agent's login ID and current password.
+ *
+ * Only resolves for passwords set since credential storage shipped — older
+ * accounts come back `{ available: false, reason }` and need a reset first,
+ * because Firebase Auth stores hashes and cannot return the original.
+ *
+ * @returns {Promise<{available: boolean, loginId, password?, reason?, updatedAt?, changedBy?}>}
+ */
+export async function callGetB2BAgentCredentials(agentId) {
+  const fn = httpsCallable(functions, 'getB2BAgentCredentials');
   const result = await fn({ agentId });
   return result.data;
 }

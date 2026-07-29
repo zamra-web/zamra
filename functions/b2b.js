@@ -13,6 +13,14 @@ const crypto = require("node:crypto");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
+const {
+  CREDENTIALS_COLLECTION,
+  validateCustomPassword,
+  shouldWriteActivity,
+  encryptSecret,
+  decryptSecret,
+  loadCredentialKey,
+} = require("./b2bCredentials");
 const { compareSectorDisplayOrder } = require("./sectorOrdering");
 const { normalizeFlightTimeRange } = require("./flightTime");
 const {
@@ -28,6 +36,10 @@ const LOGIN_ID_PATTERN = /^[A-Za-z0-9]{3,20}$/;
 // Excludes lookalikes: 0/O/o, 1/l/I/i
 const PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const PASSWORD_LENGTH = 10;
+// How fresh a portal sign-in/reauthentication must be for a self-service
+// password change. The portal reauthenticates immediately before calling, so
+// this is slack for a slow network, not a usable window for a stale token.
+const REAUTH_MAX_AGE_SECONDS = 10 * 60;
 
 // ── Pure helpers (unit-tested) ───────────────────────────────────────────────
 
@@ -41,6 +53,22 @@ function generatePassword(length = PASSWORD_LENGTH) {
     out += PASSWORD_ALPHABET[crypto.randomInt(PASSWORD_ALPHABET.length)];
   }
   return out;
+}
+
+/**
+ * Picks the password for a create/reset: the admin's chosen one when supplied,
+ * otherwise a generated one. Throws with the exact failed rule so the dashboard
+ * can show it inline rather than a generic "save failed".
+ * @param {unknown} value
+ * @returns {{ password: string, isCustom: boolean }}
+ */
+function resolveRequestedPassword(value) {
+  if (value === undefined || value === null || value === "") {
+    return { password: generatePassword(), isCustom: false };
+  }
+  const check = validateCustomPassword(value);
+  if (!check.ok) throw new HttpsError("invalid-argument", check.reason);
+  return { password: check.password, isCustom: true };
 }
 
 /**
@@ -265,6 +293,39 @@ function sanitizeSupplierDefaults(value) {
 function build(db, requireAdmin) {
   const REGION = { region: "asia-south1" };
 
+  /**
+   * Writes the admin-readable copy of an agent's password.
+   *
+   * Lives in its own collection rather than on the b2b_agents doc because that
+   * doc is readable by the agent it belongs to (see firestore.rules); the
+   * credentials collection is denied to every client and reachable only through
+   * getB2BAgentCredentials. Stored as AES-GCM ciphertext — see b2bCredentials.js
+   * for the trust model.
+   *
+   * Never throws into the caller's happy path: if the copy cannot be written the
+   * password change itself has already succeeded in Firebase Auth, and failing
+   * the whole call would leave the agent locked out of an account whose new
+   * password nobody saw.
+   *
+   * @param {string} agentId
+   * @param {string} password
+   * @param {"admin"|"agent"} changedBy
+   */
+  async function storeAgentCredential(agentId, password, changedBy) {
+    try {
+      const key = await loadCredentialKey(db);
+      await db.collection(CREDENTIALS_COLLECTION).doc(agentId).set({
+        secret: encryptSecret(password, key),
+        changedBy,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return true;
+    } catch (err) {
+      console.error(`Failed to store B2B credential copy for ${agentId}:`, err);
+      return false;
+    }
+  }
+
   /** Loads config/b2b with safe defaults. */
   async function getB2BConfig() {
     const snap = await db.collection("config").doc("b2b").get();
@@ -340,7 +401,7 @@ function build(db, requireAdmin) {
       }
     }
 
-    const password = generatePassword();
+    const { password, isCustom } = resolveRequestedPassword(data.password);
     const docRef = db.collection("b2b_agents").doc();
 
     const userRecord = await auth.createUser({ email, password, displayName: profile.name });
@@ -352,6 +413,8 @@ function build(db, requireAdmin) {
         authUid: userRecord.uid,
         ...profile,
         isActive: true,
+        passwordUpdatedAt: FieldValue.serverTimestamp(),
+        passwordSetBy: "admin",
         markupOverride: sanitizeMarkupOverride(data.markupOverride),
         hiddenOrigins: sanitizeCodeArray(data.hiddenOrigins),
         hiddenSectorIds: sanitizeIdArray(data.hiddenSectorIds),
@@ -367,20 +430,139 @@ function build(db, requireAdmin) {
       throw new HttpsError("internal", `Failed to create agent record: ${err.message}`);
     }
 
-    return { agentId: docRef.id, loginId, email, password };
+    const stored = await storeAgentCredential(docRef.id, password, "admin");
+
+    return { agentId: docRef.id, loginId, email, password, isCustom, stored };
   });
 
   const resetB2BAgentPassword = onCall(REGION, async (request) => {
     requireAdmin(request);
     const { ref, data } = await loadAgentDocForAdmin(request.data?.agentId);
 
-    const password = generatePassword();
+    const { password, isCustom } = resolveRequestedPassword(request.data?.password);
     const auth = getAuth();
     await auth.updateUser(data.authUid, { password });
     await auth.revokeRefreshTokens(data.authUid);
-    await ref.update({ updatedAt: FieldValue.serverTimestamp() });
+    await ref.update({
+      updatedAt: FieldValue.serverTimestamp(),
+      passwordUpdatedAt: FieldValue.serverTimestamp(),
+      passwordSetBy: "admin",
+    });
 
-    return { loginId: data.loginId, password };
+    const stored = await storeAgentCredential(ref.id, password, "admin");
+
+    return { loginId: data.loginId, password, isCustom, stored };
+  });
+
+  /**
+   * Reveals an agent's login ID and current password to an admin.
+   *
+   * Only works for passwords set after this feature shipped — agents created
+   * before it have no stored copy, and Firebase Auth cannot hand one back, so
+   * the honest answer is "unavailable, reset it". Same for a ciphertext that
+   * no longer decrypts (B2B_CRED_KEY rotated).
+   */
+  const getB2BAgentCredentials = onCall(REGION, async (request) => {
+    requireAdmin(request);
+    const { ref, data } = await loadAgentDocForAdmin(request.data?.agentId);
+
+    const credSnap = await db.collection(CREDENTIALS_COLLECTION).doc(ref.id).get();
+    const base = {
+      agentId: ref.id,
+      loginId: data.loginId || "",
+      email: loginIdToEmail(data.loginId || ""),
+      changedBy: credSnap.exists ? (credSnap.data().changedBy || "admin") : null,
+      updatedAt: credSnap.exists
+        ? (credSnap.data().updatedAt?.toDate?.()?.toISOString() || null)
+        : null,
+    };
+
+    if (!credSnap.exists) {
+      return {
+        ...base,
+        available: false,
+        reason: "No stored password for this agent yet. Reset the password to make it viewable here.",
+      };
+    }
+
+    const key = await loadCredentialKey(db);
+    const password = decryptSecret(credSnap.data().secret, key);
+    if (!password) {
+      return {
+        ...base,
+        available: false,
+        reason: "The stored password could not be read (encryption key changed). Reset the password to restore access.",
+      };
+    }
+
+    // Light audit trail — who looked, and when.
+    await credSnap.ref.update({
+      lastViewedAt: FieldValue.serverTimestamp(),
+      lastViewedBy: request.auth?.token?.email || request.auth?.uid || "admin",
+    }).catch(() => { /* a failed audit stamp must not block the reveal */ });
+
+    return { ...base, available: true, password };
+  });
+
+  /**
+   * Agent-chosen password change, from inside the portal.
+   *
+   * The current password is verified on the CLIENT via Firebase Auth
+   * reauthentication (the Admin SDK cannot check a password), so this callable
+   * enforces the other half of that contract: the caller's ID token must carry
+   * a fresh `auth_time`. Without the freshness check, a stolen long-lived token
+   * would be enough to take over the account.
+   */
+  const changeB2BAgentPassword = onCall(REGION, async (request) => {
+    const agent = await requireAgent(request);
+
+    const check = validateCustomPassword(request.data?.newPassword);
+    if (!check.ok) throw new HttpsError("invalid-argument", check.reason);
+
+    const authTimeSec = Number(request.auth?.token?.auth_time);
+    const ageSec = Number.isFinite(authTimeSec) ? (Date.now() / 1000) - authTimeSec : Infinity;
+    if (!(ageSec < REAUTH_MAX_AGE_SECONDS)) {
+      throw new HttpsError("failed-precondition", "REAUTH_REQUIRED");
+    }
+
+    const auth = getAuth();
+    await auth.updateUser(agent.authUid, { password: check.password });
+    await db.collection("b2b_agents").doc(agent.id).update({
+      passwordUpdatedAt: FieldValue.serverTimestamp(),
+      passwordSetBy: "agent",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await storeAgentCredential(agent.id, check.password, "agent");
+
+    return { changed: true };
+  });
+
+  /**
+   * Presence + last-login heartbeat, called by the portal on boot and on a
+   * timer while the tab is visible.
+   *
+   * Writes are throttled to ACTIVITY_WRITE_INTERVAL_MS (login events always
+   * write) so an open tab costs roughly one write a minute, not one per beat.
+   */
+  const recordB2BAgentActivity = onCall(REGION, async (request) => {
+    const agent = await requireAgent(request);
+    const isLogin = request.data?.event === "login";
+
+    const lastActiveMs = agent.lastActiveAt?.toDate?.()?.getTime?.() ?? null;
+    if (!shouldWriteActivity(lastActiveMs, Date.now(), isLogin)) {
+      return { recorded: false, throttled: true };
+    }
+
+    const updates = { lastActiveAt: FieldValue.serverTimestamp() };
+    if (isLogin) {
+      updates.lastLoginAt = FieldValue.serverTimestamp();
+      updates.loginCount = FieldValue.increment(1);
+    }
+    // Deliberately NOT touching updatedAt — that field tracks admin edits, and
+    // a heartbeat bumping it would make every agent look freshly edited.
+    await db.collection("b2b_agents").doc(agent.id).update(updates);
+
+    return { recorded: true, throttled: false };
   });
 
   const setB2BAgentStatus = onCall(REGION, async (request) => {
@@ -414,6 +596,8 @@ function build(db, requireAdmin) {
       }
     }
     await ref.delete();
+    // The stored password copy outlives nothing — drop it with the account.
+    await db.collection(CREDENTIALS_COLLECTION).doc(ref.id).delete().catch(() => {});
 
     return { deleted: true };
   });
@@ -497,6 +681,9 @@ function build(db, requireAdmin) {
   return {
     createB2BAgent,
     resetB2BAgentPassword,
+    getB2BAgentCredentials,
+    changeB2BAgentPassword,
+    recordB2BAgentActivity,
     setB2BAgentStatus,
     deleteB2BAgent,
     getB2BPortalContext,
@@ -523,4 +710,5 @@ module.exports = {
   sanitizeSupplierDefaults,
   loginIdToEmail,
   generatePassword,
+  resolveRequestedPassword,
 };

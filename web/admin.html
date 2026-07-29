@@ -470,6 +470,10 @@
                     <span class="admin-tab-kicker"><i class="bi bi-briefcase-fill"></i> B2B Portal</span>
                     <h2 class="admin-tab-title">B2B Agent Management</h2>
                     <p class="admin-tab-subtitle">Portal logins, per-agent markups, route visibility, and instant price adjustments for b2b.zamratravels.com.</p>
+                    <!-- Live presence roll-up — updated by the b2b_agents snapshot listener -->
+                    <p id="b2b-presence-summary" class="text-[12px] font-semibold text-text-muted mt-2 flex items-center gap-1.5">
+                        <span class="b2b-presence-dot b2b-presence-offline"></span> Presence loading…
+                    </p>
                 </div>
                 <button id="b2b-agents-add-btn"
                     class="admin-btn admin-btn-primary h-[42px] px-5"><i class="bi bi-person-plus-fill"></i>
@@ -583,6 +587,7 @@
                                 <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="phone">Phone <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="markupOverride">Markup <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Restrictions</th>
+                                <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="lastActiveAt">Activity <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th class="cursor-pointer group" data-sort-tab="b2bAgents" data-sort-key="isActive">Status <i class="bi bi-arrow-down-up opacity-30 group-hover:opacity-100 transition-opacity ml-1 text-[11px]"></i></th>
                                 <th>Actions</th>
                             </tr>

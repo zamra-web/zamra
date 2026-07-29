@@ -782,14 +782,20 @@ exports.purgeSocialPublishing =
 // ══════════════════════════════════════════════════════════════════════════════
 // B2B agent portal (b2b.zamratravels.com)
 //   Admin: createB2BAgent / resetB2BAgentPassword / setB2BAgentStatus /
-//          deleteB2BAgent (manage b2b_agents docs + their Auth accounts).
+//          deleteB2BAgent (manage b2b_agents docs + their Auth accounts), plus
+//          getB2BAgentCredentials to re-read an agent's current password.
 //   Agent: getB2BPortalContext / getB2BFares (server-side pricing so agents
-//          never see raw supplier rates).
+//          never see raw supplier rates), changeB2BAgentPassword for
+//          self-service passwords, recordB2BAgentActivity for the presence
+//          heartbeat that drives the admin "Online" badge.
 // ══════════════════════════════════════════════════════════════════════════════
 const b2b = require("./b2b").build(db, requireAdmin);
 
 exports.createB2BAgent = b2b.createB2BAgent;
 exports.resetB2BAgentPassword = b2b.resetB2BAgentPassword;
+exports.getB2BAgentCredentials = b2b.getB2BAgentCredentials;
+exports.changeB2BAgentPassword = b2b.changeB2BAgentPassword;
+exports.recordB2BAgentActivity = b2b.recordB2BAgentActivity;
 exports.setB2BAgentStatus = b2b.setB2BAgentStatus;
 exports.deleteB2BAgent = b2b.deleteB2BAgent;
 exports.getB2BPortalContext = b2b.getB2BPortalContext;
