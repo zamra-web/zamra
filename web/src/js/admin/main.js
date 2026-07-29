@@ -15,6 +15,7 @@ import {
   getFares, addFare, saveFares, deleteFare, updateFare,
   getFlightDetails, addFlightDetail, updateFlightDetail, deleteFlightDetail,
   getVisas, addVisa, updateVisa, deleteVisa,
+  getVisaRateCards, addVisaRateCard, updateVisaRateCard, deleteVisaRateCard,
   getVisaStampings, addVisaStamping, updateVisaStamping, deleteVisaStamping,
   getAttestations, addAttestation, updateAttestation, deleteAttestation,
   getPassportServices, addPassportService, updatePassportService, deletePassportService,
@@ -31,6 +32,7 @@ import {
   callResetB2BAgentPassword, callGetB2BAgentCredentials,
   callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
   saveB2BSupplierDefaults,
+  getB2BOffers, addB2BOffer, updateB2BOffer, deleteB2BOffer, saveB2BOfferOrder,
   getEnquiries, addEnquiry, updateEnquiry, deleteEnquiry,
   getDealLinks, saveDealLink, deleteDealLink, dealLinkExists,
 } from './db.js';
@@ -45,6 +47,30 @@ import {
   formatBaggageKg,
   hasVariableCheckInBaggage,
 } from '../shared/airline-baggage.js';
+import {
+  normaliseCountryKey,
+  normaliseRateCard,
+  countRateCardRows,
+  sortRateCards,
+  buildTemplateRateCard,
+  buildEmptyRateCard,
+} from '../shared/visa-rate-cards.js';
+import {
+  normaliseOffer,
+  sortOffers,
+  isOfferLive,
+  isOfferComplete,
+  offerLastLiveDate,
+  todayKeyIST,
+  formatOfferDate,
+  formatOfferPrice,
+  formatOfferBaggage,
+  buildOfferCardHtml,
+  badgeTone,
+  buildSampleOffer,
+  OFFER_BADGE_PRESETS,
+} from '../shared/b2b-offers.js';
+import { resolveAirlineBrand } from '../web/airline-brand.js';
 import { getPosterRateDisplay } from './poster-rate-display.js';
 import {
   sortFaresForExport,
@@ -92,10 +118,12 @@ import {
 let _agents = [];
 let _b2bAgents = [];
 let _b2bConfig = null;
+let _b2bOffers = [];
 let _sectors = [];
 let _airlines = [];
 let _flightDetails = [];
 let _visas = [];
+let _visaRateCards = [];
 let _visaStampings = [];
 let _attestations = [];
 let _passportServices = [];
@@ -5324,17 +5352,28 @@ async function renderB2BAgentsTab(fetchData = true) {
   if (fetchData) {
     // Suppliers drive the markup-rules table; loadGlobalData() usually has them
     // already, but the tab can render before that settles on a cold load.
-    const [b2bAgents, b2bConfig, suppliers] = await Promise.all([
+    const [b2bAgents, b2bConfig, suppliers, offers] = await Promise.all([
       getB2BAgents(),
       getB2BConfig(),
       _agents.length ? _agents : getAgents(),
+      // Non-fatal: `b2b_offers` is a newer collection, and rules that have not
+      // been deployed yet must not blank the whole tab.
+      getB2BOffers().catch((err) => {
+        console.warn('B2B offers unavailable:', err?.message || err);
+        return [];
+      }),
     ]);
     _b2bAgents = b2bAgents;
     _b2bConfig = b2bConfig;
     _agents = suppliers;
+    _b2bOffers = sortOffers(offers.map(normaliseOffer));
     tablePage.b2bAgents = 1;
     hydrateB2BSettingsForm();
     renderB2BRules();
+    // Only on a real fetch: the presence snapshot listener re-enters this
+    // function every heartbeat, and repainting the offers table under an
+    // admin's cursor for a b2b_agents change would be pure churn.
+    renderB2BOffers();
   }
   // Address the tbody by id — this tab also holds the supplier-rules table, which
   // sits FIRST, so `#b2b-agents-tab .admin-table tbody` resolves to the wrong one.
@@ -5517,6 +5556,320 @@ function wireB2BSettingsForm() {
 
     } catch (err) { toast('error', 'Save Failed', err.message); }
     btn.disabled = false; btn.textContent = 'Save Settings';
+  });
+}
+
+// ── B2B featured offers ───────────────────────────────────────────────────────
+// The promo cards beside "Welcome back" in the agent portal. Everything the
+// portal shows lives in `b2b_offers`; the renderer there holds no deals of its
+// own. Liveness is decided by functions/b2bOffers.js at serve time — this table
+// only previews the same rules so an admin can see what agents currently see.
+
+/** Airline brand for an offer: the live airlines row wins, snapshot is fallback. */
+function offerAirlineBrand(offer) {
+  return resolveAirlineBrand(
+    _airlines.find(a => a.id === offer.airlineId) || { name: offer.airlineName, code: offer.airlineCode },
+  );
+}
+
+function b2bOfferStatusCell(offer, todayKey) {
+  const live = isOfferLive(offer, todayKey);
+  const last = offerLastLiveDate(offer);
+  const pill = !offer.isActive
+    ? `<span class="admin-status-pill admin-status-inactive">Paused</span>`
+    : live
+      ? `<span class="admin-status-pill admin-status-active">Live</span>`
+      : `<span class="admin-status-pill admin-status-inactive">Expired</span>`;
+
+  const until = last
+    ? `<div class="text-[11px] text-text-muted mt-1">${offer.expiresAt ? 'Ends' : 'Until travel'} ${escapeHtml(formatOfferDate(last))}</div>`
+    : `<div class="text-[11px] text-text-muted mt-1">No end date</div>`;
+  return `${pill}${until}`;
+}
+
+function b2bOfferRow(offer, index, total, todayKey) {
+  const tone = badgeTone(offer.badgeTone);
+  const brand = offerAirlineBrand(offer);
+  const price = formatOfferPrice(offer);
+
+  return `<tr data-b2b-offer-id="${offer.id}">
+    <td>
+      <div class="flex items-center gap-1">
+        <button data-action="move-offer-up" data-id="${offer.id}" class="admin-action-btn admin-action-show px-2"
+          ${index === 0 ? 'disabled' : ''} title="Move left on the portal"><i class="bi bi-arrow-up"></i></button>
+        <button data-action="move-offer-down" data-id="${offer.id}" class="admin-action-btn admin-action-show px-2"
+          ${index === total - 1 ? 'disabled' : ''} title="Move right on the portal"><i class="bi bi-arrow-down"></i></button>
+      </div>
+    </td>
+    <td>${offer.badge
+      ? `<span class="inline-flex items-center gap-1 px-2 py-[3px] rounded-md border text-[10px] font-black uppercase tracking-[0.5px] ${tone.chip}">${tone.icon} ${escapeHtml(offer.badge)}</span>`
+      : '<span class="text-text-muted">—</span>'}</td>
+    <td class="font-bold text-navy whitespace-nowrap">${escapeHtml(offer.originCode)} → ${escapeHtml(offer.destCode)}
+      <div class="text-[11px] font-medium text-text-muted">${escapeHtml([offer.originCity, offer.destCity].filter(Boolean).join(' – ')) || '&nbsp;'}</div>
+    </td>
+    <td class="text-[13px]">${escapeHtml(offer.airlineName || brand.name)}</td>
+    <td class="text-[13px] whitespace-nowrap">${escapeHtml(formatOfferDate(offer.travelDate)) || '—'}</td>
+    <td class="text-[13px] whitespace-nowrap">${escapeHtml(formatOfferBaggage(offer))}</td>
+    <td class="font-black text-[15px] text-navy">${escapeHtml(price) || '<span class="text-text-muted font-normal text-[13px]">Hidden</span>'}</td>
+    <td>${b2bOfferStatusCell(offer, todayKey)}</td>
+    <td>
+      <div class="flex gap-1 flex-wrap items-center">
+        <button data-action="edit-offer" data-id="${offer.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="toggle-offer" data-id="${offer.id}" class="admin-action-btn ${offer.isActive ? 'admin-action-toggle' : 'admin-action-show'}">
+          <i class="bi ${offer.isActive ? 'bi-pause-circle' : 'bi-play-circle'}"></i>${offer.isActive ? 'Pause' : 'Resume'}</button>
+        <button data-action="delete-offer" data-id="${offer.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function renderB2BOffers() {
+  const tbody = document.getElementById('b2b-offers-body');
+  if (!tbody) return;
+
+  const todayKey = todayKeyIST();
+  const total = _b2bOffers.length;
+  tbody.innerHTML = total
+    ? _b2bOffers.map((offer, i) => b2bOfferRow(offer, i, total, todayKey)).join('')
+    : `<tr><td colspan="9" class="text-center py-8 text-text-muted">No featured offers yet. Click "Add Offer" — the form pre-fills with a Kozhikode → Jeddah sample you can edit.</td></tr>`;
+
+  wireB2BOfferActions();
+
+  const addBtn = document.getElementById('b2b-offer-add-btn');
+  if (addBtn && !addBtn.dataset.wired) {
+    addBtn.dataset.wired = '1';
+    addBtn.addEventListener('click', () => openB2BOfferModal(null));
+  }
+}
+
+/**
+ * Move an offer one slot and persist the whole list's positions.
+ *
+ * The full list is rewritten rather than swapping two `order` values, because
+ * legacy rows all sit at 0 and swapping zeros would move nothing on screen.
+ */
+async function moveB2BOffer(id, delta) {
+  const from = _b2bOffers.findIndex(o => o.id === id);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= _b2bOffers.length) return;
+
+  const next = [..._b2bOffers];
+  [next[from], next[to]] = [next[to], next[from]];
+  // Repaint first so the arrows feel instant; a failed write re-fetches below.
+  _b2bOffers = next.map((offer, index) => ({ ...offer, order: index }));
+  renderB2BOffers();
+
+  try {
+    await saveB2BOfferOrder(_b2bOffers.map(o => o.id));
+  } catch (err) {
+    toast('error', 'Reorder Failed', err.message);
+    await renderB2BAgentsTab();
+  }
+}
+
+function wireB2BOfferActions() {
+  const tbody = document.getElementById('b2b-offers-body');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const offer = _b2bOffers.find(o => o.id === id);
+    if (!offer) return;
+
+    if (action === 'edit-offer') openB2BOfferModal(offer);
+    if (action === 'move-offer-up') await moveB2BOffer(id, -1);
+    if (action === 'move-offer-down') await moveB2BOffer(id, 1);
+
+    if (action === 'toggle-offer') {
+      btn.disabled = true;
+      try {
+        await updateB2BOffer(id, { isActive: !offer.isActive });
+        toast('success', offer.isActive ? 'Offer Paused' : 'Offer Resumed',
+          `${offer.originCode} → ${offer.destCode} is ${offer.isActive ? 'hidden from' : 'back on'} the agent dashboard.`);
+        await renderB2BAgentsTab();
+      } catch (err) { toast('error', 'Update Failed', err.message); btn.disabled = false; }
+    }
+
+    if (action === 'delete-offer') {
+      if (!confirm(`Delete the featured offer ${offer.originCode} → ${offer.destCode}?`)) return;
+      try {
+        await deleteB2BOffer(id);
+        toast('success', 'Deleted', 'Featured offer removed from the agent dashboard.');
+        await renderB2BAgentsTab();
+      } catch (err) { toast('error', 'Delete Failed', err.message); }
+    }
+  });
+}
+
+/** Read the offer form back out of the modal, unnormalised. */
+function readB2BOfferForm() {
+  const airlineSel = document.getElementById('b2b-offer-airline');
+  const airlineOpt = airlineSel?.selectedOptions?.[0];
+  return {
+    badge: document.getElementById('b2b-offer-badge').value,
+    badgeTone: document.getElementById('b2b-offer-tone').value,
+    originCode: document.getElementById('b2b-offer-origin-code').value,
+    originCity: document.getElementById('b2b-offer-origin-city').value,
+    destCode: document.getElementById('b2b-offer-dest-code').value,
+    destCity: document.getElementById('b2b-offer-dest-city').value,
+    airlineId: airlineSel?.value || '',
+    // Name and code are snapshotted so a deleted airlines row leaves the card
+    // readable rather than blank.
+    airlineName: airlineOpt?.dataset.name || '',
+    airlineCode: airlineOpt?.dataset.code || '',
+    travelDate: document.getElementById('b2b-offer-date').value,
+    checkInBaggageKg: document.getElementById('b2b-offer-baggage').value,
+    price: document.getElementById('b2b-offer-price').value,
+    priceNote: document.getElementById('b2b-offer-price-note').value,
+    ctaType: document.getElementById('b2b-offer-cta-type').value,
+    ctaLabel: document.getElementById('b2b-offer-cta-label').value,
+    expiresAt: document.getElementById('b2b-offer-expires').value,
+    order: document.getElementById('b2b-offer-order').value,
+    isActive: document.getElementById('b2b-offer-active').checked,
+  };
+}
+
+async function openB2BOfferModal(offer) {
+  const tpl = document.getElementById('modal-b2b-offer-form');
+  if (!tpl) return;
+
+  // The airline select is the only place an offer can pick up a logo, so a cold
+  // load that opened this tab before loadGlobalData() settled must not show an
+  // empty dropdown.
+  if (!_airlines.length) _airlines = await getAirlines().catch(() => []);
+
+  openModal(offer ? `Edit Offer — ${offer.originCode} → ${offer.destCode}` : 'Add Featured Offer', tpl.innerHTML, true);
+
+  const form = document.getElementById('b2b-offer-form');
+  const airlineSel = document.getElementById('b2b-offer-airline');
+  const baggageSel = document.getElementById('b2b-offer-baggage');
+  const baggageHelp = document.getElementById('b2b-offer-baggage-help');
+  const preview = document.getElementById('b2b-offer-preview');
+
+  // A new offer starts on the sample card so the first one is a few edits
+  // rather than a blank form. Everything in it is editable before saving.
+  const seed = offer || normaliseOffer(buildSampleOffer());
+
+  document.getElementById('b2b-offer-badge-presets').innerHTML =
+    OFFER_BADGE_PRESETS.map(p => `<option value="${escapeHtml(p.label)}"></option>`).join('');
+
+  airlineSel.innerHTML = _airlines
+    .slice()
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+    .map(a => `<option value="${a.id}" data-name="${escapeHtml(a.name || '')}" data-code="${escapeHtml(a.code || '')}">${escapeHtml(a.name || a.code || a.id)}</option>`)
+    .join('');
+  // Match by id first, then by the snapshotted code — an offer seeded from the
+  // sample has a code ("IX") but no id yet.
+  const seedAirline = _airlines.find(a => a.id === seed.airlineId)
+    || _airlines.find(a => String(a.code || '').toUpperCase() === seed.airlineCode);
+  if (seedAirline) airlineSel.value = seedAirline.id;
+
+  document.getElementById('b2b-offer-id').value = offer?.id || '';
+  document.getElementById('b2b-offer-badge').value = seed.badge;
+  document.getElementById('b2b-offer-tone').value = seed.badgeTone;
+  document.getElementById('b2b-offer-origin-code').value = seed.originCode;
+  document.getElementById('b2b-offer-origin-city').value = seed.originCity;
+  document.getElementById('b2b-offer-dest-code').value = seed.destCode;
+  document.getElementById('b2b-offer-dest-city').value = seed.destCity;
+  document.getElementById('b2b-offer-date').value = seed.travelDate;
+  document.getElementById('b2b-offer-price').value = seed.price || '';
+  document.getElementById('b2b-offer-price-note').value = seed.priceNote;
+  document.getElementById('b2b-offer-cta-type').value = seed.ctaType;
+  document.getElementById('b2b-offer-cta-label').value = seed.ctaLabel;
+  document.getElementById('b2b-offer-expires').value = seed.expiresAt;
+  document.getElementById('b2b-offer-order').value = offer ? offer.order : _b2bOffers.length;
+  document.getElementById('b2b-offer-active').checked = seed.isActive;
+
+  /**
+   * Check-in weights come from airline policy, never free text — the same rule
+   * the fare form follows (see shared/airline-baggage.js). Hand baggage is not
+   * offered at all because it is fixed per airline.
+   */
+  function syncBaggageOptions(preferredKg) {
+    const code = airlineSel.selectedOptions[0]?.dataset.code || '';
+    const options = checkInBaggageOptions(code);
+    baggageSel.innerHTML = options.map(kg => `<option value="${kg}">${formatBaggageKg(kg)}</option>`).join('');
+    baggageSel.value = String(resolveCheckInBaggageKg(code, preferredKg));
+    baggageSel.disabled = options.length < 2;
+    if (baggageHelp) {
+      baggageHelp.textContent = `Hand baggage is fixed at ${formatBaggageKg(handBaggageKg(code))} for this airline.`;
+    }
+  }
+
+  function refreshPreview() {
+    if (!preview) return;
+    const draft = normaliseOffer(readB2BOfferForm());
+    preview.innerHTML = isOfferComplete(draft)
+      ? `<div class="flex">${buildOfferCardHtml(draft, offerAirlineBrand(draft))}</div>`
+      : `<p class="admin-help">Enter both airport codes to see the card.</p>`;
+  }
+
+  syncBaggageOptions(seed.checkInBaggageKg);
+  refreshPreview();
+
+  airlineSel.addEventListener('change', () => {
+    // Keep the chosen weight when the new airline also sells it; otherwise
+    // resolveCheckInBaggageKg() snaps it to that airline's default.
+    syncBaggageOptions(baggageSel.value);
+    refreshPreview();
+  });
+  form.addEventListener('input', refreshPreview);
+  form.addEventListener('change', refreshPreview);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+
+    const raw = readB2BOfferForm();
+    const clean = normaliseOffer(raw);
+    if (!isOfferComplete(clean)) return toast('error', 'Route required', 'Enter both the departure and destination airport codes.');
+    if (!clean.travelDate) return toast('error', 'Date required', 'Pick the travel date this offer is for.');
+    if (clean.expiresAt && clean.expiresAt > clean.travelDate) {
+      return toast('error', 'Expiry after travel', 'The offer cannot outlive the flight — set the expiry on or before the travel date.');
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const payload = {
+        badge: clean.badge,
+        badgeTone: clean.badgeTone,
+        originCode: clean.originCode,
+        originCity: clean.originCity,
+        destCode: clean.destCode,
+        destCity: clean.destCity,
+        airlineId: clean.airlineId,
+        airlineName: clean.airlineName,
+        airlineCode: clean.airlineCode,
+        travelDate: clean.travelDate,
+        checkInBaggageKg: clean.checkInBaggageKg,
+        price: clean.price,
+        priceNote: clean.priceNote,
+        ctaType: clean.ctaType,
+        ctaLabel: clean.ctaLabel,
+        expiresAt: clean.expiresAt,
+        order: Number(raw.order) || 0,
+        isActive: raw.isActive !== false,
+      };
+      const id = document.getElementById('b2b-offer-id').value;
+      if (id) await updateB2BOffer(id, payload);
+      else await addB2BOffer(payload);
+
+      toast('success', 'Saved!', `${clean.originCode} → ${clean.destCode} is on the agent dashboard.`);
+      if (!isOfferLive(clean, todayKeyIST())) {
+        toast('info', 'Not showing yet', clean.isActive
+          ? 'This offer is already past its end date, so agents will not see it.'
+          : 'The offer is saved as paused — resume it to show it to agents.');
+      }
+      document.getElementById('admin-modal').close();
+      await renderB2BAgentsTab();
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Save Offer';
+    }
   });
 }
 
@@ -11300,16 +11653,23 @@ document.addEventListener('DOMContentLoaded', () => {
 async function renderVisasTab(fetchData = true) {
   if (fetchData) {
     try {
-      const [v, vs, att, ps] = await Promise.all([
+      const [v, vs, att, ps, rc] = await Promise.all([
         getVisas(),
         getVisaStampings(),
         getAttestations(),
-        getPassportServices()
+        getPassportServices(),
+        // Non-fatal: `visa_rate_cards` is a newer collection, and a rules file
+        // that has not been deployed yet must not blank the whole tab.
+        getVisaRateCards().catch((err) => {
+          console.warn('Visa rate cards unavailable:', err?.message || err);
+          return [];
+        })
       ]);
       _visas = v;
       _visaStampings = vs;
       _attestations = att;
       _passportServices = ps;
+      _visaRateCards = sortRateCards(rc.map(normaliseRateCard));
 
       tablePage.visas = 1;
       tablePage.visaStampings = 1;
@@ -11334,6 +11694,15 @@ async function renderVisasTab(fetchData = true) {
       ? pageData.map(v => visaRow(v)).join('')
       : `<tr><td colspan="5" class="text-center py-8 text-text-muted">No tourist visas yet. Click "Add Tourist Visa".</td></tr>`;
     wireVisaActions();
+  }
+
+  // 1b. Render Tourist Visa Rate Cards
+  const tbodyRateCards = document.getElementById('visa-rate-cards-table-body');
+  if (tbodyRateCards) {
+    tbodyRateCards.innerHTML = _visaRateCards.length
+      ? _visaRateCards.map(c => visaRateCardRow(c)).join('')
+      : `<tr><td colspan="6" class="text-center py-8 text-text-muted">No rate cards yet. Click "Add Rate Card" — the UAE template pre-fills every section.</td></tr>`;
+    wireVisaRateCardActions();
   }
 
   // 2. Render Visa Stamping
@@ -11393,6 +11762,12 @@ function wireVisasAddButtons() {
   if (btnVisa && !btnVisa.dataset.wired) {
     btnVisa.dataset.wired = '1';
     btnVisa.addEventListener('click', () => openVisaModal(null));
+  }
+
+  const btnRateCard = document.getElementById('visa-rate-card-add-btn');
+  if (btnRateCard && !btnRateCard.dataset.wired) {
+    btnRateCard.dataset.wired = '1';
+    btnRateCard.addEventListener('click', () => openVisaRateCardModal(null));
   }
 
   const btnStamping = document.getElementById('visa-stamping-add-btn');
@@ -11502,6 +11877,203 @@ function openVisaModal(visa) {
       toast('error', 'Error', err.message);
       btn.disabled = false;
       btn.textContent = 'Save Visa';
+    }
+  });
+}
+
+// ── Tourist Visa Rate Cards ─────────────────────────────────────────────────
+// The structured price sheet the B2B portal shows behind its "Rates" button.
+// Every rate lives in Firestore (`visa_rate_cards`) and is editable here — the
+// portal renderer holds no prices of its own.
+
+function visaRateCardRow(card) {
+  const rows = countRateCardRows(card);
+  const sectionNames = card.sections.map(s => s.title).filter(Boolean).join(' · ');
+  // A card only surfaces in the portal when a tourist visa row shares its
+  // country name, so flag the mismatch right where it can be fixed.
+  const linked = _visas.some(v => normaliseCountryKey(v.countryName) === card.countryKey);
+  const status = card.isActive
+    ? `<span class="admin-status-pill admin-status-active">Active</span>`
+    : `<span class="admin-status-pill admin-status-inactive">Hidden</span>`;
+  const linkWarning = linked
+    ? ''
+    : `<div class="text-[11px] font-semibold text-warning mt-1"><i class="bi bi-exclamation-triangle mr-1"></i>No Tourist Visa row named “${escapeHtml(card.countryName)}”</div>`;
+
+  return `<tr data-id="${card.id}">
+    <td class="font-bold text-navy">${escapeHtml(card.countryName)}${linkWarning}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(sectionNames) || '—'}</td>
+    <td class="font-black text-[15px] text-navy">${rows}</td>
+    <td class="text-text-muted text-[13px]">${escapeHtml(card.note) || '—'}</td>
+    <td>${status}</td>
+    <td>
+      <div class="flex justify-end gap-1.5 items-center">
+        <button data-action="edit-rate-card" data-id="${card.id}" class="admin-action-btn admin-action-edit"><i class="bi bi-pencil-square"></i>Edit</button>
+        <button data-action="delete-rate-card" data-id="${card.id}" class="admin-action-btn admin-action-delete"><i class="bi bi-trash3"></i>Delete</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function wireVisaRateCardActions() {
+  const tbody = document.getElementById('visa-rate-cards-table-body');
+  if (!tbody || tbody.dataset.actionsWired) return;
+  tbody.dataset.actionsWired = '1';
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const card = _visaRateCards.find(c => c.id === id);
+
+    if (action === 'edit-rate-card') openVisaRateCardModal(card);
+    if (action === 'delete-rate-card') {
+      if (!confirm(`Delete the rate card for "${card?.countryName}"?`)) return;
+      try {
+        await deleteVisaRateCard(id);
+        toast('success', 'Deleted', `Rate card for "${card?.countryName}" removed.`);
+        await renderVisasTab();
+      } catch (err) { toast('error', 'Error', err.message); }
+    }
+  });
+}
+
+/** Clone a `<template>` fragment by id — the editor's three building blocks. */
+function cloneRateFragment(templateId) {
+  const tpl = document.getElementById(templateId);
+  return tpl ? tpl.content.firstElementChild.cloneNode(true) : null;
+}
+
+function appendRateRow(groupEl, row = {}) {
+  const el = cloneRateFragment('tpl-visa-rate-row');
+  if (!el) return;
+  el.querySelector('.visa-rate-row-label').value = row.label || '';
+  el.querySelector('.visa-rate-row-rate').value = row.rate === null || row.rate === undefined ? '' : row.rate;
+  el.querySelector('.visa-rate-row-text').value = row.rateText || '';
+  groupEl.querySelector('.visa-rate-rows').appendChild(el);
+}
+
+function appendRateGroup(sectionEl, group = {}) {
+  const el = cloneRateFragment('tpl-visa-rate-group');
+  if (!el) return;
+  el.querySelector('.visa-rate-group-title').value = group.title || '';
+  const rows = group.rows?.length ? group.rows : [{}];
+  rows.forEach(row => appendRateRow(el, row));
+  sectionEl.querySelector('.visa-rate-groups').appendChild(el);
+}
+
+function appendRateSection(container, section = {}) {
+  const el = cloneRateFragment('tpl-visa-rate-section');
+  if (!el) return;
+  el.querySelector('.visa-rate-section-title').value = section.title || '';
+  el.querySelector('.visa-rate-section-note').value = section.note || '';
+  const groups = section.groups?.length ? section.groups : [{}];
+  groups.forEach(group => appendRateGroup(el, group));
+  container.appendChild(el);
+}
+
+/** Read the whole editor back out of the DOM, in the order it is displayed. */
+function readRateCardForm() {
+  const sections = [...document.querySelectorAll('#visa-rate-card-sections .visa-rate-section')].map(sectionEl => ({
+    title: sectionEl.querySelector('.visa-rate-section-title').value,
+    note: sectionEl.querySelector('.visa-rate-section-note').value,
+    groups: [...sectionEl.querySelectorAll('.visa-rate-group')].map(groupEl => ({
+      title: groupEl.querySelector('.visa-rate-group-title').value,
+      rows: [...groupEl.querySelectorAll('.visa-rate-row')].map(rowEl => ({
+        label: rowEl.querySelector('.visa-rate-row-label').value,
+        rate: rowEl.querySelector('.visa-rate-row-rate').value,
+        rateText: rowEl.querySelector('.visa-rate-row-text').value,
+      })),
+    })),
+  }));
+
+  return {
+    countryName: document.getElementById('visa-rate-card-country').value,
+    note: document.getElementById('visa-rate-card-note').value,
+    order: document.getElementById('visa-rate-card-order').value,
+    isActive: document.getElementById('visa-rate-card-active').checked,
+    sections,
+  };
+}
+
+function openVisaRateCardModal(card) {
+  const tpl = document.getElementById('modal-visa-rate-card-form');
+  if (!tpl) return;
+
+  openModal(card ? `Edit Rate Card — ${card.countryName}` : 'Add Visa Rate Card', tpl.innerHTML, true);
+
+  const form = document.getElementById('visa-rate-card-form');
+  const sectionsEl = document.getElementById('visa-rate-card-sections');
+
+  // A new card starts on the UAE template so the first sheet does not have to
+  // be typed row by row. Everything in it is editable before and after saving.
+  const seed = card || buildTemplateRateCard();
+  document.getElementById('visa-rate-card-id').value = card?.id || '';
+  document.getElementById('visa-rate-card-country').value = seed.countryName || '';
+  document.getElementById('visa-rate-card-note').value = seed.note || '';
+  document.getElementById('visa-rate-card-order').value = card ? (card.order || 0) : 0;
+  document.getElementById('visa-rate-card-active').checked = card ? card.isActive !== false : true;
+  (seed.sections || []).forEach(section => appendRateSection(sectionsEl, section));
+
+  document.getElementById('visa-rate-card-add-section')
+    ?.addEventListener('click', () => appendRateSection(sectionsEl, buildEmptyRateCard().sections[0]));
+
+  // One delegated handler for every add/remove button in the tree — rows and
+  // groups are cloned in and out constantly, so per-element listeners would
+  // leak with each edit.
+  sectionsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const sectionEl = btn.closest('.visa-rate-section');
+    const groupEl = btn.closest('.visa-rate-group');
+
+    if (btn.dataset.action === 'remove-section') sectionEl?.remove();
+    if (btn.dataset.action === 'add-group') appendRateGroup(sectionEl, {});
+    if (btn.dataset.action === 'remove-group') {
+      // Never leave a section with no sub-group — there would be nowhere to
+      // add a rate back.
+      if (sectionEl.querySelectorAll('.visa-rate-group').length > 1) groupEl?.remove();
+      else toast('info', 'Keep one sub-group', 'A section needs at least one sub-group. Remove the section instead.');
+    }
+    if (btn.dataset.action === 'add-row') appendRateRow(groupEl, {});
+    if (btn.dataset.action === 'remove-row') btn.closest('.visa-rate-row')?.remove();
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+
+    const raw = readRateCardForm();
+    const clean = normaliseRateCard(raw);
+    if (!clean.countryName) return toast('error', 'Country required', 'Enter the country name this rate card belongs to.');
+    if (!countRateCardRows(clean)) return toast('error', 'No rates', 'Add at least one rate row before saving.');
+
+    const id = document.getElementById('visa-rate-card-id').value;
+    const duplicate = _visaRateCards.find(c => c.countryKey === clean.countryKey && c.id !== id);
+    if (duplicate) return toast('error', 'Already exists', `A rate card for "${clean.countryName}" already exists. Edit that one instead.`);
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const payload = {
+        countryName: clean.countryName,
+        countryKey: clean.countryKey,
+        note: clean.note,
+        isActive: raw.isActive !== false,
+        order: Number(raw.order) || 0,
+        sections: clean.sections,
+      };
+      if (id) await updateVisaRateCard(id, payload);
+      else await addVisaRateCard(payload);
+
+      toast('success', 'Saved!', `${countRateCardRows(clean)} rates saved for ${clean.countryName}.`);
+      if (!_visas.some(v => normaliseCountryKey(v.countryName) === clean.countryKey)) {
+        toast('info', 'Not linked yet', `Add a Tourist Visa row named "${clean.countryName}" so the Rates button appears in the B2B portal.`);
+      }
+      document.getElementById('admin-modal').close();
+      await renderVisasTab();
+    } catch (err) {
+      toast('error', 'Error', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Save Rate Card';
     }
   });
 }

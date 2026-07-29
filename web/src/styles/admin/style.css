@@ -1886,6 +1886,37 @@ html[data-theme="dark"] {
     text-transform: uppercase;
 }
 
+/* Tourist visa rate-card editor. Nested blocks (section → sub-group → row) get
+   their own surfaces so the hierarchy is readable inside the modal. Unlayered
+   and paired with the dark overrides below, like the rest of this block. */
+.visa-rate-section {
+    border: 1px solid #dbe5f2;
+    background: #f8fafc;
+    border-radius: 0.9rem;
+    padding: 1rem;
+}
+
+.visa-rate-group {
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    border-radius: 0.7rem;
+    padding: 0.75rem;
+}
+
+.visa-rate-row .admin-control {
+    min-width: 0;
+}
+
+html[data-theme="dark"] .visa-rate-section {
+    border-color: #24354e;
+    background: #101a2b;
+}
+
+html[data-theme="dark"] .visa-rate-group {
+    border-color: #24354e;
+    background: #0d1626;
+}
+
 /* B2B rules panel reuses .admin-form-section-head outside a modal. It must sit
    unlayered like the rule it modifies — @layer components would lose to it
    regardless of specificity. Layout is inherited; this only adds wrapping,

@@ -307,6 +307,10 @@ Two things to know when touching this:
   - **Visa Stamping** — country-specific stamping services.
   - **Attestations** — document/certificate attestation services.
   - **Passport Services** — fresh, renewal, and detail update services.
+- **Tourist Visa Rate Cards** — the structured price sheet behind the **Rates** button on the B2B portal's tourist visa cards (`visa_rate_cards`). One card per country, with an arbitrary number of **sections** (e.g. Normal Visa · Dubai Multiple · Transit Visa), optional **sub-groups** inside a section (e.g. DUBAI / ABU DHABI), and priced **rows** underneath. A row is either a ₹ amount or free text — filling the "Special Text" column overrides the number, which is how Abu Dhabi transit shows "Special rate". **No rate is hardcoded anywhere:** the portal renders only what is stored here, so an edit is live on the next portal load.
+  - A card links to a Tourist Visa row by **normalised country name** (`countryKey`). The table flags a card with no matching visa row, because the Rates button only appears on a card that has one.
+  - "Add Rate Card" pre-fills the **UAE template** (all 12 UAE rates, three sections, both transit sub-groups) as a starting point — every field is editable before and after saving.
+  - The card's headline price in the portal becomes the cheapest numeric row on the sheet ("From ₹580"), so the card and the sheet behind it cannot disagree.
 - **Live Sync** — data drives the dynamic tables and modal inquiries directly on the public `visa.html` page.
 - **Sub-Tabs** — seamless client-side toggling between the 4 sub-collections without page reload.
 
@@ -349,10 +353,23 @@ Portal logins, pricing controls, and route visibility for `b2b.zamratravels.com`
 
 - **Full CRUD** — Add / Edit / Credentials / Set PW / Activate / Delete, all via Cloud Function callables (`createB2BAgent`, `getB2BAgentCredentials`, `resetB2BAgentPassword`, `setB2BAgentStatus`, `deleteB2BAgent`).
 - **Global B2B Settings** — default markup (₹) and portal WhatsApp number, stored on `config/b2b`.
+- **Featured Offers** — the promo cards beside the portal's "Welcome back" banner (`b2b_offers`). See below.
 - **Supplier Markup Rules** — per-supplier price adjustments, optionally scoped to a single agent. See the pricing waterfall below.
 - **Route Visibility** — hide whole departure airports or individual sectors per agent.
 - **Instant Price Adjustments** — per-route ± amount per agent (`routeAdjustments`).
 - **Table columns:** Login ID · Name · Agency · Phone · Markup · Restrictions · Activity · Status · Actions
+
+#### Featured Offers
+The promo rail on the right half of the portal's welcome banner. One `b2b_offers` document per card: badge + tone, route (codes and city names), airline, travel date, check-in baggage, an optional price, a CTA, and scheduling (`isActive`, `expiresAt`, `order`). Nothing is hardcoded in the portal — it renders only what is stored here.
+
+- **Add / Edit** opens a form with a **live preview** of the exact card the agent will see; both surfaces call `buildOfferCardHtml()` in [web/src/js/shared/b2b-offers.js](web/src/js/shared/b2b-offers.js), so they cannot drift.
+- A new offer pre-fills with the **Kozhikode (CCJ) → Jeddah (JED), Air India Express, 02 Aug 2026, 30 + 7 kg, 🔥 VERY LOW FARE** sample, the same way a new visa rate card pre-fills with the UAE template. Once saved it is ordinary editable data.
+- **Pause / Resume** flips `isActive`; the ↑ ↓ arrows rewrite `order` across the whole list (a swap alone would move nothing, because legacy rows all sit at `order: 0`).
+- **Auto-expiry** — an offer stops showing after `expiresAt`, or after its **travel date** when no expiry is set. A deal for a flight that has already left is not a deal.
+- **Baggage is policy, not input.** The form offers only the check-in weights the chosen airline sells, and hand baggage is never typed — it comes from the airline code (see [Baggage rules](#baggage-rules)).
+- The **price is promotional copy, not a fare**: it is shown to every agent exactly as typed and is *not* run through the B2B markup waterfall. Live agent pricing stays in the search results below.
+
+Offers reach the portal through `getB2BPortalContext`, not a direct Firestore read: `b2b_offers` is admin-only in [firestore.rules](firestore.rules). That keeps expiry enforced server-side (a stale tab cannot resurrect a dead deal) and lets the callable drop offers departing from an origin the agent has hidden — advertising a route they cannot search would be a dead end. Liveness rules are mirrored in [functions/b2bOffers.js](functions/b2bOffers.js) and [web/src/js/shared/b2b-offers.js](web/src/js/shared/b2b-offers.js) and **must be changed in both**.
 
 #### Live presence & last login
 The **Activity** column shows an Online / Idle / Offline badge over a "last seen" or "last login" line, and a roll-up count sits under the tab title.
@@ -583,6 +600,31 @@ Curated public deal pages served at `/deals/<slug>`. **The document ID is the sl
 | `processingTime` | String | e.g. `'2-3 Working Days'` |
 | `flagUrl` | String | Optional image URL for flag |
 
+### `visa_rate_cards`
+The B2B portal's tourist-visa price sheet. **Not world-readable** — unlike `visas`, these are agent rates, so [firestore.rules](firestore.rules) allows reads only to an admin or a signed-in B2B agent.
+
+| Field | Type | Notes |
+|---|---|---|
+| `countryName` | String | Display name, e.g. `'UAE'` |
+| `countryKey` | String | `countryName` lowercased/space-collapsed — links the card to a `visas` row |
+| `note` | String | Banner note above every section, e.g. `'3000 AED ABS'` |
+| `isActive` | Boolean | `false` hides the Rates button without deleting the sheet |
+| `order` | Number | Sort order for the admin table |
+| `sections` | Array | See below |
+
+```js
+sections: [{
+  title: 'Normal Visa',
+  note:  'Same Day Posting | Processing Time: 1–2 Working Days',
+  groups: [{
+    title: '',                  // '' renders no sub-heading; 'DUBAI' / 'ABU DHABI' do
+    rows:  [{ label: '30 Days Adult', rate: 7070, rateText: '' }],
+  }],
+}]
+```
+
+A row is priced by **either** `rate` (number) **or** `rateText` (free text such as `'Special rate'`). `rateText` wins, and normalising nulls the number when it is set so a stale amount can never resurface. Shape validation, formatting, and the UAE template live in [web/src/js/shared/visa-rate-cards.js](web/src/js/shared/visa-rate-cards.js) — shared by the admin editor and the portal renderer, and covered by `web/tests/visa-rate-cards.test.js`.
+
 ### `visa_stamping`
 | Field | Type | Notes |
 |---|---|---|
@@ -667,6 +709,25 @@ Travel-agency customers of the B2B portal — **not** the `agents` (supplier) co
 
 Passwords may be admin-set, agent-chosen, or generated. A reversible copy is kept in `b2b_credentials` so admins can re-read them — see *Credential visibility* above.
 
+### `b2b_offers`
+Featured promo cards on the portal's welcome banner. Admin-only in [firestore.rules](firestore.rules); agents receive them through `getB2BPortalContext`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `badge` / `badgeTone` | String | e.g. `VERY LOW FARE`; tone is `hot` \| `low` \| `limited` \| `new` and picks the chip colour + icon |
+| `originCode` / `destCode` | String | IATA codes — the big headline on the card. Required |
+| `originCity` / `destCity` | String | Printed small under each code |
+| `airlineId` | String | `airlines` doc id — resolves the logo at render time |
+| `airlineName` / `airlineCode` | String | Snapshot, so a deleted `airlines` row leaves the card readable |
+| `travelDate` | String | `YYYY-MM-DD`. Date-only on purpose: a Timestamp round-trips through timezones and prints the wrong day west of UTC |
+| `checkInBaggageKg` | Number | Snapped onto the airline's allowed weights; hand baggage is never stored, it comes from policy |
+| `price` / `priceNote` | Number / String | Optional. `0` hides the price line. **Promotional copy — not run through the B2B markup** |
+| `ctaType` / `ctaLabel` | String | `whatsapp` (pre-filled enquiry) or `search` (deep-links the route into the portal search) |
+| `isActive` | Boolean | `false` = paused, hidden from every agent |
+| `expiresAt` | String | `YYYY-MM-DD`, inclusive. Blank means the card retires on its travel date |
+| `order` | Number | Left-to-right position on the rail; rewritten across the list by the ↑ ↓ arrows |
+| `createdAt` / `updatedAt` | Timestamp | Server timestamps |
+
 ### `b2b_credentials`
 Encrypted copies of B2B portal passwords, one doc per agent (doc id = the `b2b_agents` id). **Denied to every client** in [firestore.rules](firestore.rules); reachable only through the Admin SDK inside `getB2BAgentCredentials`.
 
@@ -746,6 +807,8 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 - **Public read:** `sectors`, `airlines`, `agent_fares` (only if `isHidden==false` and agent `isActive==true`)
 - **Admin read/write:** All collections — requires `request.auth.token.admin == true`
 - **Admin-only, never public:** `enquiries` (holds customer names and phone numbers), `deal_links`, `config`, `social_queue`, `social_jobs`
+- **Admin + B2B agent read:** `visa_rate_cards` — the portal's tourist-visa price sheets are agent rates, so they stay behind the `agent` claim rather than sitting in world-readable `visas`
+- **Admin-only, served by callable:** `b2b_offers` — the portal's featured-offer cards come back from `getB2BPortalContext`, which keeps expiry enforced server-side and hides offers from an origin the agent cannot see
 
 > `agent_fares` uses a **document-level** read condition. An unauthenticated *query* over it must therefore carry `where('isHidden','==',false)` or the whole query is rejected — not filtered, rejected. `getFares()` adds it automatically whenever `includeHidden` is falsy.
 
@@ -778,6 +841,7 @@ Enquiries: getEnquiries(), addEnquiry(), updateEnquiry(), setEnquiryStatus(), de
 DealLinks: getDealLinks(), saveDealLink(slug, data, { isNew? }), dealLinkExists(slug),
            deleteDealLink(slug)
 Visas:    getVisas(), addVisa(), updateVisa(), deleteVisa()
+          getVisaRateCards(), addVisaRateCard(), updateVisaRateCard(), deleteVisaRateCard()
           getVisaStampings(), addVisaStamping(), updateVisaStamping(), deleteVisaStamping()
           getAttestations(), addAttestation(), updateAttestation(), deleteAttestation()
           getPassportServices(), addPassportService(), updatePassportService(), deletePassportService()

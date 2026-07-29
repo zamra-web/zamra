@@ -500,6 +500,43 @@
                 </form>
             </div>
 
+            <!-- FEATURED OFFERS — the promo cards beside the portal's welcome banner.
+                 Order here is the left-to-right order on the rail; see renderB2BOffers() in main.js. -->
+            <div class="admin-panel p-6 text-text-main mb-6">
+                <div class="admin-form-section-head b2b-rules-head">
+                    <div>
+                        <p class="admin-form-section-title">Featured Offers</p>
+                        <p class="admin-form-section-desc">Promo cards shown beside “Welcome back” in the agent portal.
+                            Cards drop off automatically after their expiry date, or after the travel date when no expiry is set.</p>
+                    </div>
+                    <button id="b2b-offer-add-btn" class="admin-btn admin-btn-primary h-[38px] px-4 text-[13px]">
+                        <i class="bi bi-megaphone-fill"></i> Add Offer
+                    </button>
+                </div>
+
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th class="w-[74px]">Order</th>
+                                <th>Badge</th>
+                                <th>Route</th>
+                                <th>Airline</th>
+                                <th>Travel date</th>
+                                <th>Baggage</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <!-- id is load-bearing: this tab holds three .admin-table elements. -->
+                        <tbody id="b2b-offers-body">
+                            <!-- populated by JS: renderB2BOffers() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- SUPPLIER MARKUP RULES — per-supplier price rules, optionally scoped to one agent.
                  Stacks on top of the markup above; see renderB2BRules() in main.js. -->
             <div class="admin-panel p-6 text-text-main mb-6">
@@ -1031,6 +1068,44 @@ Example:
                             </tr>
                         </thead>
                         <tbody id="visas-table-body">
+                            <!-- populated by JS: renderVisasTab() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 1b. Tourist Visa Rate Cards — the price sheet behind the B2B "Rates" button -->
+            <div class="admin-panel p-6 mb-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center shadow-md">
+                        <i class="bi bi-list-columns-reverse text-white text-[15px]"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-[17px] text-navy leading-tight">Tourist Visa Rate Cards</h2>
+                        <p class="text-[12px] text-text-muted">Full price sheets shown behind the “Rates” button in the B2B portal. Matched to a tourist visa by country name.</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <button id="visa-rate-card-add-btn" class="admin-btn admin-btn-primary h-[38px] px-5 w-full sm:w-auto">
+                        <i class="bi bi-plus-lg mr-1.5"></i> Add Rate Card
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[24px] shadow-[var(--shadow-premium-soft)] border border-slate-100 overflow-hidden mb-10">
+                <div class="overflow-x-auto">
+                    <table class="admin-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>Sections</th>
+                                <th>Rates</th>
+                                <th>Note</th>
+                                <th>Status</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="visa-rate-cards-table-body">
                             <!-- populated by JS: renderVisasTab() -->
                         </tbody>
                     </table>
@@ -2236,6 +2311,157 @@ Example:
     <div id="toastsEl" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- ══════════════════════════════════════════════════════════════════════
+         B2B FEATURED OFFER TEMPLATE
+         ══════════════════════════════════════════════════════════════════════ -->
+    <!-- Airline select, check-in weights and the live preview are all filled in
+         by openB2BOfferModal(); hand baggage is airline policy and never typed. -->
+    <template id="modal-b2b-offer-form">
+        <form id="b2b-offer-form" class="admin-modal-form">
+            <input type="hidden" id="b2b-offer-id">
+
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Route</p>
+                        <p class="admin-form-section-desc">Airport codes drive the big headline on the card; city names print underneath.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-origin-code">From (code) *</label>
+                        <input type="text" id="b2b-offer-origin-code" class="admin-control uppercase" placeholder="CCJ" maxlength="4" required>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-origin-city">From (city)</label>
+                        <input type="text" id="b2b-offer-origin-city" class="admin-control" placeholder="Kozhikode">
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-dest-code">To (code) *</label>
+                        <input type="text" id="b2b-offer-dest-code" class="admin-control uppercase" placeholder="JED" maxlength="4" required>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-dest-city">To (city)</label>
+                        <input type="text" id="b2b-offer-dest-city" class="admin-control" placeholder="Jeddah">
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Flight</p>
+                        <p class="admin-form-section-desc">The airline supplies the logo and the hand-baggage allowance.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-airline">Airline *</label>
+                        <select id="b2b-offer-airline" class="admin-control" required>
+                            <!-- populated from the airlines collection -->
+                        </select>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-date">Travel Date *</label>
+                        <input type="date" id="b2b-offer-date" class="admin-control" required>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-baggage">Check-in Baggage</label>
+                        <select id="b2b-offer-baggage" class="admin-control"></select>
+                        <p class="admin-help mt-2" id="b2b-offer-baggage-help">Hand baggage follows airline policy.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Promotion</p>
+                        <p class="admin-form-section-desc">The badge is the loudest thing on the card — keep it short.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-badge">Badge Text</label>
+                        <input type="text" id="b2b-offer-badge" class="admin-control" placeholder="VERY LOW FARE" list="b2b-offer-badge-presets">
+                        <datalist id="b2b-offer-badge-presets"></datalist>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-tone">Badge Colour</label>
+                        <select id="b2b-offer-tone" class="admin-control">
+                            <option value="hot">🔥 Hot — orange</option>
+                            <option value="low">💸 Low fare — green</option>
+                            <option value="limited">⏳ Limited — amber</option>
+                            <option value="new">✨ New — blue</option>
+                        </select>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-price">Price (₹)</label>
+                        <input type="number" id="b2b-offer-price" class="admin-control" placeholder="Leave blank to hide the price" min="0">
+                        <p class="admin-help mt-2">Shown as-is to every agent — it is NOT run through the B2B markup.</p>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-price-note">Price Note</label>
+                        <input type="text" id="b2b-offer-price-note" class="admin-control" placeholder="e.g. per adult">
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-cta-type">Button Action</label>
+                        <select id="b2b-offer-cta-type" class="admin-control">
+                            <option value="whatsapp">Enquire on WhatsApp</option>
+                            <option value="search">Open this route in the portal search</option>
+                        </select>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-cta-label">Button Label</label>
+                        <input type="text" id="b2b-offer-cta-label" class="admin-control" placeholder="Book Now">
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Scheduling</p>
+                        <p class="admin-form-section-desc">Leave the expiry blank to let the card retire itself on the travel date.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-expires">Auto-expiry Date</label>
+                        <input type="date" id="b2b-offer-expires" class="admin-control">
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="b2b-offer-order">Display Order</label>
+                        <input type="number" id="b2b-offer-order" class="admin-control" placeholder="0" value="0">
+                    </div>
+                    <div class="admin-field sm:col-span-2">
+                        <div class="admin-toggle">
+                            <input type="checkbox" id="b2b-offer-active" class="accent-primary" checked>
+                            <label for="b2b-offer-active" class="text-sm text-text-mid font-semibold">Active (visible in the B2B portal)</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Preview</p>
+                        <p class="admin-form-section-desc">Exactly how the card renders on the agent dashboard.</p>
+                    </div>
+                </div>
+                <!-- Tinted like the portal's aurora hero so the glass card reads
+                     the same here as it does on the agent dashboard, in either theme. -->
+                <div id="b2b-offer-preview" class="max-w-[280px] p-3 rounded-[18px] bg-[#dbe7fa]"></div>
+            </div>
+
+            <div class="admin-modal-footer">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Offer</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
          VISAS TEMPLATES
          ══════════════════════════════════════════════════════════════════════ -->
     <template id="modal-visa-form">
@@ -2275,6 +2501,112 @@ Example:
                 <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Visa</button>
             </div>
         </form>
+    </template>
+
+    <!-- Tourist Visa Rate Card Modal — sections / sub-groups / rows are all
+         cloned from the fragments below by openVisaRateCardModal(). -->
+    <template id="modal-visa-rate-card-form">
+        <form id="visa-rate-card-form" class="admin-modal-form">
+            <input type="hidden" id="visa-rate-card-id">
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Rate Card</p>
+                        <p class="admin-form-section-desc">The country name must match the Tourist Visa row it belongs to (e.g. “UAE”).</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="admin-field">
+                        <label class="admin-label" for="visa-rate-card-country">Country Name *</label>
+                        <input type="text" id="visa-rate-card-country" class="admin-control" placeholder="e.g. UAE" required>
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label" for="visa-rate-card-order">Display Order</label>
+                        <input type="number" id="visa-rate-card-order" class="admin-control" placeholder="0" value="0">
+                    </div>
+                    <div class="admin-field sm:col-span-2">
+                        <label class="admin-label" for="visa-rate-card-note">Header Note</label>
+                        <input type="text" id="visa-rate-card-note" class="admin-control" placeholder="e.g. 3000 AED ABS">
+                        <p class="admin-help mt-2">Shown as a highlighted banner above every section in the B2B portal.</p>
+                    </div>
+                    <div class="admin-field sm:col-span-2">
+                        <div class="admin-toggle">
+                            <input type="checkbox" id="visa-rate-card-active" class="accent-primary" checked>
+                            <label for="visa-rate-card-active" class="text-sm text-text-mid font-semibold">Active (visible in the B2B portal)</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-form-section">
+                <div class="admin-form-section-head">
+                    <div>
+                        <p class="admin-form-section-title">Sections</p>
+                        <p class="admin-form-section-desc">One section per category — e.g. Normal Visa, Dubai Multiple, Transit Visa. Use a sub-group to split a section by city.</p>
+                    </div>
+                    <button type="button" id="visa-rate-card-add-section" class="admin-btn admin-btn-soft h-[34px] px-3.5 text-[12px]">
+                        <i class="bi bi-plus-lg mr-1"></i> Add Section
+                    </button>
+                </div>
+                <div id="visa-rate-card-sections" class="space-y-4"></div>
+            </div>
+
+            <div class="admin-modal-footer">
+                <button type="button" class="admin-btn admin-btn-ghost px-5" onclick="document.getElementById('admin-modal').close()">Cancel</button>
+                <button type="submit" class="admin-btn admin-btn-primary px-6 shadow-md shadow-blue-500/20">Save Rate Card</button>
+            </div>
+        </form>
+    </template>
+
+    <!-- One section block inside the rate-card form -->
+    <template id="tpl-visa-rate-section">
+        <div class="visa-rate-section">
+            <div class="flex items-start gap-3 mb-3">
+                <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="admin-field">
+                        <label class="admin-label">Section Title *</label>
+                        <input type="text" class="admin-control visa-rate-section-title" placeholder="e.g. Normal Visa">
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">Section Note</label>
+                        <input type="text" class="admin-control visa-rate-section-note" placeholder="e.g. Same Day Posting | Processing Time: 1–2 Working Days">
+                    </div>
+                </div>
+                <button type="button" data-action="remove-section" title="Remove section"
+                    class="admin-action-btn admin-action-delete mt-6 shrink-0"><i class="bi bi-trash3"></i></button>
+            </div>
+            <div class="visa-rate-groups space-y-3"></div>
+            <button type="button" data-action="add-group" class="admin-btn admin-btn-ghost h-[32px] px-3 text-[12px] mt-3">
+                <i class="bi bi-plus-lg mr-1"></i> Add Sub-group
+            </button>
+        </div>
+    </template>
+
+    <!-- One sub-group (e.g. DUBAI / ABU DHABI) inside a section -->
+    <template id="tpl-visa-rate-group">
+        <div class="visa-rate-group">
+            <div class="flex items-center gap-3 mb-2">
+                <input type="text" class="admin-control visa-rate-group-title h-[34px] text-[13px]"
+                    placeholder="Sub-group heading — optional (e.g. DUBAI)">
+                <button type="button" data-action="remove-group" title="Remove sub-group"
+                    class="admin-action-btn admin-action-delete shrink-0"><i class="bi bi-trash3"></i></button>
+            </div>
+            <div class="visa-rate-rows space-y-2"></div>
+            <button type="button" data-action="add-row" class="admin-btn admin-btn-ghost h-[30px] px-3 text-[12px] mt-2">
+                <i class="bi bi-plus-lg mr-1"></i> Add Rate
+            </button>
+        </div>
+    </template>
+
+    <!-- One priced line. Filling "Special Text" overrides the ₹ amount. -->
+    <template id="tpl-visa-rate-row">
+        <div class="visa-rate-row grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr_auto] gap-2 items-center">
+            <input type="text" class="admin-control visa-rate-row-label h-[34px] text-[13px]" placeholder="e.g. 30 Days Adult">
+            <input type="number" class="admin-control visa-rate-row-rate h-[34px] text-[13px]" placeholder="₹ rate" min="0" step="1">
+            <input type="text" class="admin-control visa-rate-row-text h-[34px] text-[13px]" placeholder="or “Special rate”">
+            <button type="button" data-action="remove-row" title="Remove rate"
+                class="admin-action-btn admin-action-delete shrink-0 justify-self-start"><i class="bi bi-x-lg"></i></button>
+        </div>
     </template>
 
     <!-- Visa Stamping Modal -->

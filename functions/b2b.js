@@ -22,6 +22,7 @@ const {
   loadCredentialKey,
 } = require("./b2bCredentials");
 const { compareSectorDisplayOrder } = require("./sectorOrdering");
+const { filterOffersForAgent, todayKeyIST } = require("./b2bOffers");
 const { normalizeFlightTimeRange } = require("./flightTime");
 const {
   buildFlightDetailIndex,
@@ -605,13 +606,27 @@ function build(db, requireAdmin) {
   const getB2BPortalContext = onCall(REGION, async (request) => {
     const agent = await requireAgent(request);
 
-    const [config, sectorsSnap] = await Promise.all([
+    const [config, sectorsSnap, offersSnap] = await Promise.all([
       getB2BConfig(),
       db.collection("sectors").get(),
+      // Featured offers are a small, admin-curated set — a whole-collection
+      // read is cheaper than the composite index a filtered query would need,
+      // and expiry has to be evaluated here anyway.
+      db.collection("b2b_offers").get().catch((err) => {
+        // The collection may not exist yet on a project that has never had an
+        // offer; a missing promo rail must never break the whole portal boot.
+        console.warn("b2b_offers unavailable:", err.message);
+        return { docs: [] };
+      }),
     ]);
     const sectors = filterSectorsForAgent(
       sectorsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
       agent,
+    );
+    const offers = filterOffersForAgent(
+      offersSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      agent,
+      todayKeyIST(),
     );
 
     return {
@@ -619,6 +634,7 @@ function build(db, requireAdmin) {
       whatsappNumber: config.whatsappNumber,
       defaultOrigin: sectors[0]?.originCode || "",
       sectors,
+      offers,
     };
   });
 

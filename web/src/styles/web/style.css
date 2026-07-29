@@ -103,6 +103,18 @@
 }
 
 @layer components {
+    /* Featured-offer rail in the B2B portal hero. A visible scrollbar under a
+       glass card looks like a rendering bug, so it is hidden and the arrow
+       buttons (plus swipe on touch) do the scrolling instead. */
+    .b2b-offer-rail {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .b2b-offer-rail::-webkit-scrollbar {
+        display: none;
+    }
+
     .site-header {
         @apply sticky top-0 z-[1000] border-b border-white/20 transition-all;
         background: rgba(255, 255, 255, 0.15);

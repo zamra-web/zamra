@@ -568,6 +568,39 @@ export async function deleteVisa(visaId) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// VISA RATE CARDS
+// ─────────────────────────────────────────────────────────────────────────────
+// Structured price sheets behind the "Rates" button on the B2B portal's tourist
+// visa cards. Unlike `visas` these are NOT world-readable — the rules restrict
+// reads to admins and signed-in B2B agents, because they are agent pricing.
+
+export async function getVisaRateCards() {
+  const snap = await getDocs(collection(db, 'visa_rate_cards'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/** Payload is normalised by the caller (shared/visa-rate-cards.js). */
+export async function addVisaRateCard(data) {
+  const docRef = await addDoc(collection(db, 'visa_rate_cards'), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateVisaRateCard(id, data) {
+  await updateDoc(doc(db, 'visa_rate_cards', id), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteVisaRateCard(id) {
+  await deleteDoc(doc(db, 'visa_rate_cards', id));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // VISA STAMPING
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getVisaStampings() {
@@ -931,6 +964,54 @@ export async function saveB2BSupplierDefaults(supplierDefaults = {}) {
     if (err.code !== 'not-found') throw err;
     await setDoc(configRef, payload, { merge: true });
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2B FEATURED OFFERS
+// ─────────────────────────────────────────────────────────────────────────────
+// Promo cards pinned beside the welcome banner in the B2B portal. Admin-only in
+// firestore.rules — agents receive them through getB2BPortalContext, so these
+// helpers are the dashboard's side of the collection only.
+
+export async function getB2BOffers() {
+  const snap = await getDocs(collection(db, 'b2b_offers'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/** Payload is normalised by the caller (shared/b2b-offers.js). */
+export async function addB2BOffer(data) {
+  const docRef = await addDoc(collection(db, 'b2b_offers'), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateB2BOffer(id, data) {
+  await updateDoc(doc(db, 'b2b_offers', id), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteB2BOffer(id) {
+  await deleteDoc(doc(db, 'b2b_offers', id));
+}
+
+/**
+ * Rewrite `order` across every offer from the id list's position, so the rail
+ * matches the admin table exactly. One batch, because a half-applied reorder
+ * would leave two cards fighting for the same slot.
+ *
+ * @param {string[]} orderedIds  offer ids, first = leftmost card
+ */
+export async function saveB2BOfferOrder(orderedIds = []) {
+  const batch = writeBatch(db);
+  orderedIds.forEach((id, index) => {
+    batch.update(doc(db, 'b2b_offers', id), { order: index, updatedAt: serverTimestamp() });
+  });
+  await batch.commit();
 }
 
 

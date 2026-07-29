@@ -8,7 +8,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../admin/firebase-config.js';
 import { onAuthChange, logoutUser, reauthenticateCurrentUser } from '../admin/auth.js';
-import { getAirlines, getVisas, getVisaStampings, getAttestations } from '../admin/db.js';
+import { getAirlines, getVisas, getVisaStampings, getAttestations, getVisaRateCards } from '../admin/db.js';
 import { splitFlightTimeRange } from '../web/flight-results.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from '../web/airline-brand.js';
 import { buildFlightCardHtml } from '../web/flight-card.js';
@@ -18,6 +18,20 @@ import {
   formatHandBaggageText,
   formatBaggageAllowanceShort,
 } from '../shared/airline-baggage.js';
+import {
+  normaliseCountryKey,
+  indexRateCardsByCountry,
+  formatVisaRate,
+  lowestRate,
+} from '../shared/visa-rate-cards.js';
+import {
+  normaliseOffer,
+  isOfferComplete,
+  buildOfferCardHtml,
+  formatOfferDate,
+  formatOfferPrice,
+  formatOfferBaggage,
+} from '../shared/b2b-offers.js';
 
 const getB2BPortalContext = httpsCallable(functions, 'getB2BPortalContext');
 const getB2BFares = httpsCallable(functions, 'getB2BFares');
@@ -27,6 +41,7 @@ const changeB2BAgentPassword = httpsCallable(functions, 'changeB2BAgentPassword'
 let _context = null;        // { agent, whatsappNumber, defaultOrigin, sectors }
 let _airlineMap = new Map();
 let _cityByCode = new Map(); // IATA code → city name, for friendly select labels
+let _rateCards = new Map();  // normalised country key → tourist visa rate card
 
 // Last search kept in memory so sort/filter re-render without another callable.
 let _results = { fares: [], sectorInfo: null, origin: '', dest: '' };
@@ -102,9 +117,92 @@ async function boot() {
   }
 
   initRouteSelects();
+  renderFeaturedOffers();
   loadVisaServices();
   startActivityHeartbeat();
   wireAccountControls();
+}
+
+// ── Featured offers ──────────────────────────────────────────────────────────
+// Promo cards beside the welcome banner. The list arrives already filtered and
+// sorted by getB2BPortalContext — active, unexpired, and minus any origin this
+// agent cannot see — so nothing here decides whether a deal still runs.
+
+/** Deep-link the offer's route into the search box, then scroll to it. */
+function offerSearchLink(offer) {
+  return `?from=${encodeURIComponent(offer.originCode)}&to=${encodeURIComponent(offer.destCode)}#b2b-search`;
+}
+
+function offerWhatsAppLink(offer) {
+  const waNumber = _context?.whatsappNumber || '919846606738';
+  const agent = _context?.agent || {};
+  const route = `${offer.originCity || offer.originCode} (${offer.originCode}) → ${offer.destCity || offer.destCode} (${offer.destCode})`;
+  const price = formatOfferPrice(offer);
+  const lines = [
+    `Hello Zamra Travels, B2B enquiry from *${agent.name || agent.loginId || 'Agent'}* (${agent.loginId || ''}) about a featured offer:`,
+    '',
+    offer.badge ? `🏷️ *${offer.badge}*` : '',
+    `✈️ ${route}`,
+    offer.airlineName ? `🛩️ Airline: *${offer.airlineName}*` : '',
+    offer.travelDate ? `📅 Date: *${formatOfferDate(offer.travelDate)}*` : '',
+    `🧳 Baggage: ${formatOfferBaggage(offer)}`,
+    price ? `💵 Offer price: *${price}*${offer.priceNote ? ` (${offer.priceNote})` : ''}` : '',
+    '',
+    'Please confirm availability!',
+  ].filter(Boolean);
+  return `https://wa.me/${waNumber}?text=${encodeURIComponent(lines.join('\n'))}`;
+}
+
+function renderFeaturedOffers() {
+  const wrap = document.getElementById('b2b-offers');
+  const rail = document.getElementById('b2b-offers-rail');
+  if (!wrap || !rail) return;
+
+  const offers = (_context?.offers || []).map(normaliseOffer).filter(isOfferComplete);
+  wrap.hidden = !offers.length;
+  if (!offers.length) return;
+
+  rail.innerHTML = offers.map((offer) => {
+    const brand = resolveAirlineBrand(_airlineMap.get(offer.airlineId) || {
+      name: offer.airlineName,
+      code: offer.airlineCode,
+    });
+    const link = offer.ctaType === 'search'
+      ? { href: offerSearchLink(offer) }
+      : { href: offerWhatsAppLink(offer), target: '_blank' };
+    return buildOfferCardHtml(offer, brand, link);
+  }).join('');
+
+  wireFlightResultLogos(rail);
+  wireOfferRail(rail);
+}
+
+/**
+ * Arrows appear only once the rail actually overflows — with three or fewer
+ * cards they share the width evenly and there is nothing to scroll to.
+ */
+function wireOfferRail(rail) {
+  const nav = document.getElementById('b2b-offers-nav');
+  if (!nav) return;
+
+  // A few px of slack: sub-pixel column widths otherwise report a permanent
+  // 1px overflow and leave the arrows showing with nowhere to go.
+  const syncNav = () => { nav.hidden = rail.scrollWidth <= rail.clientWidth + 4; };
+  syncNav();
+
+  if (nav.dataset.wired) return;
+  nav.dataset.wired = '1';
+
+  // The rail lives in a grid column, so what overflows changes with the window.
+  window.addEventListener('resize', syncNav);
+
+  nav.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-offer-scroll]');
+    if (!btn) return;
+    const card = rail.firstElementChild;
+    const step = card ? card.offsetWidth + 12 : 200; // + the rail's gap-3
+    rail.scrollBy({ left: Number(btn.dataset.offerScroll) * step, behavior: 'smooth' });
+  });
 }
 
 // ── Presence heartbeat ───────────────────────────────────────────────────────
@@ -591,10 +689,23 @@ function escHtml(value = '') {
  * One poster card. Falls back to a branded gradient tile with the category
  * icon when no poster has been uploaded for that country yet, so a half-filled
  * poster set still renders as a clean grid.
+ *
+ * `rateCardId` swaps the WhatsApp enquiry button for the "Rates" button that
+ * opens the full price sheet. Countries without a rate card configured keep the
+ * enquiry button, so nothing is stranded while other countries are being added.
  */
-function serviceCardHtml({ title, subtitle, rate, poster, icon, waText }) {
+function serviceCardHtml({ title, subtitle, rate, poster, icon, waText, rateCardId = '', rateLabel = 'Agent rate' }) {
   const waNumber = _context?.whatsappNumber || '919846606738';
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
+  const action = rateCardId
+    ? `<button type="button" data-rate-card-id="${escHtml(rateCardId)}"
+         class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-[12px] font-bold hover:opacity-90 transition-opacity cursor-pointer">
+         <i class="bi bi-list-columns-reverse"></i> Rates
+       </button>`
+    : `<a href="${waLink}" target="_blank" rel="noopener"
+         class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366]/10 text-[#1da851] text-[12px] font-bold hover:bg-[#25D366]/20 transition-colors">
+         <i class="bi bi-whatsapp"></i> Enquire
+       </a>`;
   const media = poster
     ? `<img src="${escHtml(poster)}" alt="${escHtml(title)} poster" loading="lazy"
          class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.06]">`
@@ -615,13 +726,10 @@ function serviceCardHtml({ title, subtitle, rate, poster, icon, waText }) {
         <p class="text-[12px] text-text-muted font-medium leading-snug line-clamp-2">${escHtml(subtitle)}</p>
         <div class="mt-auto flex items-end justify-between gap-2">
           <div>
-            <div class="text-[11px] text-text-muted font-semibold uppercase tracking-[0.6px]">Agent rate</div>
+            <div class="text-[11px] text-text-muted font-semibold uppercase tracking-[0.6px]">${escHtml(rateLabel)}</div>
             <div class="text-[17px] max-sm:text-[15px] font-heading font-black text-navy">${escHtml(formatRate(rate))}</div>
           </div>
-          <a href="${waLink}" target="_blank" rel="noopener"
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366]/10 text-[#1da851] text-[12px] font-bold hover:bg-[#25D366]/20 transition-colors">
-            <i class="bi bi-whatsapp"></i> Enquire
-          </a>
+          ${action}
         </div>
       </div>
     </div>`;
@@ -655,25 +763,38 @@ async function loadVisaServices() {
   const agentTag = `(B2B agent: ${_context?.agent?.loginId || ''})`;
 
   try {
-    const [visas, stampings, attestations] = await Promise.all([
+    const [visas, stampings, attestations, rateCards] = await Promise.all([
       getVisas().catch(() => []),
       getVisaStampings().catch(() => []),
       getAttestations().catch(() => []),
+      getVisaRateCards().catch(() => []),
     ]);
+
+    _rateCards = indexRateCardsByCountry(rateCards);
 
     // Umrah first, then UAE, Qatar, Saudi Arabia, Kuwait — anything else A–Z.
     visas.sort((a, b) =>
       visaOrderIndex(a.countryName) - visaOrderIndex(b.countryName) ||
       (a.countryName || '').localeCompare(b.countryName || ''));
-    renderServiceList(document.getElementById('b2b-visas-list'), visas.map(v => serviceCardHtml({
-      title: v.countryName || 'Unknown',
-      subtitle: v.visaType || 'Tourist Visa',
-      rate: v.rate,
-      // A purpose-made poster reads better than a bare flag, so it wins here.
-      poster: localPoster('visa', v.countryName) || v.flagUrl || '',
-      icon: 'bi bi-globe-americas',
-      waText: `Hello Zamra Travels, ${agentTag} I am interested in a visa for:\n\n🌍 Country: *${v.countryName || ''}*\n📄 Visa Type: *${v.visaType || 'Tourist'}*\n\nPlease provide details.`,
-    })));
+    renderServiceList(document.getElementById('b2b-visas-list'), visas.map((v) => {
+      const card = _rateCards.get(normaliseCountryKey(v.countryName));
+      // With a rate card the headline becomes the cheapest row on the sheet, so
+      // the card and the sheet behind it can never disagree.
+      const cheapest = card ? lowestRate(card) : null;
+      return serviceCardHtml({
+        title: v.countryName || 'Unknown',
+        subtitle: card
+          ? `${card.sections.length} rate section${card.sections.length === 1 ? '' : 's'}${card.note ? ` · ${card.note}` : ''}`
+          : (v.visaType || 'Tourist Visa'),
+        rate: cheapest === null ? v.rate : cheapest,
+        rateLabel: card && cheapest !== null ? 'From' : 'Agent rate',
+        rateCardId: card?.id || '',
+        // A purpose-made poster reads better than a bare flag, so it wins here.
+        poster: localPoster('visa', v.countryName) || v.flagUrl || '',
+        icon: 'bi bi-globe-americas',
+        waText: `Hello Zamra Travels, ${agentTag} I am interested in a visa for:\n\n🌍 Country: *${v.countryName || ''}*\n📄 Visa Type: *${v.visaType || 'Tourist'}*\n\nPlease provide details.`,
+      });
+    }));
 
     stampings.sort((a, b) => (a.country || '').localeCompare(b.country || ''));
     renderServiceList(document.getElementById('b2b-stamping-list'), stampings.map(s => serviceCardHtml({
@@ -699,10 +820,95 @@ async function loadVisaServices() {
   }
 }
 
+// ── Tourist visa rate sheet ─────────────────────────────────────────────────
+// The "Rates" button on a tourist-visa card opens this. Every section, group,
+// row and price is read from the country's `visa_rate_cards` document — the
+// renderer holds no prices of its own, so an admin edit is live immediately.
+
+/** One priced line: label on the left, rate (or free text) on the right. */
+function rateRowHtml(row) {
+  return `
+    <div class="flex items-baseline justify-between gap-4 py-2.5 border-b border-border/70 last:border-0">
+      <span class="text-[13px] font-semibold text-text-main">${escHtml(row.label)}</span>
+      <span class="shrink-0 text-[14px] font-heading font-black text-navy tabular-nums">${escHtml(formatVisaRate(row))}</span>
+    </div>`;
+}
+
+/** A named group (DUBAI / ABU DHABI) prints its heading; an unnamed one does not. */
+function rateGroupHtml(group) {
+  const heading = group.title
+    ? `<div class="text-[11px] font-bold text-primary uppercase tracking-[1px] mb-1 mt-3 first:mt-0">${escHtml(group.title)}</div>`
+    : '';
+  return `${heading}<div>${group.rows.map(rateRowHtml).join('')}</div>`;
+}
+
+function rateSectionHtml(section, index) {
+  const note = section.note
+    ? `<p class="text-[12px] text-text-muted font-semibold mt-1">${escHtml(section.note)}</p>`
+    : '';
+  return `
+    <section class="rounded-[16px] border border-border bg-bg-card overflow-hidden">
+      <header class="px-4 py-3 bg-bg-main border-b border-border">
+        <div class="flex items-center gap-2.5">
+          <span class="w-[22px] h-[22px] shrink-0 rounded-md bg-primary/10 text-primary text-[11px] font-black flex items-center justify-center">${index + 1}</span>
+          <h4 class="text-[15px] font-heading font-black text-navy">${escHtml(section.title || 'Rates')}</h4>
+        </div>
+        ${note}
+      </header>
+      <div class="px-4 pb-3 pt-1">${section.groups.map(rateGroupHtml).join('')}</div>
+    </section>`;
+}
+
+function openRatesModal(card) {
+  const modal = document.getElementById('b2b-rates-modal');
+  const body = document.getElementById('b2b-rates-body');
+  const titleEl = document.getElementById('b2b-rates-title');
+  const noteEl = document.getElementById('b2b-rates-note');
+  const waEl = document.getElementById('b2b-rates-whatsapp');
+  if (!modal || !body || !card) return;
+
+  if (titleEl) titleEl.textContent = `${card.countryName} Tourist Visa Rates`;
+  if (noteEl) {
+    noteEl.textContent = card.note;
+    noteEl.classList.toggle('hidden', !card.note);
+  }
+  if (waEl) {
+    const waNumber = _context?.whatsappNumber || '919846606738';
+    const agentTag = `(B2B agent: ${_context?.agent?.loginId || ''})`;
+    const msg = `Hello Zamra Travels, ${agentTag} I would like to book a *${card.countryName}* tourist visa.\n\nPlease confirm availability and requirements.`;
+    waEl.href = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
+  }
+
+  body.innerHTML = card.sections.length
+    ? card.sections.map(rateSectionHtml).join('')
+    : `<p class="text-center text-text-muted text-[13px] font-medium py-8">No rates published yet. Message us on WhatsApp for a quote.</p>`;
+
+  modal.showModal();
+}
+
+function wireRateCardButtons() {
+  const list = document.getElementById('b2b-visas-list');
+  if (!list || list.dataset.ratesWired) return;
+  list.dataset.ratesWired = '1';
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-rate-card-id]');
+    if (!btn) return;
+    const card = [..._rateCards.values()].find(c => c.id === btn.dataset.rateCardId);
+    if (card) openRatesModal(card);
+  });
+
+  const modal = document.getElementById('b2b-rates-modal');
+  document.getElementById('b2b-rates-close')?.addEventListener('click', () => modal?.close());
+  // Click outside the panel (i.e. on the ::backdrop) closes it, matching the
+  // password dialog's behaviour.
+  modal?.addEventListener('click', (e) => { if (e.target === modal) modal.close(); });
+}
+
 // ── Logout ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   wireResultControls();
+  wireRateCardButtons();
   document.getElementById('b2b-logout-btn')?.addEventListener('click', async () => {
     await logoutUser();
     window.location.href = '/b2b-login';

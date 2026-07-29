@@ -44,6 +44,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── b2b_offers ───────────────────────────────────────────────────────────
+    // Featured promo cards shown beside the portal's welcome banner. Managed in
+    // the admin dashboard and served to agents by getB2BPortalContext, which
+    // runs on the Admin SDK — so agents need no direct read here, and expiry
+    // stays enforced server-side rather than by whatever a stale tab believes.
+    match /b2b_offers/{offerId} {
+      allow read, write: if isAdmin();
+    }
+
     // ── b2b_credentials ──────────────────────────────────────────────────────
     // Encrypted copies of B2B agent passwords, kept so admins can re-read an
     // agent's current credentials (Firebase Auth cannot give a password back).
@@ -114,6 +123,15 @@ service cloud.firestore {
     // ── visas ────────────────────────────────────────────────────────────────
     match /visas/{visaId} {
       allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── visa_rate_cards ──────────────────────────────────────────────────────
+    // Structured tourist-visa price sheets shown behind the "Rates" button in
+    // the B2B portal. These are agent rates, so unlike `visas` they are NOT
+    // world-readable — only an admin or a signed-in B2B agent may read them.
+    match /visa_rate_cards/{id} {
+      allow read: if isAdmin() || isAgent();
       allow write: if isAdmin();
     }
 
