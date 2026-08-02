@@ -753,6 +753,32 @@ Holds `credKey` — the encryption key for `b2b_credentials`, generated once on 
 
 > Written by `saveB2BConfig()` (scalars, `setDoc` merge) and `saveB2BSupplierDefaults()` (the map, via `updateDoc` so removed suppliers actually disappear — a `setDoc` merge would merge nested maps key-by-key and leave orphans behind).
 
+### `config/soto`
+Tunes the public `/soto` page. **The document is optional** — every field falls back to a default, so the feature works with no admin setup. There is no admin tab for it yet; edit it in the Firestore console.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `markup` | Number | `0` | ₹ added to every provider price. Left at `0` because these are indicative market fares, not Zamra's contracted rates — raise it only if the page should quote a saleable figure. **Changing it invalidates `soto_cache`**: markup is not part of the cache key, so each doc records the markup it was priced at and a mismatch counts as a miss |
+| `blockIndiaDestinations` | Boolean | `false` | Origin-in-India is always refused (that is what makes a fare SOTO). Set `true` to also refuse India *destinations* — by default `DXB→COK` is allowed, since the journey still starts abroad |
+| `cacheTtlMinutes` | Number | `45` | How long a cached lookup is served before re-calling the provider. Capped at 720 |
+| `whatsappNumber` | String | `919846606739` | Digits only; used for the "Get this fare" links |
+
+### `soto_cache/{sha256}`
+Cached third-party fare lookups. Doc id is a sha256 of `origin|destination|departDate|returnDate|direct|currency`.
+
+**Denied to every client in `firestore.rules`, admins included.** Only the Admin SDK inside `searchSotoFares` touches it. The public path is the endpoint, not the collection — and a client-writable cache sitting in front of a metered third-party API is an obvious way to poison displayed prices or burn the quota.
+
+| Field | Type | Notes |
+|---|---|---|
+| `key` | String | Mirrors the doc id |
+| `provider` | String | `travelpayouts` — recorded so a provider switch can invalidate cleanly |
+| `route`, `departDate`, `returnDate`, `direct`, `currency` | — | The query, kept for debugging |
+| `markup` | Number | The markup these prices were built with |
+| `fares` | Array | Projected fares, exactly as returned to the browser |
+| `cachedAt` / `expiresAt` | Timestamp | `expiresAt` drives both the freshness check and the daily sweep |
+
+> Swept by `purgeSotoCache` (daily, 03:00 UTC). Only a single-field `expiresAt` index is needed, which Firestore creates automatically. An entry under 24 h past expiry is still served — with `stale: true` — when the provider is unreachable.
+
 ---
 
 ## Firestore Indexes
@@ -793,6 +819,9 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a non-posted errored job item without mutating the old queue record. |
 | `getPublicDeals` | HTTPS onRequest endpoint, **unauthenticated by design** — the gate is the link's own `isActive` flag, not a token. Resolves `deal_links/<slug>`, applies the link's rolling or fixed window, queries `agent_fares` in `in`-safe chunks, collapses duplicates to the cheapest per sector+airline+date+time, and returns fares **projected to display fields only** (`date`, `time`, `airlineName`, `airlineCode`, `airlineLogo`, `checkInBaggageKg`, `handBaggageKg`, `price`). `specialRate`, `commission`, `finalRate`, `supplierRate` and the supplier `agentId` never leave the server. Bumps `viewCount` fire-and-forget. `404`s a missing or inactive link. |
 | `purgeOldFaresDaily` | Scheduled cleanup. Deletes `agent_fares` with `flightDate` earlier than **today − 2 days** (UTC midnight). Keeps the most recent two days of fares plus today. |
+| `searchSotoFares` | HTTPS onRequest endpoint, **unauthenticated by design** — `/soto` is a public page. Validates both IATA codes against the committed dataset, checks the departure window (today … +11 months), enforces the SOTO rule (origin must not be in India), then serves `soto_cache/{sha256}` or calls Travelpayouts. Returns fares **projected to display fields only** — the provider's `link` field carries our affiliate marker and never leaves the server. `maxInstances: 10`. Secret: `TRAVELPAYOUTS_TOKEN`. |
+| `searchSotoAirports` | HTTPS onRequest typeahead over `functions/soto/places.json`. No provider call, no Firestore read, `s-maxage=86400`. |
+| `purgeSotoCache` | Scheduled cleanup, daily at 03:00 UTC. Batch-deletes `soto_cache` docs whose `expiresAt` has passed. |
 
 **Social publishing scheduled workers**
 - `autoPostDaily` renders scheduled posters, creates `social_jobs` / `social_jobs/*/items`, uploads media, and enqueues queue docs.
@@ -807,12 +836,15 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 - **Public read:** `sectors`, `airlines`, `agent_fares` (only if `isHidden==false` and agent `isActive==true`)
 - **Admin read/write:** All collections — requires `request.auth.token.admin == true`
 - **Admin-only, never public:** `enquiries` (holds customer names and phone numbers), `deal_links`, `config`, `social_queue`, `social_jobs`
+- **Denied to everyone, admins included:** `b2b_credentials`, `soto_cache` — both are reached only by the Admin SDK inside a Cloud Function
 - **Admin + B2B agent read:** `visa_rate_cards` — the portal's tourist-visa price sheets are agent rates, so they stay behind the `agent` claim rather than sitting in world-readable `visas`
 - **Admin-only, served by callable:** `b2b_offers` — the portal's featured-offer cards come back from `getB2BPortalContext`, which keeps expiry enforced server-side and hides offers from an origin the agent cannot see
 
 > `agent_fares` uses a **document-level** read condition. An unauthenticated *query* over it must therefore carry `where('isHidden','==',false)` or the whole query is rejected — not filtered, rejected. `getFares()` adds it automatically whenever `includeHidden` is falsy.
 
 > `deal_links` is admin-only even though it powers a public page: `getPublicDeals` reads it through the Admin SDK and returns a projected payload. Serving through a function rather than opening the rule is what keeps `specialRate` / `commission` / supplier `agentId` off the wire and makes view counting possible without a publicly writable field.
+
+> `soto_cache` is the same shape for a different reason. There are no supplier economics in it — the constraint is that `/soto` sits in front of a metered third-party API. Keeping the collection closed means a visitor cannot write prices into the cache or drain the quota, and the `TRAVELPAYOUTS_TOKEN` secret stays inside the function.
 
 ### Storage (`storage.rules`)
 - **Public read:** All files

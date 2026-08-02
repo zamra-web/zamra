@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOTO International Fares – Zamra Travels</title>
+  <meta name="description" content="Search indicative fares for international routes that start outside India — Dubai to Bangkok, Jeddah to Cairo and thousands more. Ticketed by Zamra Travels.">
+
+  <!-- Favicons -->
+  <link href="/assets/img/favicon.webp?v=3" rel="icon">
+  <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/src/styles/web/style.css">
+
+  <style>
+    /* ── SOTO Page Specific Styles ──────────────────────────────────────────
+       Page-local by the same convention as visa.html and deals.html: numerous,
+       self-contained, and used nowhere else. Tokens come from style.css — note
+       they must be referenced by their FULL name (--color-primary, not
+       --primary), because Tailwind v4 @theme emits them that way and a wrong
+       name fails silently. */
+
+    .soto-hero {
+      background: linear-gradient(135deg, #073160 0%, #0c4a8a 45%, #1e67c2 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .soto-hero-bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('/assets/img/hero-banner-bg.png');
+      background-size: cover;
+      background-position: center;
+      opacity: 0.16;
+    }
+
+    .soto-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.95rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      color: #dbeafe;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ── Search card ── */
+
+    .soto-search-card {
+      background: var(--color-bg-card, #ffffff);
+      border: 1px solid var(--color-border, #e2e8f0);
+      border-radius: 24px;
+      box-shadow: 0 18px 48px rgba(7, 49, 96, 0.18);
+      padding: 1.5rem;
+    }
+
+    .soto-search-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.85rem;
+      align-items: end;
+    }
+
+    .soto-search-row2 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr) auto;
+      gap: 0.85rem;
+      align-items: end;
+      margin-top: 0.85rem;
+    }
+
+    .soto-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      position: relative;
+      min-width: 0;
+    }
+
+    .soto-field label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted, #475569);
+    }
+
+    .soto-field input,
+    .soto-field select {
+      width: 100%;
+      padding: 0.72rem 0.9rem;
+      border: 1px solid var(--color-border, #e2e8f0);
+      border-radius: 12px;
+      background: #ffffff;
+      font-family: var(--font-body, 'Inter', sans-serif);
+      font-size: 0.92rem;
+      font-weight: 500;
+      color: var(--color-text-main, #0f172a);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .soto-field input:focus,
+    .soto-field select:focus {
+      outline: none;
+      border-color: var(--color-primary, #0c4a8a);
+      box-shadow: 0 0 0 3px rgba(12, 74, 138, 0.12);
+    }
+
+    .soto-field--disabled {
+      opacity: 0.5;
+    }
+
+    .soto-swap-btn {
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+      border-radius: 999px;
+      border: 1px solid var(--color-border, #e2e8f0);
+      background: #f8fafc;
+      color: var(--color-primary, #0c4a8a);
+      font-size: 1.05rem;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+      margin-bottom: 0.15rem;
+    }
+
+    .soto-swap-btn:hover {
+      background: #eff6ff;
+      transform: rotate(180deg);
+    }
+
+    .soto-submit-btn {
+      padding: 0.78rem 1.9rem;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--color-primary, #0c4a8a), #1558c0);
+      color: #ffffff;
+      font-family: var(--font-heading, 'Outfit', sans-serif);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    }
+
+    .soto-submit-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(12, 74, 138, 0.3);
+    }
+
+    .soto-submit-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .soto-direct-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.9rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: var(--color-text-muted, #475569);
+      cursor: pointer;
+    }
+
+    .soto-direct-toggle input {
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--color-primary, #0c4a8a);
+      cursor: pointer;
+    }
+
+    /* ── Typeahead ── */
+
+    .soto-suggest-list {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      left: 0;
+      right: 0;
+      z-index: 40;
+      max-height: 19rem;
+      overflow-y: auto;
+      background: #ffffff;
+      border: 1px solid var(--color-border, #e2e8f0);
+      border-radius: 14px;
+      box-shadow: 0 14px 34px rgba(13, 31, 60, 0.16);
+      padding: 0.3rem;
+    }
+
+    .soto-suggest {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      width: 100%;
+      padding: 0.55rem 0.6rem;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .soto-suggest:hover {
+      background: #f1f5f9;
+    }
+
+    .soto-suggest-code {
+      flex-shrink: 0;
+      width: 2.9rem;
+      padding: 0.25rem 0;
+      border-radius: 7px;
+      background: rgba(12, 74, 138, 0.09);
+      color: var(--color-primary, #0c4a8a);
+      font-family: var(--font-heading, 'Outfit', sans-serif);
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+
+    .soto-suggest-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .soto-suggest-city {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--color-text-main, #0f172a);
+    }
+
+    .soto-suggest-meta {
+      font-size: 0.72rem;
+      color: var(--color-text-muted, #475569);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .soto-suggest-empty {
+      padding: 0.85rem;
+      font-size: 0.83rem;
+      color: var(--color-text-muted, #475569);
+      text-align: center;
+    }
+
+    /* ── Result cards ── */
+
+    .soto-card {
+      display: flex;
+      align-items: stretch;
+      gap: 1.25rem;
+      background: var(--color-bg-card, #ffffff);
+      border: 1px solid var(--color-border, #e2e8f0);
+      border-radius: 18px;
+      box-shadow: 0 2px 12px rgba(13, 31, 60, 0.06);
+      padding: 1.15rem 1.35rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .soto-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 26px rgba(13, 31, 60, 0.1);
+    }
+
+    .soto-card-main {
+      display: grid;
+      grid-template-columns: minmax(9rem, 0.85fr) minmax(0, 1.6fr) minmax(8rem, 0.85fr);
+      gap: 1.25rem;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .soto-airline {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      min-width: 0;
+    }
+
+    .soto-airline-badge {
+      flex-shrink: 0;
+      width: 2.6rem;
+      height: 2.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid var(--color-border, #e2e8f0);
+      color: var(--color-primary, #0c4a8a);
+      font-family: var(--font-heading, 'Outfit', sans-serif);
+      font-size: 0.85rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+    }
+
+    .soto-airline-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .soto-airline-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--color-text-main, #0f172a);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .soto-airline-flight {
+      font-size: 0.72rem;
+      color: var(--color-text-muted, #475569);
+      font-weight: 600;
+    }
+
+    .soto-route {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.85rem;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .soto-route-end {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .soto-route-end--right {
+      text-align: right;
+    }
+
+    .soto-route-code {
+      font-family: var(--font-heading, 'Outfit', sans-serif);
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--color-text-main, #0f172a);
+      line-height: 1.1;
+    }
+
+    .soto-route-city {
+      font-size: 0.74rem;
+      color: var(--color-text-muted, #475569);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .soto-route-mid {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.28rem;
+      min-width: 0;
+    }
+
+    .soto-route-line {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-primary, #0c4a8a);
+      font-size: 0.8rem;
+    }
+
+    .soto-route-line::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: repeating-linear-gradient(90deg, var(--color-border, #e2e8f0) 0 5px, transparent 5px 10px);
+    }
+
+    .soto-route-line i {
+      position: relative;
+      background: var(--color-bg-card, #ffffff);
+      padding: 0 0.4rem;
+    }
+
+    .soto-route-meta {
+      font-size: 0.71rem;
+      font-weight: 600;
+      color: var(--color-text-muted, #475569);
+      white-space: nowrap;
+    }
+
+    .soto-when {
+      display: flex;
+      flex-direction: column;
+      gap: 0.12rem;
+    }
+
+    .soto-when-date {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--color-text-main, #0f172a);
+    }
+
+    .soto-when-time,
+    .soto-when-return {
+      font-size: 0.73rem;
+      color: var(--color-text-muted, #475569);
+    }
+
+    .soto-card-price {
+      flex-shrink: 0;
+      width: 11.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.9rem 0.75rem;
+      background: #f8fafc;
+      border: 1px solid var(--color-border, #e2e8f0);
+      border-radius: 14px;
+    }
+
+    .soto-indicative-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      padding: 0.14rem 0.55rem;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 0.63rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: help;
+    }
+
+    .soto-price {
+      font-family: var(--font-heading, 'Outfit', sans-serif);
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: var(--color-text-main, #0f172a);
+      line-height: 1.1;
+    }
+
+    .soto-freshness {
+      font-size: 0.66rem;
+      color: var(--color-text-muted, #475569);
+    }
+
+    .soto-book-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      width: 100%;
+      margin-top: 0.2rem;
+      padding: 0.5rem 0.9rem;
+      border-radius: 10px;
+      background: #25D366;
+      color: #ffffff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: transform 0.2s ease;
+    }
+
+    .soto-book-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    /* ── Results chrome ── */
+
+    .soto-results-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .soto-summary-route {
+      font-family: var(--font-heading, 'Outfit', sans-serif);
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--color-text-main, #0f172a);
+    }
+
+    .soto-summary-meta {
+      font-size: 0.8rem;
+      color: var(--color-text-muted, #475569);
+      font-weight: 600;
+    }
+
+    .soto-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.85rem 1.05rem;
+      border-radius: 14px;
+      background: rgba(12, 74, 138, 0.06);
+      border: 1px solid rgba(12, 74, 138, 0.14);
+      color: var(--color-text-muted, #475569);
+      font-size: 0.81rem;
+      line-height: 1.55;
+    }
+
+    .soto-notice i {
+      color: var(--color-primary, #0c4a8a);
+      font-size: 1rem;
+      flex-shrink: 0;
+      margin-top: 0.08rem;
+    }
+
+    .soto-notice--warn {
+      background: #fffbeb;
+      border-color: #fde68a;
+      color: #92400e;
+    }
+
+    .soto-notice--warn i {
+      color: #d97706;
+    }
+
+    .soto-state {
+      text-align: center;
+      padding: 3.25rem 1.5rem;
+      color: var(--color-text-muted, #475569);
+    }
+
+    .soto-state i {
+      font-size: 2.25rem;
+      color: var(--color-primary, #0c4a8a);
+      opacity: 0.35;
+    }
+
+    .soto-state p {
+      margin-top: 0.85rem;
+      font-weight: 600;
+    }
+
+    .soto-state-sub {
+      margin-top: 0.4rem !important;
+      font-weight: 400 !important;
+      font-size: 0.85rem;
+    }
+
+    .soto-skeleton {
+      height: 6.4rem;
+      border-radius: 18px;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+      background-size: 400% 100%;
+      animation: soto-shimmer 1.4s ease infinite;
+    }
+
+    @keyframes soto-shimmer {
+      0% { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
+
+    /* ── Responsive ── */
+
+    @media (max-width: 900px) {
+      .soto-card {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .soto-card-main {
+        grid-template-columns: 1fr;
+        gap: 0.9rem;
+      }
+
+      .soto-card-price {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.6rem;
+      }
+
+      .soto-book-btn {
+        width: auto;
+        margin-top: 0;
+        flex: 1 1 100%;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .soto-search-card {
+        padding: 1.15rem;
+      }
+
+      .soto-search-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .soto-search-row2 {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .soto-search-row2 .soto-submit-btn {
+        grid-column: 1 / -1;
+        width: 100%;
+      }
+
+      .soto-swap-btn {
+        justify-self: center;
+        transform: rotate(90deg);
+      }
+
+      .soto-swap-btn:hover {
+        transform: rotate(270deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .soto-card:hover,
+      .soto-book-btn:hover,
+      .soto-submit-btn:hover:not(:disabled) {
+        transform: none;
+      }
+
+      .soto-skeleton {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-bg-main text-text-main font-body">
+
+  <header class="site-header" id="header">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 flex justify-between items-center h-[80px] max-sm:h-[72px]">
+      <a href="/index.html" class="flex items-center">
+        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[56px] max-sm:h-[48px] w-auto mix-blend-multiply">
+      </a>
+
+      <nav class="hidden md:block" id="nav-menu">
+        <ul class="flex gap-6 lg:gap-8 list-none m-0 p-0">
+          <li><a href="/index.html#about" class="site-nav-link">About</a></li>
+          <li><a href="/index.html#services" class="site-nav-link">Services</a></li>
+          <li><a href="/index.html#flights" class="site-nav-link">Flights</a></li>
+          <li><a href="/soto.html" class="site-nav-link active" aria-current="page">SOTO</a></li>
+          <li><a href="/tours.html" class="site-nav-link">Tours</a></li>
+          <li><a href="/visa.html" class="site-nav-link">Visa</a></li>
+          <li><a href="/hajj-umrah.html" class="site-nav-link">Hajj-Umrah</a></li>
+          <li><a href="/index.html#contact" class="site-nav-link">Contact</a></li>
+        </ul>
+      </nav>
+
+      <div class="flex items-center gap-4 max-sm:gap-3">
+        <a href="/index.html#enquiry" class="btn-primary px-7 py-3 rounded-full text-[15px] premium-hover-lift max-md:hidden">
+          Enquiry <i class="bi bi-arrow-right"></i>
+        </a>
+        <button class="md:hidden text-[28px] max-sm:text-[26px] bg-transparent border-none text-text-main cursor-pointer" id="mobile-toggle" aria-label="Toggle mobile menu" aria-expanded="false">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Hero ───────────────────────────────────────────────────────────────── -->
+  <section class="soto-hero py-[56px] max-sm:py-[40px] md:py-[76px]">
+    <div class="soto-hero-bg"></div>
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 relative z-10 text-center">
+      <div class="soto-badge mb-4">
+        <i class="bi bi-globe2"></i>
+        <span>SOTO Fares</span>
+      </div>
+      <h1 class="text-white font-heading font-black text-[2.1rem] md:text-[2.9rem] leading-tight mb-3">
+        International fares that start outside India
+      </h1>
+      <p class="text-blue-100 text-[0.98rem] md:text-[1.08rem] font-medium max-w-[640px] mx-auto">
+        Dubai to Bangkok, Jeddah to Cairo, Doha to Manila — search thousands of routes worldwide
+        and we will ticket it for you from Kerala.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Search ─────────────────────────────────────────────────────────────── -->
+  <main class="w-full max-w-[1180px] mx-auto px-6 max-sm:px-4 pb-[56px] max-sm:pb-[40px]">
+
+    <form id="soto-search-form" class="soto-search-card -mt-[38px] relative z-20" autocomplete="off">
+      <div class="soto-search-grid">
+        <div class="soto-field">
+          <label for="soto-origin">Flying from</label>
+          <input type="text" id="soto-origin" placeholder="City or airport — e.g. Dubai"
+            autocomplete="off" role="combobox" aria-expanded="false" aria-controls="soto-origin-list">
+          <div class="soto-suggest-list" id="soto-origin-list" role="listbox" hidden></div>
+        </div>
+
+        <button type="button" class="soto-swap-btn" id="soto-swap" aria-label="Swap origin and destination">
+          <i class="bi bi-arrow-left-right"></i>
+        </button>
+
+        <div class="soto-field">
+          <label for="soto-destination">Flying to</label>
+          <input type="text" id="soto-destination" placeholder="City or airport — e.g. Bangkok"
+            autocomplete="off" role="combobox" aria-expanded="false" aria-controls="soto-dest-list">
+          <div class="soto-suggest-list" id="soto-dest-list" role="listbox" hidden></div>
+        </div>
+      </div>
+
+      <div class="soto-search-row2">
+        <div class="soto-field">
+          <label for="soto-trip">Trip</label>
+          <select id="soto-trip">
+            <option value="oneway" selected>One way</option>
+            <option value="return">Return</option>
+          </select>
+        </div>
+
+        <div class="soto-field">
+          <label for="soto-depart">Departure</label>
+          <input type="date" id="soto-depart">
+        </div>
+
+        <div class="soto-field">
+          <label for="soto-return">Return</label>
+          <input type="date" id="soto-return" disabled>
+        </div>
+
+        <button type="submit" class="soto-submit-btn" id="soto-search-btn" disabled>
+          <i class="bi bi-search"></i> Search fares
+        </button>
+      </div>
+
+      <label class="soto-direct-toggle" for="soto-direct">
+        <input type="checkbox" id="soto-direct">
+        Non-stop flights only
+      </label>
+    </form>
+
+    <!-- ── What these prices are ── -->
+    <div class="soto-notice mt-6">
+      <i class="bi bi-info-circle-fill"></i>
+      <span>
+        <strong>These are indicative market fares</strong>, gathered from live fare feeds rather than
+        a live seat check — treat them as a guide to what the route costs today. Message us and we
+        will confirm the exact price and availability before you pay. Routes departing India are not
+        SOTO; use the <a href="/index.html#flights" class="text-primary font-semibold underline">flight search on our homepage</a>
+        for those.
+      </span>
+    </div>
+
+    <!-- ── Results ── -->
+    <section class="mt-8">
+      <div id="soto-prompt" class="soto-state">
+        <i class="bi bi-compass"></i>
+        <p>Pick a route to see today's fares</p>
+        <p class="soto-state-sub">Start typing a city — Dubai, Jeddah, Doha, Bangkok, Singapore…</p>
+      </div>
+
+      <div id="soto-loading" class="flex flex-col gap-4" hidden>
+        <div class="soto-skeleton"></div>
+        <div class="soto-skeleton"></div>
+        <div class="soto-skeleton"></div>
+      </div>
+
+      <div id="soto-results" hidden>
+        <div class="soto-results-head">
+          <div id="soto-results-summary" class="flex flex-col"></div>
+          <span class="text-[0.76rem] text-text-muted">Sorted by price · cheapest first</span>
+        </div>
+
+        <div id="soto-stale-notice" class="soto-notice soto-notice--warn mb-4" hidden>
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>Our fare feed is not responding right now, so these prices are from an earlier check
+            and may be out of date. Message us for a current quote.</span>
+        </div>
+
+        <div id="soto-results-list" class="flex flex-col gap-4"></div>
+      </div>
+
+      <div id="soto-empty" class="soto-state" hidden>
+        <i class="bi bi-calendar-x"></i>
+        <p>No fares found for that route and date</p>
+        <p class="soto-state-sub">Try a nearby date, or message us — we can often source a fare that is not in the feed.</p>
+        <a href="https://wa.me/919846606739" class="soto-book-btn mt-4" style="width:auto;display:inline-flex;" target="_blank" rel="noopener">
+          <i class="bi bi-whatsapp"></i> Ask us for a quote
+        </a>
+      </div>
+
+      <div id="soto-error" class="soto-state" hidden>
+        <i class="bi bi-exclamation-triangle"></i>
+        <p id="soto-error-text">Something went wrong.</p>
+        <button type="button" id="soto-retry-btn" class="soto-submit-btn mt-4">
+          <i class="bi bi-arrow-clockwise"></i> Try again
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Why book SOTO with Zamra ── -->
+    <section class="mt-14 max-sm:mt-10">
+      <h2 class="font-heading font-bold text-[1.45rem] text-navy mb-5">Why ticket your SOTO fare with us</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div class="bg-bg-card border border-border rounded-[18px] p-5">
+          <i class="bi bi-globe-asia-australia text-primary text-[1.6rem]"></i>
+          <h3 class="font-heading font-bold text-[1.02rem] text-navy mt-3 mb-1.5">Routes that never touch India</h3>
+          <p class="text-text-muted text-[0.86rem] leading-relaxed">
+            Gulf to Southeast Asia, Africa, Europe — journeys that start abroad, ticketed and settled here in Kerala.
+          </p>
+        </div>
+        <div class="bg-bg-card border border-border rounded-[18px] p-5">
+          <i class="bi bi-person-vcard text-primary text-[1.6rem]"></i>
+          <h3 class="font-heading font-bold text-[1.02rem] text-navy mt-3 mb-1.5">One point of contact</h3>
+          <p class="text-text-muted text-[0.86rem] leading-relaxed">
+            Family in India can pay and arrange the ticket while the traveller is overseas — reissues and refunds
+            come back to the same desk.
+          </p>
+        </div>
+        <div class="bg-bg-card border border-border rounded-[18px] p-5">
+          <i class="bi bi-shield-check text-primary text-[1.6rem]"></i>
+          <h3 class="font-heading font-bold text-[1.02rem] text-navy mt-3 mb-1.5">Checked before you pay</h3>
+          <p class="text-text-muted text-[0.86rem] leading-relaxed">
+            Every fare here is a starting point. We verify the live price, fare rules and baggage with the airline
+            before anything is issued.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── CTA ────────────────────────────────────────────────────────────────── -->
+  <section class="bg-navy py-[48px] max-sm:py-[36px]">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 text-center">
+      <h2 class="text-white font-heading font-bold text-[1.6rem] max-sm:text-[1.35rem] mb-2">
+        Cannot find your route?
+      </h2>
+      <p class="text-slate-400 text-[0.92rem] mb-6 max-w-[560px] mx-auto">
+        Send us the cities and dates. We quote SOTO sectors that never appear in public fare feeds.
+      </p>
+      <div class="flex items-center justify-center gap-3 flex-wrap">
+        <a href="https://wa.me/919846606739" class="soto-book-btn" style="width:auto;" target="_blank" rel="noopener">
+          <i class="bi bi-whatsapp"></i> WhatsApp Us
+        </a>
+        <a href="tel:+919846606739" class="soto-book-btn" style="width:auto;background:#0c4a8a;">
+          <i class="bi bi-telephone-fill"></i> +91 98466 06739
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────────── -->
+  <footer class="bg-navy-dark text-slate-300 pt-[48px]">
+    <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4">
+      <div class="text-center pb-[32px]">
+        <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[52px] w-auto mx-auto mb-4 brightness-0 invert">
+        <p class="text-slate-400 text-[0.9rem] max-w-[560px] mx-auto">
+          Zamra Travels — flights, visas, tours and Hajj &amp; Umrah packages from Kerala.
+        </p>
+        <nav class="flex items-center justify-center gap-5 mt-5 flex-wrap text-[0.85rem]">
+          <a href="/index.html" class="text-slate-400 hover:text-white transition-colors">Home</a>
+          <a href="/soto.html" class="text-slate-400 hover:text-white transition-colors">SOTO Fares</a>
+          <a href="/tours.html" class="text-slate-400 hover:text-white transition-colors">Tours</a>
+          <a href="/visa.html" class="text-slate-400 hover:text-white transition-colors">Visa</a>
+          <a href="/hajj-umrah.html" class="text-slate-400 hover:text-white transition-colors">Hajj &amp; Umrah</a>
+        </nav>
+      </div>
+      <div class="py-[24px] max-sm:py-[20px] text-center text-slate-500 border-t border-white/10">
+        <p>&copy; 2026 <strong class="text-white">Zamra Travels</strong>. All Rights Reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── Floating Social ────────────────────────────────────────────────────── -->
+  <div class="fixed bottom-[30px] right-[30px] flex flex-col gap-[12px] z-[99] max-sm:bottom-[calc(env(safe-area-inset-bottom)+12px)] max-sm:right-4 max-sm:gap-[8px]">
+    <a href="https://wa.me/919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-[#25D366] max-sm:w-[46px] max-sm:h-[46px] max-sm:text-[20px]"><i class="bi bi-whatsapp"></i></a>
+    <a href="tel:+919846606739" class="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white text-[24px] no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-transform duration-300 hover:scale-110 bg-primary max-sm:w-[46px] max-sm:h-[46px] max-sm:text-[20px]"><i class="bi bi-telephone-fill"></i></a>
+  </div>
+
+  <script type="module" src="/src/js/web/soto.js"></script>
+</body>
+
+</html>

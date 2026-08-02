@@ -39,6 +39,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | `web/hajj-umrah.html` | `/hajj-umrah.html` | Hajj & Umrah packages page — filters, search, package grid |
 | `web/connect.html` | `/gcc` | GCC flight deals landing page |
 | `web/deals.html` | `/deals/<slug>` | Curated live-fare deal page — see below |
+| `web/soto.html` | `/soto` | SOTO international fares — third-party live search, see below |
 | `web/login.html` | `/login.html` | Admin login page (Firebase Auth) |
 | `web/admin.html` | `/admin.html` | Admin dashboard (auth-gated, see DASHBOARD.md) |
 | `web/b2b-login.html` | `b2b.zamratravels.com/b2b-login` | B2B agent login (agent claim) |
@@ -72,6 +73,8 @@ web/
     └── js/
         ├── web/
         │   ├── main.js         # All frontend logic (flight search, UI interactions)
+        │   ├── soto.js         # SOTO page — typeahead, search, deep links (no Firebase SDK)
+        │   ├── soto-card.js    # SOTO result card markup (pure, escaped, no baggage)
         │   ├── visa.js         # Visa page logic — tab switching, card rendering, modal, WhatsApp link
         │   ├── tours.js        # Tours listing page — fetch, render cards, category filter chips, search
         │   └── hajj-umrah.js   # Hajj & Umrah page — fetch, render cards, filter by type, search
@@ -248,6 +251,37 @@ The existing `isHidden, sectorId, flightDate` composite index already covers thi
 
 ---
 
+## SOTO Page (`soto.html` + `soto.js` + `soto-card.js`)
+
+Live international fare search for routes that **start outside India**. SOTO — *Sold Outside, Ticketed Outside* — is a ticket for a journey beginning in another country, sold and issued here. Zamra has no contracted rate sheet for those sectors, so this page quotes third-party market prices instead and hands the enquiry to WhatsApp.
+
+**Routing.** `/soto`, served by `cleanUrls` with no `vercel.json` entry — a new rewrite would only risk the `.html`-destination trap.
+
+**This page never touches Firestore, for a different reason than `/deals`.** There are no supplier economics here; the constraint is the **Travelpayouts API token**, which is quota-metered and identifies our affiliate account. It can never ship to a browser. Putting the call server-side also puts the SOTO eligibility rule and the response allow-list somewhere a visitor cannot route around, and keeps the bundle at **~10.5 kB of JS** with no Firebase SDK.
+
+**Two endpoints** (`functions/soto/`):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /searchSotoAirports?q=dub&limit=8` | Typeahead over the committed place dataset. No provider call. `s-maxage=86400`. |
+| `GET /searchSotoFares?origin=DXB&destination=BKK&departDate=…` | The fare search. `s-maxage=300`. |
+
+`searchSotoFares` responses: `200` `{ success, query, fares, cachedAt, stale, whatsappNumber, indicative }` · `400 MISSING_PARAMS` / `BAD_DATE` / `UNKNOWN_AIRPORT` / `SAME_AIRPORT` · `409 NOT_SOTO` · `502 PROVIDER_FAILED` · `500 LOOKUP_FAILED`. Every non-200 carries a `message` written for the visitor — the client renders it verbatim, because only the server knows *why* a route was refused.
+
+**Request flow.** Validate IATA codes against the bundled dataset → check the date window (today … +11 months) → check SOTO eligibility → look up `soto_cache/{sha256}` → on a miss call Travelpayouts → normalize → project → cache → respond. Validating before the provider call is both correct and the endpoint's cheapest abuse guard: junk input never costs an API call. `maxInstances` is 10.
+
+**The eligibility rule.** Origin country must not be `IN`. An India *destination* is allowed — `DXB→COK` sold in Kerala is a genuine SOTO ticket, since the journey starts abroad. `config/soto.blockIndiaDestinations` tightens this to "must not touch India at all" without a deploy. A refused route points the visitor at the homepage flight search, where India departures belong.
+
+**These prices are indicative, and the UI says so everywhere.** Travelpayouts serves prices harvested from Aviasales searches, not a live seat check; a row can be days old. Every card carries an **Indicative** chip and a "Checked *N*h ago" stamp, rows past their own `expires_at` are dropped server-side, and a page-level notice explains what the numbers are. `config/soto.markup` (default `0`) can add a saleable buffer later without a deploy. Moving to firm quotable prices means a live provider (Duffel) — `functions/soto/provider.js` is the only file that would change.
+
+**Caching.** `soto_cache/{key}`, key = sha256 of `origin|dest|departDate|returnDate|direct|currency`, TTL from `config/soto.cacheTtlMinutes` (default 45). A **markup change invalidates the cache** — the doc stores the markup it was priced at, and a mismatch counts as a miss, otherwise the page keeps quoting the old selling price until every entry ages out. When the provider fails but a cache entry under 24 h old exists, it is served with `stale: true` and the page shows a warning band; a slightly old price beats an error screen. `purgeSotoCache` sweeps expired docs daily at 03:00 UTC.
+
+**`soto_cache` is denied to every client in `firestore.rules`,** admins included — the public path is the endpoint, not the collection, and a client-writable cache in front of a metered API is an obvious way to poison prices or burn the quota.
+
+**Reference data** lives in `functions/soto/places.json` (4,047 flightable cities + airports, 269 kB) and `functions/soto/airlines.json` (1,120 carriers, 24 kB), both **committed** and regenerated by `node scripts/build-soto-reference.cjs`. Fetching 4.7 MB of reference JSON on every cold start would stall the first search of the day for data that changes a few times a year. This is deliberately separate from `web/src/js/shared/airports.js`, which stays at Zamra's 25 India/Gulf airports because it ships to every page.
+
+---
+
 ## B2B Agent Portal (`b2b.html` + `b2b/main.js`)
 
 Auth-gated partner portal on `b2b.zamratravels.com`. Shares the public site's stylesheet and design system, but reads **nothing** from Firestore directly — all fare data comes from the `getB2BPortalContext` / `getB2BFares` callables so pricing stays server-side. See DASHBOARD.md for the pricing waterfall.
@@ -317,6 +351,7 @@ All public pages share a consistent header/nav/CTA system:
 ## Firebase (Public Read)
 
 The public website reads from Firestore with these security rules:
+- `soto_cache` — **denied to every client** 🔒 (server-only; `/soto` reads the endpoint, not the collection)
 - `sectors` — public read ✅
 - `airlines` — public read ✅
 - `agent_fares` — public read only if `isHidden == false` AND agent `isActive == true` ✅
@@ -366,5 +401,7 @@ The display strings come from that same module — `formatCheckInBaggageText()` 
 **Flight times fall back to `flight_details`.** A fare whose `flightTime` is empty (every row ingested before the n8n round-trip was fixed) resolves against the configured airline+sector default, including any date-ranged seasonal override — this is what stopped SpiceJet CCJ–DXB rendering as `TBA`. `main.js` builds the resolver once per page load via `buildFlightTimeResolver()` and passes it into `dedupeAndSortFares()`, which must resolve **before** grouping because flight time is part of the dedupe key. A failed `flight_details` read degrades to the fare's own value rather than blanking the list.
 
 ---
+
+_Last updated: 2026-08-02 — Added the `/soto` page: third-party (Travelpayouts) international fare search for non-India-origin routes, served through `searchSotoFares` / `searchSotoAirports` with a Firestore-backed 45-minute cache. Prices are indicative and labelled as such; SOTO cards deliberately render no baggage._
 
 _Last audited: 2026-07-23 — Fare cards resolve flight times from `flight_details` (with date-ranged `schedules`) and render baggage through the shared formatters. Shared site chrome consolidates header/nav behavior, mobile menu uses `#nav-menu.active`, and Tours/Hajj/Umrah details continue to open in premium modals (no standalone tour detail route). Hajj/Umrah still sorts client-side by `departureDate`._

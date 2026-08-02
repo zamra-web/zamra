@@ -113,6 +113,18 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // ── soto_cache ───────────────────────────────────────────────────────────
+    // Cached third-party fare lookups for /soto. Server-only, like deal_links:
+    // the public path is the searchSotoFares endpoint, not the collection.
+    //
+    // Denied to every client including admins. Nothing reads these except the
+    // Admin SDK inside the endpoint, and a client-writable cache in front of a
+    // metered API is an obvious way to poison prices or burn the quota.
+    // purgeSotoCache sweeps expired entries daily.
+    match /soto_cache/{cacheId} {
+      allow read, write: if false;
+    }
+
     // ── services ─────────────────────────────────────────────────────────────
     // Public can read active services; only admins can write
     match /services/{serviceId} {

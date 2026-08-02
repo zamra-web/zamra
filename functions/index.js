@@ -810,3 +810,22 @@ exports.getB2BFares = b2b.getB2BFares;
 // ══════════════════════════════════════════════════════════════════════════════
 exports.getPublicDeals = require("./publicDeals").buildGetPublicDeals(db);
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 10. SOTO LIVE FARES
+//     Serves /soto. Unauthenticated by design — the page is public and the
+//     data is third-party market pricing, not Zamra's contracted rates.
+//
+//     The endpoint exists so the Travelpayouts token (quota-metered, tied to
+//     our affiliate account) never reaches a browser, and so the SOTO
+//     eligibility rule and the response allow-list live somewhere a visitor
+//     cannot route around.
+// ══════════════════════════════════════════════════════════════════════════════
+const TRAVELPAYOUTS_TOKEN = defineSecret("TRAVELPAYOUTS_TOKEN");
+
+const soto = require("./soto").build(db, TRAVELPAYOUTS_TOKEN);
+
+exports.searchSotoFares = soto.searchSotoFares;
+exports.searchSotoAirports = soto.searchSotoAirports;
+exports.purgeSotoCache = soto.purgeSotoCache;
+
