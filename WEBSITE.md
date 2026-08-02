@@ -39,7 +39,7 @@ The main website (`web/index.html`) is a premium, public-facing flight booking a
 | `web/hajj-umrah.html` | `/hajj-umrah.html` | Hajj & Umrah packages page — filters, search, package grid |
 | `web/connect.html` | `/gcc` | GCC flight deals landing page |
 | `web/deals.html` | `/deals/<slug>` | Curated live-fare deal page — see below |
-| `web/soto.html` | `/soto` | SOTO international fares — third-party live search, see below |
+| `web/soto.html` | `/soto` | SOTO international fares — **unlisted / internal**, see below |
 | `web/login.html` | `/login.html` | Admin login page (Firebase Auth) |
 | `web/admin.html` | `/admin.html` | Admin dashboard (auth-gated, see DASHBOARD.md) |
 | `web/b2b-login.html` | `b2b.zamratravels.com/b2b-login` | B2B agent login (agent claim) |
@@ -257,6 +257,8 @@ Live international fare search for routes that **start outside India**. SOTO —
 
 **Routing.** `/soto`, served by `cleanUrls` with no `vercel.json` entry — a new rewrite would only risk the `.html`-destination trap.
 
+> **The page is deliberately unlisted.** It appears in **no** nav or footer — not even its own — and carries `<meta name="robots" content="noindex, nofollow">`. It is reachable only by typing the URL, and is for internal testing until the Travelpayouts token is issued and the fares have been checked against real responses. To make it public: drop the `robots` meta in `soto.html` and add the nav `<li>` back to `index.html`, `visa.html`, `tours.html`, `hajj-umrah.html`, `deals.html` and `soto.html` (marking it `active` there). The nav is copy-pasted per page, so that is six edits; at eight items the `<ul>` also needs `gap-6 lg:gap-8` instead of `gap-8` to avoid wrapping between 768–1024 px.
+
 **This page never touches Firestore, for a different reason than `/deals`.** There are no supplier economics here; the constraint is the **Travelpayouts API token**, which is quota-metered and identifies our affiliate account. It can never ship to a browser. Putting the call server-side also puts the SOTO eligibility rule and the response allow-list somewhere a visitor cannot route around, and keeps the bundle at **~10.5 kB of JS** with no Firebase SDK.
 
 **Two endpoints** (`functions/soto/`):
@@ -402,6 +404,6 @@ The display strings come from that same module — `formatCheckInBaggageText()` 
 
 ---
 
-_Last updated: 2026-08-02 — Added the `/soto` page: third-party (Travelpayouts) international fare search for non-India-origin routes, served through `searchSotoFares` / `searchSotoAirports` with a Firestore-backed 45-minute cache. Prices are indicative and labelled as such; SOTO cards deliberately render no baggage._
+_Last updated: 2026-08-02 — Added the `/soto` page: third-party (Travelpayouts) international fare search for non-India-origin routes, served through `searchSotoFares` / `searchSotoAirports` with a Firestore-backed 45-minute cache. Prices are indicative and labelled as such; SOTO cards deliberately render no baggage. The page ships **unlisted** — no nav entry anywhere plus `noindex` — pending the API token._
 
 _Last audited: 2026-07-23 — Fare cards resolve flight times from `flight_details` (with date-ranged `schedules`) and render baggage through the shared formatters. Shared site chrome consolidates header/nav behavior, mobile menu uses `#nav-menu.active`, and Tours/Hajj/Umrah details continue to open in premium modals (no standalone tour detail route). Hajj/Umrah still sorts client-side by `departureDate`._

@@ -7,6 +7,12 @@
   <title>SOTO International Fares – Zamra Travels</title>
   <meta name="description" content="Search indicative fares for international routes that start outside India — Dubai to Bangkok, Jeddah to Cairo and thousands more. Ticketed by Zamra Travels.">
 
+  <!-- INTERNAL / UNLISTED. This page is reachable only by typing the URL: it is
+       deliberately absent from every nav and footer, and noindex keeps it out of
+       search results. Remove this meta and restore the nav links (index, visa,
+       tours, hajj-umrah, deals) when it goes public. -->
+  <meta name="robots" content="noindex, nofollow">
+
   <!-- Favicons -->
   <link href="/assets/img/favicon.webp?v=3" rel="icon">
   <link href="/assets/img/apple-touch-icon.png" rel="apple-touch-icon">
@@ -662,11 +668,10 @@
       </a>
 
       <nav class="hidden md:block" id="nav-menu">
-        <ul class="flex gap-6 lg:gap-8 list-none m-0 p-0">
+        <ul class="flex gap-8 list-none m-0 p-0">
           <li><a href="/index.html#about" class="site-nav-link">About</a></li>
           <li><a href="/index.html#services" class="site-nav-link">Services</a></li>
           <li><a href="/index.html#flights" class="site-nav-link">Flights</a></li>
-          <li><a href="/soto.html" class="site-nav-link active" aria-current="page">SOTO</a></li>
           <li><a href="/tours.html" class="site-nav-link">Tours</a></li>
           <li><a href="/visa.html" class="site-nav-link">Visa</a></li>
           <li><a href="/hajj-umrah.html" class="site-nav-link">Hajj-Umrah</a></li>
@@ -877,7 +882,6 @@
         </p>
         <nav class="flex items-center justify-center gap-5 mt-5 flex-wrap text-[0.85rem]">
           <a href="/index.html" class="text-slate-400 hover:text-white transition-colors">Home</a>
-          <a href="/soto.html" class="text-slate-400 hover:text-white transition-colors">SOTO Fares</a>
           <a href="/tours.html" class="text-slate-400 hover:text-white transition-colors">Tours</a>
           <a href="/visa.html" class="text-slate-400 hover:text-white transition-colors">Visa</a>
           <a href="/hajj-umrah.html" class="text-slate-400 hover:text-white transition-colors">Hajj &amp; Umrah</a>
