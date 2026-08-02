@@ -22,6 +22,24 @@
 
   <!-- Custom CSS -->
   <link rel="stylesheet" href="/src/styles/web/style.css">
+  <!-- ── Travelpayouts Drive — TEMPORARY ──────────────────────────────────────
+       Vendor snippet, installed only so Travelpayouts can verify the site and
+       issue the Aviasales Data API token that /soto needs. REMOVE ALL COPIES
+       once TRAVELPAYOUTS_TOKEN is set:  grep -rln "tpembars.com" web/*.html
+       Inline in <head> against the usual "keep logic in src/js" convention:
+       the verifier looks for this tag in the served HTML, so a module-injected
+       copy would not be found. Not installed on admin/login/b2b (authenticated,
+       and loaded inside the Android apps) or on deals/soto (Drive injects
+       Aviasales booking links, which would cannibalise our own fares). -->
+  <script nowprocket data-noptimize="1" data-cfasync="false" data-wpfc-render="false" seraph-accel-crit="1" data-no-defer="1" data-cmp-ab="2">
+    (function () {
+        var script = document.createElement("script");
+        script.async = 1;
+        script.setAttribute("data-cmp-ab","2");
+        script.src = 'https://tpembars.com/NTU3NzA5.js?t=557709';
+        document.head.appendChild(script);
+    })();
+  </script>
 </head>
 
 <body>
