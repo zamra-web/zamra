@@ -12,6 +12,7 @@ import { getAirlines, getVisas, getVisaStampings, getAttestations, getVisaRateCa
 import { splitFlightTimeRange } from '../web/flight-results.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from '../web/airline-brand.js';
 import { buildFlightCardHtml } from '../web/flight-card.js';
+import { wireFlightCardSheet } from '../web/flight-details-sheet.js';
 import { initSiteChrome } from '../web/site-chrome.js';
 import {
   formatCheckInBaggageText,
@@ -562,9 +563,10 @@ function renderResults() {
 
   const waNumber = _context.whatsappNumber || '919846606738';
   const { sectorInfo, origin, dest } = _results;
-  let htmlContent = '';
 
-  fares.forEach((fare) => {
+  // The compact mobile card drops the Book Now button, so the same items are
+  // handed to the details sheet — it renders the CTA and the full detail.
+  const cards = fares.map((fare) => {
     const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
     const dateStr = new Date(fare.flightDate).toLocaleDateString('en-GB', dateOptions).replace(/,/g, '');
     const { departure: dep, arrival: arr } = splitFlightTimeRange(fare.flightTime);
@@ -598,13 +600,13 @@ function renderResults() {
     };
 
     const waMsg = encodeURIComponent(`Hello Zamra Travels, B2B booking request from *${_context.agent?.name || _context.agent?.loginId}* (${_context.agent?.loginId}):\n\n✈️ *${item.airline}*\n🛫 From: *${item.origin}*\n🛬 To: *${item.destination}*\n📅 Date: *${item.date}*\n⏰ Dep: ${item.departure} | Arr: ${item.arrival}\n💵 Price: *${item.price}*\n\nPlease confirm availability!`);
-    const waLink = `https://wa.me/${waNumber}?text=${waMsg}`;
 
-    htmlContent += buildFlightCardHtml({ ...item, waLink });
+    return { ...item, waLink: `https://wa.me/${waNumber}?text=${waMsg}` };
   });
 
-  list.innerHTML = htmlContent;
+  list.innerHTML = cards.map((item) => buildFlightCardHtml(item)).join('');
   wireFlightResultLogos(list);
+  wireFlightCardSheet(list, cards, wireFlightResultLogos);
 }
 
 function wireResultControls() {

@@ -74,6 +74,8 @@ web/
         ├── web/
         │   ├── main.js         # All frontend logic (flight search, UI interactions)
         │   ├── soto.js         # SOTO page — typeahead, search, deep links (no Firebase SDK)
+        │   ├── flight-card.js  # Shared flight result card — compact row < lg, wide card >= lg
+        │   ├── flight-details-sheet.js  # Bottom sheet behind a compact card (expanded detail + Book Now)
         │   ├── soto-card.js    # SOTO result card markup (pure, escaped, no baggage)
         │   ├── visa.js         # Visa page logic — tab switching, card rendering, modal, WhatsApp link
         │   ├── tours.js        # Tours listing page — fetch, render cards, category filter chips, search
@@ -99,7 +101,9 @@ web/
 - Displays cheapest fare per sector, sorted by price
 - Search result cards read airline branding from the Firestore `airlines` collection (`logoUrl`, with local asset fallback for legacy entries)
 - Implemented in `web/src/js/web/main.js`
-- **Mobile UI** — live results render as compact card rows with clear price + CTA and extra bottom spacing to avoid overlap with floating actions.
+- **Mobile UI** — below `lg` each result is a **single-row card**: small airline logo (no airline name), date, origin/departure, destination/arrival, baggage, price. There is no Book Now button in the row. Tapping the row opens the **details sheet** (`web/src/js/web/flight-details-sheet.js`) — a bottom sheet on phones, a centred dialog from `sm` up — which carries the airline name, city names, both baggage allowances, seats, fare and the WhatsApp **Book Now** CTA. Extra bottom spacing keeps the list clear of the floating actions.
+- The wide (`lg` and up) card is unchanged and keeps its inline Book Now.
+- The card is shared with the B2B portal, so any change to `flight-card.js` or the sheet lands on both surfaces — see [DASHBOARD.md](DASHBOARD.md).
 
 ### ✈️ Sectors Display (Lowest Fare Flight Tickets)
 - Reads `sectors` collection from Firestore

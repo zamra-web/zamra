@@ -6,6 +6,7 @@ import { dedupeAndSortFares, splitFlightTimeRange } from './flight-results.js';
 import { initSiteChrome } from './site-chrome.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from './airline-brand.js';
 import { buildFlightCardHtml } from './flight-card.js';
+import { wireFlightCardSheet } from './flight-details-sheet.js';
 import {
   handBaggageKg,
   resolveCheckInBaggageKg,
@@ -527,17 +528,16 @@ async function searchFlights() {
       return;
     }
 
-    let htmlContent = '';
-    data.forEach(item => {
-
+    // The compact mobile card drops the Book Now button, so the same items are
+    // handed to the details sheet — it renders the CTA and the full detail.
+    const cards = data.map(item => {
       const waMsg = encodeURIComponent(`Hello Zamra Travels, I'm interested in booking this flight:\n\n✈️ *${item.airline}*\n🛫 From: *${item.origin}*\n🛬 To: *${item.destination}*\n📅 Date: *${item.date}*\n⏰ Dep: ${item.departure} | Arr: ${item.arrival}\n💵 Price: *${item.price}*\n\nPlease confirm availability!`);
-      const waLink = `https://wa.me/919846606739?text=${waMsg}`;
-
-      htmlContent += buildFlightCardHtml({ ...item, waLink });
+      return { ...item, waLink: `https://wa.me/919846606739?text=${waMsg}` };
     });
 
-    list.innerHTML = htmlContent;
+    list.innerHTML = cards.map(item => buildFlightCardHtml(item)).join('');
     wireFlightResultLogos(list);
+    wireFlightCardSheet(list, cards, wireFlightResultLogos);
 
   } catch (error) {
     loader.style.display = 'none';

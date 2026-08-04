@@ -21,17 +21,12 @@
  * Pure string builders, no DOM, so the tests can call them directly.
  */
 
-const CURRENCY_SYMBOLS = { INR: '₹', AED: 'AED ', SAR: 'SAR ', USD: '$', GBP: '£', EUR: '€' };
+import { escapeHtml } from '../shared/escape-html.js';
 
-/**
- * @param {*} value
- * @returns {string}
- */
-export function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[char]));
-}
+// Re-exported so this module keeps its own public API (and its tests).
+export { escapeHtml };
+
+const CURRENCY_SYMBOLS = { INR: '₹', AED: 'AED ', SAR: 'SAR ', USD: '$', GBP: '£', EUR: '€' };
 
 /**
  * @param {number} price

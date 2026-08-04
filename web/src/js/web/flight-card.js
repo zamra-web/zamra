@@ -2,10 +2,30 @@
  * flight-card.js — flight result card markup shared by the public flight
  * search and the B2B portal.
  *
+ * Two layouts from one call:
+ *
+ * - Below `lg` (phones, and therefore both Android apps) the card is a single
+ *   compact row — logo, date, route with times, baggage, price — and nothing
+ *   else. There is deliberately no airline name and no Book Now button here:
+ *   the whole row is one `[data-flight-card]` button that opens the details
+ *   sheet in flight-details-sheet.js, which carries the expanded detail and the
+ *   booking CTA. Keep the `data-flight-card` hook and the row's field set in
+ *   agreement with `buildFlightDetailsSheetHtml`.
+ * - From `lg` up the wide card is unchanged: it already has room for the full
+ *   detail, so it keeps its inline Book Now and never opens the sheet.
+ *
+ * The compact row escapes its values; the wide block below it is untouched
+ * legacy that still interpolates raw. Both read the same admin-controlled
+ * Firestore rows, so this is belt-and-braces, not a fix for a live hole.
+ */
+
+import { escapeHtml as esc } from '../shared/escape-html.js';
+
+/**
  * @param {{
  *   airline, airlineLogo, airlineLogoFallback, airlineInitials,
  *   origin, originCode, destination, destinationCode,
- *   date, departure, arrival, price,
+ *   date, departure, arrival, price, seats,
  *   checkInBaggage, cabinBaggage, baggageLabel, waLink
  * }} item
  * @returns {string} card HTML
@@ -25,64 +45,61 @@ export function buildFlightCardHtml(item) {
   }
 
   return `
-        <div class="bg-white rounded-[18px] max-sm:rounded-[22px] p-4 lg:p-6 shadow-[0_2px_12px_rgba(13,31,60,0.06)] border border-border transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(13,31,60,0.1)] relative overflow-hidden">
+        <div class="bg-white rounded-[14px] lg:rounded-[18px] p-2.5 lg:p-6 shadow-[0_2px_12px_rgba(13,31,60,0.06)] border border-border transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(13,31,60,0.1)] relative overflow-hidden">
 
-          <!-- MOBILE VIEW (< lg) -->
-          <div class="flex flex-col gap-4 lg:hidden">
-            <div class="flex items-start justify-between gap-3 border-b border-border pb-3">
-              <div class="flex items-center gap-3">
-                <div class="w-[54px] h-[54px] shrink-0 bg-[#f8fafc] rounded-2xl border border-border/50 flex items-center justify-center p-2">
-                  ${item.airlineLogo
-                    ? `<img
-                        src="${item.airlineLogo}"
-                        data-airline-logo
-                        data-fallback-src="${item.airlineLogoFallback}"
-                        alt="${item.airline} logo"
-                        loading="lazy"
-                        class="max-h-full max-w-full object-contain"
-                      >`
-                    : ''
-                  }
-                  <span data-airline-fallback class="${item.airlineLogo ? 'hidden ' : ''}text-[13px] font-black tracking-[0.16em] text-primary">
-                    ${item.airlineInitials}
-                  </span>
-                </div>
-                <div>
-                  <div class="text-[11px] font-bold text-text-muted uppercase tracking-[0.16em] mb-1">${item.airline}</div>
-                  <div class="text-[17px] font-heading font-bold text-navy flex items-baseline gap-1.5 leading-none">
-                    ${day} <span class="text-primary text-[13px]">${month}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">Price</div>
-                <div class="text-[20px] font-heading font-black text-navy leading-none">${item.price}</div>
-              </div>
-            </div>
+          <!-- MOBILE VIEW (< lg) — one row, tap to open the details sheet -->
+          <button
+            type="button"
+            data-flight-card
+            aria-label="${esc(item.airline)} ${esc(item.originCode)} to ${esc(item.destinationCode)}, ${esc(item.price)}. View details"
+            class="lg:hidden w-full flex items-center gap-2 text-left bg-transparent border-0 p-0 m-0 cursor-pointer transition-opacity active:opacity-60"
+          >
+            <span class="shrink-0 flex flex-col items-center gap-1 w-[40px]">
+              <span class="w-[34px] h-[34px] bg-[#f8fafc] rounded-[10px] border border-border/50 flex items-center justify-center p-1">
+                ${item.airlineLogo
+                  ? `<img
+                      src="${esc(item.airlineLogo)}"
+                      data-airline-logo
+                      data-fallback-src="${esc(item.airlineLogoFallback || '')}"
+                      alt="${esc(item.airline)}"
+                      loading="lazy"
+                      class="max-h-full max-w-full object-contain"
+                    >`
+                  : ''
+                }
+                <span data-airline-fallback class="${item.airlineLogo ? 'hidden ' : ''}text-[10px] font-black tracking-[0.08em] text-primary">
+                  ${esc(item.airlineInitials)}
+                </span>
+              </span>
+              <span class="text-[9px] font-bold text-text-muted leading-none whitespace-nowrap">${esc(day)}${month ? ` ${esc(month)}` : ''}</span>
+            </span>
 
-            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-1">
-              <div class="text-left">
-                <div class="text-[18px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.originCode}</div>
-                <div class="text-[11px] font-semibold text-text-muted uppercase">Dep ${item.departure}</div>
-              </div>
+            <span class="flex-1 min-w-0 flex items-center gap-1.5">
+              <span class="shrink-0">
+                <span class="block text-[14px] font-heading font-bold text-navy leading-none tracking-tight">${esc(item.originCode)}</span>
+                <span class="block text-[10px] font-semibold text-text-muted leading-none mt-1">${esc(item.departure)}</span>
+              </span>
 
-              <div class="flex flex-col items-center px-2">
-                <div class="w-9 h-9 rounded-full bg-[#f8fafc] border border-border flex items-center justify-center">
-                  <i class="bi bi-arrow-right text-primary text-[18px]"></i>
-                </div>
-                <div class="text-[10px] text-text-muted font-bold mt-1">${item.baggageLabel}</div>
-              </div>
+              <span class="flex-1 min-w-[42px] flex flex-col items-center gap-1 px-0.5">
+                <span class="w-full flex items-center gap-1">
+                  <span class="h-px flex-1 bg-border"></span>
+                  <i class="bi bi-airplane-fill text-primary text-[9px] leading-none"></i>
+                  <span class="h-px flex-1 bg-border"></span>
+                </span>
+                <span class="text-[9px] font-bold text-text-muted leading-none whitespace-nowrap">${esc(item.baggageLabel)}</span>
+              </span>
 
-              <div class="text-right">
-                <div class="text-[18px] font-heading font-bold text-navy leading-none tracking-tight mb-1">${item.destinationCode}</div>
-                <div class="text-[11px] font-semibold text-text-muted uppercase">Arr ${item.arrival}</div>
-              </div>
-            </div>
+              <span class="shrink-0 text-right">
+                <span class="block text-[14px] font-heading font-bold text-navy leading-none tracking-tight">${esc(item.destinationCode)}</span>
+                <span class="block text-[10px] font-semibold text-text-muted leading-none mt-1">${esc(item.arrival)}</span>
+              </span>
+            </span>
 
-            <a href="${item.waLink}" target="_blank" class="w-full bg-gradient-to-r from-primary to-[#1558c0] text-white font-heading font-bold text-[14px] px-6 py-3 rounded-xl hover:shadow-[0_4px_14px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all text-center whitespace-nowrap">
-              Book Now
-            </a>
-          </div>
+            <span class="shrink-0 flex items-center gap-0.5 pl-2.5">
+              <span class="text-[15px] font-heading font-black text-navy leading-none whitespace-nowrap">${esc(item.price)}</span>
+              <i class="bi bi-chevron-right text-text-muted text-[10px] leading-none"></i>
+            </span>
+          </button>
 
           <!-- DESKTOP VIEW (>= lg) -->
           <div class="hidden lg:flex flex-row items-center justify-between gap-6">
