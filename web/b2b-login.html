@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Agent Login - Zamra Travels B2B</title>
     <meta name="description" content="Secure agent login for the Zamra Travels B2B portal.">
     <meta name="robots" content="noindex, nofollow">
@@ -60,6 +60,12 @@
                         radial-gradient(circle at 10% 90%, rgba(96, 165, 250, 0.08) 0%, transparent 50%);
             background-size: 200% 200%;
             animation: aurora-flow 20s ease infinite alternate;
+        }
+
+        /* The Android B2B shell runs edge-to-edge, so keep the card clear of
+           the status bar / notch and the gesture bar. */
+        body {
+            padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
         }
 
         .login-card {

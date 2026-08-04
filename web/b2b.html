@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Zamra Travels - B2B Agent Portal</title>
   <meta name="robots" content="noindex, nofollow">
 
@@ -199,7 +199,7 @@
             </div>
           </div>
 
-          <div id="flightList" class="space-y-4 max-lg:space-y-2"></div>
+          <div id="flightList" class="space-y-2.5 max-lg:space-y-2"></div>
         </div>
       </div>
     </section>
@@ -207,10 +207,14 @@
 
   <!-- Visa & Immigration Services -->
   <section id="b2b-visa-services" class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 pb-[60px] max-sm:pb-[40px]">
-    <div class="mb-8">
-      <h2 class="text-[24px] max-sm:text-[20px] font-heading font-black text-navy tracking-[-0.02em]">Visa &amp; Immigration Services</h2>
-      <p class="text-[14px] text-text-muted font-medium mt-1.5">Agent pricing on visas, stamping, and attestation. Enquire on WhatsApp to book.</p>
-      <div class="h-[4px] w-[60px] bg-primary rounded-[2px] mt-[12px]"></div>
+    <!-- Centred the same way as the public site's section headings: the rule is
+         an ::after on the inline-block heading so it stays centred under the
+         text at any width, instead of a separate left-aligned bar. -->
+    <div class="text-center mb-8">
+      <h2
+        class="text-[24px] max-sm:text-[20px] font-heading font-black text-navy tracking-[-0.02em] relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-1/2 after:-translate-x-1/2 after:w-[60px] after:h-[4px] after:bg-primary after:rounded-full">
+        Visa &amp; Immigration Services</h2>
+      <p class="text-[14px] text-text-muted font-medium mt-4">Agent pricing on visas, stamping, and attestation. Enquire on WhatsApp to book.</p>
     </div>
 
     <!-- Each category is its own poster wall — cards are built in b2b/main.js -->

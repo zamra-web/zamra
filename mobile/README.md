@@ -43,6 +43,24 @@ The trade-off is that the apps need a connection. When there isn't one, `server.
 overrides it, so **editing the root config alone changes nothing** — edit
 `android/app/src/<flavour>/assets/capacitor.config.json`.
 
+## Safe areas — the status bar overlaps the WebView
+
+Android 15 forces edge-to-edge, so the WebView starts *behind* the status bar and the top of the
+page is drawn under it — this is what sliced the Zamra logo in half in the B2B app. The fix is on
+the web side, not native:
+
+- every page the apps can reach ships `viewport-fit=cover` in its viewport meta — without it
+  `env(safe-area-inset-*)` always resolves to `0`, so the padding below does nothing;
+- `.site-header` in [web/src/styles/web/style.css](../web/src/styles/web/style.css) carries
+  `padding-top: calc(env(safe-area-inset-top, 0px) + 4px)` (8px under 640px). It is sticky but
+  still in flow, so that padding pushes the whole page down as well, and the glass background
+  keeps painting behind the status bar, which is what edge-to-edge should look like;
+- `b2b-login.html` pads `body` on all four insets instead, since it has no site header.
+
+Anything new that sits flush against the top or bottom of the viewport (sticky bars, bottom
+sheets, floating action buttons) needs the matching inset — see the existing
+`env(safe-area-inset-bottom)` uses on the WhatsApp FAB and the flight details sheet.
+
 ## Downloads — the part that needed native code
 
 An Android WebView silently ignores `<a download>` when the href is a `blob:` or `data:` URL, which

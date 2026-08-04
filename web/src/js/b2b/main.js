@@ -11,7 +11,7 @@ import { onAuthChange, logoutUser, reauthenticateCurrentUser } from '../admin/au
 import { getAirlines, getVisas, getVisaStampings, getAttestations, getVisaRateCards } from '../admin/db.js';
 import { splitFlightTimeRange } from '../web/flight-results.js';
 import { resolveAirlineBrand, wireFlightResultLogos } from '../web/airline-brand.js';
-import { buildFlightCardHtml } from '../web/flight-card.js';
+import { buildCompactFlightCardHtml } from '../web/flight-card.js';
 import { wireFlightCardSheet } from '../web/flight-details-sheet.js';
 import { initSiteChrome } from '../web/site-chrome.js';
 import {
@@ -564,8 +564,9 @@ function renderResults() {
   const waNumber = _context.whatsappNumber || '919846606738';
   const { sectorInfo, origin, dest } = _results;
 
-  // The compact mobile card drops the Book Now button, so the same items are
-  // handed to the details sheet — it renders the CTA and the full detail.
+  // The compact card carries the CTA itself; the same items still go to the
+  // details sheet, which adds what the row leaves out (full city names, both
+  // baggage allowances spelled out).
   const cards = fares.map((fare) => {
     const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
     const dateStr = new Date(fare.flightDate).toLocaleDateString('en-GB', dateOptions).replace(/,/g, '');
@@ -604,7 +605,7 @@ function renderResults() {
     return { ...item, waLink: `https://wa.me/${waNumber}?text=${waMsg}` };
   });
 
-  list.innerHTML = cards.map((item) => buildFlightCardHtml(item)).join('');
+  list.innerHTML = cards.map((item) => buildCompactFlightCardHtml(item)).join('');
   wireFlightResultLogos(list);
   wireFlightCardSheet(list, cards, wireFlightResultLogos);
 }

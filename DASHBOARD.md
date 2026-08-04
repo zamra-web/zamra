@@ -418,6 +418,18 @@ Supplier rules are **signed** — positive marks up, negative discounts — and 
 
 Fares are grouped by sector + airline + date + time keeping the **minimum final price**. Comparing final price rather than raw base matters once supplier rules exist: a supplier with a higher raw rate but a discount rule can undercut a cheaper supplier carrying a markup.
 
+#### B2B result cards
+The portal's results list renders `buildCompactFlightCardHtml` from [web/src/js/web/flight-card.js](web/src/js/web/flight-card.js) — a separate builder from the public site's `buildFlightCardHtml`, so the two surfaces can be restyled independently.
+
+Agents scan long lists and book from them directly, so the card keeps **every** field plus the Book Now CTA at all widths and saves height by packing rather than hiding: one dense line from `md` up, wrapping to details-then-price/CTA below it. All values are escaped.
+
+Two invariants when editing it:
+
+- Exactly **one** `[data-flight-card]` element per card. `wireFlightCardSheet` matches cards to fares by index among those elements, so a second hook silently shifts every later card onto the wrong fare.
+- The Book Now anchor stays a **sibling** of that button, never a child — nested, it would open the details sheet instead of WhatsApp (and `<a>` inside `<button>` is invalid markup).
+
+The details sheet ([flight-details-sheet.js](web/src/js/web/flight-details-sheet.js)) is still wired up and carries what the row omits: full city names and the two baggage allowances spelled out. It is shared with the public site, so sheet changes land on both surfaces.
+
 ## Baggage rules
 
 Baggage weights are **policy, not data**. They are never typed in freely and never taken from an upload — every surface derives them from the airline's IATA code.

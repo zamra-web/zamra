@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildFlightCardHtml } from '../src/js/web/flight-card.js';
+import { buildCompactFlightCardHtml, buildFlightCardHtml } from '../src/js/web/flight-card.js';
 import { buildFlightDetailsSheetHtml } from '../src/js/web/flight-details-sheet.js';
 
 /**
@@ -84,6 +84,56 @@ test('falls back to airline initials when there is no logo', () => {
   const html = mobileHtml({ airlineLogo: '' });
 
   assert.ok(!html.includes('<img'), 'no logo means no broken image');
+  assert.match(html, /IX/);
+});
+
+test('B2B compact card keeps every field and the CTA on the row', () => {
+  const html = buildCompactFlightCardHtml(item());
+
+  for (const field of [
+    'Air India Express', 'air-india-express.png', 'CCJ', 'DXB',
+    '09:15', '12:05', '30 + 7 kg', '₹12,450', '06', 'Mar', 'Book Now',
+  ]) {
+    assert.ok(html.includes(field), `compact B2B card should show ${field}`);
+  }
+  assert.match(html, /href="https:\/\/wa\.me\/919846606739\?text=hello"/);
+});
+
+test('B2B compact card opens the sheet from one hook, separate from the CTA', () => {
+  const html = buildCompactFlightCardHtml(item());
+
+  // wireFlightCardSheet matches fares by index, so a second hook per card
+  // would shift every card after it onto the wrong fare.
+  assert.equal(html.match(/data-flight-card/g).length, 1);
+  // A booking link nested inside the tap target would open the sheet too.
+  assert.ok(
+    html.indexOf('</button>') < html.indexOf('wa.me'),
+    'the Book Now link must sit outside the [data-flight-card] button',
+  );
+});
+
+test('B2B compact card carries no dark outline', () => {
+  const html = buildCompactFlightCardHtml(item());
+
+  assert.match(html, /border-border/);
+  assert.ok(
+    !/border-(black|navy|slate-[789]00|gray-[789]00)/.test(html),
+    'the card border stays the light slate token',
+  );
+});
+
+test('B2B compact card escapes its fields', () => {
+  const html = buildCompactFlightCardHtml(item({ airline: 'Air "X" <script>' }));
+
+  assert.ok(!html.includes('<script>'));
+  assert.match(html, /Air &quot;X&quot; &lt;script&gt;/);
+});
+
+test('B2B compact card falls back to airline initials when there is no logo', () => {
+  const html = buildCompactFlightCardHtml(item({ airlineLogo: '' }));
+
+  assert.ok(!html.includes('<img'), 'no logo means no broken image');
+  assert.match(html, /data-airline-fallback/);
   assert.match(html, /IX/);
 });
 
