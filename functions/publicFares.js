@@ -20,7 +20,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { Timestamp } = require("firebase-admin/firestore");
 
-// A sector's future fares are bounded in practice (purgeOldFaresDaily sweeps the
+// A sector's future fares are bounded in practice (dailyMaintenance sweeps the
 // past, and uploads cover months, not years). The cap is here so an anonymous
 // caller cannot make the endpoint read an unbounded collection; rows are ordered
 // by flightDate ascending, so if it ever bites it drops the furthest-out dates
@@ -100,7 +100,11 @@ function parsePublicFaresRequest(req) {
  * @return {import("firebase-functions/v2/https").HttpsFunction}
  */
 function buildGetPublicFares(db) {
-  return onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
+  // maxInstances caps blast radius, not throughput: this is public and
+  // unauthenticated, and the homepage calls it once per sector, so a scraper or
+  // a client retry loop could otherwise fan out unbounded against a query that
+  // reads up to MAX_ROWS docs a time. 20 matches every other function here.
+  return onRequest({ region: "asia-south1", cors: true, maxInstances: 20 }, async (req, res) => {
     if (req.method !== "GET" && req.method !== "POST") {
       return res.status(405).json({ success: false, error: "Method Not Allowed" });
     }

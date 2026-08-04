@@ -16,7 +16,6 @@
 // contracted rates and belong on the homepage search instead.
 
 const { onRequest } = require("firebase-functions/v2/https");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { Timestamp } = require("firebase-admin/firestore");
 
 const {
@@ -171,7 +170,7 @@ function parseSearchRequest(query, config, now) {
  *
  * @param {FirebaseFirestore.Firestore} db
  * @param {*} travelpayoutsToken a defineSecret param (or a plain string in tests)
- * @return {{searchSotoFares: *, searchSotoAirports: *, purgeSotoCache: *}}
+ * @return {{searchSotoFares: *, searchSotoAirports: *, purgeExpiredSotoCache: *}}
  */
 function build(db, travelpayoutsToken) {
   const searchSotoAirports = onRequest(
@@ -346,33 +345,33 @@ function build(db, travelpayoutsToken) {
     },
   );
 
-  const purgeSotoCache = onSchedule(
-    { region: "asia-south1", schedule: "every day 03:00", timeZone: "UTC" },
-    async () => {
-      let deleted = 0;
+  // Plain async function rather than its own onSchedule: the three daily purges
+  // are driven by the single `dailyMaintenance` job in index.js, because Cloud
+  // Scheduler bills per job beyond the first three.
+  async function purgeExpiredSotoCache() {
+    let deleted = 0;
 
-      // Batched loop rather than one big read — a busy month of searches can
-      // leave more expired docs than a single query should pull into memory.
-      for (;;) {
-        const snapshot = await db.collection(CACHE_COLLECTION)
-          .where("expiresAt", "<=", Timestamp.now())
-          .limit(400)
-          .get();
-        if (snapshot.empty) break;
+    // Batched loop rather than one big read — a busy month of searches can
+    // leave more expired docs than a single query should pull into memory.
+    for (;;) {
+      const snapshot = await db.collection(CACHE_COLLECTION)
+        .where("expiresAt", "<=", Timestamp.now())
+        .limit(400)
+        .get();
+      if (snapshot.empty) break;
 
-        const batch = db.batch();
-        snapshot.forEach((doc) => batch.delete(doc.ref));
-        await batch.commit();
-        deleted += snapshot.size;
+      const batch = db.batch();
+      snapshot.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      deleted += snapshot.size;
 
-        if (snapshot.size < 400) break;
-      }
+      if (snapshot.size < 400) break;
+    }
 
-      console.log(`purgeSotoCache: deleted ${deleted} expired entr${deleted === 1 ? "y" : "ies"}`);
-    },
-  );
+    return deleted;
+  }
 
-  return { searchSotoFares, searchSotoAirports, purgeSotoCache };
+  return { searchSotoFares, searchSotoAirports, purgeExpiredSotoCache };
 }
 
 module.exports = {

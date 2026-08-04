@@ -793,7 +793,7 @@ Cached third-party fare lookups. Doc id is a sha256 of `origin|destination|depar
 | `fares` | Array | Projected fares, exactly as returned to the browser |
 | `cachedAt` / `expiresAt` | Timestamp | `expiresAt` drives both the freshness check and the daily sweep |
 
-> Swept by `purgeSotoCache` (daily, 03:00 UTC). Only a single-field `expiresAt` index is needed, which Firestore creates automatically. An entry under 24 h past expiry is still served — with `stale: true` — when the provider is unreachable.
+> Swept by `dailyMaintenance` (daily, 00:15 UTC). Only a single-field `expiresAt` index is needed, which Firestore creates automatically. An entry under 24 h past expiry is still served — with `stale: true` — when the provider is unreachable.
 
 ---
 
@@ -821,7 +821,7 @@ Callable functions are **HTTPS Callable**, deployed to `asia-south1`, running on
 They require `admin: true` custom claim — enforced server-side via `requireAdmin()` helper.  
 `ingestFaresFromN8n` is an **HTTPS onRequest** endpoint secured via Bearer token (used by n8n).  
 `getPublicDeals` is an **HTTPS onRequest** endpoint that is deliberately unauthenticated — it serves the public `/deals/<slug>` page and is gated by the link's `isActive` flag.  
-`purgeOldFaresDaily` is a **scheduled** function that auto-cleans old fares.
+`dailyMaintenance` is a **scheduled** function that runs every retention sweep in the project.
 
 | Function | What it does |
 |---|---|
@@ -831,18 +831,19 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `generateAgentReport` | Aggregates fares with fully optional filters (sector, agent, date range). **All filters are optional** — passing no filters returns stats across the entire dataset. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
 | `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, **`agents`**, and **`flight_details`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. `finalRate` is `sp_rate + commission` unless the payload sends an explicit `rate`. Baggage is forced onto the airline rules and flight time is resolved payload-first with a `flight_details` fallback (see [Flight Time Resolution](#flight-time-resolution)). Batch-writes to `agent_fares`. An empty `firebaseData` array is valid and returns `saved: 0`. |
 | `refreshSocialPublishingHealth` | Admin callable. Rebuilds the saved posting setup snapshot from configured/fallback channel IDs and API-key presence without making any Buffer API calls. |
-| `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next minute cron. |
+| `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next dispatcher tick. |
 | `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a non-posted errored job item without mutating the old queue record. |
 | `getPublicDeals` | HTTPS onRequest endpoint, **unauthenticated by design** — the gate is the link's own `isActive` flag, not a token. Resolves `deal_links/<slug>`, applies the link's rolling or fixed window, queries `agent_fares` in `in`-safe chunks, collapses duplicates to the cheapest per sector+airline+date+time, and returns fares **projected to display fields only** (`date`, `time`, `airlineName`, `airlineCode`, `airlineLogo`, `checkInBaggageKg`, `handBaggageKg`, `price`). `specialRate`, `commission`, `finalRate`, `supplierRate` and the supplier `agentId` never leave the server. Bumps `viewCount` fire-and-forget. `404`s a missing or inactive link. |
-| `purgeOldFaresDaily` | Scheduled cleanup. Deletes `agent_fares` with `flightDate` earlier than **today − 2 days** (UTC midnight). Keeps the most recent two days of fares plus today. |
+| `dailyMaintenance` | Scheduled cleanup, daily at 00:15 UTC. The project's **only** retention job — runs three sweeps in sequence, each independently try/caught so one failure cannot stall the others: **fares** (deletes `agent_fares` with `flightDate` earlier than **today − 2 days** UTC midnight, keeping the most recent two days plus today), **social** (terminal `social_queue` docs, their `generated_posters/*` media, and expired `social_jobs` past the 72-hour window), and **soto** (`soto_cache` docs whose `expiresAt` has passed, batched 400 at a time). |
 | `searchSotoFares` | HTTPS onRequest endpoint, **unauthenticated by design** — `/soto` is a public page. Validates both IATA codes against the committed dataset, checks the departure window (today … +11 months), enforces the SOTO rule (origin must not be in India), then serves `soto_cache/{sha256}` or calls Travelpayouts. Returns fares **projected to display fields only** — the provider's `link` field carries our affiliate marker and never leaves the server. `maxInstances: 10`. Secret: `TRAVELPAYOUTS_TOKEN`. |
 | `searchSotoAirports` | HTTPS onRequest typeahead over `functions/soto/places.json`. No provider call, no Firestore read, `s-maxage=86400`. |
-| `purgeSotoCache` | Scheduled cleanup, daily at 03:00 UTC. Batch-deletes `soto_cache` docs whose `expiresAt` has passed. |
 
 **Social publishing scheduled workers**
 - `autoPostDaily` renders scheduled posters, creates `social_jobs` / `social_jobs/*/items`, uploads media, and enqueues queue docs.
-- `socialQueueDispatcher` runs every minute, leases due queue docs, and dispatches them to airport-specific Buffer channels with retry backoff (`2m -> 10m -> 30m`, max 3 attempts).
-- `purgeSocialPublishing` runs every 5 minutes and removes terminal `social_queue` docs, related `generated_posters/*` media, and expired `social_jobs` after exactly 72 hours.
+- `socialQueueDispatcher` runs every 5 minutes, leases due queue docs, and dispatches them to airport-specific Buffer channels with retry backoff (`2m -> 10m -> 30m`, max 3 attempts). Use **Dispatch now** (`runSocialQueueNow`) when you don't want to wait for the next tick.
+- Social retention is swept by `dailyMaintenance`, not by a dedicated job.
+
+> **Only three Cloud Scheduler jobs exist, and that is deliberate.** Google bills per job beyond the first three, so the project runs exactly `socialQueueDispatcher`, `autoPostDaily`, and `dailyMaintenance`. Adding a fourth `onSchedule` starts a monthly charge — fold new periodic work into `dailyMaintenance` instead. Retention windows live in the sweep logic, never in the cadence, so changing the schedule never changes what is kept.
 
 ---
 

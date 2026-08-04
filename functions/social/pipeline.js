@@ -780,7 +780,7 @@ async function deleteStorageFiles(paths = []) {
     try {
       await bucket.file(path).delete({ ignoreNotFound: true });
     } catch (error) {
-      logger.warn(`purgeSocialPublishing: failed to delete ${path}: ${error.message}`);
+      logger.warn(`purgeExpiredSocialPublishing: failed to delete ${path}: ${error.message}`);
     }
   }));
 }
@@ -955,7 +955,11 @@ function buildScheduledDispatcher(bufferApiKeySecretsByMarket) {
   return onSchedule(
     {
       region: "asia-south1",
-      schedule: "every 1 minutes",
+      // Every 5 minutes, not every minute: at 1/min this polled an idle queue
+      // ~43.8k times a month and was ~80% of all Cloud Run usage. Retry backoff
+      // is already 2m -> 10m -> 30m, and runSocialQueueNow dispatches on demand,
+      // so nothing here depended on minute-level granularity.
+      schedule: "every 5 minutes",
       timeoutSeconds: 540,
       secrets,
     },
@@ -966,27 +970,12 @@ function buildScheduledDispatcher(bufferApiKeySecretsByMarket) {
   );
 }
 
-function buildPurgeSocialPublishing() {
-  return onSchedule(
-    {
-      region: "asia-south1",
-      schedule: "every 5 minutes",
-      timeoutSeconds: 540,
-    },
-    async () => {
-      const result = await purgeExpiredSocialPublishing();
-      logger.info(`purgeSocialPublishing: deleted ${result.deletedDocs} queue docs, ${result.deletedFiles} files, ${result.deletedJobs} jobs`);
-    },
-  );
-}
-
 module.exports = {
   RETENTION_MS,
   buildRefreshSocialPublishingHealth,
   buildRunSocialQueueNow,
   buildRetrySocialJobItem,
   buildScheduledDispatcher,
-  buildPurgeSocialPublishing,
   createSocialJob,
   createSocialJobItem,
   updateSocialJobItem,

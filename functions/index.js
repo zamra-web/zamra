@@ -691,29 +691,25 @@ exports.exportFlightDetailsForN8n = onRequest({ region: "asia-south1", cors: tru
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 7. purgeOldFaresDaily (Scheduled)
+// 7. purgeOldFares
 //    Deletes fares older than 2 days (by flightDate, UTC midnight).
+//    Driven by the `dailyMaintenance` schedule at the bottom of this file.
 // ══════════════════════════════════════════════════════════════════════════════
-exports.purgeOldFaresDaily = onSchedule(
-  { region: "asia-south1", schedule: "every day 00:15", timeZone: "UTC" },
-  async () => {
-    const cutoff = getUtcMidnightNDaysAgo(2);
-    const snapshot = await db.collection("agent_fares")
-      .where("flightDate", "<", Timestamp.fromDate(cutoff))
-      .get();
-    const deleted = await deleteDocs(snapshot);
-    console.log(
-      `purgeOldFaresDaily: deleted ${deleted} fare record${deleted !== 1 ? "s" : ""} before ${cutoff.toISOString().slice(0, 10)}`
-    );
-  }
-);
+async function purgeOldFares() {
+  const cutoff = getUtcMidnightNDaysAgo(2);
+  const snapshot = await db.collection("agent_fares")
+    .where("flightDate", "<", Timestamp.fromDate(cutoff))
+    .get();
+  const deleted = await deleteDocs(snapshot);
+  return { deleted, cutoff };
+}
 
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Buffer social publishing pipeline
 //   - refreshSocialPublishingHealth: refreshes saved per-airport posting setup
 //   - runSocialQueueNow: admin callable to dispatch pending queue work
-//   - socialQueueDispatcher: scheduled queue worker (every minute)
+//   - socialQueueDispatcher: scheduled queue worker (every 5 minutes)
 //   Secrets: one Buffer API key per Gulf region account.
 // ══════════════════════════════════════════════════════════════════════════════
 const { defineSecret } = require("firebase-functions/params");
@@ -721,16 +717,19 @@ const BUFFER_API_KEY_SAUDI = defineSecret("BUFFER_API_KEY_SAUDI");
 const BUFFER_API_KEY_UAE = defineSecret("BUFFER_API_KEY_UAE");
 const BUFFER_API_KEY_QATAR = defineSecret("BUFFER_API_KEY_QATAR");
 const BUFFER_API_KEY_OMAN = defineSecret("BUFFER_API_KEY_OMAN");
-const BUFFER_API_KEY_KUWAIT = defineSecret("BUFFER_API_KEY_KUWAIT");
-const BUFFER_API_KEY_BAHRAIN = defineSecret("BUFFER_API_KEY_BAHRAIN");
 
+// Only markets with a real Buffer account appear here. Kuwait and Bahrain are
+// defined in buffer/marketConfig.js but have placeholder channel ids, so they
+// get no secret — every active secret version is billed monthly, and an unused
+// one is pure cost. A queue item for an unkeyed market fails cleanly in
+// dispatchQueueDoc ("No Buffer API key configured for ..."), which is a better
+// signal than the old placeholder that failed later at the Buffer API.
+// To launch one: create the secret, add it here, redeploy.
 const BUFFER_API_KEYS_BY_MARKET = {
   saudi: BUFFER_API_KEY_SAUDI,
   uae: BUFFER_API_KEY_UAE,
   qatar: BUFFER_API_KEY_QATAR,
   oman: BUFFER_API_KEY_OMAN,
-  kuwait: BUFFER_API_KEY_KUWAIT,
-  bahrain: BUFFER_API_KEY_BAHRAIN,
 };
 
 const socialPipeline = require("./social/pipeline");
@@ -768,15 +767,6 @@ exports.runDailyPostNow = onCall(
     return { ok: true };
   },
 );
-
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 8. purgeSocialPublishing (Scheduled, every 5 min)
-//    Deletes terminal social_queue docs, their generated media, and expired
-//    social_jobs after the 72-hour retention window.
-// ══════════════════════════════════════════════════════════════════════════════
-exports.purgeSocialPublishing =
-  socialPipeline.buildPurgeSocialPublishing();
 
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -833,5 +823,47 @@ const soto = require("./soto").build(db, TRAVELPAYOUTS_TOKEN);
 
 exports.searchSotoFares = soto.searchSotoFares;
 exports.searchSotoAirports = soto.searchSotoAirports;
-exports.purgeSotoCache = soto.purgeSotoCache;
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 11. dailyMaintenance (Scheduled, 00:15 UTC)
+//     One job running all three retention sweeps in sequence. They were once
+//     three separate schedules (purgeOldFaresDaily 00:15, purgeSotoCache 03:00,
+//     purgeSocialPublishing every 5 min); Cloud Scheduler bills per job beyond
+//     the first three, so folding them in keeps the project inside the free
+//     tier. Retention windows are unchanged — each sweep evaluates its own
+//     cutoff at run time, so cadence never defined what gets kept.
+//
+//     Each sweep is independently try/caught: one failing must not stop the
+//     rest, or a single bad collection would silently stall all retention.
+// ══════════════════════════════════════════════════════════════════════════════
+exports.dailyMaintenance = onSchedule(
+  { region: "asia-south1", schedule: "every day 00:15", timeZone: "UTC", timeoutSeconds: 540 },
+  async () => {
+    try {
+      const { deleted, cutoff } = await purgeOldFares();
+      console.log(
+        `dailyMaintenance/fares: deleted ${deleted} fare record${deleted !== 1 ? "s" : ""} before ${cutoff.toISOString().slice(0, 10)}`
+      );
+    } catch (error) {
+      console.error("dailyMaintenance/fares failed:", error);
+    }
+
+    try {
+      const r = await socialPipeline.purgeExpiredSocialPublishing();
+      console.log(
+        `dailyMaintenance/social: deleted ${r.deletedDocs} queue docs, ${r.deletedFiles} files, ${r.deletedJobs} jobs`
+      );
+    } catch (error) {
+      console.error("dailyMaintenance/social failed:", error);
+    }
+
+    try {
+      const deleted = await soto.purgeExpiredSotoCache();
+      console.log(`dailyMaintenance/soto: deleted ${deleted} expired entr${deleted === 1 ? "y" : "ies"}`);
+    } catch (error) {
+      console.error("dailyMaintenance/soto failed:", error);
+    }
+  }
+);
 
