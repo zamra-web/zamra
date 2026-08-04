@@ -5,6 +5,11 @@ import '../shared/vercel-insights.js';
 // specialRate / commission / supplier agentId never reach the browser.
 import { getSectors, getAirlines, getFlightDetails } from '../admin/db.js';
 import { getPublicFares } from './public-fares.js';
+// Which origin→destination pairs a search can actually answer. Only the server
+// can tell, because deciding it means reading admin-only `agent_fares`.
+import { getPublicRoutes, buildRouteMap } from './public-routes.js';
+import { airportCity } from '../shared/airports.js';
+import { escapeHtml } from '../shared/escape-html.js';
 import { buildFlightTimeResolver } from '../shared/flight-schedule.js';
 import { dedupeAndSortFares, splitFlightTimeRange } from './flight-results.js';
 import { initSiteChrome } from './site-chrome.js';
@@ -437,16 +442,127 @@ document.addEventListener('DOMContentLoaded', () => {
   const destSelect = document.getElementById('destination');
 
   const swapLocations = () => {
-    if (originSelect && destSelect) {
-      const temp = originSelect.value;
-      originSelect.value = destSelect.value;
+    if (!originSelect || !destSelect) return;
+
+    const temp = originSelect.value;
+    originSelect.value = destSelect.value;
+
+    // Once the route map has loaded the destination list belongs to whichever
+    // origin is selected, so the swapped-in origin has to re-derive it. Setting
+    // `.value` alone would silently no-op when the old origin is not a
+    // destination of the new one, leaving the two selects describing a route the
+    // search cannot answer — the bug this whole cascade exists to remove.
+    if (_routeMap) {
+      fillRouteSelect(destSelect, _routeMap.destinationsFor(originSelect.value), temp);
+    } else {
       destSelect.value = temp;
     }
   };
 
   if (swapBtn) swapBtn.addEventListener('click', swapLocations);
   if (swapBtnMobile) swapBtnMobile.addEventListener('click', swapLocations);
+
+  // 7. Cascade the destination select off the origin, once the live routes land.
+  initRouteCascade(originSelect, destSelect);
 });
+
+
+/* ── CASCADING ROUTE SELECTS ── */
+
+// Set once `getPublicRoutes` answers; stays null if the fetch failed, which is
+// the signal to leave the hardcoded option lists exactly as they are.
+let _routeMap = null;
+
+/**
+ * City labels already rendered in the HTML, keyed by IATA code.
+ *
+ * The static options are the source of the wording the site has always shown
+ * ("Trivandrum (TRV)", "Mangalore (IXE)"), which differs from the canonical city
+ * names in shared/airports.js ("Thiruvananthapuram", "Mangaluru"). Rebuilding the
+ * options from the directory would silently rename airports in the UI, so the
+ * existing labels are reused and the directory only fills in codes the HTML has
+ * never listed.
+ *
+ * @param {...HTMLSelectElement} selects
+ * @returns {Map<string, string>} IATA code → option label
+ */
+function snapshotOptionLabels(...selects) {
+  const labels = new Map();
+  for (const select of selects) {
+    if (!select) continue;
+    for (const option of select.options) {
+      const code = String(option.value || '').toUpperCase();
+      if (code && !labels.has(code)) labels.set(code, option.textContent.trim());
+    }
+  }
+  return labels;
+}
+
+let _optionLabels = new Map();
+
+/** "Kozhikode (CCJ)" for a code, falling back to the airport directory. */
+function routeOptionLabel(code) {
+  const known = _optionLabels.get(code);
+  if (known) return known;
+  const city = airportCity(code);
+  return city && city !== code ? `${city} (${code})` : code;
+}
+
+/**
+ * Replace a select's options with `codes`, keeping `preferred` selected when it
+ * survives the new list.
+ *
+ * @param {HTMLSelectElement} select
+ * @param {string[]} codes
+ * @param {string} [preferred]
+ */
+function fillRouteSelect(select, codes, preferred) {
+  if (!select || !codes.length) return;
+
+  select.innerHTML = codes
+    .map((code) => `<option value="${escapeHtml(code)}">${escapeHtml(routeOptionLabel(code))}</option>`)
+    .join('');
+
+  if (preferred && codes.includes(String(preferred).toUpperCase())) {
+    select.value = String(preferred).toUpperCase();
+  }
+}
+
+/**
+ * Narrow both selects to routes that can actually return fares, and keep the
+ * destination list in step with the origin from then on.
+ *
+ * @param {HTMLSelectElement} originSelect
+ * @param {HTMLSelectElement} destSelect
+ */
+async function initRouteCascade(originSelect, destSelect) {
+  if (!originSelect || !destSelect) return;
+
+  _optionLabels = snapshotOptionLabels(originSelect, destSelect);
+
+  // The change handler is wired before the fetch resolves so a fast click cannot
+  // land between the options being narrowed and the cascade going live.
+  originSelect.addEventListener('change', () => {
+    if (!_routeMap) return;
+    fillRouteSelect(destSelect, _routeMap.destinationsFor(originSelect.value));
+  });
+
+  const routes = await getPublicRoutes();
+  const routeMap = buildRouteMap(routes);
+
+  // No routes means the fetch failed or the fare table is genuinely empty. Either
+  // way, narrowing to nothing would leave an unusable search — keep the static
+  // lists and let the search report the empty result as it does today.
+  if (!routeMap.size) return;
+
+  _routeMap = routeMap;
+
+  const wantedOrigin = originSelect.value.toUpperCase();
+  const wantedDest = destSelect.value.toUpperCase();
+
+  fillRouteSelect(originSelect, routeMap.origins, wantedOrigin);
+  fillRouteSelect(destSelect, routeMap.destinationsFor(originSelect.value), wantedDest);
+}
 
 
 
@@ -468,9 +584,16 @@ async function searchFlights() {
 
   try {
     const sectors = await getSectors();
+    // The route map already knows the sector id for every pair it offered, and it
+    // got that id from the sector document rather than by reassembling a code.
+    // Matching on `"CCJ JED"` alone misses a sector stored as `CCJ-JED`, which
+    // would strand a route the dropdown had just advertised as searchable.
+    const sectorId = _routeMap ? _routeMap.sectorIdFor(origin, dest) : '';
     const sectorCode = `${origin} ${dest}`;
-    const sector = sectors.find(s => s.sectorCode === sectorCode);
-    
+    const sector = (sectorId && sectors.find(s => s.id === sectorId))
+      || sectors.find(s => s.sectorCode === sectorCode);
+
+
     let data = [];
     if (sector) {
       const today = new Date();

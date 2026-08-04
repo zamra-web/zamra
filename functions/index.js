@@ -806,6 +806,13 @@ exports.getPublicDeals = require("./publicDeals").buildGetPublicDeals(db);
 // is what allows the `agent_fares` read rule to stay admin-only.
 exports.getPublicFares = require("./publicFares").buildGetPublicFares(db);
 
+// getPublicRoutes tells the homepage which origin→destination pairs are actually
+// searchable, so the "To" select can cascade off "From" instead of offering every
+// airport in the directory. Deciding that needs a look at `agent_fares` — a
+// sector with no upcoming fare searches just as empty as one that does not
+// exist — so it is answered here and only the route metadata is published.
+exports.getPublicRoutes = require("./publicRoutes").buildGetPublicRoutes(db);
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 10. SOTO LIVE FARES

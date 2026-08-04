@@ -1,5 +1,18 @@
 "use strict";
 
+/**
+ * Parses "CCJ RUH" / "CCJ-RUH" into origin/destination codes,
+ * matching the normalization used by ingestFaresFromN8n.
+ *
+ * Lives here rather than in b2b.js because the public route map needs the same
+ * split and must not pull in the B2B module's auth/Firestore dependencies. b2b.js
+ * re-exports it so its existing callers and tests are unchanged.
+ */
+function parseSectorCodes(sectorCode) {
+  const parts = String(sectorCode || "").replace("-", " ").trim().toUpperCase().split(/\s+/);
+  return { originCode: parts[0] || "", destCode: parts[1] || "" };
+}
+
 function normalizeSectorSortOrder(value) {
   const numeric = Number(value);
   if (!Number.isInteger(numeric) || numeric < 1) return null;
@@ -89,6 +102,7 @@ module.exports = {
   compareLegacySectorOrder,
   compareSectorDisplayOrder,
   normalizeSectorSortOrder,
+  parseSectorCodes,
   planSectorSortOrderBackfill,
   resolveSectorDisplayOrder,
 };

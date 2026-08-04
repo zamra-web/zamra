@@ -94,7 +94,7 @@ web/
 ## Key Frontend Features
 
 ### 🔍 Live Flight Search
-- Full "From" and "To" origin/destination selection with location swap functionality
+- "From" and "To" origin/destination selection with location swap functionality. **The two selects cascade** — see [The route selects cascade](#the-route-selects-cascade) below.
 - Reads fares from the `getPublicFares` endpoint, **not** from Firestore directly — `agent_fares` is admin-only, and the endpoint projects each row to a display allow-list so `specialRate`, `commission` and the supplier `agentId` never reach the browser (see [Fare reads are projected](#fare-reads-are-projected) below). Reference data (`sectors`, `airlines`, `flight_details`) is still read straight from Firestore, since it holds no pricing economics.
 - Filters by sector and date, and only returns fares where `isHidden == false`
 - Deduplicates identical flights (same sector, airline, date, and time), automatically showing only the cheapest rate
@@ -104,6 +104,20 @@ web/
 - **Mobile UI** — below `lg` each result is a **single-row card**: small airline logo (no airline name), date, origin/departure, destination/arrival, baggage, price. There is no Book Now button in the row. Tapping the row opens the **details sheet** (`web/src/js/web/flight-details-sheet.js`) — a bottom sheet on phones, a centred dialog from `sm` up — which carries the airline name, city names, both baggage allowances, seats, fare and the WhatsApp **Book Now** CTA. Extra bottom spacing keeps the list clear of the floating actions.
 - The wide (`lg` and up) card is unchanged and keeps its inline Book Now.
 - `flight-card.js` also holds the B2B portal's card, `buildCompactFlightCardHtml`. The two builders are separate on purpose: the public row hides the airline name and the CTA behind the details sheet, while the B2B row keeps every field and the Book Now CTA on the card at all widths (agents book straight from the list). Editing one does **not** change the other — but both feed the same `flight-details-sheet.js`, so a change to the sheet lands on both surfaces. See [DASHBOARD.md](DASHBOARD.md).
+
+#### The route selects cascade
+
+The "To" select lists only destinations reachable from the chosen "From". Before this, both selects were two independent hardcoded lists of every airport in the directory, so CCJ → MED or JED → TRV were offered, searched, and came back empty — a dead end the UI had advertised as valid.
+
+**Availability is a fare question, not a sector question.** The client could have filtered `sectors` itself (it is world-readable), but a sector with no upcoming fare searches just as empty as one that was never created. Answering properly means reading `agent_fares`, which is admin-only, so `getPublicRoutes` ([functions/publicRoutes.js](functions/publicRoutes.js)) answers it server-side and publishes only route metadata — sector id, code, city labels, IATA pair. **No prices and no per-route fare counts**: a count would leak how thin a sector's inventory is, and nothing renders it.
+
+The sweep runs one `count()` aggregation per sector rather than scanning `agent_fares` for distinct sector ids. A scan bills a read per future fare on a public unauthenticated endpoint; a count is billed per 1000 index entries matched, so it is roughly one read per sector, and it rides the existing `(isHidden, sectorId, flightDate)` composite index. Results are memoized per instance for 10 minutes — that window bounds how long a freshly uploaded sector stays missing from the dropdown.
+
+**The hardcoded `<option>` lists in `index.html` stay.** They are the crawler-visible and no-JS copy, the label wording the site has always shown (`Trivandrum (TRV)`, not the directory's `Thiruvananthapuram`), and the fallback: if the fetch fails or returns nothing, [public-routes.js](web/src/js/web/public-routes.js) resolves to `[]` and the client leaves the static lists alone rather than narrowing the search down to nothing.
+
+The route map also carries each pair's **sector id**, and the search now prefers it. Rebuilding `"${origin} ${dest}"` and matching it against `sectorCode` misses a sector stored in the equally valid `CCJ-JED` form — which would strand a route the dropdown had just advertised as searchable.
+
+The same rule applies to the B2B portal: `getB2BPortalContext` drops sectors with no live fares, so the portal stops offering routes that answer "No fares loaded for X → Y". See [DASHBOARD.md](DASHBOARD.md).
 
 #### Fare reads are projected
 

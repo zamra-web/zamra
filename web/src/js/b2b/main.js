@@ -362,9 +362,13 @@ function initRouteSelects() {
   if (!originSel || !destSel) return;
 
   const origins = allowedOrigins();
+  // Empty now covers two causes — no sector assigned to this agent, and every
+  // assigned sector currently out of fares, since getB2BPortalContext stopped
+  // sending routes that cannot be priced. The copy stays neutral between them
+  // because the agent's next step is the same either way.
   if (!origins.length) {
     const list = document.getElementById('flightList');
-    if (list) list.innerHTML = `<div class="text-center text-text-muted p-10 font-bold border-2 border-dashed border-border rounded-[24px] mt-6 bg-[#f8fafc]">No routes are currently assigned to your account. Contact Zamra Travels.</div>`;
+    if (list) list.innerHTML = `<div class="text-center text-text-muted p-10 font-bold border-2 border-dashed border-border rounded-[24px] mt-6 bg-[#f8fafc]">No routes are available on your account right now. Contact Zamra Travels.</div>`;
     if (searchBtn) searchBtn.disabled = true;
     return;
   }

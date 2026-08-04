@@ -21,7 +21,8 @@ const {
   decryptSecret,
   loadCredentialKey,
 } = require("./b2bCredentials");
-const { compareSectorDisplayOrder } = require("./sectorOrdering");
+const { compareSectorDisplayOrder, parseSectorCodes } = require("./sectorOrdering");
+const { createSectorsWithFaresCache } = require("./publicRoutes");
 const { filterOffersForAgent, todayKeyIST } = require("./b2bOffers");
 const { normalizeFlightTimeRange } = require("./flightTime");
 const {
@@ -70,15 +71,6 @@ function resolveRequestedPassword(value) {
   const check = validateCustomPassword(value);
   if (!check.ok) throw new HttpsError("invalid-argument", check.reason);
   return { password: check.password, isCustom: true };
-}
-
-/**
- * Parses "CCJ RUH" / "CCJ-RUH" into origin/destination codes,
- * matching the normalization used by ingestFaresFromN8n.
- */
-function parseSectorCodes(sectorCode) {
-  const parts = String(sectorCode || "").replace("-", " ").trim().toUpperCase().split(/\s+/);
-  return { originCode: parts[0] || "", destCode: parts[1] || "" };
 }
 
 function isSectorVisibleToAgent(sector, agent) {
@@ -293,6 +285,11 @@ function sanitizeSupplierDefaults(value) {
  */
 function build(db, requireAdmin) {
   const REGION = { region: "asia-south1" };
+
+  // Shared with getPublicRoutes: which sectors currently hold a bookable fare.
+  // Memoized per instance because the portal boots this on every agent login and
+  // the answer is agent-independent.
+  const sectorsWithFares = createSectorsWithFaresCache(db);
 
   /**
    * Writes the admin-readable copy of an agent's password.
@@ -619,10 +616,14 @@ function build(db, requireAdmin) {
         return { docs: [] };
       }),
     ]);
-    const sectors = filterSectorsForAgent(
-      sectorsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-      agent,
-    );
+    // A sector the agent may see but that holds no upcoming fare is a dead end:
+    // it fills the route selects, then answers "No fares loaded for X → Y". Drop
+    // it here so the portal only ever offers pairs getB2BFares can answer.
+    // Deciding this needs `agent_fares`, which only the server may read.
+    const allSectors = sectorsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const withFares = await sectorsWithFares(allSectors);
+    const sectors = filterSectorsForAgent(allSectors, agent)
+      .filter((sector) => withFares.has(sector.id));
     const offers = filterOffersForAgent(
       offersSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
       agent,
