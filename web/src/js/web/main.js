@@ -9,6 +9,7 @@ import { getPublicFares } from './public-fares.js';
 // can tell, because deciding it means reading admin-only `agent_fares`.
 import { getPublicRoutes, buildRouteMap } from './public-routes.js';
 import { airportCity } from '../shared/airports.js';
+import { buildOriginCards, splitOriginSections } from './route-grids.js';
 import { escapeHtml } from '../shared/escape-html.js';
 import { buildFlightTimeResolver } from '../shared/flight-schedule.js';
 import { dedupeAndSortFares, splitFlightTimeRange } from './flight-results.js';
@@ -45,34 +46,15 @@ document.addEventListener('DOMContentLoaded', () => {
   initSiteChrome({ enableSmoothScroll: true });
 
   // 1. Populate Sectors Dynamically
-  const indianAirports = [
-    { id: 'kozhikode', code: 'CCJ', name: 'Kozhikode' },
-    { id: 'kochi', code: 'COK', name: 'Kochi' },
-    { id: 'kannur', code: 'CNN', name: 'Kannur' },
-    { id: 'trivandrum', code: 'TRV', name: 'Trivandrum' },
-    { id: 'mangalore', code: 'IXE', name: 'Mangalore' }
-  ];
-
-  const middleEastAirports = [
-    { id: 'jeddah', code: 'JED', name: 'Jeddah' },
-    { id: 'riyadh', code: 'RUH', name: 'Riyadh' },
-    { id: 'dammam', code: 'DMM', name: 'Dammam' },
-    { id: 'doha', code: 'DOH', name: 'Doha' },
-    { id: 'muscat', code: 'MCT', name: 'Muscat' },
-    { id: 'bahrain', code: 'BAH', name: 'Bahrain' },
-    { id: 'kuwait', code: 'KWI', name: 'Kuwait' },
-    { id: 'dubai', code: 'DXB', name: 'Dubai' },
-    { id: 'sharjah', code: 'SHJ', name: 'Sharjah' },
-    { id: 'abudhabi', code: 'AUH', name: 'Abu Dhabi' },
-    { id: 'rasalkhaimah', code: 'RKT', name: 'Ras Al Khaimah' },
-    { id: 'alain', code: 'AAN', name: 'Al Ain' },
-    { id: 'fujairah', code: 'FJR', name: 'Fujairah' }
-  ];
-
+  //
+  // The origins, and each origin's destinations, come from `getPublicRoutes` via
+  // `loadRouteMap()`. This used to be two hardcoded airport arrays rendered as a
+  // full cross-product, which is why clicking Kozhikode offered Madinah and
+  // clicking Jeddah offered Trivandrum — pairs no fare has ever backed.
   const gridsContainer = document.getElementById('flight-grids-container');
 
   if (gridsContainer) {
-    const renderSection = (origins, destinations, label) => {
+    const renderSection = (origins, label) => {
       // Create section container
       const sectionDiv = document.createElement('div');
       sectionDiv.className = 'mb-[50px]';
@@ -91,12 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
       origins.forEach(origin => {
         const card = document.createElement('div');
         card.className = 'sector-card bg-gradient-to-r from-primary to-[#1558c0] p-[18px_24px] max-sm:px-4 max-sm:py-4 rounded-[16px] shadow-[var(--shadow-premium-soft)] cursor-pointer hover:shadow-[0_8px_25px_rgba(26,115,232,0.3)] hover:-translate-y-1 transition-all duration-300 flex items-center relative overflow-hidden group';
-        card.innerHTML = `<h4 class="text-[17px] font-heading font-extrabold text-white m-0 flex items-center justify-between z-[2] relative w-full">${origin.name} (${origin.code}) <i class="bi bi-arrow-right-circle text-white/80 text-[22px]"></i></h4>`;
+        card.innerHTML = `<h4 class="text-[17px] font-heading font-extrabold text-white m-0 flex items-center justify-between z-[2] relative w-full">${escapeHtml(origin.name)} (${escapeHtml(origin.code)}) <i class="bi bi-arrow-right-circle text-white/80 text-[22px]"></i></h4>`;
 
-        // Add click event to open Routes Modal
+        // Each origin carries its own destination list now, rather than every
+        // card in a section sharing one — that shared list is what offered
+        // CCJ → MED and JED → TRV, routes no fare can answer.
         card.addEventListener('click', () => {
           if (typeof openRoutesModal === 'function') {
-            openRoutesModal(origin, destinations);
+            openRoutesModal(origin, origin.destinations);
           }
         });
 
@@ -104,11 +88,34 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     };
 
-    // First, Indian to Middle East
-    renderSection(indianAirports, middleEastAirports, 'India');
+    // The grids are JS-rendered into an empty container, so unlike the From/To
+    // selects there is no static copy to fall back on and nothing a crawler ever
+    // sees. That means they can wait for the live routes rather than painting
+    // the full airport cross-product first — showing dead routes for a second
+    // and then yanking them is worse than a brief loader.
+    gridsContainer.innerHTML = `
+      <div class="w-[40px] h-[40px] border-[3px] border-[#f3f3f3] border-t-primary rounded-full animate-spin mx-auto my-[30px]"></div>
+      <p class="text-center text-text-muted">Loading routes…</p>
+    `;
 
-    // Second, Middle East to Indian
-    renderSection(middleEastAirports, indianAirports, 'Middle East');
+    loadRouteMap().then((routeMap) => {
+      const sections = splitOriginSections(buildOriginCards(routeMap));
+      gridsContainer.innerHTML = '';
+
+      // No sections means the fetch failed or nothing is on sale. Falling back to
+      // the old hardcoded cross-product would reinstate exactly the dead routes
+      // this removes, so the honest answer is the empty state.
+      if (!sections.length) {
+        gridsContainer.innerHTML = `
+          <div class="rounded-2xl border border-dashed border-border bg-[#f8fafc] p-8 text-center text-text-muted font-semibold">
+            No routes are loaded right now. Please check back shortly.
+          </div>
+        `;
+        return;
+      }
+
+      sections.forEach((section) => renderSection(section.origins, section.label));
+    });
   }
 
   // 4. Modal Functionality
@@ -140,21 +147,29 @@ document.addEventListener('DOMContentLoaded', () => {
     destinations.forEach(dest => {
       const sectorCode = `${origin.code} ${dest.code}`;
       const routeName = `${origin.name} → ${dest.name}`;
-      
+
       const routeBtn = document.createElement('button');
       routeBtn.className = 'bg-white p-4 rounded-xl border border-border shadow-sm hover:shadow-md hover:border-primary transition-all flex items-center justify-between group cursor-pointer w-full text-left';
       routeBtn.innerHTML = `
-        <span class="font-bold text-navy text-[15px]">${origin.name} to ${dest.name}</span>
+        <span class="font-bold text-navy text-[15px]">${escapeHtml(origin.name)} to ${escapeHtml(dest.name)}</span>
         <i class="bi bi-chevron-right text-text-muted group-hover:text-primary transition-colors"></i>
       `;
       routeBtn.onclick = () => {
-        openModal(sectorCode, routeName);
+        openModal(dest.sectorId, sectorCode, routeName, origin);
       };
       routesGrid.appendChild(routeBtn);
     });
   }
 
-  function openModal(sectorCode, routeName) {
+  /**
+   * Fare table for one route.
+   *
+   * `sectorId` comes from the route map, so the sector never has to be recovered
+   * by matching a rebuilt `"CCJ JED"` against `sectorCode` — a match that misses
+   * the equally valid `CCJ-JED` form. `origin` is carried through only so "Back
+   * to Destinations" can reopen the list it came from instead of re-deriving it.
+   */
+  function openModal(sectorId, sectorCode, routeName, origin) {
     modalTitle.textContent = 'Flight Details';
     modalRoute.textContent = sectorCode.replace(' ', ' → ');
     modalRoute.classList.add('bg-primary-light', 'text-primary');
@@ -169,8 +184,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadFares() {
       try {
         const sectors = await getSectors();
-        const sector = sectors.find(s => s.sectorCode === sectorCode);
-        
+        const sector = (sectorId && sectors.find(s => s.id === sectorId))
+          || sectors.find(s => s.sectorCode === sectorCode);
+
         const airlines = await getAirlines();
         const airlineMap = {};
         airlines.forEach(a => airlineMap[a.id] = a.name);
@@ -293,18 +309,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const backBtn = document.getElementById('back-to-routes');
         if (backBtn) {
           backBtn.addEventListener('click', () => {
-            // Determine origin/destinations based on routeName for back navigation
-            const originCode = sectorCode.split(' ')[0];
-            let originObj = indianAirports.find(a => a.code === originCode);
-            let destList = middleEastAirports;
-            
-            if (!originObj) {
-              originObj = middleEastAirports.find(a => a.code === originCode);
-              destList = indianAirports;
-            }
-            
-            if (originObj) {
-              openRoutesModal(originObj, destList);
+            // The origin travelled with the click, so going back reopens the exact
+            // destination list the user came from. Re-deriving it meant guessing
+            // which hardcoded array the origin belonged to and handing back every
+            // airport on the far side, live route or not.
+            if (origin?.destinations?.length) {
+              openRoutesModal(origin, origin.destinations);
             } else {
               closeModal();
             }
@@ -473,6 +483,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // the signal to leave the hardcoded option lists exactly as they are.
 let _routeMap = null;
 
+// Both consumers of the route map — the From/To cascade and the sector-card
+// grids — load on the same page, so the fetch is shared. Two calls would be two
+// cold starts against the same cached answer.
+let _routeMapPromise = null;
+function loadRouteMap() {
+  if (!_routeMapPromise) {
+    _routeMapPromise = getPublicRoutes().then(buildRouteMap);
+  }
+  return _routeMapPromise;
+}
+
 /**
  * City labels already rendered in the HTML, keyed by IATA code.
  *
@@ -547,8 +568,7 @@ async function initRouteCascade(originSelect, destSelect) {
     fillRouteSelect(destSelect, _routeMap.destinationsFor(originSelect.value));
   });
 
-  const routes = await getPublicRoutes();
-  const routeMap = buildRouteMap(routes);
+  const routeMap = await loadRouteMap();
 
   // No routes means the fetch failed or the fare table is genuinely empty. Either
   // way, narrowing to nothing would leave an unusable search — keep the static

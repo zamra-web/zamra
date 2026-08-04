@@ -117,6 +117,8 @@ The sweep runs one `count()` aggregation per sector rather than scanning `agent_
 
 The route map also carries each pair's **sector id**, and the search now prefers it. Rebuilding `"${origin} ${dest}"` and matching it against `sectorCode` misses a sector stored in the equally valid `CCJ-JED` form — which would strand a route the dropdown had just advertised as searchable.
 
+**Two consumers, one fetch.** The From/To cascade and the [sector-card grids](#️-sectors-display-lowest-fare-flight-tickets) both need this data and both load on the homepage, so `loadRouteMap()` in `main.js` memoizes the promise — two calls would be two cold starts against the same cached answer.
+
 The same rule applies to the B2B portal: `getB2BPortalContext` drops sectors with no live fares, so the portal stops offering routes that answer "No fares loaded for X → Y". See [DASHBOARD.md](DASHBOARD.md).
 
 #### Fare reads are projected
@@ -138,14 +140,15 @@ Client wrapper: [web/src/js/web/public-fares.js](web/src/js/web/public-fares.js)
 **Deploy order matters:** the functions deploy must land *before* the Vercel frontend push. The frontend calls an endpoint that must already exist, and the rules change removes the direct read the old bundle depends on.
 
 ### ✈️ Sectors Display (Lowest Fare Flight Tickets)
-- Reads `sectors` collection from Firestore
-- Sector reads now honor the admin-defined `sortOrder` priority so any sector selectors that use `getSectors()` stay aligned with the dashboard ordering
-- Groups routes by top-level "Origin" cards (e.g., India to Middle East)
-- Clicking an Origin opens a modal with destination Routes
-- Clicking a Route opens the **Flight Details modal** with live pricing
+- **Built from `getPublicRoutes`, not a hardcoded airport list** — see [The route selects cascade](#the-route-selects-cascade). The origin cards are the airports something actually departs from, and **each card carries its own destination list**. It was previously two hardcoded arrays rendered as a full cross-product, so every India card offered all 13 Gulf airports and vice versa — which is why Kozhikode offered Madinah and Jeddah offered Trivandrum, pairs no fare has ever backed.
+- Sector reads still honor the admin-defined `sortOrder` priority, so selectors using `getSectors()` stay aligned with the dashboard ordering; `getPublicRoutes` returns routes in that same order.
+- Groups into "Flights From India" / "Flights From Middle East" on `country === INDIA` in [airports.js](web/src/js/shared/airports.js). An unmapped code has no country and lands in the Gulf section — the safe default, since every Indian airport Zamra flies is in the directory. `airports.test.js` asserts every entry has a country, because a missing one would silently file an Indian airport under the wrong heading.
+- **The container is empty in HTML and fully JS-rendered**, so unlike the From/To selects there is no static copy to fall back on and nothing a crawler ever sees. It therefore waits for the live routes behind a brief loader rather than painting the cross-product first — showing dead routes for a second and then yanking them is worse. A failed fetch renders the empty state rather than the old hardcoded pairing, which would reinstate exactly the dead routes this removed.
+- Clicking an Origin opens a modal with that origin's destination Routes
+- Clicking a Route opens the **Flight Details modal** with live pricing, resolved by the **sector id carried on the route** rather than by matching a rebuilt `"CCJ JED"` against `sectorCode`
   - Modal width: `max-w-[760px]` — wide enough to show all columns (Date, Airlines, Departure, Arrival, Price, Book Now) **without horizontal scrolling** on desktop
   - **Mobile:** switches to stacked fare cards (no horizontal scroll)
-- Includes "Back to Destinations" navigation within the modal
+- Includes "Back to Destinations" navigation within the modal — the origin travels with the click, so Back reopens the exact list it came from. It used to guess which hardcoded array the origin belonged to and hand back every airport on the far side.
 - **Book Now** button opens a pre-filled WhatsApp message to the Zamra Travels number
 
 ### 🚀 Smooth Scrolling and Navigation

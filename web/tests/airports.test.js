@@ -4,19 +4,45 @@ import assert from 'node:assert/strict';
 import {
   AIRPORTS,
   AIRPORT_ALIASES,
+  INDIA,
   airportCity,
+  airportCountry,
   airportName,
+  isIndianAirport,
   normalizeAirportLabel,
   resolveAirportCode,
 } from '../src/js/shared/airports.js';
 import { getSectorRouteCodes } from '../src/js/admin/social-markets.js';
 
-test('every airport entry carries a city and a full airport name', () => {
+test('every airport entry carries a city, a country and a full airport name', () => {
+  // The homepage splits its route grids on `country === INDIA`, so a missing
+  // country silently files an Indian airport under "Flights From Middle East".
   for (const [code, airport] of Object.entries(AIRPORTS)) {
     assert.match(code, /^[A-Z]{3}$/, `${code} is not a 3-letter IATA code`);
     assert.ok(airport.city, `${code} is missing a city`);
     assert.ok(airport.name, `${code} is missing an airport name`);
+    assert.ok(airport.country, `${code} is missing a country`);
   }
+});
+
+test('the India/Gulf split the homepage grids use is correct', () => {
+  for (const code of ['CCJ', 'COK', 'CNN', 'TRV', 'IXE', 'BLR', 'MAA', 'BOM', 'DEL', 'HYD']) {
+    assert.equal(isIndianAirport(code), true, `${code} should be Indian`);
+  }
+  for (const code of ['JED', 'RUH', 'DMM', 'MED', 'DXB', 'SHJ', 'AUH', 'DOH', 'MCT', 'KWI', 'BAH']) {
+    assert.equal(isIndianAirport(code), false, `${code} should not be Indian`);
+  }
+});
+
+test('an unmapped code has no country and falls to the Gulf side', () => {
+  assert.equal(airportCountry('ZZZ'), '');
+  assert.equal(airportCountry(''), '');
+  assert.equal(isIndianAirport('ZZZ'), false);
+});
+
+test('airportCountry matches case-insensitively, like the rest of the directory', () => {
+  assert.equal(airportCountry('ccj'), INDIA);
+  assert.equal(airportCountry('DXB'), 'UAE');
 });
 
 test('city labels resolve to the IATA code the e-ticket prints', () => {

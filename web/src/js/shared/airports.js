@@ -9,45 +9,49 @@
 // `social-markets.js` derives its label→code map from `AIRPORT_ALIASES` here, so a
 // new airport only has to be added once, in this file.
 
+/** The one country label that means "this side of the route", not the Gulf. */
+export const INDIA = 'India';
+
 /**
  * IATA code → airport record.
  *   city    — display city name ("Kozhikode")
  *   name    — full airport name, as printed on the e-ticket
+ *   country — country label; the homepage splits its route grids on `=== INDIA`
  *   aliases — alternate spellings/city names that must resolve to this code
  */
 export const AIRPORTS = {
   // ── India ────────────────────────────────────────────────────────────────
-  CCJ: { city: 'Kozhikode', name: 'Calicut International Airport', aliases: ['CALICUT', 'KOZHIKODE'] },
-  COK: { city: 'Kochi', name: 'Cochin International Airport', aliases: ['KOCHI', 'COCHIN', 'ERNAKULAM'] },
-  CNN: { city: 'Kannur', name: 'Kannur International Airport', aliases: ['KANNUR'] },
-  TRV: { city: 'Thiruvananthapuram', name: 'Trivandrum International Airport', aliases: ['TRIVANDRUM', 'THIRUVANANTHAPURAM'] },
-  IXE: { city: 'Mangaluru', name: 'Mangaluru International Airport', aliases: ['MANGALORE', 'MANGALURU'] },
-  BLR: { city: 'Bengaluru', name: 'Kempegowda International Airport', aliases: ['BANGALORE', 'BENGALURU'] },
-  MAA: { city: 'Chennai', name: 'Chennai International Airport', aliases: ['CHENNAI', 'MADRAS'] },
-  BOM: { city: 'Mumbai', name: 'Chhatrapati Shivaji Maharaj International Airport', aliases: ['MUMBAI', 'BOMBAY'] },
-  DEL: { city: 'Delhi', name: 'Indira Gandhi International Airport', aliases: ['DELHI', 'NEW DELHI'] },
-  HYD: { city: 'Hyderabad', name: 'Rajiv Gandhi International Airport', aliases: ['HYDERABAD'] },
+  CCJ: { city: 'Kozhikode', country: INDIA, name: 'Calicut International Airport', aliases: ['CALICUT', 'KOZHIKODE'] },
+  COK: { city: 'Kochi', country: INDIA, name: 'Cochin International Airport', aliases: ['KOCHI', 'COCHIN', 'ERNAKULAM'] },
+  CNN: { city: 'Kannur', country: INDIA, name: 'Kannur International Airport', aliases: ['KANNUR'] },
+  TRV: { city: 'Thiruvananthapuram', country: INDIA, name: 'Trivandrum International Airport', aliases: ['TRIVANDRUM', 'THIRUVANANTHAPURAM'] },
+  IXE: { city: 'Mangaluru', country: INDIA, name: 'Mangaluru International Airport', aliases: ['MANGALORE', 'MANGALURU'] },
+  BLR: { city: 'Bengaluru', country: INDIA, name: 'Kempegowda International Airport', aliases: ['BANGALORE', 'BENGALURU'] },
+  MAA: { city: 'Chennai', country: INDIA, name: 'Chennai International Airport', aliases: ['CHENNAI', 'MADRAS'] },
+  BOM: { city: 'Mumbai', country: INDIA, name: 'Chhatrapati Shivaji Maharaj International Airport', aliases: ['MUMBAI', 'BOMBAY'] },
+  DEL: { city: 'Delhi', country: INDIA, name: 'Indira Gandhi International Airport', aliases: ['DELHI', 'NEW DELHI'] },
+  HYD: { city: 'Hyderabad', country: INDIA, name: 'Rajiv Gandhi International Airport', aliases: ['HYDERABAD'] },
 
   // ── Saudi Arabia ─────────────────────────────────────────────────────────
-  JED: { city: 'Jeddah', name: 'King Abdulaziz International Airport', aliases: ['JEDDAH', 'JEDDA'] },
-  RUH: { city: 'Riyadh', name: 'King Khalid International Airport', aliases: ['RIYADH'] },
-  DMM: { city: 'Dammam', name: 'King Fahd International Airport', aliases: ['DAMMAM', 'DAMAM', 'DAMAMM', 'DAMMAMM'] },
-  MED: { city: 'Madinah', name: 'Prince Mohammad Bin Abdulaziz International Airport', aliases: ['MADINAH', 'MEDINA'] },
+  JED: { city: 'Jeddah', country: 'Saudi Arabia', name: 'King Abdulaziz International Airport', aliases: ['JEDDAH', 'JEDDA'] },
+  RUH: { city: 'Riyadh', country: 'Saudi Arabia', name: 'King Khalid International Airport', aliases: ['RIYADH'] },
+  DMM: { city: 'Dammam', country: 'Saudi Arabia', name: 'King Fahd International Airport', aliases: ['DAMMAM', 'DAMAM', 'DAMAMM', 'DAMMAMM'] },
+  MED: { city: 'Madinah', country: 'Saudi Arabia', name: 'Prince Mohammad Bin Abdulaziz International Airport', aliases: ['MADINAH', 'MEDINA'] },
 
   // ── UAE ──────────────────────────────────────────────────────────────────
-  DXB: { city: 'Dubai', name: 'Dubai International Airport', aliases: ['DUBAI'] },
-  SHJ: { city: 'Sharjah', name: 'Sharjah International Airport', aliases: ['SHARJAH'] },
-  AUH: { city: 'Abu Dhabi', name: 'Zayed International Airport', aliases: ['ABU DHABI', 'ABUDHABI'] },
-  RKT: { city: 'Ras Al Khaimah', name: 'Ras Al Khaimah International Airport', aliases: ['RAS AL KHAIMAH', 'RAK'] },
-  AAN: { city: 'Al Ain', name: 'Al Ain International Airport', aliases: ['AL AIN'] },
-  FJR: { city: 'Fujairah', name: 'Fujairah International Airport', aliases: ['FUJAIRAH'] },
+  DXB: { city: 'Dubai', country: 'UAE', name: 'Dubai International Airport', aliases: ['DUBAI'] },
+  SHJ: { city: 'Sharjah', country: 'UAE', name: 'Sharjah International Airport', aliases: ['SHARJAH'] },
+  AUH: { city: 'Abu Dhabi', country: 'UAE', name: 'Zayed International Airport', aliases: ['ABU DHABI', 'ABUDHABI'] },
+  RKT: { city: 'Ras Al Khaimah', country: 'UAE', name: 'Ras Al Khaimah International Airport', aliases: ['RAS AL KHAIMAH', 'RAK'] },
+  AAN: { city: 'Al Ain', country: 'UAE', name: 'Al Ain International Airport', aliases: ['AL AIN'] },
+  FJR: { city: 'Fujairah', country: 'UAE', name: 'Fujairah International Airport', aliases: ['FUJAIRAH'] },
 
   // ── Rest of the Gulf ─────────────────────────────────────────────────────
-  DOH: { city: 'Doha', name: 'Hamad International Airport', aliases: ['DOHA'] },
-  MCT: { city: 'Muscat', name: 'Muscat International Airport', aliases: ['MUSCAT'] },
-  SLL: { city: 'Salalah', name: 'Salalah International Airport', aliases: ['SALALAH'] },
-  KWI: { city: 'Kuwait', name: 'Kuwait International Airport', aliases: ['KUWAIT', 'KUWAIT CITY'] },
-  BAH: { city: 'Bahrain', name: 'Bahrain International Airport', aliases: ['BAHRAIN', 'MANAMA'] },
+  DOH: { city: 'Doha', country: 'Qatar', name: 'Hamad International Airport', aliases: ['DOHA'] },
+  MCT: { city: 'Muscat', country: 'Oman', name: 'Muscat International Airport', aliases: ['MUSCAT'] },
+  SLL: { city: 'Salalah', country: 'Oman', name: 'Salalah International Airport', aliases: ['SALALAH'] },
+  KWI: { city: 'Kuwait', country: 'Kuwait', name: 'Kuwait International Airport', aliases: ['KUWAIT', 'KUWAIT CITY'] },
+  BAH: { city: 'Bahrain', country: 'Bahrain', name: 'Bahrain International Airport', aliases: ['BAHRAIN', 'MANAMA'] },
 };
 
 /** Uppercased alias (and city name, and the code itself) → IATA code. */
@@ -102,6 +106,23 @@ export function getAirport(code = '') {
 export function airportName(code = '') {
   const normalized = normalizeAirportLabel(code);
   return getAirport(normalized)?.name || (normalized ? `${normalized} Airport` : '');
+}
+
+/**
+ * Country for a code, `''` when unmapped.
+ *
+ * The homepage groups its route grids into "Flights From India" and "Flights
+ * From Middle East"; an unmapped code returning `''` therefore lands in the Gulf
+ * section, which is the safe default — every India airport Zamra flies is in the
+ * directory, so a code that is not is far likelier to be a new Gulf station.
+ */
+export function airportCountry(code = '') {
+  return getAirport(code)?.country || '';
+}
+
+/** True when a code is an Indian airport, per the directory. */
+export function isIndianAirport(code = '') {
+  return airportCountry(code) === INDIA;
 }
 
 /**
