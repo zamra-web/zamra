@@ -364,9 +364,40 @@ All public pages share a consistent header/nav/CTA system:
 
 ---
 
+## SEO & GEO
+
+Every indexable page carries a canonical, a meta description, a full Open Graph card and JSON-LD. `web/tests/seo-meta.test.js` asserts all of it, because none of it is visible in a browser — a page renders identically whether the canonical is right, wrong, or missing, so nothing else would catch a bad copy-paste.
+
+**Indexable set.** `SITEMAP_URLS` in [web/scripts/generate-sitemap.mjs](web/scripts/generate-sitemap.mjs) is the single list: `/`, `/visa`, `/tours`, `/hajj-umrah`, `/gcc`. Everything else is `noindex` — `/admin`, `/login`, `/b2b`, `/b2b-login` (auth surfaces), `/soto` (internal), and `/deals` (see below). The test suite cross-checks the list against the `robots` meta in each HTML entry, so a page cannot be both `noindex` and listed in the sitemap — Google treats that pair as a contradiction and resolves it unpredictably, and neither file looks wrong on its own.
+
+**The sitemap is generated, not committed by hand.** `npm run build` runs the generator first; `lastmod` comes from each source file's last git commit. A hardcoded date drifts within a week and then actively misinforms crawlers about what is worth recrawling.
+
+**`/deals/<slug>` is deliberately `noindex, follow`.** The slug is an internal `deal_links` doc ID broadcast to one WhatsApp group and retired when the offer ends. Indexing them would publish a set of thin, near-duplicate fare tables that soft-404 the moment `isActive` flips false — and bare `/deals` renders "Loading deals…" with no slug at all.
+
+**`connect.html` canonicals to `/gcc`.** The `vercel.json` rewrite serves it there, but `cleanUrls` also resolves `/connect` to the same page. Two live URLs, one page; the canonical picks the advertised one.
+
+**Internal links must stay extensionless.** `cleanUrls` 308-redirects `/tours.html` → `/tours`, so linking to the `.html` form makes every internal click and every crawl a two-hop request. The whole site once did this on 43 links. `seo-meta.test.js` fails on any `href="/*.html"`.
+
+### The GEO block
+
+`#travel-answers` on the homepage is static HTML answering four questions: routes served, baggage allowances, airlines ticketed, and how to book. It exists because **AI search crawlers do not execute JavaScript** — every fare and route the page normally shows comes from `getPublicFares` at runtime, so without this block the crawlable homepage says almost nothing factual about what Zamra sells, and cannot be cited in an AI answer about flights out of Kerala.
+
+That makes it a second copy of data owned by `src/js/shared/airports.js` and `src/js/shared/airline-baggage.js`. **A stale second copy is worse than none** — the site would be publishing wrong baggage allowances to exactly the systems that quote it verbatim. [web/tests/seo-geo-content.test.js](web/tests/seo-geo-content.test.js) fails when they drift: it re-derives the non-default baggage carriers (G9, OV, SV) from the source module and asserts each one appears in the table with the right weights, checks every cited IATA code still exists, and asserts the block contains no `<script>`.
+
+**No `FAQPage` schema, on purpose.** Since 2023 Google shows FAQ rich results only for government and health sites, so the markup would add page weight with no chance of a rich result. The plain Q&A text is what AI answer engines read anyway.
+
+**Structured data lives inline in the HTML `<head>`**, against the usual "keep logic in `src/js/`" convention — markup injected by a module is invisible to the non-JS crawlers it is for. It is data, not logic. The `TravelAgency` node on `index.html` is the canonical entity: every other page references it by `@id` (`https://www.zamratravels.com/#organization`) rather than repeating the NAP, so the business details exist in exactly one place.
+
+**`robots.txt` and `llms.txt`** are in `web/public/`. `robots.txt` explicitly allows GPTBot, OAI-SearchBot, ClaudeBot and PerplexityBot (the crawlers with a search product behind them) and blocks bulk training scrapers that send no visitors back. `llms.txt` is kept for non-Google AI clients — Google states it ignores the file entirely, so it is never a Google ranking lever and must never be the only copy of a fact.
+
+**Not yet set:** the `TravelAgency` node has no `geo` coordinates or `openingHours`, because neither was available in the codebase to state truthfully. Both are worth adding from the Google Business Profile.
+
+---
+
 ## Asset Management
 
 - **All images are local** — stored in `web/public/assets/img/`
+- **OG cards** live in `web/public/assets/img/og/` (1200×630 JPEG, one per indexable page)
 - External images (Unsplash, Zamra CDN) were migrated into `web/public/assets/img/` (no external URLs)
 - Reference assets in HTML/JS as `/assets/img/filename.jpg` (Vite serves `public/` from root)
 

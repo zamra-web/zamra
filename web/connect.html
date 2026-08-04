@@ -4,7 +4,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Zamra Travels - Connect & Join Our WhatsApp Groups</title>
+  <title>GCC Flight Deals on WhatsApp — Saudi, UAE, Qatar &amp; More | Zamra Travels</title>
+  <meta name="description"
+    content="Join Zamra Travels' WhatsApp groups for daily flight deals between Kerala and Saudi Arabia, the UAE, Qatar, Oman, Kuwait and Bahrain — one group per country, fares posted every day.">
+  <!-- connect.html is served at /gcc by a vercel.json rewrite, but cleanUrls
+       also resolves /connect to the same page. Two live URLs, one page — the
+       canonical picks the advertised one so the duplicate cannot split signals. -->
+  <link rel="canonical" href="https://www.zamratravels.com/gcc">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="theme-color" content="#0c4a8a">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Zamra Travels">
+  <meta property="og:locale" content="en_IN">
+  <meta property="og:url" content="https://www.zamratravels.com/gcc">
+  <meta property="og:title" content="GCC Flight Deals on WhatsApp | Zamra Travels">
+  <meta property="og:description"
+    content="Daily flight deals between Kerala and Saudi Arabia, the UAE, Qatar, Oman, Kuwait and Bahrain — one WhatsApp group per country.">
+  <meta property="og:image" content="https://www.zamratravels.com/assets/img/og/gcc.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Zamra Travels — GCC flight deals on WhatsApp">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="GCC Flight Deals on WhatsApp | Zamra Travels">
+  <meta name="twitter:description"
+    content="Daily flight deals between Kerala and Saudi Arabia, the UAE, Qatar, Oman, Kuwait and Bahrain — one WhatsApp group per country.">
+  <meta name="twitter:image" content="https://www.zamratravels.com/assets/img/og/gcc.jpg">
 
   <!-- Favicons -->
   <link href="/assets/img/favicon.webp?v=3" rel="icon">
@@ -70,6 +95,32 @@
         script.src = 'https://tpembars.com/NTU3NzA5.js?t=557709';
         document.head.appendChild(script);
     })();
+  </script>
+
+  <!-- Structured data. Inline because AI crawlers do not run JavaScript; see the
+       note in index.html. The business entity is defined once on the homepage,
+       so this page references it by @id rather than repeating the NAP. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.zamratravels.com/" },
+          { "@type": "ListItem", "position": 2, "name": "GCC Flight Deals", "item": "https://www.zamratravels.com/gcc" }
+        ]
+      },
+      {
+        "@type": "WebPage",
+        "url": "https://www.zamratravels.com/gcc",
+        "name": "GCC Flight Deals on WhatsApp | Zamra Travels",
+        "isPartOf": { "@id": "https://www.zamratravels.com/#website" },
+        "about": { "@id": "https://www.zamratravels.com/#organization" },
+        "inLanguage": "en-IN"
+      }
+    ]
+  }
   </script>
 </head>
 
@@ -220,9 +271,9 @@
       <p class="text-slate-400 font-heading font-bold text-[11px] uppercase tracking-[2px] mb-3.5">Explore Our Services</p>
       <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] font-semibold font-heading text-slate-500">
         <a href="/" class="hover:text-primary transition-colors">Flights</a>
-        <a href="/tours.html" class="hover:text-primary transition-colors">Tours</a>
-        <a href="/visa.html" class="hover:text-primary transition-colors">Visa Services</a>
-        <a href="/hajj-umrah.html" class="hover:text-primary transition-colors">Hajj & Umrah</a>
+        <a href="/tours" class="hover:text-primary transition-colors">Tours</a>
+        <a href="/visa" class="hover:text-primary transition-colors">Visa Services</a>
+        <a href="/hajj-umrah" class="hover:text-primary transition-colors">Hajj & Umrah</a>
       </div>
     </div>
 

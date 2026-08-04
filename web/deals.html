@@ -6,6 +6,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Live Flight Deals – Zamra Travels</title>
   <meta name="description" content="Live, always-current flight fares from Zamra Travels. Prices update the moment our team changes them.">
+  <!-- Not indexable, on purpose. Every real page here is /deals/<slug>, where the
+       slug is an internal deal_links doc ID broadcast to one WhatsApp group and
+       retired when the offer ends. Indexing them would publish a set of thin,
+       near-duplicate fare tables that soft-404 the moment isActive flips false.
+       Bare /deals renders "Loading deals…" with no slug, which is the worst of
+       the lot. `follow` is kept so the footer links still pass through. -->
+  <meta name="robots" content="noindex, follow">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Zamra Travels">
+  <meta property="og:title" content="Live Flight Deals – Zamra Travels">
+  <meta property="og:description" content="Live, always-current flight fares. Prices update the moment our team changes them.">
+  <meta property="og:image" content="https://www.zamratravels.com/assets/img/og/home.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://www.zamratravels.com/assets/img/og/home.jpg">
 
   <!-- Favicons -->
   <link href="/assets/img/favicon.webp?v=3" rel="icon">
@@ -247,7 +263,7 @@
 
   <header class="site-header" id="header">
     <div class="w-full max-w-[1280px] mx-auto px-6 max-sm:px-4 flex justify-between items-center h-[80px] max-sm:h-[72px]">
-      <a href="/index.html" class="flex items-center">
+      <a href="/" class="flex items-center">
         <img src="/assets/img/logo.webp" alt="Zamra Travels" class="h-[56px] max-sm:h-[48px] w-auto mix-blend-multiply">
       </a>
 
@@ -256,9 +272,9 @@
           <li><a href="/index.html#about" class="site-nav-link">About</a></li>
           <li><a href="/index.html#services" class="site-nav-link">Services</a></li>
           <li><a href="/index.html#flights" class="site-nav-link">Flights</a></li>
-          <li><a href="/tours.html" class="site-nav-link">Tours</a></li>
-          <li><a href="/visa.html" class="site-nav-link">Visa</a></li>
-          <li><a href="/hajj-umrah.html" class="site-nav-link">Hajj-Umrah</a></li>
+          <li><a href="/tours" class="site-nav-link">Tours</a></li>
+          <li><a href="/visa" class="site-nav-link">Visa</a></li>
+          <li><a href="/hajj-umrah" class="site-nav-link">Hajj-Umrah</a></li>
           <li><a href="/index.html#contact" class="site-nav-link">Contact</a></li>
         </ul>
       </nav>

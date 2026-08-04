@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Detailed docs already exist and are the source of truth for their surfaces — read the relevant one before making changes:
 
 - [AGENTS.md](AGENTS.md) — build system, repo layout, and a long "Key Gotchas" list of hard-won invariants (poster export, social publishing, pagination bugs, event-wiring guards). **Read the gotchas before touching poster, social, or reports code.**
-- [WEBSITE.md](WEBSITE.md) — public site pages, features, Firestore reads, styling.
+- [WEBSITE.md](WEBSITE.md) — public site pages, features, Firestore reads, styling, and the **SEO & GEO** contract (indexable set, generated sitemap, why the homepage answer block is static HTML). **Read the SEO section before touching any `<head>`, the nav links, or `#travel-answers`.**
 - [DASHBOARD.md](DASHBOARD.md) — admin dashboard tabs, Firestore schema per collection, Cloud Functions, rules.
 - [mobile/README.md](mobile/README.md) — the two Android apps (admin + B2B), how the download bridge works, signing and icon generation. **Read it before touching anything under `mobile/`.**
 
@@ -17,7 +17,8 @@ All frontend commands run from `web/`; all Firebase CLI commands run from the re
 
 ```bash
 cd web && npm install && npm run dev     # dev server → localhost:5173
-cd web && npm run build                  # production build → web/dist/
+cd web && npm run build                  # regenerates public/sitemap.xml, then builds → web/dist/
+cd web && npm run sitemap                # regenerate public/sitemap.xml on its own
 cd web && npm test                       # node --test, discovers web/tests/*.test.js
 
 cd functions && npm install

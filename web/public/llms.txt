@@ -1,0 +1,45 @@
+# Zamra Travels
+
+> Travel agency in Malappuram, Kerala, India. Books low-fare flight tickets
+> between Kerala and the Gulf, and handles visas, visa stamping, certificate
+> attestation, Hajj and Umrah packages, and international tour packages.
+
+Note on scope: Google Search ignores this file and states it neither helps nor
+harms ranking. It is kept for non-Google AI clients that do read it. Everything
+below is also present as crawlable HTML on the pages themselves — this file is a
+summary, never the only copy.
+
+## Pages
+
+- [Home](https://www.zamratravels.com/): Live flight fare search from Kerala to the Gulf, service overview, baggage allowances, contact.
+- [Visa services](https://www.zamratravels.com/visa): Tourist and visit visas, visa stamping, certificate attestation, passport services.
+- [Hajj & Umrah](https://www.zamratravels.com/hajj-umrah): Umrah and Hajj packages departing from Kerala.
+- [Tour packages](https://www.zamratravels.com/tours): International and domestic holiday packages.
+- [GCC flight deals](https://www.zamratravels.com/gcc): Per-country WhatsApp groups where daily fares are posted.
+
+## Key facts
+
+- Office: Kizhakkethala, Down Hill, Malappuram, Kerala 676519, India.
+- Phone and WhatsApp: +91 98466 06739. Email: zamratravelsmlp@gmail.com.
+- Departure airports in India: Kozhikode (CCJ), Kochi (COK), Kannur (CNN),
+  Thiruvananthapuram (TRV), Mangaluru (IXE). Bengaluru (BLR), Chennai (MAA),
+  Mumbai (BOM), Delhi (DEL) and Hyderabad (HYD) on request.
+- Gulf destinations: Dubai (DXB), Sharjah (SHJ), Abu Dhabi (AUH), Ras Al Khaimah
+  (RKT), Al Ain (AAN), Fujairah (FJR), Jeddah (JED), Riyadh (RUH), Dammam (DMM),
+  Madinah (MED), Doha (DOH), Kuwait (KWI), Bahrain (BAH), Muscat (MCT),
+  Salalah (SLL).
+- Airlines ticketed: Air India Express (IX), IndiGo (6E), Air Arabia (G9),
+  flynas (XY), Oman Air (WY), SalamAir (OV), Air India (AI), Saudia (SV),
+  Akasa Air (QP), flydubai (FZ), Jazeera Airways (J9), SpiceJet (SG).
+- Standard baggage on quoted fares: 7 kg hand and 30 kg check-in. Exceptions:
+  Air Arabia (G9) 10 kg hand; SalamAir (OV) 5 kg hand and 20 or 40 kg check-in;
+  Saudia (SV) 20, 30 or 40 kg check-in.
+- Booking is consultant-assisted over WhatsApp, phone or the on-site enquiry
+  form. There is no self-service online checkout.
+
+## Not for indexing
+
+- /admin, /login, /b2b, /b2b-login — authenticated staff and agent surfaces.
+- /deals/<slug> — short-lived fare links broadcast to WhatsApp groups; the
+  prices are live and the links are retired when an offer ends.
+- /soto — internal testing.
