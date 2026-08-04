@@ -30,10 +30,14 @@ service cloud.firestore {
     }
 
     // ── agents ───────────────────────────────────────────────────────────────
-    // Public can read active agents; only admins can write
+    // Rate SUPPLIERS (consolidators Zamra buys from) — not B2B customers, which
+    // are `b2b_agents`. Admin-only both ways: the supplier list is commercially
+    // sensitive (it names who Zamra sources from), and nothing outside the admin
+    // dashboard reads it. `getAgents()` is called only from admin/main.js; the
+    // public site and the B2B portal never touch this collection, and the poster
+    // and report functions read it through the Admin SDK, which bypasses rules.
     match /agents/{agentId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // ── b2b_agents ───────────────────────────────────────────────────────────
@@ -87,11 +91,21 @@ service cloud.firestore {
     }
 
     // ── agent_fares ──────────────────────────────────────────────────────────
-    // Public: can only read fares that are NOT hidden (isHidden == false)
-    // Admins: full read/write including hidden records
+    // Admin-only, both ways.
+    //
+    // This was once `allow read: if isAdmin() || resource.data.isHidden == false`
+    // so the public site could query it directly. Firestore returns whole
+    // documents and has no field-level security, so that handed every anonymous
+    // caller `specialRate`, `commission` and the supplier `agentId` — Zamra's
+    // buying rate, its margin, and who it sources each route from — while the
+    // page displayed only `finalRate`.
+    //
+    // Every public reader now goes through a projecting endpoint on the Admin
+    // SDK: getPublicFares for the homepage/search list, getPublicDeals for
+    // /deals/<slug>, getB2BFares for the partner portal. Re-opening this rule
+    // would undo all three.
     match /agent_fares/{fareId} {
-      allow read: if isAdmin() || resource.data.isHidden == false;
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // ── enquiries ────────────────────────────────────────────────────────────
@@ -139,7 +153,7 @@ service cloud.firestore {
     }
 
     // ── visa_rate_cards ──────────────────────────────────────────────────────
-    // Structured tourist-visa price sheets shown behind the "Rates" button in
+    // Structured tourist-visa price sheets shown behind the "Details" button in
     // the B2B portal. These are agent rates, so unlike `visas` they are NOT
     // world-readable — only an admin or a signed-in B2B agent may read them.
     match /visa_rate_cards/{id} {

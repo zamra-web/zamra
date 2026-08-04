@@ -1,7 +1,8 @@
 // Matching customer enquiries against live fares.
 //
-// An enquiry records what a customer asked for — a sector, a travel window, and
-// optionally the price they want to pay. These helpers answer two questions:
+// An enquiry records what a customer asked for — one or more sectors, a travel
+// window, and optionally the price they want to pay. These helpers answer two
+// questions:
 //
 //   · "Show me the fares that match this enquiry"   → matchFaresToEnquiry
 //   · "Has anything dropped below their target?"    → evaluateEnquiryAlerts
@@ -49,28 +50,61 @@ function toRate(value) {
 }
 
 /**
+ * The sectors an enquiry covers, in the order they were entered.
+ *
+ * One customer often asks about several routes at once ("CCJ–JED or COK–JED"),
+ * so `sectorIds` is the field of record. Enquiries logged before that existed
+ * carry a single `sectorId` and nothing rewrites them, so every reader must go
+ * through here rather than touching either field directly.
+ *
+ * @param {object} enquiry
+ * @returns {string[]}  trimmed, de-duplicated, empties dropped
+ */
+export function getEnquirySectorIds(enquiry) {
+  if (!enquiry) return [];
+
+  const raw = Array.isArray(enquiry.sectorIds) && enquiry.sectorIds.length
+    ? enquiry.sectorIds
+    : [enquiry.sectorId];
+
+  const ids = [];
+  const seen = new Set();
+  raw.forEach((value) => {
+    const id = String(value ?? '').trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids;
+}
+
+/**
  * Fares that satisfy an enquiry, cheapest first.
+ *
+ * A fare on *any* of the enquiry's sectors counts — the customer asked about
+ * all of them, so the cheapest across the set is the answer they want.
  *
  * Hidden fares never match — they are not sellable, so quoting one to a customer
  * would be worse than showing nothing.
  *
- * @param {object}   enquiry  { sectorId, startDate, endDate }
+ * @param {object}   enquiry  { sectorIds (or legacy sectorId), startDate, endDate }
  * @param {object[]} fares
  * @returns {object[]}
  */
 export function matchFaresToEnquiry(enquiry, fares) {
-  if (!enquiry || !enquiry.sectorId) return [];
+  const sectorIds = getEnquirySectorIds(enquiry);
+  if (!sectorIds.length) return [];
   const rows = Array.isArray(fares) ? fares.filter(Boolean) : [];
   if (!rows.length) return [];
 
-  const sectorId = String(enquiry.sectorId).trim();
+  const wantedSectors = new Set(sectorIds);
   const fromMs = startOfDayMs(enquiry.startDate);
   const toMs = endOfDayMs(enquiry.endDate);
 
   return rows
     .filter((fare) => {
       if (fare.isHidden) return false;
-      if (String(fare.sectorId ?? '').trim() !== sectorId) return false;
+      if (!wantedSectors.has(String(fare.sectorId ?? '').trim())) return false;
 
       const flightMs = toMillis(fare.flightDate);
       if (flightMs === null) return false;

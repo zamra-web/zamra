@@ -82,8 +82,8 @@ test('normalising tolerates junk input rather than throwing', () => {
 test('the UAE template carries the agreed rates, sections, and sub-groups', () => {
   const card = normaliseRateCard(buildTemplateRateCard());
   assert.equal(card.countryName, 'UAE');
-  assert.equal(card.note, '3000 AED ABS');
-  assert.deepEqual(card.sections.map(s => s.title), ['Normal Visa', 'DUBAI Multiple', 'Transit Visa']);
+  assert.equal(card.note, '3000 AED ABSCONDING');
+  assert.deepEqual(card.sections.map(s => s.title), ['DUBAI Normal Visa', 'DUBAI Multiple', 'Transit Visa']);
 
   const priceOf = (sectionTitle, groupTitle, label) => {
     const section = card.sections.find(s => s.title === sectionTitle);
@@ -92,10 +92,10 @@ test('the UAE template carries the agreed rates, sections, and sub-groups', () =
   };
 
   assert.equal(card.sections[0].note, 'Same Day Posting | Processing Time: 1–2 Working Days');
-  assert.equal(priceOf('Normal Visa', '', '30 Days Adult'), '₹7,070');
-  assert.equal(priceOf('Normal Visa', '', '30 Days Child'), '₹580');
-  assert.equal(priceOf('Normal Visa', '', '60 Days Adult'), '₹10,090');
-  assert.equal(priceOf('Normal Visa', '', '60 Days Child'), '₹1,080');
+  assert.equal(priceOf('DUBAI Normal Visa', '', '30 Days Adult'), '₹7,200');
+  assert.equal(priceOf('DUBAI Normal Visa', '', '30 Days Child'), '₹700');
+  assert.equal(priceOf('DUBAI Normal Visa', '', '60 Days Adult'), '₹10,390');
+  assert.equal(priceOf('DUBAI Normal Visa', '', '60 Days Child'), '₹1,180');
 
   assert.equal(priceOf('DUBAI Multiple', '', '30 Days Multi Adult'), '₹12,500');
   assert.equal(priceOf('DUBAI Multiple', '', '30 Days Multi Child'), '₹3,200');
@@ -114,13 +114,13 @@ test('the UAE template carries the agreed rates, sections, and sub-groups', () =
 test('the template is copied, not shared, so form edits cannot mutate it', () => {
   const first = buildTemplateRateCard();
   first.sections[0].groups[0].rows[0].rate = 1;
-  assert.equal(buildTemplateRateCard().sections[0].groups[0].rows[0].rate, 7070);
-  assert.equal(UAE_RATE_CARD_TEMPLATE.sections[0].groups[0].rows[0].rate, 7070);
+  assert.equal(buildTemplateRateCard().sections[0].groups[0].rows[0].rate, 7200);
+  assert.equal(UAE_RATE_CARD_TEMPLATE.sections[0].groups[0].rows[0].rate, 7200);
 });
 
 test('lowestRate reports the cheapest numeric row and ignores quoted ones', () => {
   const card = normaliseRateCard(buildTemplateRateCard());
-  assert.equal(lowestRate(card), 580);
+  assert.equal(lowestRate(card), 700);
 
   const quotedOnly = normaliseRateCard({
     countryName: 'X',

@@ -95,8 +95,8 @@ web/
 
 ### 🔍 Live Flight Search
 - Full "From" and "To" origin/destination selection with location swap functionality
-- Reads from Firestore `agent_fares` collection in real-time
-- Filters by sector, date, and only shows fares where `isHidden == false` and agent `isActive == true`
+- Reads fares from the `getPublicFares` endpoint, **not** from Firestore directly — `agent_fares` is admin-only, and the endpoint projects each row to a display allow-list so `specialRate`, `commission` and the supplier `agentId` never reach the browser (see [Fare reads are projected](#fare-reads-are-projected) below). Reference data (`sectors`, `airlines`, `flight_details`) is still read straight from Firestore, since it holds no pricing economics.
+- Filters by sector and date, and only returns fares where `isHidden == false`
 - Deduplicates identical flights (same sector, airline, date, and time), automatically showing only the cheapest rate
 - Displays cheapest fare per sector, sorted by price
 - Search result cards read airline branding from the Firestore `airlines` collection (`logoUrl`, with local asset fallback for legacy entries)
@@ -104,6 +104,24 @@ web/
 - **Mobile UI** — below `lg` each result is a **single-row card**: small airline logo (no airline name), date, origin/departure, destination/arrival, baggage, price. There is no Book Now button in the row. Tapping the row opens the **details sheet** (`web/src/js/web/flight-details-sheet.js`) — a bottom sheet on phones, a centred dialog from `sm` up — which carries the airline name, city names, both baggage allowances, seats, fare and the WhatsApp **Book Now** CTA. Extra bottom spacing keeps the list clear of the floating actions.
 - The wide (`lg` and up) card is unchanged and keeps its inline Book Now.
 - `flight-card.js` also holds the B2B portal's card, `buildCompactFlightCardHtml`. The two builders are separate on purpose: the public row hides the airline name and the CTA behind the details sheet, while the B2B row keeps every field and the Book Now CTA on the card at all widths (agents book straight from the list). Editing one does **not** change the other — but both feed the same `flight-details-sheet.js`, so a change to the sheet lands on both surfaces. See [DASHBOARD.md](DASHBOARD.md).
+
+#### Fare reads are projected
+
+`agent_fares` documents carry `specialRate` (the supplier's raw rate), `commission`, and `agentId` (which consolidator supplied the row). Firestore returns **whole documents** and has no field-level security, so while the collection was publicly readable, every visitor received Zamra's buying rate and margin on every row — and because the Firebase web API key ships in the public bundle, so did anyone who never loaded the site.
+
+All three public fare paths now read through the Admin SDK behind a projection, and the collection is admin-only:
+
+| Surface | Endpoint | Module |
+|---|---|---|
+| Homepage / flight search | `getPublicFares` | [functions/publicFares.js](functions/publicFares.js) |
+| `/deals/<slug>` | `getPublicDeals` | [functions/publicDeals.js](functions/publicDeals.js) |
+| B2B portal | `getB2BFares` | [functions/b2b.js](functions/b2b.js) |
+
+`getPublicFares` emits exactly `sectorId · airlineId · flightDate · flightTime · finalRate · baggage · seatsAvailable`. `finalRate` keeps its name here rather than becoming `price` (as in the deals projection) because it is the customer-facing selling price already on screen, and the shared, tested `dedupeAndSortFares` reads it under that name — the client shape is otherwise unchanged, which is what let the existing render path stay untouched. **Adding a field to that allow-list publishes it.**
+
+Client wrapper: [web/src/js/web/public-fares.js](web/src/js/web/public-fares.js). It rehydrates `flightDate` from ISO back into a `Date`, and drops null dates *before* the NaN check — `new Date(null)` is the epoch, not an invalid date, so a NaN-only guard would render a missing date as "01 Jan 1970".
+
+**Deploy order matters:** the functions deploy must land *before* the Vercel frontend push. The frontend calls an endpoint that must already exist, and the rules change removes the direct read the old bundle depends on.
 
 ### ✈️ Sectors Display (Lowest Fare Flight Tickets)
 - Reads `sectors` collection from Firestore
@@ -218,7 +236,7 @@ A shareable, always-current fare page. Staff create a curated link in the admin 
 
 **This page never touches Firestore.** It calls one endpoint, `getPublicDeals`, and renders the JSON.
 
-That is a deliberate departure from every other public page. Reading `agent_fares` from the browser hands the visitor `specialRate`, `commission` and the supplier's `agentId` on every row, even though only the selling price is ever displayed. The rest of the public site carries that exposure (the gap CLAUDE.md flags); a link designed to be broadcast to thousands of people is the wrong place to repeat it. `getPublicDeals` projects each fare down to a display-only allow-list server-side:
+This was once a deliberate departure from every other public page; it is now the rule everywhere. Reading `agent_fares` from the browser hands the visitor `specialRate`, `commission` and the supplier's `agentId` on every row, even though only the selling price is ever displayed — so the flight search moved behind `getPublicFares` too, and the collection is now admin-only. `getPublicDeals` projects each fare down to a display-only allow-list server-side:
 
 ```
 date · time · airlineName · airlineCode · airlineLogo · checkInBaggageKg · handBaggageKg · price
@@ -300,7 +318,7 @@ Auth-gated partner portal on `b2b.zamratravels.com`. Shares the public site's st
 
 **Price rounding.** `roundFare()` rounds every displayed fare to the nearest ₹100 so agents never quote an odd number like ₹21,501. The price sorters round too — sorting on the raw value would let two cards showing the same price sit in an apparently arbitrary order. The WhatsApp booking message quotes the same rounded figure that is on screen.
 
-**Visa services** render as three poster-card grids (tourist visas, stamping, attestations) rather than text rows. Artwork resolves as *uploaded `posterUrl` → shipped poster in `LOCAL_POSTERS` → gradient tile with the category icon*, so a half-filled poster set still renders as a clean grid. Tourist visas invert that first step — a purpose-made poster beats the bare `flagUrl`. `LOCAL_POSTERS` keys are lower-cased country names, so a country renamed in Firestore silently drops to its fallback; add the new spelling as an alias rather than renaming the file. Tourist visas use a fixed `VISA_ORDER` (Umrah, UAE, Qatar, Saudi Arabia, Kuwait) with everything else following A–Z.
+**Visa services** render as three card grids (tourist visas, stamping, attestations) rather than text rows, laid out like the public visa page's destination cards: a fixed-height artwork band (150px, 104px on phones) with the country over a dark gradient, the visa type / service as a chip, then "Starting from" + price sharing a baseline with the action button. The band is a fixed height and not an aspect ratio on purpose — an aspect-ratio band grows with the column and made the card tall enough that only two fit on a phone screen. Artwork resolves as *uploaded `posterUrl` → shipped poster in `LOCAL_POSTERS` → gradient tile with the category icon*, so a half-filled poster set still renders as a clean grid. Tourist visas prefer the `flagUrl` and drop to `LOCAL_POSTERS` only when there is no flag (Umrah): flags read as one consistent set across the grid, while the portrait promo posters crop badly in the short band. `LOCAL_POSTERS` keys are lower-cased country names, so a country renamed in Firestore silently drops to its fallback; add the new spelling as an alias rather than renaming the file. Tourist visas use a fixed `VISA_ORDER` (Umrah, UAE, Qatar, Saudi Arabia, Kuwait) with everything else following A–Z.
 
 **Deep links.** The chosen route is mirrored to `?from=CCJ&to=JED` via `history.replaceState`. On boot the params pre-select and auto-search when the agent is permitted that route, otherwise it falls back silently to `defaultOrigin`. This is a convenience only — `getB2BFares` re-authorises every sector server-side regardless.
 
@@ -360,7 +378,8 @@ The public website reads from Firestore with these security rules:
 - `soto_cache` — **denied to every client** 🔒 (server-only; `/soto` reads the endpoint, not the collection)
 - `sectors` — public read ✅
 - `airlines` — public read ✅
-- `agent_fares` — public read only if `isHidden == false` AND agent `isActive == true` ✅
+- `agent_fares` — **admin-only, no public read** 🔒 (fares reach the public site through `getPublicFares` / `getPublicDeals`, which project away `specialRate`, `commission` and the supplier `agentId`)
+- `flight_details` — public read ✅
 - `visa_stamping`, `attestations`, `passport_services` — public read ✅
 - `tours` — public read (only `isActive === true` fetched client-side) ✅
 - `hajj_umrah_packages` — public read (only `isActive === true` fetched client-side) ✅

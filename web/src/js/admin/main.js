@@ -102,7 +102,7 @@ import {
 import { appendVideoSlidesLimited } from './social-image-carousels.js';
 import { getSlideshowPreset, normalizeRatioKey } from './video-slideshow.js';
 import { buildFareTextSection, buildFareTextBlocks } from '../shared/fare-text-list.js';
-import { matchFaresToEnquiry, evaluateEnquiryAlerts } from '../shared/enquiry-alerts.js';
+import { matchFaresToEnquiry, evaluateEnquiryAlerts, getEnquirySectorIds } from '../shared/enquiry-alerts.js';
 import {
   normalizeDealSlug,
   resolveDealWindow,
@@ -9374,6 +9374,11 @@ function getEnquiryAlert(enquiryId) {
   return _enquiryAlerts.find((alert) => alert.enquiryId === enquiryId) || null;
 }
 
+/** Display codes for every sector on an enquiry, in the order they were entered. */
+function getEnquirySectorCodes(enquiry, sectorCodeById = getDatabaseLookupMaps().sectorCodeById) {
+  return getEnquirySectorIds(enquiry).map((id) => sectorCodeById[id] || id);
+}
+
 function getFilteredEnquiries() {
   const { sectorCodeById } = getDatabaseLookupMaps();
   const q = enquiryFilters.search.trim().toLowerCase();
@@ -9386,15 +9391,17 @@ function getFilteredEnquiries() {
       enquiry.customerName,
       enquiry.customerPhone,
       enquiry.notes,
-      enquiry.sectorId,
-      sectorCodeById[enquiry.sectorId] || '',
+      ...getEnquirySectorIds(enquiry),
+      ...getEnquirySectorCodes(enquiry, sectorCodeById),
     ].join(' ').toLowerCase().includes(q);
   });
 
   const { key, asc } = tableSort.enquiries;
   return filtered.sort((a, b) => {
     const toSortValue = (row) => {
-      if (key === 'sectorId') return (sectorCodeById[row.sectorId] || row.sectorId || '').toLowerCase();
+      // Multi-sector enquiries sort on their first route — the one the customer
+      // led with, and the one the table shows first.
+      if (key === 'sectorId') return (getEnquirySectorCodes(row, sectorCodeById)[0] || '').toLowerCase();
       if (key === 'startDate') return asDate(row.startDate)?.getTime?.() || 0;
       if (key === 'createdAt') return asDate(row.createdAt)?.getTime?.() || 0;
       if (key === 'targetFare') return toSafeNumber(row.targetFare, 0);
@@ -9440,7 +9447,20 @@ function renderEnquiryTable() {
     tbody.innerHTML = pageData.map((enquiry) => {
       const status = enquiry.status || 'open';
       const alert = getEnquiryAlert(enquiry.id);
-      const sectorCode = sectorCodeById[enquiry.sectorId] || enquiry.sectorId || '—';
+
+      // An enquiry can cover several routes. Two chips fit the column; the rest
+      // collapse into a +N chip that names them on hover.
+      const sectorCodes = getEnquirySectorCodes(enquiry, sectorCodeById);
+      const sectorChip = (code) =>
+        `<span class="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md text-[12px]">${escapeHtml(code)}</span>`;
+      const sectorCell = sectorCodes.length
+        ? `<div class="flex flex-wrap items-center gap-1">
+            ${sectorCodes.slice(0, 2).map(sectorChip).join('')}
+            ${sectorCodes.length > 2
+          ? `<span class="bg-primary/5 text-primary font-bold px-2 py-0.5 rounded-md text-[12px]" title="${escapeHtml(sectorCodes.join(', '))}">+${sectorCodes.length - 2}</span>`
+          : ''}
+          </div>`
+        : '<span class="text-text-soft text-[12px]">—</span>';
 
       const targetCell = enquiry.targetFare === null || enquiry.targetFare === undefined
         ? '<span class="text-text-soft text-[12px]">—</span>'
@@ -9456,7 +9476,7 @@ function renderEnquiryTable() {
             <span class="font-semibold text-navy text-[13px]">${escapeHtml(enquiry.customerName || 'Unnamed')}</span>
             ${enquiry.customerPhone ? `<span class="admin-fare-stamp">${escapeHtml(enquiry.customerPhone)}</span>` : ''}
           </td>
-          <td><span class="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md text-[12px]">${escapeHtml(sectorCode)}</span></td>
+          <td>${sectorCell}</td>
           <td class="whitespace-nowrap text-[12px] text-text-muted">${escapeHtml(formatEnquiryDateRange(enquiry))}</td>
           <td class="whitespace-nowrap">${targetCell}</td>
           <td>
@@ -9518,6 +9538,61 @@ function wireEnquiryActions() {
   });
 }
 
+/** The sector list, as options — one copy per row in the enquiry modal. */
+function buildEnquirySectorOptions(selectedId = '') {
+  return '<option value="">Select Sector</option>' + _sectors.map((sector) =>
+    `<option value="${escapeHtml(sector.id)}"${sector.id === selectedId ? ' selected' : ''}>${escapeHtml(sector.sectorCode || sector.id)}</option>`
+  ).join('');
+}
+
+/**
+ * Keep the row controls honest after every add/remove.
+ *
+ * Row one owns the only "+" and is the only required select — one sector is the
+ * minimum, and the browser should say so before the save is attempted. Every
+ * later row is optional and carries its own "×". Repainting from scratch means
+ * removing row one can never leave the form without an add button.
+ */
+function paintEnquirySectorRows() {
+  const rows = [...document.querySelectorAll('#enquiry-sector-rows .enquiry-sector-row')];
+
+  rows.forEach((row, index) => {
+    const isFirst = index === 0;
+    const select = row.querySelector('.enquiry-sector-select');
+    const btn = row.querySelector('.enquiry-sector-btn');
+    if (select) select.required = isFirst;
+    if (!btn) return;
+
+    btn.dataset.action = isFirst ? 'add-sector' : 'remove-sector';
+    btn.classList.toggle('admin-action-edit', isFirst);
+    btn.classList.toggle('admin-action-delete', !isFirst);
+    btn.title = isFirst ? 'Add another sector' : 'Remove this sector';
+    btn.setAttribute('aria-label', btn.title);
+    btn.innerHTML = `<i class="bi ${isFirst ? 'bi-plus-lg' : 'bi-x-lg'}"></i>`;
+  });
+}
+
+function appendEnquirySectorRow(selectedId = '') {
+  const rowsEl = document.getElementById('enquiry-sector-rows');
+  if (!rowsEl) return;
+
+  rowsEl.insertAdjacentHTML('beforeend', `
+    <div class="enquiry-sector-row flex items-center gap-2">
+      <select class="admin-control enquiry-sector-select flex-1 min-w-0">${buildEnquirySectorOptions(selectedId)}</select>
+      <button type="button" class="enquiry-sector-btn admin-action-btn shrink-0 w-[2.9rem] h-[2.9rem] text-[15px]"></button>
+    </div>
+  `);
+
+  paintEnquirySectorRows();
+}
+
+/** Every sector the modal currently has picked — blank rows dropped, no repeats. */
+function readEnquirySectorIds() {
+  const raw = [...document.querySelectorAll('#enquiry-sector-rows .enquiry-sector-select')]
+    .map((select) => select.value);
+  return getEnquirySectorIds({ sectorIds: raw });
+}
+
 function openEnquiryModal(enquiry = null) {
   const isEdit = !!enquiry;
   const tpl = document.getElementById('modal-enquiry-form');
@@ -9528,18 +9603,33 @@ function openEnquiryModal(enquiry = null) {
   // The template's own nodes are inert — everything must be re-queried from the
   // clone the modal just rendered.
   const form = document.getElementById('enquiry-form');
-  const sectorSel = document.getElementById('enquiry-sector');
-  if (sectorSel) {
-    sectorSel.innerHTML = '<option value="">Select Sector</option>' + _sectors.map((sector) =>
-      `<option value="${escapeHtml(sector.id)}">${escapeHtml(sector.sectorCode || sector.id)}</option>`
-    ).join('');
-  }
+  const sectorRowsEl = document.getElementById('enquiry-sector-rows');
+
+  const savedSectorIds = isEdit ? getEnquirySectorIds(enquiry) : [];
+  (savedSectorIds.length ? savedSectorIds : ['']).forEach((sectorId) => appendEnquirySectorRow(sectorId));
+
+  // One delegated handler: rows come and go, so per-button listeners would leak
+  // with every click.
+  sectorRowsEl?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    if (btn.dataset.action === 'add-sector') {
+      appendEnquirySectorRow();
+      // Land the cursor on the row that was just added.
+      sectorRowsEl.querySelector('.enquiry-sector-row:last-child .enquiry-sector-select')?.focus();
+    }
+
+    if (btn.dataset.action === 'remove-sector') {
+      btn.closest('.enquiry-sector-row')?.remove();
+      paintEnquirySectorRows();
+    }
+  });
 
   if (isEdit) {
     document.getElementById('enquiry-id').value = enquiry.id;
     document.getElementById('enquiry-customer-name').value = enquiry.customerName || '';
     document.getElementById('enquiry-customer-phone').value = enquiry.customerPhone || '';
-    if (sectorSel) sectorSel.value = enquiry.sectorId || '';
     document.getElementById('enquiry-start-date').value = toDateInputValue(enquiry.startDate);
     document.getElementById('enquiry-end-date').value = toDateInputValue(enquiry.endDate);
     document.getElementById('enquiry-target-fare').value =
@@ -9552,6 +9642,15 @@ function openEnquiryModal(enquiry = null) {
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Checked before the button locks: an extra row left on "Select Sector" is
+    // simply ignored, but a save with nothing picked has to stop here.
+    const sectorIds = readEnquirySectorIds();
+    if (!sectorIds.length) {
+      toast('error', 'Sector Required', 'Pick at least one sector for this enquiry.');
+      return;
+    }
+
     const submitBtn = form.querySelector('button[type="submit"]');
     const original = submitBtn?.textContent;
     if (submitBtn) {
@@ -9562,7 +9661,7 @@ function openEnquiryModal(enquiry = null) {
     const payload = {
       customerName: document.getElementById('enquiry-customer-name').value,
       customerPhone: document.getElementById('enquiry-customer-phone').value,
-      sectorId: document.getElementById('enquiry-sector').value,
+      sectorIds,
       startDate: document.getElementById('enquiry-start-date').value,
       endDate: document.getElementById('enquiry-end-date').value,
       targetFare: document.getElementById('enquiry-target-fare').value,
@@ -9606,22 +9705,28 @@ async function runEnquirySearch(enquiry) {
   wrap.innerHTML = '<div class="admin-empty-state"><div class="admin-empty-state-card"><p class="admin-empty-state-title">Searching…</p></div></div>';
 
   try {
-    const fares = await getFares({
-      sectorId: enquiry.sectorId,
+    const sectorIds = getEnquirySectorIds(enquiry);
+    const travelWindow = {
       startDate: asDate(enquiry.startDate)?.toISOString(),
       endDate: asDate(enquiry.endDate)?.toISOString(),
-    });
+    };
+
+    // One query per sector rather than a client-side sweep of the whole window:
+    // each keeps the indexed sectorId + flightDate filter, and they run together.
+    const fares = (await Promise.all(
+      sectorIds.map((sectorId) => getFares({ sectorId, ...travelWindow })),
+    )).flat();
 
     const matches = matchFaresToEnquiry(enquiry, fares);
     _enquiryResults = { enquiry, fares: matches };
 
     const { sectorCodeById } = getDatabaseLookupMaps();
-    const sectorCode = sectorCodeById[enquiry.sectorId] || enquiry.sectorId;
+    const sectorCodes = getEnquirySectorCodes(enquiry, sectorCodeById);
     if (meta) {
       const target = enquiry.targetFare === null || enquiry.targetFare === undefined
         ? ''
         : ` · target ₹${Number(enquiry.targetFare).toLocaleString('en-IN')}`;
-      meta.textContent = `${enquiry.customerName || 'Customer'} · ${sectorCode} · ${formatEnquiryDateRange(enquiry)}${target} — ${matches.length} match${matches.length === 1 ? '' : 'es'}`;
+      meta.textContent = `${enquiry.customerName || 'Customer'} · ${sectorCodes.join(' + ') || '—'} · ${formatEnquiryDateRange(enquiry)}${target} — ${matches.length} match${matches.length === 1 ? '' : 'es'}`;
     }
 
     if (!matches.length) {
@@ -9637,11 +9742,15 @@ async function runEnquirySearch(enquiry) {
     const { airlineLabelById } = getDatabaseLookupMaps();
     const target = toSafeNumber(enquiry.targetFare, null);
 
+    // Matches are ranked cheapest-first across every sector, so a multi-sector
+    // enquiry needs the route spelled out on each row to be readable.
+    const showSectorColumn = sectorIds.length > 1;
+
     wrap.innerHTML = `
       <table class="admin-database-table">
         <thead>
           <tr>
-            <th>Date</th><th>Airline</th><th>Time</th><th>Baggage</th><th>Fare</th>
+            <th>Date</th>${showSectorColumn ? '<th>Sector</th>' : ''}<th>Airline</th><th>Time</th><th>Baggage</th><th>Fare</th>
           </tr>
         </thead>
         <tbody>
@@ -9652,6 +9761,9 @@ async function runEnquirySearch(enquiry) {
       return `
               <tr class="${underTarget ? 'bg-emerald-50/60' : ''}">
                 <td class="whitespace-nowrap font-semibold text-navy text-[13px]">${escapeHtml(asDate(fare.flightDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) || '—')}</td>
+                ${showSectorColumn
+          ? `<td class="whitespace-nowrap"><span class="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md text-[12px]">${escapeHtml(sectorCodeById[fare.sectorId] || fare.sectorId || '—')}</span></td>`
+          : ''}
                 <td class="whitespace-nowrap text-[13px]">${escapeHtml(airlineLabelById[fare.airlineId] || fare.airlineId || '—')}</td>
                 <td class="whitespace-nowrap text-[12px] text-text-muted">${escapeHtml(fare.flightTime || '—')}</td>
                 <td class="whitespace-nowrap text-[12px]">${escapeHtml(formatPosterBaggageDisplay(
@@ -9676,7 +9788,16 @@ function buildEnquiryShareText() {
   if (!_enquiryResults?.fares?.length) return null;
 
   const { enquiry, fares } = _enquiryResults;
-  const selection = resolvePosterSectorSelection(enquiry.sectorId);
+  const sectorIds = getEnquirySectorIds(enquiry);
+
+  // The poster's own selection resolver only understands a single sector, a
+  // shortcut key or "all". A multi-sector enquiry is none of those, so hand the
+  // sector list straight through — every consumer downstream reads `sectorIds`,
+  // and the text builder then prints one headed block per route.
+  const selection = sectorIds.length > 1
+    ? { rawValue: '', kind: 'multi', label: getEnquirySectorCodes(enquiry).join(' + '), sectorIds }
+    : resolvePosterSectorSelection(sectorIds[0] || '');
+
   const payload = buildPosterClipboardPayload(fares, selection, {
     includeBaggage: true,
     highlightLowest: true,

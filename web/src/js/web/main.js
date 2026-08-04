@@ -1,6 +1,10 @@
 // Modern Zamra Travels JavaScript
 import '../shared/vercel-insights.js';
-import { getSectors, getFares, getAirlines, getFlightDetails } from '../admin/db.js';
+// Sectors, airlines and flight_details are world-readable reference data and are
+// still read directly. Fares are not: they come back projected from the server so
+// specialRate / commission / supplier agentId never reach the browser.
+import { getSectors, getAirlines, getFlightDetails } from '../admin/db.js';
+import { getPublicFares } from './public-fares.js';
 import { buildFlightTimeResolver } from '../shared/flight-schedule.js';
 import { dedupeAndSortFares, splitFlightTimeRange } from './flight-results.js';
 import { initSiteChrome } from './site-chrome.js';
@@ -176,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
           today.setHours(0,0,0,0);
 
           const [rawFares, resolveFlightTime] = await Promise.all([
-            getFares({ sectorId: sector.id, startDate: today.toISOString() }),
+            getPublicFares({ sectorId: sector.id, startDate: today.toISOString() }),
             loadFlightTimeResolver(),
           ]);
           const fares = dedupeAndSortFares(rawFares, { resolveFlightTime });
@@ -473,7 +477,7 @@ async function searchFlights() {
       today.setHours(0,0,0,0);
 
       const [rawFares, resolveFlightTime, airlines] = await Promise.all([
-        getFares({ sectorId: sector.id, startDate: today.toISOString() }),
+        getPublicFares({ sectorId: sector.id, startDate: today.toISOString() }),
         loadFlightTimeResolver(),
         getAirlines(),
       ]);

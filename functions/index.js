@@ -810,6 +810,12 @@ exports.getB2BFares = b2b.getB2BFares;
 // ══════════════════════════════════════════════════════════════════════════════
 exports.getPublicDeals = require("./publicDeals").buildGetPublicDeals(db);
 
+// getPublicFares serves the homepage/search flight list for one sector. Same
+// reasoning as getPublicDeals: the browser used to read `agent_fares` directly
+// and received specialRate / commission / supplier agentId with every row. This
+// is what allows the `agent_fares` read rule to stay admin-only.
+exports.getPublicFares = require("./publicFares").buildGetPublicFares(db);
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 10. SOTO LIVE FARES

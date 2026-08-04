@@ -6,15 +6,15 @@
 //   {
 //     countryName: 'UAE',
 //     countryKey:  'uae',            // normalised, links the card to a `visas` row
-//     note:        '3000 AED ABS',   // banner note shown above every section
+//     note:        '3000 AED ABSCONDING',  // banner note shown above every section
 //     isActive:    true,
 //     order:       0,
 //     sections: [{
-//       title: 'Normal Visa',
+//       title: 'DUBAI Normal Visa',
 //       note:  'Same Day Posting | Processing Time: 1–2 Working Days',
 //       groups: [{
 //         title: '',                 // '' = ungrouped; 'DUBAI' / 'ABU DHABI' for transit
-//         rows:  [{ label: '30 Days Adult', rate: 7070, rateText: '' }],
+//         rows:  [{ label: '30 Days Adult', rate: 7200, rateText: '' }],
 //       }],
 //     }],
 //   }
@@ -166,18 +166,18 @@ export function sortRateCards(cards) {
  */
 export const UAE_RATE_CARD_TEMPLATE = Object.freeze({
   countryName: 'UAE',
-  note: '3000 AED ABS',
+  note: '3000 AED ABSCONDING',
   sections: [
     {
-      title: 'Normal Visa',
+      title: 'DUBAI Normal Visa',
       note: 'Same Day Posting | Processing Time: 1–2 Working Days',
       groups: [{
         title: '',
         rows: [
-          { label: '30 Days Adult', rate: 7070, rateText: '' },
-          { label: '30 Days Child', rate: 580, rateText: '' },
-          { label: '60 Days Adult', rate: 10090, rateText: '' },
-          { label: '60 Days Child', rate: 1080, rateText: '' },
+          { label: '30 Days Adult', rate: 7200, rateText: '' },
+          { label: '30 Days Child', rate: 700, rateText: '' },
+          { label: '60 Days Adult', rate: 10390, rateText: '' },
+          { label: '60 Days Child', rate: 1180, rateText: '' },
         ],
       }],
     },

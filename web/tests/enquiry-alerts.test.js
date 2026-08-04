@@ -5,12 +5,13 @@ import {
   matchFaresToEnquiry,
   evaluateEnquiryAlerts,
   countEnquiryAlerts,
+  getEnquirySectorIds,
 } from '../src/js/shared/enquiry-alerts.js';
 
 const ENQUIRY = {
   id: 'enq-1',
   customerName: 'Rashid',
-  sectorId: 'sec-ccj-jed',
+  sectorIds: ['sec-ccj-jed'],
   startDate: new Date('2026-08-10T00:00:00'),
   endDate: new Date('2026-08-20T00:00:00'),
   targetFare: 17000,
@@ -36,6 +37,49 @@ test('only fares on the enquiry sector match', () => {
   ]);
 
   assert.deepEqual(matches.map((f) => f.id), ['right']);
+});
+
+test('an enquiry can cover several sectors at once', () => {
+  const multi = { ...ENQUIRY, sectorIds: ['sec-ccj-jed', 'sec-cok-jed'] };
+  const matches = matchFaresToEnquiry(multi, [
+    fare({ id: 'ccj' }),
+    fare({ id: 'cok', sectorId: 'sec-cok-jed' }),
+    fare({ id: 'other', sectorId: 'sec-ccj-dxb' }),
+  ]);
+
+  assert.deepEqual(matches.map((f) => f.id).sort(), ['ccj', 'cok']);
+});
+
+test('the cheapest fare wins across sectors, not within one', () => {
+  const multi = { ...ENQUIRY, sectorIds: ['sec-ccj-jed', 'sec-cok-jed'] };
+  const [alert] = evaluateEnquiryAlerts([multi], [
+    fare({ id: 'ccj', finalRate: 19000 }),
+    fare({ id: 'cok', sectorId: 'sec-cok-jed', finalRate: 16000 }),
+  ]);
+
+  assert.equal(alert.bestRate, 16000);
+  assert.equal(alert.meetsTarget, true);
+});
+
+test('enquiries logged before multi-sector still match on their single sectorId', () => {
+  const legacy = { ...ENQUIRY, sectorIds: undefined, sectorId: 'sec-ccj-jed' };
+
+  assert.deepEqual(getEnquirySectorIds(legacy), ['sec-ccj-jed']);
+  assert.deepEqual(
+    matchFaresToEnquiry(legacy, [fare({ id: 'ccj' }), fare({ id: 'other', sectorId: 'sec-ccj-dxb' })])
+      .map((f) => f.id),
+    ['ccj'],
+  );
+});
+
+test('getEnquirySectorIds trims, drops blanks and de-duplicates', () => {
+  assert.deepEqual(
+    getEnquirySectorIds({ sectorIds: [' sec-a ', '', 'sec-b', 'sec-a', null, undefined] }),
+    ['sec-a', 'sec-b'],
+  );
+  assert.deepEqual(getEnquirySectorIds({ sectorIds: [] , sectorId: 'sec-a' }), ['sec-a']);
+  assert.deepEqual(getEnquirySectorIds({}), []);
+  assert.deepEqual(getEnquirySectorIds(null), []);
 });
 
 test('the date window is inclusive at both ends', () => {
@@ -69,7 +113,8 @@ test('matches come back cheapest first', () => {
 });
 
 test('an enquiry with no sector matches nothing', () => {
-  assert.deepEqual(matchFaresToEnquiry({ ...ENQUIRY, sectorId: '' }, [fare()]), []);
+  assert.deepEqual(matchFaresToEnquiry({ ...ENQUIRY, sectorIds: [] }, [fare()]), []);
+  assert.deepEqual(matchFaresToEnquiry({ ...ENQUIRY, sectorIds: [''] }, [fare()]), []);
   assert.deepEqual(matchFaresToEnquiry(null, [fare()]), []);
 });
 

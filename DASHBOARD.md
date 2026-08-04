@@ -145,14 +145,17 @@ Creates and manages `deal_links` documents — one shareable URL per curated off
 ### 7b. 💬 Enquiry Tab
 Customer fare requests, logged and worked from one place.
 
-- **Log form** (modal) — customer name, phone, sector, travel window, optional **target fare**, status (`open` / `quoted` / `closed`), and notes.
-- **Show** runs the enquiry's own parameters against `agent_fares` and lists only the matching live fares, cheapest first, with any fare at or below the target tinted green.
-- **Copy for Customer / Send on WhatsApp** turn those matches into the same WhatsApp text format the poster tab produces, greeted with the customer's name. A stored phone number opens that customer's chat directly.
-- **Target Price Alert** — enquiries that are `open` *and* carry a numeric target are scored against live fares; when the best matching fare reaches the target, a green dot appears on the **Enquiry** nav link and a "N below target" pill appears in the tab.
+- **Log form** (modal) — customer name, phone, **one or more sectors**, travel window, optional **target fare**, status (`open` / `quoted` / `closed`), and notes.
+- **Multi-sector enquiries** — the Sector field is a repeating row. The `+` beside the first dropdown appends another row (`×` removes it), so one customer asking for "CCJ–JED or COK–JED" is a single enquiry rather than two. Rows left on *Select Sector* are ignored, repeated picks collapse, and at least one sector is required.
+- **Show** runs the enquiry's own parameters against `agent_fares` — one indexed query per sector, run in parallel — and lists only the matching live fares, cheapest first **across every sector**, with any fare at or below the target tinted green. A multi-sector enquiry gets an extra Sector column so the ranked rows stay readable.
+- **Copy for Customer / Send on WhatsApp** turn those matches into the same WhatsApp text format the poster tab produces, greeted with the customer's name, one headed block per sector. A stored phone number opens that customer's chat directly.
+- **Target Price Alert** — enquiries that are `open` *and* carry a numeric target are scored against live fares; when the best matching fare **on any of its sectors** reaches the target, a green dot appears on the **Enquiry** nav link and a "N below target" pill appears in the tab.
 
 The alert check is **client-side**: it runs at the end of `loadGlobalData()` (post-auth) and on the tab's Refresh button. It only needs to be true while someone is looking at the dashboard, so it costs nothing when idle. It swallows its own errors — a failed alert check must never block the dashboard from rendering. Matching and scoring are pure functions in [web/src/js/shared/enquiry-alerts.js](web/src/js/shared/enquiry-alerts.js).
 
 > An enquiry with no `targetFare` is a record, not a watch — it never alerts. Hidden fares never match, since quoting an unsellable fare is worse than showing nothing.
+
+**Sector fields.** `sectorIds: string[]` is the field of record. Enquiries logged before multi-sector existed only carry the single `sectorId` string and nothing rewrites them, so every reader goes through `getEnquirySectorIds(enquiry)` in [enquiry-alerts.js](web/src/js/shared/enquiry-alerts.js), which falls back to `sectorId` and trims/de-dupes. Saves write **both**: `sectorIds` plus `sectorId = sectorIds[0]`, so an older dashboard build still shows a valid route rather than a blank one.
 
 ### 2. 📣 Socials Tab
 - **Social Publishing workspace** — five airport-group cards (`Calicut (CCJ)`, `Kochi (COK)`, `Kannur (CNN)`, `Trivandrum (TRV)`, `Mangalore (IXE)`) drive the publishing queue from a dedicated tab instead of the Poster screen
@@ -307,10 +310,10 @@ Two things to know when touching this:
   - **Visa Stamping** — country-specific stamping services.
   - **Attestations** — document/certificate attestation services.
   - **Passport Services** — fresh, renewal, and detail update services.
-- **Tourist Visa Rate Cards** — the structured price sheet behind the **Rates** button on the B2B portal's tourist visa cards (`visa_rate_cards`). One card per country, with an arbitrary number of **sections** (e.g. Normal Visa · Dubai Multiple · Transit Visa), optional **sub-groups** inside a section (e.g. DUBAI / ABU DHABI), and priced **rows** underneath. A row is either a ₹ amount or free text — filling the "Special Text" column overrides the number, which is how Abu Dhabi transit shows "Special rate". **No rate is hardcoded anywhere:** the portal renders only what is stored here, so an edit is live on the next portal load.
-  - A card links to a Tourist Visa row by **normalised country name** (`countryKey`). The table flags a card with no matching visa row, because the Rates button only appears on a card that has one.
+- **Tourist Visa Rate Cards** — the structured price sheet behind the **Details** button on the B2B portal's tourist visa cards (`visa_rate_cards`). One card per country, with an arbitrary number of **sections** (e.g. Normal Visa · Dubai Multiple · Transit Visa), optional **sub-groups** inside a section (e.g. DUBAI / ABU DHABI), and priced **rows** underneath. A row is either a ₹ amount or free text — filling the "Special Text" column overrides the number, which is how Abu Dhabi transit shows "Special rate". **No rate is hardcoded anywhere:** the portal renders only what is stored here, so an edit is live on the next portal load.
+  - A card links to a Tourist Visa row by **normalised country name** (`countryKey`). The table flags a card with no matching visa row, because the Details button only appears on a card that has one.
   - "Add Rate Card" pre-fills the **UAE template** (all 12 UAE rates, three sections, both transit sub-groups) as a starting point — every field is editable before and after saving.
-  - The card's headline price in the portal becomes the cheapest numeric row on the sheet ("From ₹580"), so the card and the sheet behind it cannot disagree.
+  - The card's headline price in the portal becomes the cheapest numeric row on the sheet ("Starting from ₹700"), so the card and the sheet behind it cannot disagree.
 - **Live Sync** — data drives the dynamic tables and modal inquiries directly on the public `visa.html` page.
 - **Sub-Tabs** — seamless client-side toggling between the 4 sub-collections without page reload.
 
@@ -565,7 +568,8 @@ Internal log of customer fare requests. **Admin-only in `firestore.rules`, both 
 |---|---|---|
 | `customerName` | String | Required |
 | `customerPhone` | String | With country code; drives the WhatsApp share |
-| `sectorId` | String | Ref to `sectors` doc ID |
+| `sectorIds` | String[] | Refs to `sectors` doc IDs — one enquiry can cover several routes. At least one required |
+| `sectorId` | String | Legacy single-sector field, kept equal to `sectorIds[0]` on every save. Read through `getEnquirySectorIds()`, never directly |
 | `startDate` / `endDate` | Timestamp | Requested travel window, inclusive of both days |
 | `targetFare` | Number \| null | Optional. `null` means "record only" — no alert is ever raised |
 | `status` | String | `open` \| `quoted` \| `closed`. Only `open` enquiries can alert |
@@ -619,18 +623,18 @@ The B2B portal's tourist-visa price sheet. **Not world-readable** — unlike `vi
 |---|---|---|
 | `countryName` | String | Display name, e.g. `'UAE'` |
 | `countryKey` | String | `countryName` lowercased/space-collapsed — links the card to a `visas` row |
-| `note` | String | Banner note above every section, e.g. `'3000 AED ABS'` |
-| `isActive` | Boolean | `false` hides the Rates button without deleting the sheet |
+| `note` | String | Banner note above every section, e.g. `'3000 AED ABSCONDING'` |
+| `isActive` | Boolean | `false` hides the Details button without deleting the sheet |
 | `order` | Number | Sort order for the admin table |
 | `sections` | Array | See below |
 
 ```js
 sections: [{
-  title: 'Normal Visa',
+  title: 'DUBAI Normal Visa',
   note:  'Same Day Posting | Processing Time: 1–2 Working Days',
   groups: [{
     title: '',                  // '' renders no sub-heading; 'DUBAI' / 'ABU DHABI' do
-    rows:  [{ label: '30 Days Adult', rate: 7070, rateText: '' }],
+    rows:  [{ label: '30 Days Adult', rate: 7200, rateText: '' }],
   }],
 }]
 ```
@@ -845,14 +849,16 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 ## Security Rules Summary
 
 ### Firestore (`firestore.rules`)
-- **Public read:** `sectors`, `airlines`, `agent_fares` (only if `isHidden==false` and agent `isActive==true`)
+- **Public read:** `sectors`, `airlines`, `flight_details`, `agent_fares` (only if `isHidden==false`), and the content collections (`services`, `visas`, `visa_stamping`, `attestations`, `passport_services`, `tours`, `hajj_umrah_packages`)
 - **Admin read/write:** All collections — requires `request.auth.token.admin == true`
-- **Admin-only, never public:** `enquiries` (holds customer names and phone numbers), `deal_links`, `config`, `social_queue`, `social_jobs`
+- **Admin-only, never public:** `agents` (the rate **suppliers** — the list names who Zamra sources from, and only `admin/main.js` reads it), `enquiries` (holds customer names and phone numbers), `deal_links`, `config`, `social_queue`, `social_jobs`
 - **Denied to everyone, admins included:** `b2b_credentials`, `soto_cache` — both are reached only by the Admin SDK inside a Cloud Function
 - **Admin + B2B agent read:** `visa_rate_cards` — the portal's tourist-visa price sheets are agent rates, so they stay behind the `agent` claim rather than sitting in world-readable `visas`
 - **Admin-only, served by callable:** `b2b_offers` — the portal's featured-offer cards come back from `getB2BPortalContext`, which keeps expiry enforced server-side and hides offers from an origin the agent cannot see
 
 > `agent_fares` uses a **document-level** read condition. An unauthenticated *query* over it must therefore carry `where('isHidden','==',false)` or the whole query is rejected — not filtered, rejected. `getFares()` adds it automatically whenever `includeHidden` is falsy.
+
+> ⚠️ **Open gap — `agent_fares` leaks supplier economics.** That same public read returns the *whole* document, so `specialRate`, `commission` and the supplier `agentId` go out with it. This is live: the public homepage calls `getFares()` (which spreads `...data`) and renders only `finalRate`, and the web API key needed to query the collection directly ships in every public bundle. Firestore has no field-level security, so closing it means projecting server-side the way `getPublicDeals` already does for `/deals/<slug>`, then reducing the rule to `isAdmin()`. Until then, treat buying rates and margins as public.
 
 > `deal_links` is admin-only even though it powers a public page: `getPublicDeals` reads it through the Admin SDK and returns a projected payload. Serving through a function rather than opening the rule is what keeps `specialRate` / `commission` / supplier `agentId` off the wire and makes view counting possible without a publicly writable field.
 

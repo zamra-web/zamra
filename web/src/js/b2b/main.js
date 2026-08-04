@@ -689,48 +689,66 @@ function escHtml(value = '') {
 }
 
 /**
- * One poster card. Falls back to a branded gradient tile with the category
- * icon when no poster has been uploaded for that country yet, so a half-filled
- * poster set still renders as a clean grid.
+ * One service card, laid out like the public visa page's destination cards: a
+ * short flag band with the country over it, the visa type as a chip, then the
+ * "Starting from" price and the action sharing one baseline. Falls back to a
+ * branded gradient tile with the category icon when no artwork exists for that
+ * country yet, so a half-filled set still renders as a clean grid.
  *
- * `rateCardId` swaps the WhatsApp enquiry button for the "Rates" button that
+ * The band is a fixed height rather than an aspect ratio on purpose — an
+ * aspect-ratio band grows with the column and makes the card tall enough that
+ * only two fit on a phone screen.
+ *
+ * `rateCardId` swaps the WhatsApp enquiry link for the "Details" button that
  * opens the full price sheet. Countries without a rate card configured keep the
- * enquiry button, so nothing is stranded while other countries are being added.
+ * enquiry link, so nothing is stranded while other countries are being added,
+ * and the label stays honest about where the button goes.
  */
-function serviceCardHtml({ title, subtitle, rate, poster, icon, waText, rateCardId = '', rateLabel = 'Agent rate' }) {
+function serviceCardHtml({ title, badge, rate, poster, icon, waText, rateCardId = '' }) {
   const waNumber = _context?.whatsappNumber || '919846606738';
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
+  const actionBase = 'shrink-0 inline-flex items-center gap-1.5 h-[34px] max-sm:h-[30px] px-3.5 max-sm:px-2.5 rounded-xl max-sm:rounded-lg font-heading text-[12px] max-sm:text-[11px] font-bold transition-colors';
   const action = rateCardId
     ? `<button type="button" data-rate-card-id="${escHtml(rateCardId)}"
-         class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-[12px] font-bold hover:opacity-90 transition-opacity cursor-pointer">
-         <i class="bi bi-list-columns-reverse"></i> Rates
+         class="${actionBase} bg-primary text-white hover:bg-primary-dark cursor-pointer">
+         Details
        </button>`
     : `<a href="${waLink}" target="_blank" rel="noopener"
-         class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366]/10 text-[#1da851] text-[12px] font-bold hover:bg-[#25D366]/20 transition-colors">
+         class="${actionBase} bg-[#25D366]/10 text-[#1da851] hover:bg-[#25D366]/20">
          <i class="bi bi-whatsapp"></i> Enquire
        </a>`;
   const media = poster
-    ? `<img src="${escHtml(poster)}" alt="${escHtml(title)} poster" loading="lazy"
+    ? `<img src="${escHtml(poster)}" alt="${escHtml(title)}" loading="lazy"
          class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.06]">`
-    : `<div class="w-full h-full bg-gradient-to-br from-primary/80 to-blue-400/70 flex items-center justify-center text-white/90 text-[40px]">
+    : `<div class="w-full h-full bg-gradient-to-br from-primary/80 to-blue-400/70 flex items-center justify-center text-white/90 text-[30px]">
          <i class="${icon}"></i>
        </div>`;
 
   return `
-    <div class="group bg-bg-card rounded-[20px] max-sm:rounded-[16px] border border-border shadow-[var(--shadow-premium-soft)] overflow-hidden flex flex-col premium-hover-lift">
-      <div class="relative aspect-[4/5] overflow-hidden bg-slate-100">
+    <!-- min-w-0 is load-bearing: the chip below is nowrap, and without it a long
+         badge sets the grid track's auto minimum and pushes the whole row wider
+         than the phone screen. -->
+    <div class="group min-w-0 bg-bg-card rounded-[20px] max-sm:rounded-[16px] border border-border shadow-[var(--shadow-premium-soft)] overflow-hidden flex flex-col premium-hover-lift">
+      <div class="relative h-[150px] max-sm:h-[104px] overflow-hidden bg-slate-100">
         ${media}
-        <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 to-transparent"></div>
-        <h4 class="absolute left-4 right-4 bottom-3 text-white font-heading font-bold text-[16px] max-sm:text-[14px] leading-tight drop-shadow">
+        <!-- Same three-stop wash as .visa-card-image-overlay on the public visa
+             page: dark enough at the foot to carry white text, clear of the
+             flag above 60% so the artwork does not read as muddy. -->
+        <div class="absolute inset-0 bg-[linear-gradient(to_top,rgba(7,49,96,0.78)_0%,rgba(7,49,96,0.10)_60%,transparent_100%)]"></div>
+        <h4 class="absolute left-4 right-4 bottom-3 max-sm:left-3 max-sm:right-3 max-sm:bottom-2.5 text-white font-heading font-bold text-[18px] max-sm:text-[13px] leading-tight tracking-[-0.3px] drop-shadow">
           ${escHtml(title)}
         </h4>
       </div>
-      <div class="p-4 max-sm:p-3 flex flex-col flex-1 gap-3">
-        <p class="text-[12px] text-text-muted font-medium leading-snug line-clamp-2">${escHtml(subtitle)}</p>
-        <div class="mt-auto flex items-end justify-between gap-2">
-          <div>
-            <div class="text-[11px] text-text-muted font-semibold uppercase tracking-[0.6px]">${escHtml(rateLabel)}</div>
-            <div class="text-[17px] max-sm:text-[15px] font-heading font-black text-navy">${escHtml(formatRate(rate))}</div>
+      <div class="p-4 max-sm:p-3 flex flex-col flex-1">
+        <div class="mb-3 max-sm:mb-2.5">
+          <span class="inline-block max-w-full truncate max-sm:whitespace-normal align-middle px-2.5 max-sm:px-2 py-1 rounded-full bg-primary/10 text-primary font-heading text-[11px] max-sm:text-[9.5px] font-bold uppercase tracking-[0.5px] leading-tight">
+            ${escHtml(badge)}
+          </span>
+        </div>
+        <div class="mt-auto pt-3 max-sm:pt-2.5 border-t border-border flex items-end justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-[11px] max-sm:text-[10px] text-text-muted font-medium">Starting from</div>
+            <div class="text-[22px] max-sm:text-[16px] font-heading font-black text-navy leading-tight tracking-[-0.5px]">${escHtml(formatRate(rate))}</div>
           </div>
           ${action}
         </div>
@@ -742,9 +760,9 @@ function serviceCardHtml({ title, subtitle, rate, poster, icon, waText, rateCard
 function renderServiceSkeletons() {
   const cards = Array.from({ length: 4 }, () => `
     <div class="bg-bg-card rounded-[20px] max-sm:rounded-[16px] border border-border overflow-hidden">
-      <div class="aspect-[4/5] bg-slate-200 animate-pulse"></div>
-      <div class="p-4 max-sm:p-3 space-y-2">
-        <div class="h-[11px] w-3/4 rounded bg-slate-200/70 animate-pulse"></div>
+      <div class="h-[150px] max-sm:h-[104px] bg-slate-200 animate-pulse"></div>
+      <div class="p-4 max-sm:p-3 space-y-3">
+        <div class="h-[20px] w-2/3 rounded-full bg-slate-200/70 animate-pulse"></div>
         <div class="h-[16px] w-1/2 rounded bg-slate-200 animate-pulse"></div>
       </div>
     </div>`).join('');
@@ -786,14 +804,16 @@ async function loadVisaServices() {
       const cheapest = card ? lowestRate(card) : null;
       return serviceCardHtml({
         title: v.countryName || 'Unknown',
-        subtitle: card
-          ? `${card.sections.length} rate section${card.sections.length === 1 ? '' : 's'}${card.note ? ` · ${card.note}` : ''}`
-          : (v.visaType || 'Tourist Visa'),
+        // The chip carries the visa type, as on the public site. The rate-card
+        // section count and note used to live here; both are on the sheet the
+        // Details button opens, so the card stays a single clean line.
+        badge: v.visaType || 'Tourist Visa',
         rate: cheapest === null ? v.rate : cheapest,
-        rateLabel: card && cheapest !== null ? 'From' : 'Agent rate',
         rateCardId: card?.id || '',
-        // A purpose-made poster reads better than a bare flag, so it wins here.
-        poster: localPoster('visa', v.countryName) || v.flagUrl || '',
+        // Flags read as one consistent set across the grid; the promo posters
+        // are portrait artwork that crops badly in the short band, so they are
+        // now only the fallback for entries with no flag (e.g. Umrah).
+        poster: v.flagUrl || localPoster('visa', v.countryName) || '',
         icon: 'bi bi-globe-americas',
         waText: `Hello Zamra Travels, ${agentTag} I am interested in a visa for:\n\n🌍 Country: *${v.countryName || ''}*\n📄 Visa Type: *${v.visaType || 'Tourist'}*\n\nPlease provide details.`,
       });
@@ -802,7 +822,7 @@ async function loadVisaServices() {
     stampings.sort((a, b) => (a.country || '').localeCompare(b.country || ''));
     renderServiceList(document.getElementById('b2b-stamping-list'), stampings.map(s => serviceCardHtml({
       title: s.country || 'Unknown',
-      subtitle: s.description || 'Visa Stamping',
+      badge: s.description || 'Visa Stamping',
       rate: s.cost !== undefined ? s.cost : s.rate,
       poster: posterFor('stamping', s.country, s.posterUrl),
       icon: 'bi bi-file-earmark-check',
@@ -812,7 +832,7 @@ async function loadVisaServices() {
     attestations.sort((a, b) => (a.country || '').localeCompare(b.country || ''));
     renderServiceList(document.getElementById('b2b-attestations-list'), attestations.map(a => serviceCardHtml({
       title: a.country || 'Unknown',
-      subtitle: a.certificate || 'Attestation',
+      badge: a.certificate || 'Attestation',
       rate: a.cost !== undefined ? a.cost : a.rate,
       poster: posterFor('attestation', a.country, a.posterUrl),
       icon: 'bi bi-patch-check',
@@ -824,7 +844,7 @@ async function loadVisaServices() {
 }
 
 // ── Tourist visa rate sheet ─────────────────────────────────────────────────
-// The "Rates" button on a tourist-visa card opens this. Every section, group,
+// The "Details" button on a tourist-visa card opens this. Every section, group,
 // row and price is read from the country's `visa_rate_cards` document — the
 // renderer holds no prices of its own, so an admin edit is live immediately.
 

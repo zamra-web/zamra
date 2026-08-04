@@ -2526,7 +2526,7 @@ Example:
                     </div>
                     <div class="admin-field sm:col-span-2">
                         <label class="admin-label" for="visa-rate-card-note">Header Note</label>
-                        <input type="text" id="visa-rate-card-note" class="admin-control" placeholder="e.g. 3000 AED ABS">
+                        <input type="text" id="visa-rate-card-note" class="admin-control" placeholder="e.g. 3000 AED ABSCONDING">
                         <p class="admin-help mt-2">Shown as a highlighted banner above every section in the B2B portal.</p>
                     </div>
                     <div class="admin-field sm:col-span-2">
@@ -2756,9 +2756,8 @@ Example:
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="admin-field sm:col-span-2">
                         <label class="admin-label">Sector *</label>
-                        <select id="enquiry-sector" class="admin-control" required>
-                            <option value="">Select Sector</option>
-                        </select>
+                        <div id="enquiry-sector-rows" class="flex flex-col gap-2"></div>
+                        <p class="admin-help">Use <i class="bi bi-plus-lg"></i> to ask about more than one route in the same enquiry — matches, alerts and the WhatsApp share cover every sector listed.</p>
                     </div>
                     <div class="admin-field">
                         <label class="admin-label">From Date *</label>

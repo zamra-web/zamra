@@ -12,6 +12,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { db, storage, functions } from './firebase-config.js';
+import { getEnquirySectorIds } from '../shared/enquiry-alerts.js';
 
 const SOCIAL_RETENTION_MS = 72 * 60 * 60 * 1000;
 
@@ -1431,6 +1432,9 @@ export async function getEnquiries() {
     return {
       id: d.id,
       ...data,
+      // Normalised here so every caller can read `sectorIds` — documents written
+      // before multi-sector enquiries only carry the single `sectorId`.
+      sectorIds: getEnquirySectorIds(data),
       startDate: data.startDate?.toDate?.() || data.startDate,
       endDate: data.endDate?.toDate?.() || data.endDate,
       createdAt: data.createdAt?.toDate?.() || data.createdAt,
@@ -1445,11 +1449,15 @@ function buildEnquiryPayload(data) {
   const targetFare = data.targetFare === '' || data.targetFare === null || data.targetFare === undefined
     ? null
     : Number(data.targetFare);
+  const sectorIds = getEnquirySectorIds(data);
 
   return {
     customerName: String(data.customerName || '').trim(),
     customerPhone: String(data.customerPhone || '').trim(),
-    sectorId: String(data.sectorId || '').trim(),
+    sectorIds,
+    // The legacy single-sector field is kept in step with the first route so an
+    // older dashboard build still shows a valid enquiry rather than a blank one.
+    sectorId: sectorIds[0] || '',
     startDate: startDate ? Timestamp.fromDate(startDate) : null,
     endDate: endDate ? Timestamp.fromDate(endDate) : null,
     targetFare: Number.isFinite(targetFare) ? targetFare : null,
@@ -1460,7 +1468,7 @@ function buildEnquiryPayload(data) {
 
 export async function addEnquiry(data) {
   if (!data?.customerName) throw new Error('Customer name is required.');
-  if (!data?.sectorId) throw new Error('Sector is required.');
+  if (!getEnquirySectorIds(data).length) throw new Error('At least one sector is required.');
 
   const docRef = await addDoc(collection(db, 'enquiries'), {
     ...buildEnquiryPayload(data),
@@ -1471,6 +1479,10 @@ export async function addEnquiry(data) {
 }
 
 export async function updateEnquiry(enquiryId, data) {
+  // Guarded on update too: saving an enquiry with every sector row cleared would
+  // leave a record that can never match a fare again.
+  if (!getEnquirySectorIds(data).length) throw new Error('At least one sector is required.');
+
   await updateDoc(doc(db, 'enquiries', enquiryId), {
     ...buildEnquiryPayload(data),
     updatedAt: serverTimestamp(),
