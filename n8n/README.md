@@ -163,3 +163,36 @@ comes out empty, and the response is `saved: 0`.
 One upload is one `gpt-5-mini` request. A text-only sheet is ~1–2k tokens. Each
 `detail: high` screenshot adds roughly a few thousand image tokens depending on
 resolution, so a typical upload lands well under a cent.
+
+---
+
+## WhatsApp (WAHA)
+
+WAHA runs in Docker on the same VPS as n8n, reachable internally at `http://waha:3000` and
+publicly at `https://waha.zamratravels.com`. Setup, credentials and operational notes are in
+[infra/README.md](../infra/README.md).
+
+Install the community node `@devlikeapro/n8n-nodes-waha` (Settings → Community nodes) and add a
+**WAHA API** credential pointing at the internal URL — not the public hostname, which would
+route traffic out to Traefik and back for no reason.
+
+**n8n owns the messaging logic.** The Zamra repo only proxies WAHA for the admin dashboard and
+mirrors inbound messages into Firestore; anything with a decision in it — auto-replies, AI
+answers, escalation, broadcasts — belongs in a workflow here.
+
+**Scheduled broadcasts use n8n's Schedule Trigger, not a Cloud Function.** The Firebase project
+runs exactly three Cloud Scheduler jobs and a fourth starts monthly billing, so n8n's own cron
+is the free path.
+
+### Ban-risk rules any outbound workflow must respect
+
+WhatsApp restricts numbers that behave like bulk senders, and +91 9846606731 is a real business
+line. From WAHA's own guidance:
+
+- **Never initiate** a conversation with a new contact — reply only.
+- Send seen, then typing, then a delay proportional to message length, then the message.
+- Randomise spacing (30–60s between new contacts); cap around 4 messages/hour to one contact.
+- Posting to groups Zamra owns is far safer than cold DMs.
+- On error **463** (shadow restriction) or **475** (message capping), **do not re-pair or
+  restart the session** — the restriction lifts on its own, and churning the session makes it
+  worse.

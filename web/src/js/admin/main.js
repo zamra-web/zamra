@@ -28,6 +28,8 @@ import {
   createSocialJobItem, updateSocialJobItem,
   subscribeSocialPublishingConfig, subscribeRecentSocialJobs, subscribeSocialJobItems,
   callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
+  callGetWhatsappSessionStatus, callGetWhatsappQr, callSetWhatsappSessionState,
+  callEnsureWhatsappSession, callSendWhatsappMessage, subscribeWhatsappConfig,
   getB2BAgents, subscribeB2BAgents, updateB2BAgent, callCreateB2BAgent,
   callResetB2BAgentPassword, callGetB2BAgentCredentials,
   callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
@@ -78,6 +80,8 @@ import {
   buildExportFileName,
 } from './report-export.js';
 import { createSocialPublishingController } from './social-publishing.js';
+import { DEFAULT_TAB_ID, tabIdFromPath, pathFromTabId } from './tab-routes.js';
+import { createWhatsappController } from './whatsapp.js';
 import {
   listPosterSocialCountries,
   getPosterSocialMarket,
@@ -139,6 +143,7 @@ let _lastPosterPreview = null;
 let _activePosterSocialMarketKey = '';
 let _currentAdminUser = null;
 let _socialPublishingController = null;
+let _whatsappController = null;
 let _isSectorReorderMode = false;
 let _isSectorReorderSaving = false;
 let _sectorDragState = { draggedId: '', overId: '', position: 'before' };
@@ -962,45 +967,84 @@ async function loadGlobalData() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB SYSTEM
 // ══════════════════════════════════════════════════════════════════════════════
-function initTabs() {
+/**
+ * Apply a tab selection to the DOM and the URL. Deliberately does NOT render.
+ *
+ * Rendering is renderActiveTab()'s job, and the two entry points race: this
+ * runs from initTabs() on DOMContentLoaded, while renderActiveTab() first runs
+ * from the onAuthChange callback. Because this only moves classes, whichever
+ * fires second reads `.tab-content.active` off the DOM and gets the right
+ * answer. Calling renderActiveTab() from here would double-render every cold
+ * load, and would render an empty tab if auth had not resolved yet.
+ *
+ * @param {string} tabId
+ * @param {{ history?: 'push'|'replace'|'none' }} [options]
+ * @returns {string} the tab id actually applied (falls back to the default)
+ */
+function selectTab(tabId, { history: historyMode = 'push' } = {}) {
   const navLinks = document.querySelectorAll('.nav-link');
   const tabContents = document.querySelectorAll('.tab-content');
   const pageTitle = document.getElementById('page-title');
   const tabSelect = document.getElementById('admin-tab-select');
 
-  navLinks.forEach(link => {
+  // An unknown id (stale bookmark, hand-typed URL) falls back rather than
+  // leaving the page with no active panel at all.
+  let link = document.querySelector(`.nav-link[data-tab="${tabId}"]`);
+  const resolvedId = link ? tabId : DEFAULT_TAB_ID;
+  if (!link) link = document.querySelector(`.nav-link[data-tab="${resolvedId}"]`);
+
+  navLinks.forEach(l => { l.classList.remove('active', 'text-primary'); l.classList.add('text-text-muted'); });
+  if (link) {
+    link.classList.remove('text-text-muted');
+    link.classList.add('active', 'text-primary');
+  }
+
+  tabContents.forEach(c => c.classList.remove('active'));
+  document.getElementById(resolvedId)?.classList.add('active');
+
+  const targetTitle = link?.getAttribute('data-title');
+  if (pageTitle && targetTitle) pageTitle.textContent = targetTitle;
+  if (tabSelect) tabSelect.value = resolvedId;
+
+  if (historyMode !== 'none') {
+    const path = pathFromTabId(resolvedId);
+    const url = path + window.location.search + window.location.hash;
+    if (historyMode === 'replace' || window.location.pathname !== path) {
+      window.history[historyMode === 'replace' ? 'replaceState' : 'pushState']({ tabId: resolvedId }, '', url);
+    }
+  }
+
+  return resolvedId;
+}
+
+function initTabs() {
+  // Boot from the URL. `replace`, not `push`, so `/admin.html` and unknown
+  // paths are normalised to a canonical URL without leaving a dead entry
+  // behind the back button.
+  selectTab(tabIdFromPath(window.location.pathname) ?? DEFAULT_TAB_ID, { history: 'replace' });
+
+  document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
-      navLinks.forEach(l => { l.classList.remove('active', 'text-primary'); l.classList.add('text-text-muted'); });
-      link.classList.remove('text-text-muted');
-      link.classList.add('active', 'text-primary');
-
-      const targetId = link.getAttribute('data-tab');
-      const targetTitle = link.getAttribute('data-title');
-      tabContents.forEach(c => c.classList.remove('active'));
-      document.getElementById(targetId)?.classList.add('active');
-      if (pageTitle && targetTitle) pageTitle.textContent = targetTitle;
-      if (tabSelect && targetId) tabSelect.value = targetId;
-
-      // Render the newly active tab
+      selectTab(link.getAttribute('data-tab'), { history: 'push' });
       await renderActiveTab();
     });
   });
 
+  const tabSelect = document.getElementById('admin-tab-select');
   if (tabSelect) {
-    const activeLink = document.querySelector('.nav-link.active');
-    if (activeLink?.dataset?.tab) {
-      tabSelect.value = activeLink.dataset.tab;
-    }
-
-    tabSelect.addEventListener('change', () => {
-      const targetId = tabSelect.value;
-      const targetLink = document.querySelector(`.nav-link[data-tab="${targetId}"]`);
-      if (targetLink) {
-        targetLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      }
+    // Drive state directly. This used to synthesise a click on the matching
+    // nav link, which now would also push a history entry as a side effect.
+    tabSelect.addEventListener('change', async () => {
+      selectTab(tabSelect.value, { history: 'push' });
+      await renderActiveTab();
     });
   }
+
+  window.addEventListener('popstate', async () => {
+    selectTab(tabIdFromPath(window.location.pathname) ?? DEFAULT_TAB_ID, { history: 'none' });
+    await renderActiveTab();
+  });
 }
 
 async function renderActiveTab() {
@@ -1013,6 +1057,7 @@ async function renderActiveTab() {
   else if (id === 'flights-tab') await renderFlightsTab();
   else if (id === 'dashboard-tab') await renderDashboardTab();
   else if (id === 'socials-tab') await renderSocialsTab();
+  else if (id === 'whatsapp-tab') await renderWhatsappTab();
   else if (id === 'reports-tab') await renderReportsTab();
   else if (id === 'database-tab') await renderDatabaseTab();
   else if (id === 'enquiry-tab') await renderEnquiryTab();
@@ -4416,6 +4461,27 @@ async function renderDashboardTab() {
     document.getElementById('poster-download-vid-9x16')?.addEventListener('click', () => handleVideoPoster('9x16'));
     document.getElementById('poster-download-vid-16x9')?.addEventListener('click', () => handleVideoPoster('16x9'));
   }
+}
+
+function getWhatsappController() {
+  if (_whatsappController) return _whatsappController;
+  _whatsappController = createWhatsappController({
+    toast,
+    openModal,
+    callGetWhatsappSessionStatus,
+    callGetWhatsappQr,
+    callSetWhatsappSessionState,
+    callEnsureWhatsappSession,
+    callSendWhatsappMessage,
+    subscribeWhatsappConfig,
+  });
+  return _whatsappController;
+}
+
+async function renderWhatsappTab() {
+  const tab = document.getElementById('whatsapp-tab');
+  if (!tab) return;
+  await getWhatsappController().render();
 }
 
 async function renderSocialsTab() {

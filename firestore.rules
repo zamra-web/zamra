@@ -139,6 +139,45 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── whatsapp_messages ────────────────────────────────────────────────────
+    // The Firestore mirror of the WAHA inbox, so /admin/whatsapp can read the
+    // conversation live instead of polling the VPS.
+    //
+    // Readable by admins, writable by nobody — including admins. The only
+    // writers are whatsappWebhook and sendWhatsappMessage, both on the Admin
+    // SDK. A browser-writable message log would let anyone with the dashboard
+    // open forge a customer's own words in the record staff then act on, which
+    // is a different and worse problem than editing Zamra's own content.
+    match /whatsapp_messages/{messageId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── whatsapp_chats ───────────────────────────────────────────────────────
+    // One doc per conversation: the derived summary (last message, counts) plus
+    // the triage state the inbox owns (unread, assignee, status, tags).
+    //
+    // Same server-writes-only stance as whatsapp_messages, with one deliberate
+    // carve-out: the triage fields are pure UI state with no security value,
+    // and routing them through a callable would cost another Cloud Run service
+    // and a round-trip on every chat click. The hasOnly clause is what keeps
+    // that narrow — without it this would be a full write, letting the client
+    // rewrite lastMessageBody and the mirror's own derived fields.
+    match /whatsapp_chats/{chatId} {
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['unreadCount', 'assignedTo', 'status', 'tags', 'updatedAt']);
+      allow create, delete: if false;
+    }
+
+    // ── whatsapp_meta ────────────────────────────────────────────────────────
+    // Per-minute outbound send counters, a brake against a runaway loop banning
+    // the number. Denied to every client: a writable rate limit is not one.
+    match /whatsapp_meta/{metaId} {
+      allow read, write: if false;
+    }
+
     // ── services ─────────────────────────────────────────────────────────────
     // Public can read active services; only admins can write
     match /services/{serviceId} {

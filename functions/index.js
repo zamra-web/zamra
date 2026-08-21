@@ -833,8 +833,37 @@ exports.searchSotoAirports = soto.searchSotoAirports;
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 12. WhatsApp (WAHA)
+//     WAHA is self-hosted on the Hostinger VPS beside n8n (see infra/README.md)
+//     and speaks a plain REST API over HTTPS. The admin dashboard never calls
+//     it directly: these callables are a WHITELIST that projects every response
+//     before it reaches the browser, because GET /api/sessions returns the
+//     session config — which contains our own webhook signing key.
+//
+//     Messaging LOGIC lives in n8n, which reaches WAHA over the internal Docker
+//     network. Nothing here should grow a bulk sender, and scheduled broadcasts
+//     belong to n8n's Schedule Trigger rather than a fourth onSchedule.
+//
+//     Two secrets on purpose: the send key and the webhook signing key are
+//     configured in different places and leak differently, so a disclosure of
+//     one must not hand over the other.
+// ══════════════════════════════════════════════════════════════════════════════
+const WAHA_API_KEY = defineSecret("WAHA_API_KEY");
+const WAHA_WEBHOOK_SECRET = defineSecret("WAHA_WEBHOOK_SECRET");
+
+const whatsapp = require("./whatsapp").build(db, requireAdmin, WAHA_API_KEY, WAHA_WEBHOOK_SECRET);
+
+exports.getWhatsappSessionStatus = whatsapp.getWhatsappSessionStatus;
+exports.getWhatsappQr = whatsapp.getWhatsappQr;
+exports.setWhatsappSessionState = whatsapp.setWhatsappSessionState;
+exports.ensureWhatsappSession = whatsapp.ensureWhatsappSession;
+exports.sendWhatsappMessage = whatsapp.sendWhatsappMessage;
+exports.whatsappWebhook = whatsapp.whatsappWebhook;
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 11. dailyMaintenance (Scheduled, 00:15 UTC)
-//     One job running all three retention sweeps in sequence. They were once
+//     One job running all four retention sweeps in sequence. They were once
 //     three separate schedules (purgeOldFaresDaily 00:15, purgeSotoCache 03:00,
 //     purgeSocialPublishing every 5 min); Cloud Scheduler bills per job beyond
 //     the first three, so folding them in keeps the project inside the free
@@ -870,6 +899,15 @@ exports.dailyMaintenance = onSchedule(
       console.log(`dailyMaintenance/soto: deleted ${deleted} expired entr${deleted === 1 ? "y" : "ies"}`);
     } catch (error) {
       console.error("dailyMaintenance/soto failed:", error);
+    }
+
+    try {
+      const r = await whatsapp.purgeExpiredWhatsapp();
+      console.log(
+        `dailyMaintenance/whatsapp: deleted ${r.deletedMessages} mirrored message${r.deletedMessages !== 1 ? "s" : ""}, ${r.deletedRateDocs} rate counter${r.deletedRateDocs !== 1 ? "s" : ""}`
+      );
+    } catch (error) {
+      console.error("dailyMaintenance/whatsapp failed:", error);
     }
   }
 );

@@ -131,3 +131,13 @@ a privacy policy URL and Play App Signing.
   would start here.
 - **iOS.** Only the Android platform is installed. `npx cap add ios` plus a matching pair of Xcode
   schemes would be the equivalent work.
+
+## Hardware back button and admin tab history
+
+The admin dashboard now pushes a history entry on every tab switch (`/admin/reports`,
+`/admin/whatsapp`, …). Capacitor's hardware-back handler calls `webView.goBack()` whenever
+history exists, so **back now walks tab history before exiting the app**. Previously the admin
+app had zero history entries and back exited immediately.
+
+This needs no APK release — the apps load the live production URL — but it is a real behaviour
+change to expect when testing.

@@ -1568,3 +1568,116 @@ export async function deleteDealLink(slug) {
   await deleteDoc(doc(db, 'deal_links', slug));
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHATSAPP (WAHA)
+//
+// The dashboard never talks to WAHA directly — the API key would have to ship
+// in the bundle. Everything goes through admin-gated callables that project the
+// response server-side. Reads come from the Firestore mirror the webhook keeps.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Current WAHA session state, projected (never carries the session config). */
+export async function callGetWhatsappSessionStatus() {
+  const fn = httpsCallable(functions, 'getWhatsappSessionStatus');
+  const result = await fn({});
+  return result.data;
+}
+
+/** Base64 QR for linking the number. Expires — re-fetch while the modal is open. */
+export async function callGetWhatsappQr() {
+  const fn = httpsCallable(functions, 'getWhatsappQr');
+  const result = await fn({});
+  return result.data;
+}
+
+/**
+ * @param {'start'|'stop'|'restart'|'logout'} action
+ */
+export async function callSetWhatsappSessionState(action) {
+  const fn = httpsCallable(functions, 'setWhatsappSessionState');
+  const result = await fn({ action });
+  return result.data;
+}
+
+/**
+ * Create or repair the session, including the webhook URL and HMAC key WAHA
+ * must call back on. Never create the session by hand — one without a webhook
+ * drops every inbound message silently.
+ */
+export async function callEnsureWhatsappSession() {
+  const fn = httpsCallable(functions, 'ensureWhatsappSession');
+  const result = await fn({});
+  return result.data;
+}
+
+/**
+ * @param {string} chatId — a number in any format, or a full `…@c.us` / `…@g.us` id
+ * @param {string} text
+ */
+export async function callSendWhatsappMessage(chatId, text) {
+  const fn = httpsCallable(functions, 'sendWhatsappMessage');
+  const result = await fn({ chatId, text });
+  return result.data;
+}
+
+/** Live session status / counters. getDoc first so the pill paints immediately. */
+export function subscribeWhatsappConfig(callback) {
+  const ref = doc(db, 'config', 'whatsapp');
+  getDoc(ref).then((snap) => {
+    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+  }).catch((err) => console.error('[whatsapp] config initial fetch error:', err));
+  return onSnapshot(
+    ref,
+    (snap) => { callback(snap.exists() ? { id: snap.id, ...snap.data() } : null); },
+    (err) => console.error('[whatsapp] config listener error:', err),
+  );
+}
+
+/** Most recently active conversations. */
+export function subscribeWhatsappChats(callback, maxItems = 40) {
+  const q = query(collection(db, 'whatsapp_chats'), orderBy('lastMessageAt', 'desc'), limit(maxItems));
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))),
+    (err) => console.error('[whatsapp] chats listener error:', err),
+  );
+}
+
+/**
+ * One conversation's messages, newest first — the caller reverses for display.
+ * Needs the composite index on (chatId ASC, timestamp DESC).
+ */
+export function subscribeWhatsappMessages(chatId, callback, maxItems = 100) {
+  const q = query(
+    collection(db, 'whatsapp_messages'),
+    where('chatId', '==', chatId),
+    orderBy('timestamp', 'desc'),
+    limit(maxItems),
+  );
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))),
+    (err) => console.error('[whatsapp] messages listener error:', err),
+  );
+}
+
+/**
+ * Update a conversation's triage state.
+ *
+ * Restricted to the five keys firestore.rules allows the client to touch —
+ * everything else on the doc is written by the mirror. Sending anything outside
+ * this set fails the rule and rejects the whole write, so it is filtered here
+ * rather than trusted from the caller.
+ *
+ * @param {string} chatId
+ * @param {{unreadCount?: number, assignedTo?: string|null, status?: string, tags?: string[]}} patch
+ */
+export async function updateWhatsappChatMeta(chatId, patch = {}) {
+  const allowed = ['unreadCount', 'assignedTo', 'status', 'tags'];
+  const update = { updatedAt: serverTimestamp() };
+  for (const key of allowed) {
+    if (patch[key] !== undefined) update[key] = patch[key];
+  }
+  await updateDoc(doc(db, 'whatsapp_chats', chatId), update);
+}

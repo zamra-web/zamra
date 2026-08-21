@@ -5,6 +5,22 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         tailwindcss(),
+        // Admin tab deep links (/admin/reports, /admin/whatsapp, ...) are virtual
+        // paths: Vercel rewrites /admin(.*) to the single admin.html bundle, which
+        // then picks the tab from location.pathname. The dev server has no such
+        // rewrite, so without this every deep link 404s locally and the whole
+        // feature looks broken. Extensionless single segments only, so real asset
+        // requests under /admin/ still fall through.
+        {
+            name: 'zamra-admin-deep-links',
+            configureServer(server) {
+                server.middlewares.use((req, _res, next) => {
+                    const path = (req.url || '').split('?')[0];
+                    if (/^\/admin\/[^./]+\/?$/.test(path)) req.url = '/admin.html';
+                    next();
+                });
+            },
+        },
     ],
     build: {
         rollupOptions: {

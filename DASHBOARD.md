@@ -89,7 +89,10 @@ web/
 - Desktop uses the top nav links (`.nav-link`) to switch tabs.
 - Mobile uses the `#admin-tab-select` dropdown (shown only on small screens) to switch tabs.
 - A light/dark **theme toggle** sits beside Logout and persists to `localStorage` (defaults to system theme if no preference set).
-- `initTabs()` in `web/src/js/admin/main.js` keeps the dropdown and active tab in sync. If you add/remove tabs, update both the nav links and the dropdown options in `web/admin.html`.
+- `initTabs()` in `web/src/js/admin/main.js` keeps the dropdown and active tab in sync. If you add/remove tabs, update both the nav links and the dropdown options in `web/admin.html`, **and** add the slug to `ADMIN_TAB_ROUTES` in `web/src/js/admin/tab-routes.js`. `web/tests/admin-tab-routes.test.js` fails the build if those three lists disagree — the drift is otherwise silent, and a tab missing from the dropdown is simply unreachable on mobile.
+- **Every tab has a deep link.** Vercel rewrites `/admin(.*)` onto `admin.html`, and `tab-routes.js` maps the URL slug to the panel id (`/admin/reports`, `/admin/whatsapp`; `/admin` is the Poster tab). `initTabs()` reads `location.pathname` at boot, `selectTab()` pushes history on every switch, and a `popstate` listener walks it back. An unknown path falls back to Poster and `replaceState`s onto `/admin` rather than leaving a dead URL.
+- `selectTab()` deliberately does **not** render. It runs on `DOMContentLoaded` while `renderActiveTab()` first runs from the `onAuthChange` callback; because `selectTab()` only moves classes, whichever fires second reads `.tab-content.active` from the DOM and gets the right answer. Calling `renderActiveTab()` from `selectTab()` would double-render every cold load.
+- `npm run dev` needs the `zamra-admin-deep-links` middleware in `web/vite.config.js`, or every deep link 404s locally even though production is fine.
 - Small-screen spacing, controls, and tables are tuned in `web/src/styles/admin/style.css` to keep the dashboard usable on mobile with touch-friendly controls and smooth horizontal scrolling for wide tables.
 
 ---
@@ -156,6 +159,29 @@ The alert check is **client-side**: it runs at the end of `loadGlobalData()` (po
 > An enquiry with no `targetFare` is a record, not a watch — it never alerts. Hidden fares never match, since quoting an unsellable fare is worse than showing nothing.
 
 **Sector fields.** `sectorIds: string[]` is the field of record. Enquiries logged before multi-sector existed only carry the single `sectorId` string and nothing rewrites them, so every reader goes through `getEnquirySectorIds(enquiry)` in [enquiry-alerts.js](web/src/js/shared/enquiry-alerts.js), which falls back to `sectorId` and trims/de-dupes. Saves write **both**: `sectorIds` plus `sectorId = sectorIds[0]`, so an older dashboard build still shows a valid route rather than a blank one.
+
+### 2b. 💬 WhatsApp Tab
+
+`/admin/whatsapp`. Links the Zamra WhatsApp number (**+91 9846606731**) to the self-hosted
+[WAHA](https://github.com/devlikeapro/waha) instance on the Hostinger VPS, shows the connection
+state, and sends one-off messages.
+
+- **Connect** calls `ensureWhatsappSession`, then polls `getWhatsappQr` every 20s into a modal
+  until the session reports `WORKING`. Scan from the handset under Linked devices.
+- **Unlink / Restart** call `setWhatsappSessionState`.
+- **Send** is a single message with a per-minute cap. There is no bulk send here on purpose —
+  broadcasting from one number is what gets it banned, so pacing lives in n8n.
+
+The dashboard never talks to WAHA directly; the API key would have to ship in the bundle.
+Every call goes through an admin-gated callable that **projects** the WAHA response, because
+`GET /api/sessions/{name}` returns the session config — including our own webhook signing key.
+See `functions/whatsapp/normalize.js` (`projectSession`) and its regression test.
+
+Messaging *logic* — auto-replies, AI answers, scheduled broadcasts — lives in n8n, which
+reaches WAHA over the internal Docker network at `http://waha:3000`. Setup is in
+[infra/README.md](../infra/README.md).
+
+---
 
 ### 2. 📣 Socials Tab
 - **Social Publishing workspace** — five airport-group cards (`Calicut (CCJ)`, `Kochi (COK)`, `Kannur (CNN)`, `Trivandrum (TRV)`, `Mangalore (IXE)`) drive the publishing queue from a dedicated tab instead of the Poster screen
@@ -799,9 +825,71 @@ Cached third-party fare lookups. Doc id is a sha256 of `origin|destination|depar
 
 ---
 
+### config/whatsapp
+
+Connection state and counters for the WAHA integration. Written by the Cloud Functions,
+read live by the dashboard via `subscribeWhatsappConfig`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `sessionName` / `sessionStatus` / `sessionStatusAt` | — | Cached so the status pill paints before the first poll |
+| `me` | Map | `{ id, pushName }` of the linked WhatsApp account |
+| `webhookUrl` / `subscribedEvents` | — | What `ensureWhatsappSession` told WAHA to call back on |
+| `mirrorGroups` | Boolean | Default **false**. Zamra runs six community groups; mirroring them would turn a quiet collection into thousands of writes a day |
+| `retentionDays` | Number | Default 90; drives each message's `expiresAt` |
+| `unreadTotal` | Number | Single counter behind the nav dot, so the badge needs no always-on `whatsapp_chats` listener |
+| `lastWebhookAt` / `lastWebhookEvent` / `droppedEventCounts` | — | Webhook health |
+
+> ⚠️ **The WAHA API key never goes in this doc.** It is admin-readable from the browser, which
+> would defeat the entire point of proxying WAHA through server-side callables. The key lives
+> only in the `WAHA_API_KEY` Firebase secret.
+
+### whatsapp_chats/{chatId}
+
+One doc per conversation. The doc id is the chat id verbatim (`919846606731@c.us`) — `@` and
+`.` are legal in a Firestore doc id; only `/`, `.`, `..` and `__x__` are not.
+
+| Field | Type | Notes |
+|---|---|---|
+| `chatId` / `phone` / `isGroup` | — | Derived from the chat id |
+| `lastMessageAt` / `lastMessageBody` / `lastMessageFromMe` | — | Mirror-written summary; body capped at 200 chars |
+| `messageCount` / `unreadCount` | Number | `FieldValue.increment` |
+| `assignedTo` / `status` / `tags` | — | Triage state the inbox owns — the only fields the client may write |
+
+### whatsapp_messages/{messageId}
+
+**Top-level, not a subcollection of the chat.** A subcollection would force a collection-group
+index for a unified feed *and* make the retention sweep a collection-group delete, which is much
+harder to bound. Top-level costs one composite index and keeps the sweep a plain
+`where('expiresAt','<',now).limit(N)`.
+
+The doc id is the WAHA message id (slashes sanitised). That is what makes the pipeline
+idempotent: `sendWhatsappMessage` writes the outbound doc, WAHA then fires `message.any` for
+that same id, and the webhook merges instead of duplicating. WAHA's own retries are safe for
+the same reason. `message.ack` uses `merge` and **never creates** a doc — an ack for a message
+we never mirrored must not conjure a phantom.
+
+| Field | Type | Notes |
+|---|---|---|
+| `messageId` / `chatId` / `session` | String | |
+| `direction` / `fromMe` / `from` / `to` | — | `direction` is `'in'` or `'out'` |
+| `body` | String | Capped at 4096, WhatsApp's own limit |
+| `type` / `hasMedia` / `mediaUrl` / `mimetype` | — | `mediaUrl` points at WAHA's file server; media is **not** copied into Firebase Storage in v1 |
+| `ack` / `ackName` | — | Delivery state, `-1`…`4` |
+| `timestamp` | Timestamp | WAHA sends unix **seconds**; treating them as ms puts every message in 1970 |
+| `expiresAt` | Timestamp | `timestamp + retentionDays`, swept by `dailyMaintenance` |
+| `sentBy` | Map | `{ uid, email }` on the send path only |
+
+### whatsapp_meta/{rate-YYYYMMDDHHmm}
+
+Per-minute outbound send counters. Denied to every client — a writable rate limit is not one.
+Carries an `expiresAt` and is swept alongside the messages.
+
+---
+
 ## Firestore Indexes
 
-7 compound indexes on `agent_fares` for dashboard queries:
+7 compound indexes on `agent_fares` for dashboard queries, plus 3 on `social_queue` and 1 on `whatsapp_messages` (`chatId ASC, timestamp DESC`, for the per-chat thread query):
 
 | Fields | Order | Used By |
 |---|---|---|
@@ -823,7 +911,7 @@ Callable functions are **HTTPS Callable**, deployed to `asia-south1`, running on
 They require `admin: true` custom claim — enforced server-side via `requireAdmin()` helper.  
 `ingestFaresFromN8n` is an **HTTPS onRequest** endpoint secured via Bearer token (used by n8n).  
 `getPublicDeals` is an **HTTPS onRequest** endpoint that is deliberately unauthenticated — it serves the public `/deals/<slug>` page and is gated by the link's `isActive` flag.  
-`dailyMaintenance` is a **scheduled** function that runs every retention sweep in the project.
+`dailyMaintenance` is a **scheduled** function that runs every retention sweep in the project (fares, social, soto, whatsapp).
 
 | Function | What it does |
 |---|---|
@@ -836,8 +924,14 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next dispatcher tick. |
 | `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a non-posted errored job item without mutating the old queue record. |
 | `getPublicDeals` | HTTPS onRequest endpoint, **unauthenticated by design** — the gate is the link's own `isActive` flag, not a token. Resolves `deal_links/<slug>`, applies the link's rolling or fixed window, queries `agent_fares` in `in`-safe chunks, collapses duplicates to the cheapest per sector+airline+date+time, and returns fares **projected to display fields only** (`date`, `time`, `airlineName`, `airlineCode`, `airlineLogo`, `checkInBaggageKg`, `handBaggageKg`, `price`). `specialRate`, `commission`, `finalRate`, `supplierRate` and the supplier `agentId` never leave the server. Bumps `viewCount` fire-and-forget. `404`s a missing or inactive link. |
-| `dailyMaintenance` | Scheduled cleanup, daily at 00:15 UTC. The project's **only** retention job — runs three sweeps in sequence, each independently try/caught so one failure cannot stall the others: **fares** (deletes `agent_fares` with `flightDate` earlier than **today − 2 days** UTC midnight, keeping the most recent two days plus today), **social** (terminal `social_queue` docs, their `generated_posters/*` media, and expired `social_jobs` past the 72-hour window), and **soto** (`soto_cache` docs whose `expiresAt` has passed, batched 400 at a time). |
+| `dailyMaintenance` | Scheduled cleanup, daily at 00:15 UTC. The project's **only** retention job — runs four sweeps in sequence, each independently try/caught so one failure cannot stall the others: **fares** (deletes `agent_fares` with `flightDate` earlier than **today − 2 days** UTC midnight, keeping the most recent two days plus today), **social** (terminal `social_queue` docs, their `generated_posters/*` media, and expired `social_jobs` past the 72-hour window), and **soto** (`soto_cache` docs whose `expiresAt` has passed, batched 400 at a time). |
 | `searchSotoFares` | HTTPS onRequest endpoint, **unauthenticated by design** — `/soto` is a public page. Validates both IATA codes against the committed dataset, checks the departure window (today … +11 months), enforces the SOTO rule (origin must not be in India), then serves `soto_cache/{sha256}` or calls Travelpayouts. Returns fares **projected to display fields only** — the provider's `link` field carries our affiliate marker and never leaves the server. `maxInstances: 10`. Secret: `TRAVELPAYOUTS_TOKEN`. |
+| `getWhatsappSessionStatus` | Admin callable. `GET /api/sessions/zamra` on WAHA, **projected** to `{name, status, engine, me, assignedWorker}` — the session `config` (which carries our webhook HMAC key) is dropped. Caches the status onto `config/whatsapp`. Secret: `WAHA_API_KEY`. |
+| `getWhatsappQr` | Admin callable. Base64 QR for linking the number. WAHA rotates it, so the tab re-fetches every 20s while the modal is open. Secret: `WAHA_API_KEY`. |
+| `setWhatsappSessionState` | Admin callable. One function, four verbs (`start`/`stop`/`restart`/`logout`) validated against a frozen list. Four separate callables would be four Cloud Run services for no benefit. Secret: `WAHA_API_KEY`. |
+| `ensureWhatsappSession` | Admin callable. Creates or repairs the session **including the webhook URL and HMAC key**. This is why the session is never created by hand — one without a webhook drops every inbound message silently. Sets `noweb.store.enabled` (required for chat history) and `fullSync:false`; neither may change after the QR is scanned. Secrets: both. |
+| `sendWhatsappMessage` | Admin callable. One text message. Validates the chat id (rejects `status@broadcast`), bounds the text at 4096, and enforces a transactional per-minute cap in `whatsapp_meta` as a runaway-loop brake. Mirrors the outbound message under the WAHA message id. **No bulk variant, deliberately.** Secret: `WAHA_API_KEY`. |
+| `whatsappWebhook` | HTTPS onRequest, `cors:false`. Receives WAHA events, verifies HMAC-SHA512 over `req.rawBody`, and mirrors messages into `whatsapp_messages` / `whatsapp_chats`. Unknown events get `200` (a rejection would jam WAHA's retry queue) plus a counter on `config/whatsapp.droppedEventCounts`. Secret: `WAHA_WEBHOOK_SECRET`. |
 | `searchSotoAirports` | HTTPS onRequest typeahead over `functions/soto/places.json`. No provider call, no Firestore read, `s-maxage=86400`. |
 
 **Social publishing scheduled workers**
@@ -855,7 +949,9 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 - **Public read:** `sectors`, `airlines`, `flight_details`, `agent_fares` (only if `isHidden==false`), and the content collections (`services`, `visas`, `visa_stamping`, `attestations`, `passport_services`, `tours`, `hajj_umrah_packages`)
 - **Admin read/write:** All collections — requires `request.auth.token.admin == true`
 - **Admin-only, never public:** `agents` (the rate **suppliers** — the list names who Zamra sources from, and only `admin/main.js` reads it), `enquiries` (holds customer names and phone numbers), `deal_links`, `config`, `social_queue`, `social_jobs`
-- **Denied to everyone, admins included:** `b2b_credentials`, `soto_cache` — both are reached only by the Admin SDK inside a Cloud Function
+- **Denied to everyone, admins included:** `b2b_credentials`, `soto_cache`, `whatsapp_meta` — all reached only by the Admin SDK inside a Cloud Function
+- **Admin read, nobody writes:** `whatsapp_messages` — the mirror of the WAHA inbox. A browser-writable message log would let anyone with the dashboard open forge a customer's own words in the record staff then act on, which is a different and worse problem than editing Zamra's own content
+- **Admin read, narrow admin update:** `whatsapp_chats` — same server-writes-only stance, with a deliberate `affectedKeys().hasOnly(['unreadCount','assignedTo','status','tags','updatedAt'])` carve-out. Those are pure UI triage state with no security value, and routing them through a callable would cost another Cloud Run service and a round-trip on every chat click. Without the `hasOnly` clause this would be a full write, letting the client rewrite the mirror's derived fields
 - **Admin + B2B agent read:** `visa_rate_cards` — the portal's tourist-visa price sheets are agent rates, so they stay behind the `agent` claim rather than sitting in world-readable `visas`
 - **Admin-only, served by callable:** `b2b_offers` — the portal's featured-offer cards come back from `getB2BPortalContext`, which keeps expiry enforced server-side and hides offers from an origin the agent cannot see
 

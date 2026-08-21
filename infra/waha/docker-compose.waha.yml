@@ -1,0 +1,57 @@
+# WAHA — WhatsApp HTTP API, self-hosted beside n8n on the Hostinger VPS.
+#
+# This is a FRAGMENT, not a standalone project. It is appended to the existing
+# n8n compose file at /docker/n8n/docker-compose.yml so both containers land in
+# one project, sharing the n8n_default network — which is how n8n reaches WAHA
+# at http://waha:3000 with no public hop.
+#
+# Verified against the live stack, not assumed:
+#   - Traefik is a SERVICE inside the n8n project, not a separate external
+#     proxy network. There is no `traefik-proxy` network to join, and adding a
+#     `networks:` block here would move WAHA off the project default and break
+#     n8n's ability to resolve it.
+#   - The cert resolver is `mytlschallenge` (TLS-ALPN-01 on :443), NOT
+#     `letsencrypt`. Naming a resolver that does not exist means Traefik serves
+#     its self-signed default cert and every HTTPS call fails verification.
+#   - Traefik runs with `exposedbydefault=false`, so `traefik.enable=true` is
+#     required or the router is never created.
+#
+# Config comes from ./.waha.env via `env_file`, which passes values into the
+# container directly. Deliberately NOT `${VAR}` substitution: that resolves from
+# the project's .env at compose time and would bake the key into the output of
+# `docker compose config`.
+#
+# See infra/README.md. Real values live only on the VPS, never in this repo.
+
+services:
+  waha:
+    # Pinned. `:latest` moves and a WhatsApp engine is not something you want
+    # silently upgraded under a live session.
+    #
+    # The `noweb` tag ships without Chromium. The box has 8 GB and sits near
+    # 1 GB at rest, so memory is not the reason — the reason is that it has two
+    # vCPUs already shared with n8n's GPT-vision rate-upload workflow, and
+    # WEBJS schedules a headless Chromium on top of that.
+    image: devlikeapro/waha:noweb-2026.8.1
+    container_name: waha
+    restart: always
+
+    # NOTE: deliberately no `ports:` mapping. Publishing 3000 makes Docker write
+    # its own iptables rules that bypass UFW, exposing the unproxied API to the
+    # internet. Traefik is the only ingress. (The Hostinger edge firewall has no
+    # rules, so this is load-bearing, not belt-and-braces.)
+
+    volumes:
+      - ./waha/sessions:/app/.sessions   # WhatsApp auth — losing this re-pairs the number
+      - ./waha/media:/app/.media
+
+    env_file:
+      - ./.waha.env
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.waha.rule=Host(`waha.zamratravels.com`)
+      - traefik.http.routers.waha.entrypoints=websecure
+      - traefik.http.routers.waha.tls=true
+      - traefik.http.routers.waha.tls.certresolver=mytlschallenge
+      - traefik.http.services.waha.loadbalancer.server.port=3000

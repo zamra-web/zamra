@@ -1,0 +1,57 @@
+// Guards the WhatsApp tab's two pure helpers.
+//
+// renderMessageBody is the highest trust-boundary in the dashboard: unlike
+// every other admin surface, its input is typed by strangers on the internet
+// rather than by staff. Escaping has to happen before linkification, and the
+// ordering is easy to reverse by accident while "improving" the regex.
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { toChatId, describeStatus, renderMessageBody } from '../src/js/admin/whatsapp.js';
+
+test('toChatId accepts the shapes a human types', () => {
+  assert.equal(toChatId('+91 98466 06731'), '919846606731@c.us');
+  assert.equal(toChatId('9846606731'), '919846606731@c.us', 'a bare 10-digit number is Indian');
+  assert.equal(toChatId('919846606731'), '919846606731@c.us');
+  assert.equal(toChatId('919846606731@c.us'), '919846606731@c.us');
+  assert.equal(toChatId('120363001234567890@g.us'), '120363001234567890@g.us');
+});
+
+test('toChatId returns null rather than guessing at junk', () => {
+  for (const bad of ['', '   ', 'abc', '12@c.us', 'status@broadcast', '1/2@c.us', null, undefined]) {
+    assert.equal(toChatId(bad), null, `${JSON.stringify(bad)} should not resolve`);
+  }
+});
+
+test('describeStatus maps every session state to a tone', () => {
+  assert.deepEqual(describeStatus('WORKING'), { label: 'Connected', tone: 'ok' });
+  assert.equal(describeStatus('SCAN_QR_CODE').tone, 'warn');
+  assert.equal(describeStatus('STOPPED').tone, 'bad');
+  assert.equal(describeStatus('FAILED').tone, 'bad');
+  assert.deepEqual(describeStatus('nonsense'), { label: 'Unknown', tone: 'warn' });
+});
+
+test('renderMessageBody escapes markup typed by a stranger', () => {
+  const html = renderMessageBody('<img src=x onerror=alert(1)>');
+  assert.match(html, /&lt;img/, 'the tag must be escaped');
+  // The property that matters is that no angle bracket survives to open a tag.
+  // `onerror=alert(1)` remaining as inert text is fine and expected.
+  assert.ok(!html.includes('<'), 'a body with no URL must produce no markup at all');
+  assert.equal(html, '&lt;img src=x onerror=alert(1)&gt;');
+});
+
+test('renderMessageBody escapes before it linkifies', () => {
+  // The ordering bug: linkify first and the escaper then mangles the anchor it
+  // just built, or worse, the tag rides through inside the URL match.
+  const html = renderMessageBody('see https://zamratravels.com/deals <script>alert(1)</script>');
+  assert.match(html, /<a href="https:\/\/zamratravels\.com\/deals"/, 'the URL should still linkify');
+  assert.match(html, /&lt;script&gt;/, 'the script tag must be escaped');
+  assert.ok(!html.includes('<script'), 'no live script tag may survive');
+});
+
+test('renderMessageBody leaves a plain body alone', () => {
+  assert.equal(renderMessageBody('Fare for CCJ-DXB on 24th?'), 'Fare for CCJ-DXB on 24th?');
+  assert.equal(renderMessageBody(''), '');
+  assert.equal(renderMessageBody(null), '');
+});

@@ -4,85 +4,174 @@
       "collectionGroup": "agent_fares",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "agentId", "order": "ASCENDING" },
-        { "fieldPath": "flightDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "agentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "flightDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "agent_fares",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "sectorId", "order": "ASCENDING" },
-        { "fieldPath": "flightDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "sectorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "flightDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "agent_fares",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "agentId", "order": "ASCENDING" },
-        { "fieldPath": "sectorId", "order": "ASCENDING" },
-        { "fieldPath": "flightDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "agentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sectorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "flightDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "agent_fares",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "isHidden", "order": "ASCENDING" },
-        { "fieldPath": "sectorId", "order": "ASCENDING" },
-        { "fieldPath": "flightDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "isHidden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sectorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "flightDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "agent_fares",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "agentId", "order": "ASCENDING" },
-        { "fieldPath": "isHidden", "order": "ASCENDING" },
-        { "fieldPath": "flightDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "agentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isHidden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "flightDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "agent_fares",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "isHidden", "order": "ASCENDING" },
-        { "fieldPath": "flightDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "isHidden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "flightDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "agent_fares",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "agentId", "order": "ASCENDING" },
-        { "fieldPath": "sectorId", "order": "ASCENDING" },
-        { "fieldPath": "isHidden", "order": "ASCENDING" },
-        { "fieldPath": "flightDate", "order": "ASCENDING" }
+        {
+          "fieldPath": "agentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sectorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isHidden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "flightDate",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "social_queue",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "nextAttemptAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextAttemptAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "social_queue",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "social_queue",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "expiresAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "whatsapp_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "chatId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
