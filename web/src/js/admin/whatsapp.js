@@ -42,7 +42,10 @@ export function toChatId(input) {
   if (!raw) return null;
 
   if (raw.includes('@')) {
-    const lowered = raw.toLowerCase();
+    // WAHA's NOWEB engine reports direct chats as <number>@s.whatsapp.net.
+    // Canonicalised to @c.us here for the same reason as the server mirror in
+    // functions/whatsapp/normalize.js — that is the stored form.
+    const lowered = raw.toLowerCase().replace(/@s\.whatsapp\.net$/, '@c.us');
     if (/^\d{7,15}@c\.us$/.test(lowered) || /^[\d-]{5,40}@g\.us$/.test(lowered)) return lowered;
     return null;
   }

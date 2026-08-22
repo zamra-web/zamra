@@ -24,6 +24,7 @@ const {
   sendGuard,
   MAX_TEXT_LENGTH,
   MAX_INBOUND_TEXT_LENGTH,
+  chatIdFromPayload,
 } = require("../whatsapp/normalize");
 
 const SECRET = "webhook-signing-secret";
@@ -316,4 +317,99 @@ test("the inbound cap is far above the outbound send limit, and they are separat
     payload: { id: "m2", timestamp: 1750000000, from: "919812345678@c.us", body: huge },
   });
   assert.equal(mirror.body.length, MAX_INBOUND_TEXT_LENGTH, "still bounded, just not at 4096");
+});
+
+// ── WAHA NOWEB address formats ──────────────────────────────────────────────
+// The single defect that stopped this integration working at all. WAHA's NOWEB
+// engine speaks raw WhatsApp JIDs (@s.whatsapp.net), and WhatsApp has begun
+// addressing some contacts by LID — an opaque id that is not a phone number.
+// Only @c.us was accepted, so normalizeChatId threw, isMirrorableEvent returned
+// false, and every inbound message was dropped with a 200 and no error anywhere.
+
+test("a NOWEB direct chat id is canonicalised to the @c.us form", () => {
+  assert.equal(normalizeChatId("919846606755@s.whatsapp.net"), "919846606755@c.us");
+  assert.equal(normalizeChatId("919846606755@S.WhatsApp.Net"), "919846606755@c.us");
+  // @c.us stays canonical: it is what is already stored, what
+  // agents.whatsappChatId holds, and what /api/sendText takes.
+  assert.equal(normalizeChatId("919846606755@c.us"), "919846606755@c.us");
+  assert.equal(isDirectChat(normalizeChatId("919846606755@s.whatsapp.net")), true);
+});
+
+test("a LID chat id is accepted rather than thrown away", () => {
+  assert.equal(normalizeChatId("224876132614243@lid"), "224876132614243@lid");
+  // It is not a phone number, so it must not read as a direct chat — nothing
+  // may attribute it to a supplier.
+  assert.equal(isDirectChat("224876132614243@lid"), false);
+  assert.equal(isGroupChat("224876132614243@lid"), false);
+});
+
+test("a LID-addressed message resolves to the sender's real number", () => {
+  // Verbatim shape of the payload WAHA delivered for a real supplier sheet.
+  const chatId = chatIdFromPayload({
+    from: "224876132614243@lid",
+    to: null,
+    fromMe: false,
+    _data: { key: {
+      remoteJid: "224876132614243@lid",
+      remoteJidAlt: "919846606755@s.whatsapp.net",
+      addressingMode: "lid",
+    } },
+  });
+  assert.equal(chatId, "919846606755@c.us", "the LID must resolve to the phone JID");
+});
+
+test("remoteJidAlt is ignored for a group, where it is the sender not the chat", () => {
+  // In a group, remoteJidAlt carries the individual sender's number. Swapping it
+  // in would file group traffic under a person — and could route a group
+  // message to a supplier's intake.
+  const chatId = chatIdFromPayload({
+    from: "120363412290751035@g.us",
+    fromMe: false,
+    _data: { key: { remoteJidAlt: "919846606755@s.whatsapp.net" } },
+  });
+  assert.equal(chatId, "120363412290751035@g.us");
+});
+
+test("a LID with no resolvable phone JID stays a LID instead of guessing", () => {
+  assert.equal(chatIdFromPayload({ from: "224876132614243@lid", fromMe: false }), "224876132614243@lid");
+  assert.equal(
+    chatIdFromPayload({ from: "224876132614243@lid", fromMe: false, _data: { key: { remoteJidAlt: "" } } }),
+    "224876132614243@lid",
+  );
+});
+
+test("a NOWEB message mirrors end to end under the supplier's number", () => {
+  const mirror = buildMessageMirror({
+    event: "message",
+    session: "zamra",
+    payload: {
+      id: "false_224876132614243@lid_A599706896C1DFB98318607F20FC1E6E",
+      from: "224876132614243@lid",
+      fromMe: false,
+      timestamp: 1787419194,
+      body: "*SLL -  CCJ*   IX (30+7kg)\n25 AUG : 12200/-",
+      _data: { key: { remoteJidAlt: "919846606755@s.whatsapp.net", addressingMode: "lid" } },
+    },
+  });
+
+  assert.equal(mirror.chatId, "919846606755@c.us");
+  assert.equal(mirror.isGroup, false);
+  assert.equal(mirror.direction, "in");
+  assert.equal(buildChatSummary(mirror).phone, "919846606755", "the inbox must show a dialable number");
+});
+
+test("a NOWEB message is mirrorable, which is what silently failed before", () => {
+  const event = {
+    event: "message",
+    session: "zamra",
+    payload: {
+      id: "false_224876132614243@lid_ABC",
+      from: "224876132614243@lid",
+      fromMe: false,
+      timestamp: 1787419194,
+      body: "25 AUG : 12200/-",
+      _data: { key: { remoteJidAlt: "919846606755@s.whatsapp.net" } },
+    },
+  };
+  assert.equal(isMirrorableEvent(event, { mirrorGroups: false }), true);
 });

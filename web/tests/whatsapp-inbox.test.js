@@ -127,3 +127,12 @@ test('summarizeIntake counts what the operator has to act on', () => {
   assert.equal(summary.recentSaved, 19);
   assert.equal(summary.savedTotal, 480);
 });
+
+test('toChatId canonicalises the NOWEB form the server also accepts', () => {
+  // Mirrors functions/whatsapp/normalize.js. Pinned in both suites rather than
+  // shared, so the two cannot drift together and still pass.
+  assert.equal(toChatId('919846606755@s.whatsapp.net'), '919846606755@c.us');
+  assert.equal(normalizeAgentWhatsapp('919846606755@s.whatsapp.net'), '919846606755@c.us');
+  // A LID is not a phone number, so it must never become an agent's link key.
+  assert.equal(normalizeAgentWhatsapp('224876132614243@lid'), null);
+});

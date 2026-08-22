@@ -159,6 +159,18 @@ Media files live 7 days (`WHATSAPP_FILES_LIFETIME=604800`) against a 90-second i
 window, so expiry is not a practical risk; the claim response flags anything past 6 days
 as `likelyExpired` anyway.
 
+### Address formats: NOWEB speaks JIDs, and WhatsApp now uses LIDs
+
+`GET /api/zamra/chats` returns ids like `919846606755@s.whatsapp.net` and
+`224876132614243@lid`, not the `@c.us` form the WEBJS engine uses. A LID is an
+opaque identifier and cannot be converted to a phone number — but WAHA carries
+the real JID in each message's `_data.key.remoteJidAlt`, which is what makes a
+supplier recognisable.
+
+This is worth knowing before debugging anything downstream: an unrecognised chat
+id is dropped as "not mirrorable" with a **200 and no error**, so the symptom is
+total silence rather than a failure.
+
 ### If inbound messages stop being mirrored
 
 Symptom: the dashboard's WhatsApp tab shows a healthy `Connected` session, but

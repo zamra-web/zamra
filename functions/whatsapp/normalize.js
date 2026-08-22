@@ -57,6 +57,22 @@ const DIRECT_CHAT_RE = /^\d{7,15}@c\.us$/;
 const GROUP_CHAT_RE = /^[\d-]{5,40}@g\.us$/;
 
 /**
+ * WAHA's NOWEB engine speaks raw WhatsApp JIDs, so a direct chat arrives as
+ * `<number>@s.whatsapp.net` rather than the `@c.us` form the WEBJS engine uses.
+ * Both name the same chat; `@c.us` stays canonical here because it is what is
+ * already stored, what agents.whatsappChatId holds, and what /api/sendText
+ * takes.
+ */
+const WHATSAPP_NET_SUFFIX_RE = /@s\.whatsapp\.net$/;
+
+/**
+ * A LID ("linked id") — WhatsApp's newer opaque address, which is NOT a phone
+ * number and cannot be turned into one. Accepted so such chats still mirror,
+ * but a supplier is matched on the phone JID that rides alongside it.
+ */
+const LID_CHAT_RE = /^\d{5,30}@lid$/;
+
+/**
  * Coerce user input into a WAHA chat id.
  *
  * Accepts a bare number, a formatted number, or an already-suffixed id. A bare
@@ -76,11 +92,11 @@ function normalizeChatId(input) {
 
   // Already suffixed — validate the shape and pass through.
   if (raw.includes("@")) {
-    const lowered = raw.toLowerCase();
     // status@broadcast is a real WAHA target and is never a legitimate one
     // here: posting to Status is not something this dashboard should do.
-    if (lowered === "status@broadcast") throw new Error("status@broadcast is not a permitted target");
-    if (DIRECT_CHAT_RE.test(lowered) || GROUP_CHAT_RE.test(lowered)) return lowered;
+    if (raw.toLowerCase() === "status@broadcast") throw new Error("status@broadcast is not a permitted target");
+    const lowered = raw.toLowerCase().replace(WHATSAPP_NET_SUFFIX_RE, "@c.us");
+    if (DIRECT_CHAT_RE.test(lowered) || GROUP_CHAT_RE.test(lowered) || LID_CHAT_RE.test(lowered)) return lowered;
     throw new Error(`unrecognised chatId: ${raw}`);
   }
 
@@ -245,9 +261,23 @@ function isMirrorableEvent(event, { mirrorGroups = false } = {}) {
  */
 function chatIdFromPayload(payload) {
   const src = payload && typeof payload === "object" ? payload : {};
-  const raw = src.fromMe ? (src.to || src.from) : (src.from || src.to);
-  const chatId = String(raw ?? "").trim().toLowerCase();
-  return chatId || null;
+  const primary = String(src.fromMe ? (src.to || src.from) : (src.from || src.to) ?? "").trim().toLowerCase();
+
+  // WhatsApp has begun addressing some chats by LID, an opaque id that is not a
+  // phone number and cannot be resolved to one. WAHA carries the real phone JID
+  // beside it in key.remoteJidAlt, and preferring that is the only thing that
+  // lets a supplier be recognised at all — a LID matches no agent.
+  //
+  // Swapped ONLY when the primary is itself a LID. In a group, remoteJidAlt is
+  // the individual sender's number, and swapping there would file group traffic
+  // under a person.
+  if (LID_CHAT_RE.test(primary)) {
+    const alt = String(payload?._data?.key?.remoteJidAlt ?? "").trim().toLowerCase();
+    const resolved = alt.replace(WHATSAPP_NET_SUFFIX_RE, "@c.us");
+    if (DIRECT_CHAT_RE.test(resolved)) return resolved;
+  }
+
+  return primary.replace(WHATSAPP_NET_SUFFIX_RE, "@c.us") || null;
 }
 
 /**
