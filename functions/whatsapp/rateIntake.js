@@ -49,6 +49,16 @@ const BATCH_RETENTION_DAYS = 60;
 const MEDIA_LIKELY_EXPIRED_DAYS = 6;
 
 const SUPPLIER_CACHE_MS = 5 * 60 * 1000;
+/**
+ * Floor on how often a cache MISS may force a re-read.
+ *
+ * Without a miss-triggered refresh, a supplier linked in the dashboard stays
+ * invisible for up to SUPPLIER_CACHE_MS — and because a message is evaluated
+ * exactly once, on arrival, a sheet sent inside that window is lost for good
+ * rather than merely delayed. This bounds the cost of fixing that to one
+ * projected collection read per 30s of unmatched inbound traffic.
+ */
+const SUPPLIER_CACHE_MISS_REFRESH_MS = 30 * 1000;
 const CLAIM_CANDIDATE_LIMIT = 300;
 const PURGE_LIMIT = 1000;
 
@@ -85,43 +95,66 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
    * not ingesting. addAgent/updateAgent already refuse the collision; this is
    * the second line in case one was created before that check existed.
    */
-  async function supplierByChatId(chatId) {
-    if (!supplierCache || Date.now() - supplierCacheAt > SUPPLIER_CACHE_MS) {
-      const snap = await db.collection(AGENTS_COLLECTION)
-        .select("whatsappChatId", "isActive", "name", "rateIntakeMode")
-        .get();
+  async function refreshSupplierCache() {
+    const snap = await db.collection(AGENTS_COLLECTION)
+      .select("whatsappChatId", "isActive", "name", "rateIntakeMode")
+      .get();
 
-      const map = new Map();
-      const duplicates = new Set();
-      snap.forEach((doc) => {
-        const data = doc.data() || {};
-        const id = String(data.whatsappChatId || "").toLowerCase();
-        if (!id || !isDirectChat(id)) return;
-        if (map.has(id)) {
-          duplicates.add(id);
-          return;
-        }
-        map.set(id, {
-          agentId: doc.id,
-          name: String(data.name || ""),
-          isActive: data.isActive !== false,
-          mode: INTAKE_MODES.includes(data.rateIntakeMode) ? data.rateIntakeMode : "off",
-        });
-      });
-      for (const id of duplicates) {
-        console.error(`rateIntake: ${id} is claimed by more than one agent; ignoring it entirely.`);
-        map.delete(id);
+    const map = new Map();
+    const duplicates = new Set();
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      const id = String(data.whatsappChatId || "").toLowerCase();
+      if (!id || !isDirectChat(id)) return;
+      if (map.has(id)) {
+        duplicates.add(id);
+        return;
       }
-
-      supplierCache = map;
-      supplierCacheAt = Date.now();
+      map.set(id, {
+        agentId: doc.id,
+        name: String(data.name || ""),
+        isActive: data.isActive !== false,
+        mode: INTAKE_MODES.includes(data.rateIntakeMode) ? data.rateIntakeMode : "off",
+      });
+    });
+    for (const id of duplicates) {
+      console.error(`rateIntake: ${id} is claimed by more than one agent; ignoring it entirely.`);
+      map.delete(id);
     }
-    return supplierCache.get(String(chatId ?? "").toLowerCase()) || null;
+
+    supplierCache = map;
+    supplierCacheAt = Date.now();
+    return map;
   }
 
-  /** Drop the cache so a just-saved agent number works without a 5-minute wait. */
+  async function supplierByChatId(chatId) {
+    const id = String(chatId ?? "").toLowerCase();
+    if (!supplierCache || Date.now() - supplierCacheAt > SUPPLIER_CACHE_MS) {
+      await refreshSupplierCache();
+    }
+
+    const hit = supplierCache.get(id);
+    if (hit) return hit;
+
+    // A miss is the interesting case: it is indistinguishable, from here,
+    // between "not a supplier" and "a supplier linked since this map was
+    // built". The second one costs a rate sheet, so re-read before concluding.
+    if (Date.now() - supplierCacheAt > SUPPLIER_CACHE_MISS_REFRESH_MS) {
+      await refreshSupplierCache();
+      return supplierCache.get(id) || null;
+    }
+    return null;
+  }
+
+  /**
+   * Drop the cache outright. Kept for tests and for any future caller that
+   * knows the agent list just changed; ordinary staleness is handled by the
+   * miss-triggered refresh in supplierByChatId, which is what actually stops a
+   * newly-linked supplier's first sheet from being thrown away.
+   */
   function invalidateSupplierCache() {
     supplierCache = null;
+    supplierCacheAt = 0;
   }
 
   // ── the webhook hook ──────────────────────────────────────────────────────
@@ -144,12 +177,23 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
     if (!isDirectChat(mirror.chatId)) return null;
 
     const supplier = await supplierByChatId(mirror.chatId);
-    if (!supplier) return null;
+
+    // Every decision below is made ONCE, on arrival, and a message that is not
+    // flagged here is never reconsidered. Silence made that undebuggable: a
+    // sheet that vanished left no record of which check dropped it. Logged at
+    // info with the chat id and the reason only — never the body.
+    if (!supplier) {
+      console.info("rateIntake: not flagged", { chatId: mirror.chatId, reason: "no-linked-supplier" });
+      return null;
+    }
 
     // ingestFaresFromN8n sets isHidden from row.show and never consults
     // agents.isActive, so ingesting for a deactivated supplier would publish
     // visible fares for a supplier someone deliberately switched off.
     if (!supplier.isActive) {
+      console.info("rateIntake: not flagged", {
+        chatId: mirror.chatId, agentId: supplier.agentId, reason: "agent-inactive",
+      });
       return {
         rateIntakeStatus: "skipped",
         rateIntakeAgentId: supplier.agentId,
@@ -158,8 +202,22 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
       };
     }
 
-    if (!looksLikeRateMessage(mirror, { mode: supplier.mode })) return null;
+    if (!looksLikeRateMessage(mirror, { mode: supplier.mode })) {
+      console.info("rateIntake: not flagged", {
+        chatId: mirror.chatId,
+        agentId: supplier.agentId,
+        mode: supplier.mode,
+        hasMedia: Boolean(mirror.hasMedia),
+        mimetype: mirror.mimetype || null,
+        bodyLength: String(mirror.body ?? "").length,
+        reason: "did-not-look-like-a-rate-sheet",
+      });
+      return null;
+    }
 
+    console.info("rateIntake: flagged pending", {
+      chatId: mirror.chatId, agentId: supplier.agentId, agentName: supplier.name,
+    });
     return {
       rateIntakeStatus: "pending",
       rateIntakeAgentId: supplier.agentId,
