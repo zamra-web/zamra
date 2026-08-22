@@ -237,7 +237,11 @@ test("both completion paths return to the loop, so one batch cannot strand the r
 
 test("the loop runs one batch at a time, bounding memory to one image set", () => {
   const loop = nodeOf(intake, "Loop Batches");
-  assert.equal(loop.parameters.batchSize, 1);
+  // n8n strips any parameter equal to its default on re-export, and splitInBatches
+  // defaults to 1 — so assert the EFFECTIVE value. Asserting the explicit form
+  // would turn a harmless re-export from the UI into a red build, which is how
+  // a mirror file stops being re-exported and starts drifting for real.
+  assert.equal(loop.parameters.batchSize ?? 1, 1);
   // Output 0 is the "done" branch and must terminate; output 1 carries items.
   assert.deepEqual(intake.connections["Loop Batches"].main[0], []);
   assert.deepEqual(intake.connections["Loop Batches"].main[1], [{ node: "Has Media?", type: "main", index: 0 }]);
@@ -250,7 +254,7 @@ test("the media branch and the no-media branch both reach the merge", () => {
   assert.deepEqual(intake.connections["Has Media?"].main[1], [{ node: "No Media", type: "main", index: 0 }]);
   assert.deepEqual(intake.connections["Encode Media"].main[0], [{ node: "Merge Media", type: "main", index: 0 }]);
   assert.deepEqual(intake.connections["No Media"].main[0], [{ node: "Merge Media", type: "main", index: 1 }]);
-  assert.equal(nodeOf(intake, "Merge Media").parameters.numberInputs, 2);
+  assert.equal(nodeOf(intake, "Merge Media").parameters.numberInputs ?? 2, 2);
 });
 
 test("a single dead file does not fail the whole batch", () => {
@@ -259,6 +263,18 @@ test("a single dead file does not fail the whole batch", () => {
     assert.equal(node.onError, "continueRegularOutput", `${name} must continue past one bad file`);
     assert.equal(node.alwaysOutputData, true);
   }
+});
+
+test("the binary property name agrees end to end, explicitly or by default", () => {
+  // Download Media writes the file to a binary property and Encode Media reads
+  // it back; both default to "data". If either is ever set explicitly, they must
+  // still name the SAME property or every image silently arrives without b64.
+  const download = nodeOf(intake, "Download Media");
+  const encode = nodeOf(intake, "Encode Media");
+  const written = download.parameters.options?.response?.response?.outputPropertyName ?? "data";
+  const read = encode.parameters.binaryPropertyName ?? "data";
+  assert.equal(written, read);
+  assert.equal(encode.parameters.destinationKey, "b64", "Build Rate Payload reads item.json.b64");
 });
 
 test("this workflow is a Schedule Trigger, not a fourth Cloud Scheduler job", () => {

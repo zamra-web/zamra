@@ -207,8 +207,9 @@ export function createWhatsappController(deps) {
         </div>
         <div class="flex flex-wrap gap-2">
           ${connected
-    ? `<button data-wa-action="logout" class="admin-btn admin-btn-danger h-[38px] px-4">Unlink</button>
-               <button data-wa-action="restart" class="admin-btn admin-btn-soft h-[38px] px-4">Restart</button>`
+    ? `<button data-wa-action="repair" class="admin-btn admin-btn-soft h-[38px] px-4" title="Re-register the webhook URL and signing key with WAHA">Repair webhook</button>
+               <button data-wa-action="restart" class="admin-btn admin-btn-soft h-[38px] px-4">Restart</button>
+               <button data-wa-action="logout" class="admin-btn admin-btn-danger h-[38px] px-4">Unlink</button>`
     : `<button data-wa-action="connect" class="admin-btn admin-btn-primary h-[38px] px-4"><i class="bi bi-qr-code"></i> Connect</button>`}
         </div>
       </div>`;
@@ -406,6 +407,28 @@ export function createWhatsappController(deps) {
     state.qrTimer = setInterval(paintQr, QR_REFRESH_MS);
   }
 
+  /**
+   * Re-register the webhook URL and HMAC key on an already-linked session.
+   *
+   * Only ensureWhatsappSession writes those into WAHA's session config, and it
+   * was previously reachable only through Connect — which does not render once
+   * the session is WORKING. So a session whose signing key had drifted out of
+   * step with WAHA_WEBHOOK_SECRET silently 401'd every inbound message, and the
+   * only listed remedy was Unlink, which forces a QR re-pair for no reason.
+   *
+   * Restart does NOT do this: it restarts the session and leaves config alone.
+   */
+  async function repairWebhook() {
+    if (!window.confirm('Re-register the webhook and signing key with WAHA?\n\nThe session stays linked — this does not require scanning a QR code.')) return;
+    try {
+      await callEnsureWhatsappSession();
+      toast('success', 'Webhook re-registered', 'WAHA now has the current URL and signing key. Send a test message to confirm.');
+      await refresh();
+    } catch (error) {
+      toast('error', 'Repair failed', error?.message || 'WAHA rejected the request.');
+    }
+  }
+
   async function refresh() {
     try {
       state.session = await callGetWhatsappSessionStatus();
@@ -469,6 +492,7 @@ export function createWhatsappController(deps) {
 
         const action = button.getAttribute('data-wa-action');
         if (action === 'connect') return connect();
+        if (action === 'repair') return repairWebhook();
         if (action === 'undo-batch') return undoBatch(button);
         if (action === 'toggle-intake') {
           return toggleIntakeConfig('rateIntakeEnabled', button.getAttribute('data-next') === 'true');

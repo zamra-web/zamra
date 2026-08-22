@@ -172,7 +172,13 @@ resolution, so a typical upload lands well under a cent.
 A second workflow closes the loop the Rate Upload tab leaves open: a supplier WhatsApps
 their sheet and the fares land in `agent_fares` with nobody clicking Submit.
 
-`zamra-whatsapp-intake.workflow.json` mirrors it, and
+`zamra-whatsapp-intake.workflow.json` mirrors it — re-exported from the live
+instance, so note that **n8n strips any parameter equal to its default**
+(`batchSize: 1`, `numberInputs: 2`, `binaryPropertyName: "data"` all vanish on
+export). The tests assert the *effective* value for exactly that reason: a test
+that demanded the explicit form would turn a harmless UI re-export into a red
+build, which is how a mirror file stops getting re-exported and starts drifting
+for real. `pinData` is editor scratch state and does not belong in the file, and
 [functions/tests/n8n-intake-workflow.test.js](../functions/tests/n8n-intake-workflow.test.js)
 executes its Code nodes — including a round trip that feeds its payload through the real
 `Build Vision Request` node above.

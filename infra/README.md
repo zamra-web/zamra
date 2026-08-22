@@ -159,6 +159,25 @@ Media files live 7 days (`WHATSAPP_FILES_LIFETIME=604800`) against a 90-second i
 window, so expiry is not a practical risk; the claim response flags anything past 6 days
 as `likelyExpired` anyway.
 
+### If inbound messages stop being mirrored
+
+Symptom: the dashboard's WhatsApp tab shows a healthy `Connected` session, but
+**Last event** never becomes `message`, and the function log carries
+`whatsappWebhook: rejected unsigned or mis-signed request { event: 'message' }`.
+
+That is an HMAC mismatch: WAHA is signing with a different key than the deployed
+`WAHA_WEBHOOK_SECRET`. It happens when the session was created by hand rather
+than through the dashboard, or when the secret was set after the session was
+paired — **only `ensureWhatsappSession` writes the webhook URL and signing key
+into WAHA's session config.**
+
+Fix: **WhatsApp tab → Repair webhook.** It re-runs `ensureWhatsappSession`
+against the live session, which PUTs the config with the current key. The
+session stays linked; no QR scan.
+
+**Restart does not fix this** — it restarts the session and leaves the config
+untouched. Do not reach for Unlink, which forces a needless re-pair.
+
 ### Operational notes
 
 - **The Hostinger firewall currently has 0 rules**, so nothing is filtered at the

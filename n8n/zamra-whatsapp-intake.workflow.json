@@ -17,8 +17,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -260,
-        300
+        -256,
+        304
       ]
     },
     {
@@ -39,18 +39,18 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -40,
-        300
+        -48,
+        304
       ],
+      "retryOnFail": true,
+      "maxTries": 2,
       "credentials": {
         "httpHeaderAuth": {
           "id": "qu93czX3nEMrFcId",
           "name": "Zamra Ingest"
         }
       },
-      "onError": "continueErrorOutput",
-      "retryOnFail": true,
-      "maxTries": 2
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -61,13 +61,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        180,
-        300
+        192,
+        304
       ]
     },
     {
       "parameters": {
-        "batchSize": 1,
         "options": {}
       },
       "id": "loop-batches",
@@ -76,7 +75,7 @@
       "typeVersion": 3,
       "position": [
         400,
-        300
+        304
       ]
     },
     {
@@ -84,6 +83,8 @@
         "conditions": {
           "options": {
             "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -106,8 +107,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        620,
-        380
+        624,
+        384
       ]
     },
     {
@@ -119,8 +120,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        840,
-        280
+        848,
+        288
       ]
     },
     {
@@ -131,8 +132,7 @@
         "options": {
           "response": {
             "response": {
-              "responseFormat": "file",
-              "outputPropertyName": "data"
+              "responseFormat": "file"
             }
           },
           "timeout": 30000
@@ -143,22 +143,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1060,
-        280
+        1072,
+        288
       ],
-      "onError": "continueRegularOutput",
       "alwaysOutputData": true,
       "credentials": {
         "httpHeaderAuth": {
           "id": "loEibRmdWpRqtw7n",
           "name": "WAHA Header Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "operation": "binaryToPropery",
-        "binaryPropertyName": "data",
         "destinationKey": "b64",
         "options": {}
       },
@@ -168,10 +167,10 @@
       "typeVersion": 1,
       "position": [
         1280,
-        280
+        288
       ],
-      "onError": "continueRegularOutput",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {},
@@ -180,21 +179,19 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1060,
+        1072,
         480
       ]
     },
     {
-      "parameters": {
-        "numberInputs": 2
-      },
+      "parameters": {},
       "id": "merge-media",
       "name": "Merge Media",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
-        1500,
-        380
+        1504,
+        384
       ]
     },
     {
@@ -206,8 +203,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1720,
-        380
+        1728,
+        384
       ],
       "onError": "continueErrorOutput"
     },
@@ -227,8 +224,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1940,
-        380
+        1952,
+        384
       ],
       "onError": "continueErrorOutput"
     },
@@ -237,6 +234,8 @@
         "conditions": {
           "options": {
             "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -260,7 +259,7 @@
       "typeVersion": 2,
       "position": [
         2160,
-        380
+        384
       ]
     },
     {
@@ -281,18 +280,18 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2380,
-        280
+        2384,
+        288
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
       "credentials": {
         "httpHeaderAuth": {
           "id": "qu93czX3nEMrFcId",
           "name": "Zamra Ingest"
         }
       },
-      "onError": "continueRegularOutput",
-      "retryOnFail": true,
-      "maxTries": 3
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -312,18 +311,18 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2380,
-        500
+        2384,
+        512
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
       "credentials": {
         "httpHeaderAuth": {
           "id": "qu93czX3nEMrFcId",
           "name": "Zamra Ingest"
         }
       },
-      "onError": "continueRegularOutput",
-      "retryOnFail": true,
-      "maxTries": 3
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -524,6 +523,7 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   }
 }
