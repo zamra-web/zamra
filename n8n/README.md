@@ -17,6 +17,7 @@ the Cloud Function contract, so run it after editing either side.
 | Live workflow | **Zamra Rate Upload (Vision)** — id `N9gXV8vLF5Z9rvGw`, active |
 | Webhook | `https://n8n.srv1491832.hstgr.cloud/webhook/zamra-rates` |
 | Predecessor | **Flight Rate Parser Web** — id `9KaII1g0RODipyrT`, **deactivated, not deleted** |
+| Intake workflow | **Zamra WhatsApp Rate Intake** — id `ktNVea06JocIpmhH`. Created 2026-08-22, **inactive** until `whatsappRateIntakeForN8n` is deployed |
 
 To roll back: deactivate `N9gXV8vLF5Z9rvGw`, then reactivate `9KaII1g0RODipyrT`. Both own
 the `zamra-rates` path, so exactly one may be active at a time — activating the second
@@ -165,6 +166,86 @@ One upload is one `gpt-5-mini` request. A text-only sheet is ~1–2k tokens. Eac
 resolution, so a typical upload lands well under a cent.
 
 ---
+
+## Automatic rate intake from WhatsApp
+
+A second workflow closes the loop the Rate Upload tab leaves open: a supplier WhatsApps
+their sheet and the fares land in `agent_fares` with nobody clicking Submit.
+
+`zamra-whatsapp-intake.workflow.json` mirrors it, and
+[functions/tests/n8n-intake-workflow.test.js](../functions/tests/n8n-intake-workflow.test.js)
+executes its Code nodes — including a round trip that feeds its payload through the real
+`Build Vision Request` node above.
+
+```
+supplier WhatsApps a rate sheet
+  ▼  WAHA → whatsappWebhook (HMAC-verified) → whatsapp_messages
+     an inbound message from a LINKED supplier is flagged rateIntakeStatus:"pending"
+  ▼
+Intake Schedule ───────── every 3 minutes
+  ▼
+Claim Batches ─────────── POST whatsappRateIntakeForN8n { action:"claim" }
+                          groups that chat's pending messages into ONE batch and leases it
+  ▼
+Loop Batches ──────────── batchSize 1
+  ├─ Media To Items → Download Media (http://waha:3000/api/files/…) → Encode Media
+  └─ No Media
+  ▼
+Build Rate Payload ────── the exact { agent_id, raw_text, images[] } contract above
+  ▼
+Extract Rates ─────────── POST http://localhost:5678/webhook/zamra-rates   ← the workflow above, untouched
+  ▼
+Complete Batch ────────── POST whatsappRateIntakeForN8n { action:"complete", saved }
+```
+
+**It extracts nothing itself, on purpose.** Calling the existing webhook keeps the vision
+prompt, the closed vocabulary, the direction guard and the rate band in exactly one place,
+and touches the live rate-upload path zero times — so the rollback documented above still
+works. n8n runs in regular mode with no fixed execution pool, so the self-call cannot
+deadlock; `batchSize: 1` is what bounds it to one image set in flight.
+
+Three things that look like details and are not:
+
+- **`Extract Rates` must never retry.** `ingestFaresFromN8n` writes a new auto-id doc per
+  row and never dedupes, so a retry after a partial success republishes every fare.
+- **Branch on `$json.success`, not on the status code.** `Respond Error` answers HTTP 200
+  with `{success:false}`, so an `onError` output can never fire for a parse failure.
+- **The claim response carries a media *path*, never a URL.** The workflow prepends
+  `http://waha:3000`. `whatsapp_messages.mediaUrl` is `http://localhost:3000/...` — WAHA
+  builds it from `WHATSAPP_API_HOSTNAME`, which the VPS does not set — and following a
+  webhook-supplied URL from inside `n8n_default` would be an SSRF primitive.
+
+### Two credentials to create before importing
+
+| Credential | Id | Type | Value |
+|---|---|---|---|
+| `Zamra Ingest` | `qu93czX3nEMrFcId` | Header Auth | `Authorization: Bearer <N8N_INGEST_TOKEN>` |
+| `WAHA Header Auth` | `loEibRmdWpRqtw7n` | Header Auth | `X-Api-Key: <WAHA plaintext key>` |
+
+> ⚠️ **`WAHA Header Auth` currently holds the literal `REPLACE_WITH_WAHA_API_KEY_PLAINTEXT`.**
+> The plaintext key lives only in `/docker/n8n/.waha.secrets` on the VPS and in the
+> `WAHA_API_KEY` Firebase secret, so it could not be filled in automatically. Until it is
+> replaced, `/api/files` answers 401, `Download Media` continues past it, and the image is
+> reported in `skipped_images` and shown in the dashboard. **Text-only rate sheets — the
+> common case — are unaffected.** A deliberately invalid value was chosen over a
+> plausible-looking one so the gap cannot be mistaken for working configuration.
+
+`WAHA Header Auth` is separate from the `@devlikeapro/n8n-nodes-waha` community-node
+credential — an HTTP Request node cannot use that one, and `/api/files` is key-protected.
+
+The same `N8N_INGEST_TOKEN` replaces the old `Bearer ZamraFirestore` literal on the
+`Firestore` credential (`fXwTRbR6c38XVUkO`). Both endpoints accept either during the
+migration, logging a warning on the legacy path.
+
+### Switching it on
+
+Intake ships **off**. `config/whatsapp.rateIntakeEnabled` starts `false` and the claim
+endpoint answers `{ok:true, enabled:false, batches:[]}` until it is flipped, so the cron
+does not alarm 480 times a day. Per supplier, `agents.rateIntakeMode` also starts `"off"` —
+link a number and switch it on in the Agents tab, one trusted supplier at a time. Both
+toggles live in the dashboard's WhatsApp tab.
+
+Latency, supplier sends → fares live: ~90 s quiet window + ≤3 min poll + ~90 s ≈ 6 minutes.
 
 ## WhatsApp (WAHA)
 

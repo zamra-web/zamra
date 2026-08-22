@@ -130,6 +130,35 @@ Core/Plus split and no `waha-plus` image; any guide recommending one is stale.
    callable is what teaches WAHA its webhook URL and HMAC key; a hand-created
    session has neither, and inbound messages vanish silently.
 
+### Media URLs are localhost, and must never be followed
+
+WAHA builds `media.url` as
+`{WHATSAPP_API_SCHEMA}://{WHATSAPP_API_HOSTNAME}:{WHATSAPP_API_PORT}/api/files/<id>.<ext>`.
+`.waha.env` sets neither `WAHA_BASE_URL` nor `WHATSAPP_API_HOSTNAME`, so the hostname
+defaults to `localhost` — which means every `whatsapp_messages.mediaUrl` in production
+reads `http://localhost:3000/api/files/…` and resolves only inside that container.
+
+Two consequences:
+
+- **n8n must rebuild the URL.** `whatsappRateIntakeForN8n` returns an allow-listed **path**
+  and the intake workflow prepends `http://waha:3000`. `/api/files` is key-protected
+  (`WHATSAPP_API_KEY_EXCLUDE_PATH` is unset), so that request needs `X-Api-Key` — a
+  generic Header Auth credential, since an HTTP Request node cannot use the WAHA
+  community-node credential.
+- **The allow-list is a security control.** n8n shares `n8n_default` with Traefik and WAHA.
+  A `media.url` followed verbatim is an SSRF primitive aimed at `http://n8n:5678/rest/…`
+  from inside the trusted network, and the value arrives in a webhook payload.
+  `wahaMediaPath()` in `functions/whatsapp/rateIntakeRules.js` is what stops that; its
+  tests are in `functions/tests/whatsapp-rate-intake.test.js`.
+
+Setting `WAHA_BASE_URL=http://waha:3000` in `/docker/n8n/.waha.env` would make the stored
+value internally meaningful, but it needs a container restart and the path-only approach
+works without it. Do not treat it as a fix for the allow-list.
+
+Media files live 7 days (`WHATSAPP_FILES_LIFETIME=604800`) against a 90-second intake
+window, so expiry is not a practical risk; the claim response flags anything past 6 days
+as `likelyExpired` anyway.
+
 ### Operational notes
 
 - **The Hostinger firewall currently has 0 rules**, so nothing is filtered at the

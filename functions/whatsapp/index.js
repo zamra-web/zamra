@@ -24,6 +24,7 @@ const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https")
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 
 const { wahaFetch, WahaError } = require("./client");
+const rateIntakeModule = require("./rateIntake");
 const {
   SESSION_NAME,
   projectSession,
@@ -98,7 +99,7 @@ function toHttpsError(error) {
  * @param {object|string} wahaWebhookSecret WAHA_WEBHOOK_SECRET secret
  * @returns {object} the exported functions plus purgeExpiredWhatsapp
  */
-function build(db, requireAdmin, wahaApiKey, wahaWebhookSecret) {
+function build(db, requireAdmin, wahaApiKey, wahaWebhookSecret, n8nIngestToken) {
   // Only real defineSecret params can be bound; tests inject plain strings.
   const secrets = [wahaApiKey, wahaWebhookSecret].filter((s) => s && typeof s === "object");
   const callOptions = { region: REGION, secrets, maxInstances: 5 };
@@ -111,8 +112,19 @@ function build(db, requireAdmin, wahaApiKey, wahaWebhookSecret) {
       mirrorGroups: data.mirrorGroups === true,
       retentionDays: Number.isFinite(Number(data.retentionDays)) ? Number(data.retentionDays) : DEFAULT_RETENTION_DAYS,
       ...data,
+      // Explicit opt-in, and after the spread so a missing field can never read
+      // as enabled. Automatic fare ingestion must be switched on deliberately.
+      rateIntakeEnabled: data.rateIntakeEnabled === true,
+      rateIntakeAutoReply: data.rateIntakeAutoReply === true,
     };
   }
+
+  const rateIntake = rateIntakeModule.build(db, {
+    readConfig,
+    n8nToken: n8nIngestToken,
+    messagesCollection: MESSAGES_COLLECTION,
+    configDoc: CONFIG_DOC,
+  });
 
   // ── admin callables ───────────────────────────────────────────────────────
 
@@ -400,7 +412,14 @@ function build(db, requireAdmin, wahaApiKey, wahaWebhookSecret) {
         if (event.event === "message.ack") {
           await applyAck(mirror);
         } else {
-          await writeMirror(mirror);
+          // Rate-intake flags ride along on the mirror write, and ONLY on the
+          // "message" event. WAHA fires message.any for the same id into the
+          // same document moments later; merging "pending" a second time would
+          // reset an already-claimed message and ingest the sheet twice.
+          const intake = event.event === "message"
+            ? await rateIntake.intakeFieldsFor(mirror, config)
+            : null;
+          await writeMirror(mirror, intake || {});
         }
 
         await db.doc(CONFIG_DOC).set({
@@ -454,7 +473,9 @@ function build(db, requireAdmin, wahaApiKey, wahaWebhookSecret) {
       deletedRateDocs += Math.min(400, rateDocs.docs.length - i);
     }
 
-    return { deletedMessages, deletedRateDocs };
+    const { deletedRateBatches } = await rateIntake.purgeExpiredRateBatches(now);
+
+    return { deletedMessages, deletedRateDocs, deletedRateBatches };
   }
 
   return {
@@ -464,7 +485,9 @@ function build(db, requireAdmin, wahaApiKey, wahaWebhookSecret) {
     ensureWhatsappSession,
     sendWhatsappMessage,
     whatsappWebhook,
+    whatsappRateIntakeForN8n: rateIntake.rateIntakeForN8n,
     purgeExpiredWhatsapp,
+    rateIntake,
   };
 }
 

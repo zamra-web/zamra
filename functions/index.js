@@ -25,6 +25,13 @@ const {
   normalizeScheduleWindows,
   resolveScheduledFlightTime,
 } = require("./flightSchedule");
+const { verifyN8nBearer } = require("./n8nAuth");
+const { defineSecret } = require("firebase-functions/params");
+
+// Shared bearer for the two n8n-facing onRequest endpoints and the WhatsApp
+// rate-intake endpoint. Declared up here because ingestFaresFromN8n needs it
+// long before the Buffer secrets block further down.
+const N8N_INGEST_TOKEN = defineSecret("N8N_INGEST_TOKEN");
 
 initializeApp();
 const db = getFirestore();
@@ -102,20 +109,27 @@ function getUtcMidnightNDaysAgo(daysAgo) {
 exports.bulkDeleteFares = onCall({ region: "asia-south1" }, async (request) => {
   requireAdmin(request);
 
-  const { agentId, sectorId, startDate, endDate } = request.data;
+  const { agentId, sectorId, startDate, endDate, ingestBatchId } = request.data;
 
   // Require at least one meaningful filter to prevent accidental full wipes
   const hasFilter = (agentId && agentId !== "all") ||
                     (sectorId && sectorId !== "all") ||
-                    startDate || endDate;
+                    startDate || endDate || ingestBatchId;
 
   if (!hasFilter) {
-    throw new HttpsError("invalid-argument", "Provide at least one filter: agentId, sectorId, or a date range.");
+    throw new HttpsError("invalid-argument", "Provide at least one filter: agentId, sectorId, ingestBatchId, or a date range.");
   }
 
   // Build query dynamically from whatever filters are supplied
   let query = db.collection("agent_fares");
 
+  // Undo one automated upload. This is the only filter that is exact rather
+  // than a range, so it is deliberately allowed to stand alone — "delete the
+  // rows that batch wrote" is a safe instruction in a way that "delete this
+  // agent's fares" is not.
+  if (ingestBatchId) {
+    query = query.where("ingestBatchId", "==", String(ingestBatchId));
+  }
   if (agentId && agentId !== "all") {
     query = query.where("agentId", "==", agentId);
   }
@@ -481,20 +495,41 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
 // ══════════════════════════════════════════════════════════════════════════════
 const { onRequest } = require("firebase-functions/v2/https");
 
-exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
+// cors:false — only n8n calls this, server to server. It was cors:true, which
+// let any browser tab POST fares using the token that was published in this repo.
+exports.ingestFaresFromN8n = onRequest(
+  { region: "asia-south1", cors: false, secrets: [N8N_INGEST_TOKEN] },
+  async (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
   }
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== "Bearer ZamraFirestore") {
+  const auth = verifyN8nBearer(req.headers.authorization, {
+    secret: N8N_INGEST_TOKEN.value(),
+    allowLegacy: true,
+  });
+  if (!auth.ok) {
     return res.status(401).send("Unauthorized");
+  }
+  if (auth.legacy) {
+    console.warn("ingestFaresFromN8n: accepted the legacy public token. Rotate the n8n Firestore credential to N8N_INGEST_TOKEN.");
   }
 
   const fares = req.body.firebaseData;
   if (!fares || !Array.isArray(fares)) {
     return res.status(400).send("Invalid payload: expected { firebaseData: [...] }");
   }
+
+  // Optional provenance. The WhatsApp rate-intake path has no human clicking
+  // Submit, so a plausible misread ("15500" read as "16500") passes every
+  // validator and lands on the public site unsupervised. Stamping the batch is
+  // what makes bulkDeleteFares able to undo one upload without archaeology.
+  const meta = (req.body.meta && typeof req.body.meta === "object") ? req.body.meta : {};
+  const ingestSource = typeof meta.source === "string" ? meta.source.slice(0, 40) : "";
+  const ingestBatchId = typeof meta.ingestBatchId === "string" ? meta.ingestBatchId.slice(0, 120) : "";
+  const provenance = {};
+  if (ingestSource) provenance.ingestSource = ingestSource;
+  if (ingestBatchId) provenance.ingestBatchId = ingestBatchId;
 
   // Load Sectors mapping
   const sectorMap = {};
@@ -576,6 +611,7 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
         supplierRate: 0,
         isHidden: row.show === "no",
         flightTime: flightTimeStr,
+        ...provenance,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -604,7 +640,7 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
     console.error("Failed to update agents lastRatesUploadedAt timestamps:", err);
   }
 
-  res.status(200).json({ success: true, saved });
+  res.status(200).json({ success: true, saved, ...(ingestBatchId ? { ingestBatchId } : {}) });
 });
 
 
@@ -612,14 +648,22 @@ exports.ingestFaresFromN8n = onRequest({ region: "asia-south1", cors: true }, as
 // 6b. exportFlightDetailsForN8n
 //     Returns all flight details configurations from Firestore so n8n can use them.
 // ══════════════════════════════════════════════════════════════════════════════
-exports.exportFlightDetailsForN8n = onRequest({ region: "asia-south1", cors: true }, async (req, res) => {
+exports.exportFlightDetailsForN8n = onRequest(
+  { region: "asia-south1", cors: false, secrets: [N8N_INGEST_TOKEN] },
+  async (req, res) => {
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
   }
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== "Bearer ZamraFirestore") {
+  const auth = verifyN8nBearer(req.headers.authorization, {
+    secret: N8N_INGEST_TOKEN.value(),
+    allowLegacy: true,
+  });
+  if (!auth.ok) {
     return res.status(401).send("Unauthorized");
+  }
+  if (auth.legacy) {
+    console.warn("exportFlightDetailsForN8n: accepted the legacy public token. Rotate the n8n Firestore credential to N8N_INGEST_TOKEN.");
   }
 
   try {
@@ -712,7 +756,6 @@ async function purgeOldFares() {
 //   - socialQueueDispatcher: scheduled queue worker (every 5 minutes)
 //   Secrets: one Buffer API key per Gulf region account.
 // ══════════════════════════════════════════════════════════════════════════════
-const { defineSecret } = require("firebase-functions/params");
 const BUFFER_API_KEY_SAUDI = defineSecret("BUFFER_API_KEY_SAUDI");
 const BUFFER_API_KEY_UAE = defineSecret("BUFFER_API_KEY_UAE");
 const BUFFER_API_KEY_QATAR = defineSecret("BUFFER_API_KEY_QATAR");
@@ -851,7 +894,7 @@ exports.searchSotoAirports = soto.searchSotoAirports;
 const WAHA_API_KEY = defineSecret("WAHA_API_KEY");
 const WAHA_WEBHOOK_SECRET = defineSecret("WAHA_WEBHOOK_SECRET");
 
-const whatsapp = require("./whatsapp").build(db, requireAdmin, WAHA_API_KEY, WAHA_WEBHOOK_SECRET);
+const whatsapp = require("./whatsapp").build(db, requireAdmin, WAHA_API_KEY, WAHA_WEBHOOK_SECRET, N8N_INGEST_TOKEN);
 
 exports.getWhatsappSessionStatus = whatsapp.getWhatsappSessionStatus;
 exports.getWhatsappQr = whatsapp.getWhatsappQr;
@@ -859,6 +902,14 @@ exports.setWhatsappSessionState = whatsapp.setWhatsappSessionState;
 exports.ensureWhatsappSession = whatsapp.ensureWhatsappSession;
 exports.sendWhatsappMessage = whatsapp.sendWhatsappMessage;
 exports.whatsappWebhook = whatsapp.whatsappWebhook;
+
+// Automatic rate intake: a supplier WhatsApps their sheet and the fares land in
+// agent_fares without anyone retyping them. n8n polls this endpoint, leases a
+// batch of that supplier's messages, and hands them to the SAME zamra-rates
+// extraction workflow the Rate Upload tab uses — so the vision prompt, the
+// closed sector/airline vocabulary and the rate band exist in exactly one place.
+// Ships behind config/whatsapp.rateIntakeEnabled, which starts false.
+exports.whatsappRateIntakeForN8n = whatsapp.whatsappRateIntakeForN8n;
 
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -904,7 +955,7 @@ exports.dailyMaintenance = onSchedule(
     try {
       const r = await whatsapp.purgeExpiredWhatsapp();
       console.log(
-        `dailyMaintenance/whatsapp: deleted ${r.deletedMessages} mirrored message${r.deletedMessages !== 1 ? "s" : ""}, ${r.deletedRateDocs} rate counter${r.deletedRateDocs !== 1 ? "s" : ""}`
+        `dailyMaintenance/whatsapp: deleted ${r.deletedMessages} mirrored message${r.deletedMessages !== 1 ? "s" : ""}, ${r.deletedRateDocs} rate counter${r.deletedRateDocs !== 1 ? "s" : ""}, ${r.deletedRateBatches} rate batch${r.deletedRateBatches !== 1 ? "es" : ""}`
       );
     } catch (error) {
       console.error("dailyMaintenance/whatsapp failed:", error);

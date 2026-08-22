@@ -30,6 +30,7 @@ import {
   callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
   callGetWhatsappSessionStatus, callGetWhatsappQr, callSetWhatsappSessionState,
   callEnsureWhatsappSession, callSendWhatsappMessage, subscribeWhatsappConfig,
+  subscribeWhatsappRateBatches, setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch,
   getB2BAgents, subscribeB2BAgents, updateB2BAgent, callCreateB2BAgent,
   callResetB2BAgentPassword, callGetB2BAgentCredentials,
   callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
@@ -4474,6 +4475,9 @@ function getWhatsappController() {
     callEnsureWhatsappSession,
     callSendWhatsappMessage,
     subscribeWhatsappConfig,
+    subscribeWhatsappRateBatches,
+    setWhatsappRateIntakeConfig,
+    callDeleteFaresByIngestBatch,
   });
   return _whatsappController;
 }
@@ -5188,6 +5192,22 @@ async function renderAgentsTab(fetchData = true) {
   updateSortIcons('agents');
 }
 
+/**
+ * A badge marking a supplier whose WhatsApp messages auto-populate agent_fares.
+ *
+ * Rendered inside the Phone cell rather than as a new column: the row has seven
+ * <td>s and an empty-state colspan="7" that would have to move with an eighth.
+ */
+function agentIntakeBadge(a) {
+  if (!a.whatsappChatId) return '';
+  const mode = a.rateIntakeMode || 'off';
+  if (mode === 'off') {
+    return ` <i class="bi bi-whatsapp text-text-muted" title="WhatsApp linked, auto rate intake off"></i>`;
+  }
+  const label = mode === 'images_only' ? 'Auto rate intake: screenshots only' : 'Auto rate intake: on';
+  return ` <i class="bi bi-whatsapp text-emerald-600" title="${label}"></i>`;
+}
+
 function agentRow(a) {
   const statusBadge = a.isActive !== false
     ? `<span class="admin-status-pill admin-status-active">Active</span>`
@@ -5197,7 +5217,7 @@ function agentRow(a) {
     <td class="font-mono text-xs text-text-muted">${a.id || '—'}</td>
     <td class="font-semibold">${a.name}</td>
     <td>${a.email || '—'}</td>
-    <td>${a.contactPhone || '—'}</td>
+    <td>${a.contactPhone || '—'}${agentIntakeBadge(a)}</td>
     <td class="font-semibold text-navy">${comm}</td>
     <td>${statusBadge}</td>
     <td>
@@ -5326,6 +5346,32 @@ function openAgentModal(agent) {
           </div>
         </div>
       </div>
+
+      <div class="admin-form-section">
+        <div class="admin-form-section-head">
+          <div>
+            <p class="admin-form-section-title">WhatsApp rate intake</p>
+            <p class="admin-form-section-desc">When this supplier WhatsApps a rate sheet to +91 98466 06731, read it and save the fares automatically.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="admin-field">
+            <label class="admin-label">WhatsApp Number</label>
+            <input name="whatsappNumber" value="${agent?.whatsappNumber || ''}" class="admin-control" placeholder="e.g. +91 98466 06731">
+            <p class="admin-help">Must be the exact number they message from. Leave blank to unlink.</p>
+          </div>
+          <div class="admin-field">
+            <label class="admin-label">Auto intake</label>
+            <select name="rateIntakeMode" class="admin-control">
+              <option value="off" ${(agent?.rateIntakeMode || 'off') === 'off' ? 'selected' : ''}>Off — mirror only</option>
+              <option value="auto" ${agent?.rateIntakeMode === 'auto' ? 'selected' : ''}>On — text and screenshots</option>
+              <option value="images_only" ${agent?.rateIntakeMode === 'images_only' ? 'selected' : ''}>Screenshots only</option>
+            </select>
+            <p class="admin-help">Fares publish live. Only switch this on for suppliers whose sheets you trust.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="admin-modal-footer">
         <button type="button" id="modal-cancel" class="admin-btn admin-btn-ghost px-6 text-sm">Cancel</button>
         <button type="submit" class="admin-btn admin-btn-primary text-sm">

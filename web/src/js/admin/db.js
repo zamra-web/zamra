@@ -13,6 +13,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { httpsCallable } from 'firebase/functions';
 import { db, storage, functions } from './firebase-config.js';
 import { getEnquirySectorIds } from '../shared/enquiry-alerts.js';
+import { normalizeAgentWhatsapp } from './whatsapp.js';
 
 const SOCIAL_RETENTION_MS = 72 * 60 * 60 * 1000;
 
@@ -72,6 +73,46 @@ function resolveSectorDisplayOrder(sectors = []) {
 // AGENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Reject a WhatsApp number already linked to a different supplier.
+ *
+ * agents.whatsappChatId is the join key rate intake matches inbound messages
+ * on. Two suppliers sharing one number would attribute a sheet to whichever
+ * document Firestore returned first, stamping the wrong commission onto real
+ * selling prices. The Cloud Function refuses an ambiguous number outright, so
+ * a collision would silently switch intake off for both — better to refuse it
+ * here, where someone is looking at the form.
+ */
+async function assertWhatsappChatIdFree(chatId, ownAgentId) {
+  if (!chatId) return;
+  const clash = await getDocs(query(collection(db, 'agents'), where('whatsappChatId', '==', chatId)));
+  const other = clash.docs.find(d => d.id !== ownAgentId);
+  if (other) {
+    throw new Error(`That WhatsApp number is already linked to agent ${other.id} (${other.data().name || 'unnamed'}).`);
+  }
+}
+
+/**
+ * Normalise the WhatsApp intake fields out of an agent form payload.
+ * Returns only the keys that should be written, so an untouched form does not
+ * clobber a number saved earlier.
+ */
+function agentWhatsappFields(data) {
+  const fields = {};
+  if (data.whatsappNumber !== undefined) {
+    const raw = String(data.whatsappNumber || '').trim();
+    const chatId = raw ? normalizeAgentWhatsapp(raw) : null;
+    if (raw && !chatId) throw new Error(`"${raw}" is not a WhatsApp number this can dial.`);
+    fields.whatsappNumber = raw;
+    fields.whatsappChatId = chatId;
+  }
+  if (data.rateIntakeMode !== undefined) {
+    fields.rateIntakeMode = ['auto', 'images_only', 'off'].includes(data.rateIntakeMode)
+      ? data.rateIntakeMode : 'off';
+  }
+  return fields;
+}
+
 /** Fetch all agents — returned unsorted; callers sort by numeric ID */
 export async function getAgents() {
   const snap = await getDocs(collection(db, 'agents'));
@@ -87,6 +128,8 @@ export async function getAgents() {
 /** Add a new agent. Returns the new document ID. */
 export async function addAgent(data) {
   if (!data.id) throw new Error("Agent ID is required.");
+  const whatsapp = agentWhatsappFields(data);
+  await assertWhatsappChatIdFree(whatsapp.whatsappChatId, data.id);
   const docRef = doc(db, 'agents', data.id);
   await setDoc(docRef, {
     name: data.name || '',
@@ -94,6 +137,11 @@ export async function addAgent(data) {
     email: data.email || '',
     isActive: data.isActive !== undefined ? data.isActive : true,
     commission: data.commission !== undefined ? Number(data.commission) : 500,
+    // Automatic WhatsApp rate intake is opt-in per supplier. A new agent never
+    // starts ingesting just because someone filled in a phone number.
+    whatsappNumber: whatsapp.whatsappNumber || '',
+    whatsappChatId: whatsapp.whatsappChatId || null,
+    rateIntakeMode: whatsapp.rateIntakeMode || 'off',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -103,6 +151,9 @@ export async function addAgent(data) {
 /** Update an existing agent */
 export async function updateAgent(agentId, data) {
   const { id, ...updates } = data;
+  const whatsapp = agentWhatsappFields(updates);
+  await assertWhatsappChatIdFree(whatsapp.whatsappChatId, agentId);
+  Object.assign(updates, whatsapp);
   const hasCommission = updates.commission !== undefined && updates.commission !== null && updates.commission !== '';
   let updatedFares = 0;
   if (hasCommission) {
@@ -1660,6 +1711,57 @@ export function subscribeWhatsappMessages(chatId, callback, maxItems = 100) {
     (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))),
     (err) => console.error('[whatsapp] messages listener error:', err),
   );
+}
+
+/**
+ * The most recent automated rate-intake batches.
+ *
+ * Read-only by rule: whatsapp_rate_batches is written only by
+ * whatsappRateIntakeForN8n on the Admin SDK, because a browser able to mark a
+ * batch "done" could hide an ingestion that actually failed.
+ */
+export function subscribeWhatsappRateBatches(callback, maxItems = 20) {
+  const q = query(collection(db, 'whatsapp_rate_batches'), orderBy('claimedAt', 'desc'), limit(maxItems));
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))),
+    (err) => console.error('[whatsapp] rate batch listener error:', err),
+  );
+}
+
+/**
+ * Change the rate-intake settings on config/whatsapp.
+ *
+ * Filtered to the intake keys so a stray field cannot overwrite sessionStatus
+ * or the mirror's own bookkeeping, which live on the same document.
+ */
+export async function setWhatsappRateIntakeConfig(patch = {}) {
+  const allowed = [
+    'rateIntakeEnabled', 'rateIntakeAutoReply', 'rateIntakeQuietSeconds',
+    'rateIntakeMaxHoldMinutes', 'rateIntakeMaxItems', 'rateIntakeLeaseMinutes',
+    'rateIntakeMaxBatchesPerChatPerDay',
+  ];
+  const update = { updatedAt: serverTimestamp() };
+  for (const key of allowed) {
+    if (patch[key] !== undefined) update[key] = patch[key];
+  }
+  await setDoc(doc(db, 'config', 'whatsapp'), update, { merge: true });
+}
+
+/**
+ * Undo one automated upload.
+ *
+ * Every row ingestFaresFromN8n writes carries the batch id that produced it, so
+ * this deletes exactly the fares one WhatsApp sheet created. It is the guard
+ * for the failure mode nobody else catches: the vision step misreads 15500 as
+ * 16500, every validator passes, and — on this path — no human clicked Submit.
+ *
+ * @param {string} ingestBatchId
+ */
+export async function callDeleteFaresByIngestBatch(ingestBatchId) {
+  const fn = httpsCallable(functions, 'bulkDeleteFares');
+  const res = await fn({ ingestBatchId });
+  return res.data;
 }
 
 /**

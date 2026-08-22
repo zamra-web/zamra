@@ -1,0 +1,529 @@
+{
+  "name": "Zamra WhatsApp Rate Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 3
+            }
+          ]
+        }
+      },
+      "id": "intake-schedule",
+      "name": "Intake Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://asia-south1-zamra-web-01.cloudfunctions.net/whatsappRateIntakeForN8n",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'claim', limit: 2 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "claim-batches",
+      "name": "Claim Batches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -40,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qu93czX3nEMrFcId",
+          "name": "Zamra Ingest"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fan one claim response out into one item per batch.\n//\n// Returns [] when the queue is empty, which ends the run with no IF node \u2014 an\n// empty item list means nothing downstream executes at all.\nconst batches = $json.batches || [];\nreturn batches.map((batch) => ({ json: batch }));\n"
+      },
+      "id": "split-batches",
+      "name": "Split Batches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-batches",
+      "name": "Loop Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-media",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ ($json.media || []).length }}",
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-media",
+      "name": "Has Media?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        620,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One item per image, carrying the batch it belongs to.\n//\n// The claim response gives a PATH, never a URL. wahaMediaPath() in the Cloud\n// Function already allow-listed it to /api/files/, because n8n shares a Docker\n// network with Traefik and WAHA \u2014 a URL followed verbatim from a webhook\n// payload would be an SSRF primitive aimed inside the trusted network. Keep\n// the host here, in the workflow, where it is visible.\nconst batch = $json;\nreturn (batch.media || []).map((item, index) => ({\n  json: {\n    batchId: batch.batchId,\n    path: item.path,\n    mimetype: item.mimetype,\n    name: `whatsapp-${index + 1}.${(item.mimetype || 'image/jpeg').split('/')[1] || 'jpg'}`,\n    likelyExpired: item.likelyExpired === true,\n  },\n}));\n"
+      },
+      "id": "media-to-items",
+      "name": "Media To Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://waha:3000{{ $json.path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "download-media",
+      "name": "Download Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        280
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "loEibRmdWpRqtw7n",
+          "name": "WAHA Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "binaryToPropery",
+        "binaryPropertyName": "data",
+        "destinationKey": "b64",
+        "options": {}
+      },
+      "id": "encode-media",
+      "name": "Encode Media",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        280
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "no-media",
+      "name": "No Media",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 2
+      },
+      "id": "merge-media",
+      "name": "Merge Media",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1500,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assemble the EXACT payload the zamra-rates webhook already takes.\n//\n// This workflow does not extract anything. It hands the batch to the same\n// workflow the Rate Upload tab posts to, so the vision prompt, the closed\n// sector/airline vocabulary, the direction-flip guard and the rate band exist\n// in exactly one place. functions/tests/n8n-workflow.test.js asserts this\n// object against the same fixture Build Vision Request consumes \u2014 if the two\n// contracts drift, that test fails rather than production.\nconst MAX_IMAGES = 10;\nconst MAX_TOTAL_BYTES = 12 * 1024 * 1024;\n\nconst batch = $('Loop Batches').first().json;\n\nconst images = [];\nconst skipped = [];\nlet totalBytes = 0;\n\nfor (const item of $input.all()) {\n  const data = item.json.b64;\n  if (!data) {\n    // Download or encode failed for this one file. Continue: five good\n    // screenshots must not be lost because a sixth expired out of WAHA.\n    skipped.push({ name: item.json.name, reason: 'download failed' });\n    continue;\n  }\n  if (images.length >= MAX_IMAGES) {\n    skipped.push({ name: item.json.name, reason: 'image cap' });\n    continue;\n  }\n  // base64 inflates ~33%; budget against the encoded size, the way the portal\n  // does, because that is what actually crosses the wire.\n  const bytes = Math.ceil(data.length * 0.75);\n  if (totalBytes + bytes > MAX_TOTAL_BYTES) {\n    skipped.push({ name: item.json.name, reason: 'size cap' });\n    continue;\n  }\n  totalBytes += bytes;\n  images.push({\n    name: item.json.name,\n    mime_type: item.json.mimetype === 'image/jpg' ? 'image/jpeg' : item.json.mimetype,\n    size: bytes,\n    data,\n  });\n}\n\nreturn [{\n  json: {\n    agent_id: batch.agentId,\n    raw_text: batch.rawText || '',\n    parsed_rows: [],\n    parsed_count: 0,\n    images,\n    image_count: images.length,\n    timestamp: new Date().toISOString(),\n    source: 'whatsapp-intake',\n    batch_id: batch.batchId,\n    skipped_images: skipped,\n  },\n}];\n"
+      },
+      "id": "build-rate-payload",
+      "name": "Build Rate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1720,
+        380
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/zamra-rates",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 480000
+        }
+      },
+      "id": "extract-rates",
+      "name": "Extract Rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1940,
+        380
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ingest-ok",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.success }}"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ingest-succeeded",
+      "name": "Ingest Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://asia-south1-zamra-web-01.cloudfunctions.net/whatsappRateIntakeForN8n",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'complete', batchId: $('Loop Batches').first().json.batchId, status: ($json.saved > 0 ? 'done' : 'empty'), saved: $json.saved || 0, notes: $json.notes || '', rejected: $json.rejected || [], skippedImages: ($('Build Rate Payload').first().json.skipped_images || []).concat($json.skipped_images || []), n8nExecutionId: $execution.id }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "complete-batch",
+      "name": "Complete Batch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2380,
+        280
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qu93czX3nEMrFcId",
+          "name": "Zamra Ingest"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://asia-south1-zamra-web-01.cloudfunctions.net/whatsappRateIntakeForN8n",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'complete', batchId: $('Loop Batches').first().json.batchId, status: 'failed', saved: 0, error: ($json.error?.message || $json.error || 'Extraction failed'), n8nExecutionId: $execution.id }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "complete-failed",
+      "name": "Complete Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2380,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qu93czX3nEMrFcId",
+          "name": "Zamra Ingest"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3
+    }
+  ],
+  "connections": {
+    "Intake Schedule": {
+      "main": [
+        [
+          {
+            "node": "Claim Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Batches": {
+      "main": [
+        [
+          {
+            "node": "Split Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Split Batches": {
+      "main": [
+        [
+          {
+            "node": "Loop Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Batches": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Has Media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Media?": {
+      "main": [
+        [
+          {
+            "node": "Media To Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media To Items": {
+      "main": [
+        [
+          {
+            "node": "Download Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Media": {
+      "main": [
+        [
+          {
+            "node": "Encode Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Encode Media": {
+      "main": [
+        [
+          {
+            "node": "Merge Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Media": {
+      "main": [
+        [
+          {
+            "node": "Merge Media",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Media": {
+      "main": [
+        [
+          {
+            "node": "Build Rate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Rate Payload": {
+      "main": [
+        [
+          {
+            "node": "Extract Rates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Complete Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Rates": {
+      "main": [
+        [
+          {
+            "node": "Ingest Succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Complete Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest Succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Complete Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Complete Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Batch": {
+      "main": [
+        [
+          {
+            "node": "Loop Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Failed": {
+      "main": [
+        [
+          {
+            "node": "Loop Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

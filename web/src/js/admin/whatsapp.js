@@ -54,6 +54,68 @@ export function toChatId(input) {
 }
 
 /**
+ * Normalise a supplier's WhatsApp number into the join key rate intake uses.
+ *
+ * Deliberately narrower than toChatId: a supplier is a person, never a group.
+ * `agents.whatsappChatId` is what the Cloud Function matches an inbound
+ * message against, and a wrong match writes fares under the wrong supplier —
+ * which means the wrong commission, which means the wrong price on the public
+ * site. So a group id is rejected rather than stored.
+ *
+ * @param {string} input
+ * @returns {string|null}
+ */
+export function normalizeAgentWhatsapp(input) {
+  const chatId = toChatId(input);
+  return chatId && chatId.endsWith('@c.us') ? chatId : null;
+}
+
+const BATCH_STATUS_LABELS = {
+  claimed: { label: 'Reading…', tone: 'warn' },
+  done: { label: 'Saved', tone: 'ok' },
+  empty: { label: 'Nothing found', tone: 'warn' },
+  failed: { label: 'Failed', tone: 'bad' },
+  stale: { label: 'Needs review', tone: 'bad' },
+  discarded: { label: 'Discarded', tone: 'warn' },
+};
+
+/**
+ * @param {string} status
+ * @returns {{label: string, tone: 'ok'|'warn'|'bad'}}
+ */
+export function describeBatchStatus(status) {
+  return BATCH_STATUS_LABELS[String(status ?? '')] || { label: 'Unknown', tone: 'warn' };
+}
+
+/**
+ * One-line summary of what automatic intake has been doing.
+ *
+ * `stale` is surfaced separately from `failed` because they need different
+ * actions: a failed batch saved nothing and can simply be resent, while a stale
+ * one is a batch whose lease expired mid-flight — its fares may or may not have
+ * landed, which is exactly why nothing retries it automatically.
+ *
+ * @param {object} config  config/whatsapp
+ * @param {Array<object>} batches
+ */
+export function summarizeIntake(config, batches) {
+  const list = Array.isArray(batches) ? batches : [];
+  const counts = list.reduce((acc, b) => {
+    acc[b.status] = (acc[b.status] || 0) + 1;
+    return acc;
+  }, {});
+  return {
+    enabled: config?.rateIntakeEnabled === true,
+    autoReply: config?.rateIntakeAutoReply === true,
+    savedTotal: Number(config?.rateIntakeSavedTotal || 0),
+    lastClaimAt: config?.rateIntakeLastClaimAt || null,
+    running: counts.claimed || 0,
+    needsReview: (counts.stale || 0) + (counts.failed || 0),
+    recentSaved: list.reduce((sum, b) => sum + (Number(b.saved) || 0), 0),
+  };
+}
+
+/**
  * @param {string} status
  * @returns {{label: string, tone: 'ok'|'warn'|'bad'}}
  */
@@ -101,11 +163,13 @@ export function createWhatsappController(deps) {
     toast, openModal,
     callGetWhatsappSessionStatus, callGetWhatsappQr, callSetWhatsappSessionState,
     callEnsureWhatsappSession, callSendWhatsappMessage, subscribeWhatsappConfig,
+    subscribeWhatsappRateBatches, setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch,
   } = deps;
 
   const state = {
     session: null,
     config: null,
+    batches: [],
     unsubs: [],
     qrTimer: null,
     wired: false,
@@ -170,6 +234,125 @@ export function createWhatsappController(deps) {
       <div class="mt-4 flex justify-end">
         <button id="whatsapp-send-btn" class="admin-btn admin-btn-primary h-[40px] px-6"><i class="bi bi-send"></i> Send</button>
       </div>`;
+  }
+
+  function fmtWhen(value) {
+    const date = value?.toDate ? value.toDate() : (value ? new Date(value) : null);
+    if (!date || Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function batchRow(batch) {
+    const { label, tone } = describeBatchStatus(batch.status);
+    const saved = Number(batch.saved);
+    const savedText = Number.isFinite(saved) && batch.status === 'done'
+      ? `${saved} fare${saved !== 1 ? 's' : ''}`
+      : '—';
+    // Supplier text is typed by someone outside Zamra, so it goes through the
+    // same escape-then-linkify path as an inbox message body.
+    const preview = renderMessageBody(String(batch.rawTextPreview || '').slice(0, 160));
+    const canUndo = batch.status === 'done' && saved > 0;
+
+    return `<tr>
+      <td class="align-top">
+        <p class="font-semibold text-navy">${escapeHtml(batch.agentName || batch.agentId || '—')}</p>
+        <p class="text-xs text-text-muted">${escapeHtml(String(batch.phone || ''))}</p>
+      </td>
+      <td class="align-top text-xs text-text-muted">${fmtWhen(batch.claimedAt)}</td>
+      <td class="align-top">
+        <span class="admin-status-pill admin-pill-${tone}">${escapeHtml(label)}</span>
+        ${batch.truncated ? '<p class="mt-1 text-[11px] text-amber-600">Window was full — rest queued</p>' : ''}
+        ${batch.error ? `<p class="mt-1 text-[11px] text-rose-600">${escapeHtml(String(batch.error).slice(0, 120))}</p>` : ''}
+      </td>
+      <td class="align-top font-semibold">${escapeHtml(savedText)}</td>
+      <td class="align-top text-xs text-text-muted">
+        ${batch.itemCount || 0} msg${(batch.itemCount || 0) !== 1 ? 's' : ''}${batch.imageCount ? ` · ${batch.imageCount} img` : ''}
+        <p class="mt-1 max-w-[28rem] whitespace-pre-wrap break-words opacity-80">${preview}</p>
+      </td>
+      <td class="align-top">
+        ${canUndo
+    ? `<button data-wa-action="undo-batch" data-batch-id="${escapeHtml(batch.id)}" data-saved="${saved}"
+             class="admin-action-btn admin-action-delete"><i class="bi bi-arrow-counterclockwise"></i>Undo</button>`
+    : ''}
+      </td>
+    </tr>`;
+  }
+
+  function paintRateIntake() {
+    const host = el('whatsapp-rate-intake');
+    if (!host) return;
+
+    const summary = summarizeIntake(state.config, state.batches);
+    const rows = state.batches.map(batchRow).join('');
+
+    host.innerHTML = `
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">Automatic rate intake</p>
+          <h3 class="mt-1 text-lg font-semibold text-navy">${summary.enabled ? 'On' : 'Off'}</h3>
+          <p class="mt-1 max-w-2xl text-sm text-text-muted">
+            When a linked supplier WhatsApps a rate sheet, it is read and the fares are saved automatically —
+            no one clicks Submit. Link a number and switch it on per supplier in the Agents tab.
+          </p>
+          <p class="mt-2 text-xs text-text-muted">
+            Last check: ${fmtWhen(summary.lastClaimAt)} ·
+            ${summary.savedTotal.toLocaleString('en-IN')} fares saved all-time${summary.running ? ` · ${summary.running} reading now` : ''}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button data-wa-action="toggle-intake" data-next="${summary.enabled ? 'false' : 'true'}"
+            class="admin-btn ${summary.enabled ? 'admin-btn-soft' : 'admin-btn-primary'} h-[38px] px-4">
+            ${summary.enabled ? 'Turn off' : 'Turn on'}
+          </button>
+          <button data-wa-action="toggle-ack" data-next="${summary.autoReply ? 'false' : 'true'}"
+            class="admin-btn admin-btn-ghost h-[38px] px-4" title="Reply to the supplier with the saved count">
+            Ack reply: ${summary.autoReply ? 'on' : 'off'}
+          </button>
+        </div>
+      </div>
+
+      ${summary.needsReview
+    ? `<p class="mt-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
+             ${summary.needsReview} batch${summary.needsReview !== 1 ? 'es' : ''} need${summary.needsReview === 1 ? 's' : ''} a look.
+             A batch marked <strong>Needs review</strong> stopped part-way — check the Database tab before resending, because its fares may already be saved.
+           </p>`
+    : ''}
+
+      <div class="admin-table-wrap mt-4">
+        <table class="admin-table">
+          <thead><tr>
+            <th>Supplier</th><th>When</th><th>Status</th><th>Saved</th><th>Message</th><th></th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" class="py-6 text-center text-sm text-text-muted">No sheets have arrived by WhatsApp yet.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  }
+
+  async function toggleIntakeConfig(key, next) {
+    if (!setWhatsappRateIntakeConfig) return;
+    try {
+      await setWhatsappRateIntakeConfig({ [key]: next });
+      toast('success', 'Saved', next ? 'Switched on.' : 'Switched off.');
+    } catch (error) {
+      toast('error', 'Could not save', error?.message || 'Firestore rejected the change.');
+    }
+  }
+
+  async function undoBatch(button) {
+    if (!callDeleteFaresByIngestBatch) return;
+    const batchId = button.getAttribute('data-batch-id');
+    const saved = Number(button.getAttribute('data-saved')) || 0;
+    if (!batchId) return;
+    if (!window.confirm(`Delete the ${saved} fare${saved !== 1 ? 's' : ''} this WhatsApp sheet created? This cannot be undone.`)) return;
+
+    button.disabled = true;
+    try {
+      const res = await callDeleteFaresByIngestBatch(batchId);
+      toast('success', 'Removed', `Deleted ${res?.deleted ?? 0} fare${(res?.deleted ?? 0) !== 1 ? 's' : ''}.`);
+    } catch (error) {
+      toast('error', 'Undo failed', error?.message || 'Could not delete those fares.');
+      button.disabled = false;
+    }
   }
 
   function stopQrTimer() {
@@ -271,6 +454,7 @@ export function createWhatsappController(deps) {
     paintStatus();
     paintConnection();
     paintComposer();
+    paintRateIntake();
 
     const tab = document.getElementById('whatsapp-tab');
     if (tab && !state.wired) {
@@ -285,6 +469,13 @@ export function createWhatsappController(deps) {
 
         const action = button.getAttribute('data-wa-action');
         if (action === 'connect') return connect();
+        if (action === 'undo-batch') return undoBatch(button);
+        if (action === 'toggle-intake') {
+          return toggleIntakeConfig('rateIntakeEnabled', button.getAttribute('data-next') === 'true');
+        }
+        if (action === 'toggle-ack') {
+          return toggleIntakeConfig('rateIntakeAutoReply', button.getAttribute('data-next') === 'true');
+        }
         try {
           await callSetWhatsappSessionState(action);
           toast('success', 'Done', `Session ${action} sent.`);
@@ -299,7 +490,15 @@ export function createWhatsappController(deps) {
       state.config = config;
       paintStatus();
       if (!state.session) paintConnection();
+      paintRateIntake();
     }));
+
+    if (subscribeWhatsappRateBatches) {
+      state.unsubs.push(subscribeWhatsappRateBatches((batches) => {
+        state.batches = batches;
+        paintRateIntake();
+      }));
+    }
 
     await refresh();
   }

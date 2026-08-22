@@ -178,6 +178,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── whatsapp_rate_batches ────────────────────────────────────────────────
+    // One doc per group of supplier messages handed to the n8n extraction
+    // workflow, with the saved count and any rejections that came back. It is
+    // the audit trail for fares nobody clicked Submit on, so the dashboard
+    // reads it — but writing it would let a browser mark a batch "done" and
+    // hide an ingestion that actually failed. The only writers are
+    // whatsappRateIntakeForN8n and dailyMaintenance, both on the Admin SDK.
+    match /whatsapp_rate_batches/{batchId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // ── services ─────────────────────────────────────────────────────────────
     // Public can read active services; only admins can write
     match /services/{serviceId} {

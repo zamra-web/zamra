@@ -547,6 +547,10 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `email` | String | |
 | `isActive` | Boolean | `false` = all their fares hidden on public site |
 | `commission` | Number | Per-agent commission in ₹ (default: 500). Auto-stamped on ingested fares. |
+| `lastRatesUploadedAt` | Timestamp | Last time a rate sheet from this supplier was ingested. Drives the Rate Upload tab's agent chips. |
+| `whatsappNumber` | String | As typed by the admin. Display only. |
+| `whatsappChatId` | String\|null | Normalised `919812345678@c.us` — the join key inbound messages are matched against. Enforced unique: two suppliers on one number would stamp the wrong commission onto real selling prices, so `addAgent`/`updateAgent` refuse the collision and the Cloud Function ignores the number entirely if one exists anyway. |
+| `rateIntakeMode` | String | `off` (default) \| `auto` \| `images_only`. Opt-in per supplier — fares from this path publish live. |
 | `createdAt` | Timestamp | Server timestamp |
 | `updatedAt` | Timestamp | Server timestamp |
 
@@ -839,6 +843,14 @@ read live by the dashboard via `subscribeWhatsappConfig`.
 | `retentionDays` | Number | Default 90; drives each message's `expiresAt` |
 | `unreadTotal` | Number | Single counter behind the nav dot, so the badge needs no always-on `whatsapp_chats` listener |
 | `lastWebhookAt` / `lastWebhookEvent` / `droppedEventCounts` | — | Webhook health |
+| `rateIntakeEnabled` | Boolean | Default **false**, coerced with `=== true` so a missing field can never read as on. Master switch for automatic rate intake |
+| `rateIntakeAutoReply` | Boolean | Default false. Reply to the supplier with the saved count — a reply, never a cold initiation |
+| `rateIntakeQuietSeconds` | Number | Default 90. How long a chat must go silent before its messages are batched |
+| `rateIntakeMaxHoldMinutes` | Number | Default 20. Releases a supplier who drips one line a minute and never goes quiet |
+| `rateIntakeMaxItems` | Number | Default 12 messages per batch; the rest wait for the next pass |
+| `rateIntakeLeaseMinutes` | Number | Default 15, against a ~7 min worst case |
+| `rateIntakeMaxBatchesPerChatPerDay` | Number | Default 12. Runaway-cost brake on vision calls, same spirit as `SEND_RATE_LIMIT_PER_MINUTE` |
+| `rateIntakeLastClaimAt` / `rateIntakeClaimedTotal` / `rateIntakeSavedTotal` | — | Intake health, shown in the WhatsApp tab |
 
 > ⚠️ **The WAHA API key never goes in this doc.** It is admin-readable from the browser, which
 > would defeat the entire point of proxying WAHA through server-side callables. The key lives
@@ -874,7 +886,7 @@ we never mirrored must not conjure a phantom.
 | `messageId` / `chatId` / `session` | String | |
 | `direction` / `fromMe` / `from` / `to` | — | `direction` is `'in'` or `'out'` |
 | `body` | String | Capped at 4096, WhatsApp's own limit |
-| `type` / `hasMedia` / `mediaUrl` / `mimetype` | — | `mediaUrl` points at WAHA's file server; media is **not** copied into Firebase Storage in v1 |
+| `type` / `hasMedia` / `mediaUrl` / `mimetype` | — | Media is **not** copied into Firebase Storage. ⚠️ `mediaUrl` is `http://localhost:3000/api/files/…` — WAHA builds it from `WHATSAPP_API_HOSTNAME`, which the VPS never sets, so it resolves only inside that container. **Never follow it**: `wahaMediaPath()` in `functions/whatsapp/rateIntakeRules.js` extracts the path and rejects anything outside `/api/files/`, because a webhook-supplied URL followed from inside `n8n_default` is an SSRF primitive. |
 | `ack` / `ackName` | — | Delivery state, `-1`…`4` |
 | `timestamp` | Timestamp | WAHA sends unix **seconds**; treating them as ms puts every message in 1970 |
 | `expiresAt` | Timestamp | `timestamp + retentionDays`, swept by `dailyMaintenance` |
@@ -885,11 +897,45 @@ we never mirrored must not conjure a phantom.
 Per-minute outbound send counters. Denied to every client — a writable rate limit is not one.
 Carries an `expiresAt` and is swept alongside the messages.
 
+### `whatsapp_rate_batches/{autoId}`
+
+One document per group of supplier messages handed to the n8n extraction workflow — the
+audit trail for fares nobody clicked Submit on. Created at claim time, written once, never
+contended.
+
+| Field | Type | Notes |
+|---|---|---|
+| `agentId` / `agentName` / `chatId` / `phone` | — | Which supplier, resolved from `agents.whatsappChatId` |
+| `status` | String | `claimed` → `done` \| `empty` \| `failed` \| `stale` \| `discarded` |
+| `messageIds` | Array | The `whatsapp_messages` doc ids in this batch. Reclaim reads them with `getAll`, so no index is needed |
+| `rawTextPreview` | String | First 1000 chars, for the dashboard. The full text is never copied — it already lives in `whatsapp_messages` |
+| `itemCount` / `imageCount` / `truncated` / `reason` | — | `reason` is `quiet` \| `max-hold` \| `max-items` |
+| `claimedAt` / `leaseExpiresAt` / `completedAt` | Timestamp | |
+| `saved` / `notes` / `rejected` / `skippedImages` / `error` | — | What n8n reported back |
+| `ingestBatchId` | String | Stamped onto every `agent_fares` row this batch created, so **Undo** deletes exactly those |
+| `expiresAt` | Timestamp | 60 days; swept by `dailyMaintenance` |
+
+The batch is **derived, not accumulated**. Each inbound message is already one document in
+`whatsapp_messages` with exactly one writer, so intake adds `rateIntakeStatus`,
+`rateIntakeAgentId` and `rateIntakeBatchId` to a write that was happening anyway, and the
+claim groups them by `chatId`. An append-to-`items[]` queue document would be a hot doc,
+would need a transaction on the webhook hot path, and — bucketing by time — would split one
+supplier's six screenshots across two vision calls.
+
+> ⚠️ **An expired lease marks the batch `stale` and stops. It never auto-retries.** Unlike
+> `social_queue`, retrying here is not free: `ingestFaresFromN8n` writes a new auto-id
+> document per row and never dedupes, so re-running a batch that already ingested
+> republishes every fare. Retry and Discard are human buttons in the WhatsApp tab.
+
+> ⚠️ The intake flag is written **only** on `event.event === "message"`. WAHA also fires
+> `message.any` for the same id into the same document; merging `"pending"` a second time
+> would reset an already-claimed message and ingest the sheet twice.
+
 ---
 
 ## Firestore Indexes
 
-7 compound indexes on `agent_fares` for dashboard queries, plus 3 on `social_queue` and 1 on `whatsapp_messages` (`chatId ASC, timestamp DESC`, for the per-chat thread query):
+7 compound indexes on `agent_fares` for dashboard queries, plus 3 on `social_queue`, 2 on `whatsapp_messages` (`chatId ASC, timestamp DESC` for the per-chat thread; `rateIntakeStatus ASC, timestamp ASC` for the rate-intake claim) and 2 on `whatsapp_rate_batches` (`status ASC, leaseExpiresAt ASC` for lease reclaim; `chatId ASC, claimedAt ASC` for the per-chat daily cap):
 
 | Fields | Order | Used By |
 |---|---|---|
@@ -915,11 +961,11 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 
 | Function | What it does |
 |---|---|
-| `bulkDeleteFares` | Batch-deletes `agent_fares` matching optional filters: `agentId`, `sectorId`, `startDate`, `endDate`. At least one filter required. Builds query dynamically. |
+| `bulkDeleteFares` | Batch-deletes `agent_fares` matching optional filters: `agentId`, `sectorId`, `startDate`, `endDate`. At least one filter required. Builds query dynamically. | Also filters on `ingestBatchId` — the only filter allowed to stand alone, because "delete the rows that batch wrote" is a safe instruction in a way that "delete this agent's fares" is not.
 | `bulkToggleAgentVisibility` | Sets `isActive` on agent + `isHidden` on all their fares |
 | `bulkToggleSectorVisibility` | Sets `isHidden` on all fares for a given `sectorId` |
 | `generateAgentReport` | Aggregates fares with fully optional filters (sector, agent, date range). **All filters are optional** — passing no filters returns stats across the entire dataset. Returns per-agent and per-sector stats (counts, totalRate, min/max, avgRate). Used to power charts and leaderboards. |
-| `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, **`agents`**, and **`flight_details`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. `finalRate` is `sp_rate + commission` unless the payload sends an explicit `rate`. Baggage is forced onto the airline rules and flight time is resolved payload-first with a `flight_details` fallback (see [Flight Time Resolution](#flight-time-resolution)). Batch-writes to `agent_fares`. An empty `firebaseData` array is valid and returns `saved: 0`. |
+| `ingestFaresFromN8n` | HTTPS onRequest endpoint. Authenticates payload from n8n via Bearer token. At startup, loads `sectors`, `airlines`, **`agents`**, and **`flight_details`** maps. For each fare row, commission is sourced from the agent's Firestore document (`agents.commission`); falls back to 500 if unset. n8n payload can override commission per-row if explicitly provided. `finalRate` is `sp_rate + commission` unless the payload sends an explicit `rate`. Baggage is forced onto the airline rules and flight time is resolved payload-first with a `flight_details` fallback (see [Flight Time Resolution](#flight-time-resolution)). Batch-writes to `agent_fares`. An empty `firebaseData` array is valid and returns `saved: 0`. | Accepts an optional `meta: { source, ingestBatchId }` and stamps both onto every row, which is what makes the WhatsApp path's one-click Undo possible.
 | `refreshSocialPublishingHealth` | Admin callable. Rebuilds the saved posting setup snapshot from configured/fallback channel IDs and API-key presence without making any Buffer API calls. |
 | `runSocialQueueNow` | Admin callable. Immediately dispatches up to 6 due `social_queue` items (max 1 airport group per run) instead of waiting for the next dispatcher tick. |
 | `retrySocialJobItem` | Admin callable. Creates a fresh queue item from retained media for a non-posted errored job item without mutating the old queue record. |
@@ -932,6 +978,7 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 | `ensureWhatsappSession` | Admin callable. Creates or repairs the session **including the webhook URL and HMAC key**. This is why the session is never created by hand — one without a webhook drops every inbound message silently. Sets `noweb.store.enabled` (required for chat history) and `fullSync:false`; neither may change after the QR is scanned. Secrets: both. |
 | `sendWhatsappMessage` | Admin callable. One text message. Validates the chat id (rejects `status@broadcast`), bounds the text at 4096, and enforces a transactional per-minute cap in `whatsapp_meta` as a runaway-loop brake. Mirrors the outbound message under the WAHA message id. **No bulk variant, deliberately.** Secret: `WAHA_API_KEY`. |
 | `whatsappWebhook` | HTTPS onRequest, `cors:false`. Receives WAHA events, verifies HMAC-SHA512 over `req.rawBody`, and mirrors messages into `whatsapp_messages` / `whatsapp_chats`. Unknown events get `200` (a rejection would jam WAHA's retry queue) plus a counter on `config/whatsapp.droppedEventCounts`. Secret: `WAHA_WEBHOOK_SECRET`. |
+| `whatsappRateIntakeForN8n` | onRequest, Bearer `N8N_INGEST_TOKEN`, `cors:false`. One endpoint, two verbs. `claim` groups a linked supplier's pending messages into one leased batch and returns the text plus allow-listed media **paths**; `complete` records what n8n saved and is idempotent. Answers `{enabled:false, batches:[]}` while the feature is off, so the 3-minute n8n cron does not alarm 480 times a day. |
 | `searchSotoAirports` | HTTPS onRequest typeahead over `functions/soto/places.json`. No provider call, no Firestore read, `s-maxage=86400`. |
 
 **Social publishing scheduled workers**
@@ -950,6 +997,7 @@ They require `admin: true` custom claim — enforced server-side via `requireAdm
 - **Admin read/write:** All collections — requires `request.auth.token.admin == true`
 - **Admin-only, never public:** `agents` (the rate **suppliers** — the list names who Zamra sources from, and only `admin/main.js` reads it), `enquiries` (holds customer names and phone numbers), `deal_links`, `config`, `social_queue`, `social_jobs`
 - **Denied to everyone, admins included:** `b2b_credentials`, `soto_cache`, `whatsapp_meta` — all reached only by the Admin SDK inside a Cloud Function
+- **Admin-readable, written by nobody:** `whatsapp_messages`, `whatsapp_rate_batches` — a browser able to mark a batch `done` could hide an ingestion that actually failed
 - **Admin read, nobody writes:** `whatsapp_messages` — the mirror of the WAHA inbox. A browser-writable message log would let anyone with the dashboard open forge a customer's own words in the record staff then act on, which is a different and worse problem than editing Zamra's own content
 - **Admin read, narrow admin update:** `whatsapp_chats` — same server-writes-only stance, with a deliberate `affectedKeys().hasOnly(['unreadCount','assignedTo','status','tags','updatedAt'])` carve-out. Those are pure UI triage state with no security value, and routing them through a callable would cost another Cloud Run service and a round-trip on every chat click. Without the `hasOnly` clause this would be a full write, letting the client rewrite the mirror's derived fields
 - **Admin + B2B agent read:** `visa_rate_cards` — the portal's tourist-visa price sheets are agent rates, so they stay behind the `agent` claim rather than sitting in world-readable `visas`
