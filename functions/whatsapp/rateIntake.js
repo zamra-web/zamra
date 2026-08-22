@@ -171,10 +171,13 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
    */
   async function intakeFieldsFor(mirror, config) {
     if (!config?.rateIntakeEnabled) return null;
-    if (!mirror || mirror.fromMe || mirror.isGroup) return null;
+    if (!mirror || mirror.fromMe) return null;
     // Independent of mirrorGroups on purpose: flipping that config on to mirror
     // Zamra's community groups must not also open an ingestion path.
-    if (!isDirectChat(mirror.chatId)) return null;
+    if (mirror.isGroup || !isDirectChat(mirror.chatId)) {
+      console.info(`rateIntake: NOT FLAGGED chatId=${mirror.chatId} reason=not-a-direct-chat`);
+      return null;
+    }
 
     const supplier = await supplierByChatId(mirror.chatId);
 
@@ -183,7 +186,7 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
     // sheet that vanished left no record of which check dropped it. Logged at
     // info with the chat id and the reason only — never the body.
     if (!supplier) {
-      console.info("rateIntake: not flagged", { chatId: mirror.chatId, reason: "no-linked-supplier" });
+      console.info(`rateIntake: NOT FLAGGED chatId=${mirror.chatId} reason=no-linked-supplier`);
       return null;
     }
 
@@ -191,9 +194,7 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
     // agents.isActive, so ingesting for a deactivated supplier would publish
     // visible fares for a supplier someone deliberately switched off.
     if (!supplier.isActive) {
-      console.info("rateIntake: not flagged", {
-        chatId: mirror.chatId, agentId: supplier.agentId, reason: "agent-inactive",
-      });
+      console.info(`rateIntake: NOT FLAGGED chatId=${mirror.chatId} agentId=${supplier.agentId} reason=agent-inactive`);
       return {
         rateIntakeStatus: "skipped",
         rateIntakeAgentId: supplier.agentId,
@@ -203,21 +204,15 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
     }
 
     if (!looksLikeRateMessage(mirror, { mode: supplier.mode })) {
-      console.info("rateIntake: not flagged", {
-        chatId: mirror.chatId,
-        agentId: supplier.agentId,
-        mode: supplier.mode,
-        hasMedia: Boolean(mirror.hasMedia),
-        mimetype: mirror.mimetype || null,
-        bodyLength: String(mirror.body ?? "").length,
-        reason: "did-not-look-like-a-rate-sheet",
-      });
+      console.info(
+        `rateIntake: NOT FLAGGED chatId=${mirror.chatId} agentId=${supplier.agentId} ` +
+        `mode=${supplier.mode} hasMedia=${Boolean(mirror.hasMedia)} mime=${mirror.mimetype || "-"} ` +
+        `bodyLength=${String(mirror.body ?? "").length} reason=did-not-look-like-a-rate-sheet`,
+      );
       return null;
     }
 
-    console.info("rateIntake: flagged pending", {
-      chatId: mirror.chatId, agentId: supplier.agentId, agentName: supplier.name,
-    });
+    console.info(`rateIntake: FLAGGED chatId=${mirror.chatId} agentId=${supplier.agentId} agent=${supplier.name}`);
     return {
       rateIntakeStatus: "pending",
       rateIntakeAgentId: supplier.agentId,

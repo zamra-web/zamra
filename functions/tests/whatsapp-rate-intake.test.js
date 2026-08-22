@@ -108,11 +108,29 @@ test("looksLikeRateMessage does not spend a vision call on chatter", () => {
   }
 });
 
-test("looksLikeRateMessage needs two prices, not one number", () => {
+test("looksLikeRateMessage accepts the short updates suppliers actually send", () => {
+  // Regression: the first draft demanded 40+ chars and two prices, which reads
+  // like a rate sheet but is not how a supplier messages. Each of these is a
+  // legitimate rate update and every one of them was being thrown away.
+  for (const body of [
+    "CCJ JED IX\n04 MAR 15500",
+    "CCJ DXB 24MAR 12500",
+    "IX CCJ RUH 18 APR 14200",
+    "*CCJ JED* 15500",
+  ]) {
+    assert.equal(looksLikeRateMessage({ body }, { mode: "auto" }), true, body);
+  }
+});
+
+test("looksLikeRateMessage still needs a price AND something route-shaped", () => {
+  // A price with no route reads as prose, not a fare.
   assert.equal(
     looksLikeRateMessage({ body: "Booking reference 15500 confirmed for the passenger today" }, { mode: "auto" }),
     false,
   );
+  assert.equal(looksLikeRateMessage({ body: "please send 12500 to my account" }, { mode: "auto" }), false);
+  // A route with no price is a question, not a quote.
+  assert.equal(looksLikeRateMessage({ body: "any seats CCJ JED next week?" }, { mode: "auto" }), false);
 });
 
 test("looksLikeRateMessage honours the per-supplier mode", () => {

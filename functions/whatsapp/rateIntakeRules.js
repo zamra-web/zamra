@@ -29,10 +29,17 @@ const INGESTIBLE_MEDIA_RE = /^image\/(jpeg|jpg|png|gif|webp)$/i;
  * Matching it here means the gate and the validator agree about what a fare
  * looks like, so a message that passes this cannot be rejected downstream for
  * having no plausible prices in it.
+ *
+ * A 10-digit phone number does not match: \b..\b anchors on the whole run of
+ * digits, so "9846606731" yields nothing rather than a false price.
  */
 const RATE_TOKEN_RE = /\b\d{4,5}\b/g;
-const MIN_RATE_TOKENS = 2;
-const MIN_TEXT_LENGTH = 40;
+
+/**
+ * A three-letter uppercase token — an airport code, or a month like MAR. Rate
+ * messages always carry at least one; ordinary prose almost never does.
+ */
+const ROUTE_TOKEN_RE = /\b[A-Z]{3}\b/;
 
 const INTAKE_MODES = ["auto", "images_only", "off"];
 
@@ -69,10 +76,19 @@ function looksLikeRateMessage(message, { mode = "auto" } = {}) {
   // seat availability can't be mistaken for a rate sheet.
   if (resolvedMode === "images_only") return false;
 
+  // One price AND one route-ish token. The first draft of this demanded 40+
+  // characters and two prices, which reads like a rate sheet but is not how
+  // suppliers actually message: "CCJ JED IX / 04 MAR 15500" is 23 characters
+  // with a single price, and was being thrown away.
+  //
+  // The bar is deliberately low for text because the costs are asymmetric. A
+  // text-only extraction is one or two thousand tokens — a fraction of a cent —
+  // while a detail:high screenshot is the real expense. And a false positive is
+  // nearly free: the closed sector/airline vocabulary downstream rejects
+  // anything that is not a real route, and the batch completes with saved: 0.
   const body = String(src.body ?? "");
-  if (body.length < MIN_TEXT_LENGTH) return false;
-  const tokens = body.match(RATE_TOKEN_RE) || [];
-  return tokens.length >= MIN_RATE_TOKENS;
+  const hasRate = (body.match(RATE_TOKEN_RE) || []).length >= 1;
+  return hasRate && ROUTE_TOKEN_RE.test(body);
 }
 
 /**
