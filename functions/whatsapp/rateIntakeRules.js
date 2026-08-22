@@ -126,6 +126,29 @@ function wahaMediaPath(mediaUrl) {
 }
 
 /**
+ * Is this string usable as a Firestore document id?
+ *
+ * Firestore rejects "." and "..", anything matching __*__, slashes, and ids
+ * over 1500 bytes — and it rejects them by THROWING inside the client, not by
+ * returning an empty snapshot. Without this guard a malformed batchId turns a
+ * "no such batch" answer into a 500, which n8n's Complete Batch node then
+ * retries three times for something that can never succeed.
+ *
+ * docIdForMessage() in normalize.js guards the same cases for message ids.
+ *
+ * @param {string} value
+ * @returns {boolean}
+ */
+function isUsableDocId(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.length > 1500) return false;
+  if (raw.includes("/")) return false;
+  if (raw === "." || raw === "..") return false;
+  if (/^__.*__$/.test(raw)) return false;
+  return true;
+}
+
+/**
  * Group pending messages into claimable batches, one per chat.
  *
  * The batch is derived here rather than accumulated in a queue document, and
@@ -244,6 +267,7 @@ function buildIntakePayload(messages) {
 
 module.exports = {
   looksLikeRateMessage,
+  isUsableDocId,
   wahaMediaPath,
   groupPendingMessages,
   buildIntakePayload,

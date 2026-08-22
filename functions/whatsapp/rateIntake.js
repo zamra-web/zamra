@@ -28,6 +28,7 @@ const {
   looksLikeRateMessage,
   groupPendingMessages,
   buildIntakePayload,
+  isUsableDocId,
   INTAKE_MODES,
   DEFAULT_QUIET_MS,
   DEFAULT_MAX_HOLD_MS,
@@ -354,6 +355,10 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
   async function completeBatch(payload) {
     const batchId = String(payload.batchId || "").trim();
     if (!batchId) return { ok: false, error: "batchId is required" };
+    // Checked before it is used as a document id: Firestore throws on a
+    // malformed id rather than returning an empty snapshot, which would turn
+    // this 400 into a 500 that n8n retries three times.
+    if (!isUsableDocId(batchId)) return { ok: false, error: "unusable batchId" };
 
     const status = ["done", "failed", "empty"].includes(payload.status) ? payload.status : "failed";
     const ref = db.collection(BATCHES_COLLECTION).doc(batchId);

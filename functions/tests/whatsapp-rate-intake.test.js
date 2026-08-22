@@ -17,6 +17,7 @@ const {
   wahaMediaPath,
   groupPendingMessages,
   buildIntakePayload,
+  isUsableDocId,
 } = require("../whatsapp/rateIntakeRules");
 const { verifyN8nBearer, LEGACY_TOKEN } = require("../n8nAuth");
 
@@ -287,4 +288,28 @@ test("verifyN8nBearer accepts the legacy public token only when asked to", () =>
 test("verifyN8nBearer rejects a bare token with no Bearer scheme", () => {
   assert.equal(verifyN8nBearer("s3cr3t-token", { secret: "s3cr3t-token" }).ok, false);
   assert.equal(verifyN8nBearer("Basic s3cr3t-token", { secret: "s3cr3t-token" }).ok, false);
+});
+
+// ── isUsableDocId ───────────────────────────────────────────────────────────
+
+test("isUsableDocId rejects the ids Firestore throws on rather than 404s on", () => {
+  // Found in production: `complete` with a reserved-pattern batchId returned a
+  // 500, and n8n's Complete Batch node retries a 500 three times for something
+  // that can never succeed. Firestore rejects these by THROWING in the client.
+  assert.equal(isUsableDocId("__probe__"), false);
+  assert.equal(isUsableDocId("a/b"), false);
+  assert.equal(isUsableDocId("."), false);
+  assert.equal(isUsableDocId(".."), false);
+  assert.equal(isUsableDocId("x".repeat(1501)), false);
+  assert.equal(isUsableDocId(""), false);
+  assert.equal(isUsableDocId("   "), false);
+  assert.equal(isUsableDocId(null), false);
+});
+
+test("isUsableDocId accepts a real Firestore auto-id", () => {
+  assert.equal(isUsableDocId("9f3cKq2mZpLr8Xt1vBnQ"), true);
+  assert.equal(isUsableDocId("abc123"), true);
+  // Underscores are fine; only the __wrapped__ form is reserved.
+  assert.equal(isUsableDocId("_leading"), true);
+  assert.equal(isUsableDocId("__only_leading"), true);
 });
