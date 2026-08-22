@@ -23,6 +23,7 @@ const {
   whatsappRetentionCutoff,
   sendGuard,
   MAX_TEXT_LENGTH,
+  MAX_INBOUND_TEXT_LENGTH,
 } = require("../whatsapp/normalize");
 
 const SECRET = "webhook-signing-secret";
@@ -221,8 +222,13 @@ test("buildMessageMirror derives direction and chat from fromMe", () => {
 });
 
 test("buildMessageMirror truncates an oversized body and handles a media message", () => {
-  const long = buildMessageMirror(messageEvent({ body: "x".repeat(MAX_TEXT_LENGTH + 500) }));
-  assert.equal(long.body.length, MAX_TEXT_LENGTH);
+  // Bounded at the INBOUND cap, not the outbound send limit. A body just over
+  // 4096 is an ordinary supplier rate sheet and must arrive whole.
+  const justOverSendLimit = buildMessageMirror(messageEvent({ body: "x".repeat(MAX_TEXT_LENGTH + 500) }));
+  assert.equal(justOverSendLimit.body.length, MAX_TEXT_LENGTH + 500);
+
+  const long = buildMessageMirror(messageEvent({ body: "x".repeat(MAX_INBOUND_TEXT_LENGTH + 500) }));
+  assert.equal(long.body.length, MAX_INBOUND_TEXT_LENGTH);
 
   const media = buildMessageMirror(messageEvent({
     body: undefined, hasMedia: true,
@@ -276,4 +282,38 @@ test("whatsappRetentionCutoff walks back the configured window", () => {
   const now = new Date("2026-08-22T00:00:00Z");
   assert.equal(whatsappRetentionCutoff(now, 90).toISOString(), "2026-05-24T00:00:00.000Z");
   assert.equal(whatsappRetentionCutoff(now, undefined).toISOString(), "2026-05-24T00:00:00.000Z");
+});
+
+// ── inbound body length ─────────────────────────────────────────────────────
+
+test("a full supplier rate sheet survives the mirror intact", () => {
+  // Regression: inbound bodies were sliced at the OUTBOUND send limit of 4096.
+  // A real sheet from one supplier runs past 6000 characters — roughly forty
+  // sectors — so the last third was dropped and those sectors were never
+  // ingested, with nothing anywhere reporting a loss.
+  const sheet = Array.from({ length: 300 }, (_, i) => `25 AUG : ${12000 + i}/-`).join("\n");
+  assert.ok(sheet.length > 4096, "fixture must exceed the old cap to be meaningful");
+
+  const mirror = buildMessageMirror({
+    event: "message",
+    session: "zamra",
+    payload: { id: "m1", timestamp: 1750000000, from: "919812345678@c.us", body: sheet },
+  });
+
+  assert.equal(mirror.body.length, sheet.length, "the whole sheet must be mirrored");
+  assert.ok(mirror.body.endsWith("/-"), "the tail of the sheet must survive");
+});
+
+test("the inbound cap is far above the outbound send limit, and they are separate", () => {
+  // They measure different things: 4096 is WhatsApp's send limit, while inbound
+  // text can reach 65536. Collapsing them back into one constant is the bug.
+  assert.ok(MAX_INBOUND_TEXT_LENGTH > 4096);
+  assert.ok(MAX_INBOUND_TEXT_LENGTH <= 65536);
+
+  const huge = "x".repeat(MAX_INBOUND_TEXT_LENGTH + 500);
+  const mirror = buildMessageMirror({
+    event: "message", session: "zamra",
+    payload: { id: "m2", timestamp: 1750000000, from: "919812345678@c.us", body: huge },
+  });
+  assert.equal(mirror.body.length, MAX_INBOUND_TEXT_LENGTH, "still bounded, just not at 4096");
 });

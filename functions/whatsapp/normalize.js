@@ -23,7 +23,25 @@ const WAHA_STATUSES = Object.freeze([
 ]);
 
 /** WhatsApp's own limit for a text message body. */
+/**
+ * Ceiling on an OUTBOUND message. 4096 is WhatsApp's own send limit, so this
+ * is a real constraint, not a policy choice.
+ */
 const MAX_TEXT_LENGTH = 4096;
+
+/**
+ * Ceiling on a MIRRORED inbound body.
+ *
+ * Deliberately much larger than the send limit, because the two are unrelated:
+ * WhatsApp accepts inbound text up to 65536 characters and a supplier's daily
+ * rate sheet routinely runs past 6000 — around forty sectors, a couple of
+ * hundred fares. Slicing those at 4096 silently dropped the last third of the
+ * sheet, so entire sectors were never ingested and nothing anywhere said so.
+ *
+ * Still bounded: a Firestore document is capped at 1 MiB and the whole body is
+ * handed to a model downstream.
+ */
+const MAX_INBOUND_TEXT_LENGTH = 32768;
 
 /** Events we mirror. Anything else is acknowledged and dropped. */
 const MIRRORED_EVENTS = Object.freeze(["message", "message.any", "message.ack"]);
@@ -258,7 +276,7 @@ function buildMessageMirror(event, { now = new Date(), retentionDays = 90 } = {}
   const seconds = Number(payload.timestamp);
   const timestamp = Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000) : now;
 
-  const body = String(payload.body ?? "").slice(0, MAX_TEXT_LENGTH);
+  const body = String(payload.body ?? "").slice(0, MAX_INBOUND_TEXT_LENGTH);
   const ack = Number.isFinite(Number(payload.ack)) ? Number(payload.ack) : null;
 
   return {
@@ -334,6 +352,7 @@ module.exports = {
   SESSION_NAME,
   WAHA_STATUSES,
   MAX_TEXT_LENGTH,
+  MAX_INBOUND_TEXT_LENGTH,
   MIRRORED_EVENTS,
   ACK_NAMES,
   normalizeChatId,
