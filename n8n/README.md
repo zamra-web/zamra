@@ -135,6 +135,17 @@ two — don't "fix" one side in isolation.
 - **Closed vocabulary.** The system prompt lists the sector and airline codes pulled live
   from Firestore (currently 100 sectors / 13 airlines), and Build Firebase Payload rejects
   anything outside them — a hallucinated route can't reach `agent_fares`.
+- **Direction and connections are re-read off the sheet.** Every row also returns
+  `route_text` — the route exactly as printed — and Build Firebase Payload checks
+  `sector_code` against it. A transposed `JED CCJ` is flipped back when the sheet prints
+  `CCJ-JED`, and a through-fare printed with a connection (`CCJ - MCT – DXB`, or
+  `CCJ-DXB via MCT`) is corrected to what was actually sold — `CCJ DXB`, never `CCJ MCT`.
+  Only the first and last airports may enter a sector; everything between them is where
+  the passenger changes planes. Both repairs apply only when the corrected sector is
+  itself in the catalogue, and reject the row otherwise. This guard is not redundant with
+  the closed vocabulary above: the wrong sector is usually a *sellable* one, so nothing
+  else would stop it. `web/src/js/shared/rate-route.js` is the browser copy of the same
+  rule, used by the upload preview — change one, change the other.
 - **Year inference.** Rate sheets write `04 MAR` with no year. The predecessor hardcoded
   "use year 2026"; today's IST date is now injected instead and the model rolls a past
   month/day forward to its next occurrence.
@@ -205,7 +216,8 @@ Complete Batch ────────── POST whatsappRateIntakeForN8n { ac
 ```
 
 **It extracts nothing itself, on purpose.** Calling the existing webhook keeps the vision
-prompt, the closed vocabulary, the direction guard and the rate band in exactly one place,
+prompt, the closed vocabulary, the direction and connection guards and the rate band in
+exactly one place,
 and touches the live rate-upload path zero times — so the rollback documented above still
 works. n8n runs in regular mode with no fixed execution pool, so the self-call cannot
 deadlock; `batchSize: 1` is what bounds it to one image set in flight.

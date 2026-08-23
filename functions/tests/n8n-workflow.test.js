@@ -129,6 +129,7 @@ test("Build Vision Request pins the model, schema, and route catalogue", () => {
   assert.ok(system.content.includes("CCJ JED, CCJ SHJ, COK DXB"));
   assert.ok(/Today is \d{4}-\d{2}-\d{2}/.test(system.content), "year inference needs today's date");
   assert.ok(/DIRECTION/i.test(system.content), "the prompt must warn the model about route direction");
+  assert.ok(/CONNECTION IS NOT A DESTINATION/.test(system.content), "the prompt must tell the model a connection is not the destination");
 });
 
 test("Build Vision Request accepts an images-only submission", () => {
@@ -238,6 +239,90 @@ test("Build Firebase Payload leaves direction alone when route_text is city name
   })[0].json;
 
   assert.deepEqual(out.firebaseData.map((r) => r.sector_code), ["CCJ JED"]);
+});
+
+// ── the connection rule ─────────────────────────────────────────────────────
+// "CCJ - MCT – DXB" is one Calicut->Dubai fare that changes planes in Muscat.
+// Read as the first two codes it becomes a Calicut->Muscat fare at the Dubai
+// price — and CCJ MCT is a real sellable sector, so nothing else in this node
+// would stop it. The browser half of the rule is covered by
+// web/tests/rate-route.test.js.
+const CONNECTING_META = {
+  ...META,
+  valid_sectors: ["CCJ MCT", "MCT DXB", "CCJ DXB", "COK DXB"],
+  valid_airlines: ["IX", "SG", "WY"],
+};
+
+test("Build Firebase Payload rewrites a connection to the through sector", () => {
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ MCT", route_text: "CCJ - MCT – DXB", flight_code: "WY", date: "2026-08-31", sp_rate: 40200, show: "yes" },
+      // The connection printed after the sector reads the same way.
+      { sector_code: "CCJ MCT", route_text: "CCJ-DXB via MCT", flight_code: "WY", date: "2026-09-01", sp_rate: 40500, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": CONNECTING_META },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData.map((r) => r.sector_code), ["CCJ DXB", "CCJ DXB"]);
+  assert.deepEqual(out.rejected, []);
+});
+
+test("Build Firebase Payload pulls a fare saved on the second leg back to the whole journey", () => {
+  // The other half of the same mistake: the model reads the last two codes and
+  // sells the Muscat->Dubai leg at the through price.
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "MCT DXB", route_text: "CCJ - MCT - DXB", flight_code: "WY", date: "2026-08-31", sp_rate: 40200, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": CONNECTING_META },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData.map((r) => r.sector_code), ["CCJ DXB"]);
+});
+
+test("Build Firebase Payload drops a connecting fare when the through sector is not sellable", () => {
+  // Zamra does not carry CCJ->DXB, so there is no sector this fare belongs to.
+  // Saving it against the leg the model picked would sell a Dubai price for a
+  // Muscat seat, so the row is rejected and reported instead.
+  const meta = { ...CONNECTING_META, valid_sectors: ["CCJ MCT", "MCT DXB"] };
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ MCT", route_text: "CCJ - MCT - DXB", flight_code: "WY", date: "2026-08-31", sp_rate: 40200, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": meta },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData, []);
+  assert.equal(out.rejected.length, 1);
+  assert.match(out.rejected[0], /connection, not a sector/);
+});
+
+test("Build Firebase Payload leaves alternative origins alone", () => {
+  // "CCJ/COK - DXB" is two origins for one destination. Kochi is somewhere the
+  // passenger departs from, not somewhere they change planes, so a COK DXB fare
+  // must survive untouched.
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "COK DXB", route_text: "CCJ/COK - DXB", flight_code: "SG", date: "2026-08-31", sp_rate: 18400, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": CONNECTING_META },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData.map((r) => r.sector_code), ["COK DXB"]);
+  assert.deepEqual(out.rejected, []);
+});
+
+test("Build Firebase Payload ignores month and weekday tokens in route_text", () => {
+  // "31 AUG" and "WED" are three-letter tokens too. Counting them as stops would
+  // move the destination off the end of the route.
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ DXB", route_text: "CCJ - DXB 31 AUG WED", flight_code: "WY", date: "2026-08-31", sp_rate: 40200, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": CONNECTING_META },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData.map((r) => r.sector_code), ["CCJ DXB"]);
 });
 
 test("Build Firebase Payload emits only fields the sheet actually states", () => {

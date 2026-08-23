@@ -10429,6 +10429,13 @@ const WEBHOOK = 'https://n8n.srv1491832.hstgr.cloud/webhook/zamra-rates';
 const MONTHS = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
 const AIR_RX = /\b(IX|6E|G9|SV|WY|XY|QP|FZ|OV|AI|J9|SG)\b/;
 
+/**
+ * A printed fare amount, comma-grouped ("40,200/-") as often as bare ("40200").
+ * Also the tell that separates a rate line from a sector header: a header names
+ * airports and quotes no money.
+ */
+const RATE_AMOUNT_RX = /\d[\d,]{3,6}/;
+
 let selAgent = null;
 let rateHistory = JSON.parse(localStorage.getItem('zt_hist') || '[]');
 
@@ -10810,26 +10817,35 @@ function validate() {
   if (btn) btn.disabled = !(selAgent && (hasText || rateImages.length > 0));
 }
 
-// Quick client-side parser
+// Quick client-side parser.
+//
+// Preview only — n8n re-parses the raw text server-side and is the thing that
+// decides what reaches agent_fares. It still has to read a sheet the way the
+// sheet is written, or the admin approves a preview that does not match what
+// gets saved.
 function quickParse(text) {
   const rows = [];
   let sector = null, airline = 'IX';
   for (const raw of text.split('\n')) {
     const line = raw.replace(/[*_~`]/g, '').trim();
     if (!line) continue;
-    const sm = line.match(/([A-Z]{3})\s+([A-Z]{3})/);
-    if (sm && line.length < 70 && !line.match(/\d{4,6}/)) {
-      sector = sm[1] + '-' + sm[2];
+    // A sector header names two airports and no fare. readPrintedRoute applies
+    // the connection rule: "CCJ - MCT – DXB" is a Calicut→Dubai fare changing
+    // planes in Muscat, so the sector is CCJ-DXB, never CCJ-MCT.
+    const route = line.length < 70 && !RATE_AMOUNT_RX.test(line) ? readPrintedRoute(line) : null;
+    if (route) {
+      sector = route.origin + '-' + route.destination;
       const am = line.match(AIR_RX);
       if (am) airline = am[1];
       continue;
     }
     if (sector) {
       const am = line.match(AIR_RX);
-      if (am && !line.match(/\d{4,6}/)) { airline = am[1]; continue; }
-      const m = line.match(/(\d{1,2})\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*?(\d{4,6})/i);
+      if (am && !RATE_AMOUNT_RX.test(line)) { airline = am[1]; continue; }
+      const m = line.match(/(\d{1,2})\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*?(\d[\d,]{3,6})/i);
       if (m) {
-        const rate = parseInt(m[3]);
+        // Sheets print "40,200/-" as often as "40200".
+        const rate = parseInt(m[3].replace(/,/g, ''), 10);
         if (rate >= 1000 && rate <= 99999) {
           rows.push({ sector, date: `2026-${MONTHS[m[2].toUpperCase()]}-${m[1].padStart(2, '0')}`, airline: am ? am[1] : airline, rate });
         }
