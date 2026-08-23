@@ -166,6 +166,22 @@ there, so a syntax error, a dropped validation check, or an unwired error output
 build instead of reaching production. Prompt edits are worth a real upload against a known
 rate sheet as well; the tests check the plumbing, not extraction accuracy.
 
+The reverse direction — pushing this file **to** the instance — is the n8n public API:
+
+```bash
+# GET first and diff against this file before overwriting: a UI edit that was never
+# re-exported lives only on the instance, and PUT replaces the whole node list.
+curl -sS -H "X-N8N-API-KEY: $(cat ~/.config/zamra/n8n-api-key)" \
+  https://n8n.srv1491832.hstgr.cloud/api/v1/workflows/N9gXV8vLF5Z9rvGw
+# PUT accepts only name, nodes, connections, settings — id/active/tags are rejected.
+```
+
+Build the payload from the **live** document with only the changed nodes swapped in, not
+from this file wholesale: the instance carries `settings` keys the mirror does not, and a
+PUT that drops them is a silent config change. Updating an active workflow this way keeps
+it active and keeps the `zamra-rates` webhook registered — verify both in the response.
+The key is an n8n API key (Settings → n8n API), stored outside the repo.
+
 To exercise the whole chain without writing any fares, post a payload whose sector header
 is not in the catalogue (e.g. `*ZZZ QQQ XX FARES*`). Every row is rejected, `firebaseData`
 comes out empty, and the response is `saved: 0`.
