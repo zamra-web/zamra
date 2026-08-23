@@ -155,13 +155,22 @@ test("Build Rate Payload caps images and total size the way the portal does", ()
 
 test("a text-only sheet still produces a valid payload", () => {
   // The common case: suppliers mostly type their rates rather than screenshot them.
+  //
+  // The input here is the BATCH OBJECT, not an empty item — that is what the
+  // No Media branch actually forwards, confirmed against execution 1173. The
+  // first version of this test passed {json:{}} and so missed the bug below.
   const textOnly = { ...BATCH, media: [] };
   const [out] = runNode("Build Rate Payload", {
-    json: textOnly, nodes: { "Loop Batches": textOnly }, input: [{ json: {} }],
+    json: textOnly, nodes: { "Loop Batches": textOnly }, input: [{ json: textOnly }],
   });
   assert.equal(out.json.image_count, 0);
   assert.equal(out.json.raw_text, BATCH.rawText);
   assert.equal(out.json.agent_id, "102");
+
+  // A text-only sheet must not claim a screenshot failed to download. The panel
+  // shows skipped_images to the operator, and a phantom entry there reads as
+  // "your supplier sent an image and we lost it".
+  assert.deepEqual(out.json.skipped_images, [], "text-only batch invented a skipped image");
 });
 
 // ── the other Code nodes ────────────────────────────────────────────────────
