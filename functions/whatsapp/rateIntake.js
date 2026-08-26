@@ -23,9 +23,10 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 
 const { verifyN8nBearer } = require("../n8nAuth");
-const { isDirectChat } = require("./normalize");
+const { isDirectChat, isGroupChat } = require("./normalize");
 const {
   looksLikeRateMessage,
+  isVerifiedSender,
   groupPendingMessages,
   buildIntakePayload,
   isUsableDocId,
@@ -68,6 +69,15 @@ function futureTimestamp(ms) {
   return Timestamp.fromDate(new Date(Date.now() + ms));
 }
 
+/** Firestore Timestamp, Date or ISO string → epoch ms. 0 for anything else. */
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 /**
  * @param {FirebaseFirestore.Firestore} db
  * @param {object} deps
@@ -83,13 +93,19 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
   let supplierCacheAt = 0;
 
   /**
-   * chatId → supplier, cached in module memory for five minutes.
+   * address → supplier, cached in module memory for five minutes.
    *
    * Tens of agents, a projected read, on a warm Cloud Run instance: cheaper
    * than maintaining a denormalized index document that can silently drift out
    * of sync with the agents collection.
    *
-   * A chat id claimed by two agents resolves to NOTHING. Guessing which
+   * Two indexes, because a supplier is now reachable two ways: their own
+   * WhatsApp number (`whatsappChatId`) and the announcement groups they post
+   * rate sheets into (`rateIntakeGroupIds`). They are kept separate rather than
+   * merged into one map so a group id can never be matched where a direct chat
+   * is expected, and so the sender rules below can differ by kind.
+   *
+   * An address claimed by two agents resolves to NOTHING. Guessing which
    * supplier's fares these are would attribute them to the wrong commission,
    * which is the wrong selling price on the public site — strictly worse than
    * not ingesting. addAgent/updateAgent already refuse the collision; this is
@@ -97,43 +113,79 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
    */
   async function refreshSupplierCache() {
     const snap = await db.collection(AGENTS_COLLECTION)
-      .select("whatsappChatId", "isActive", "name", "rateIntakeMode")
+      .select("whatsappChatId", "isActive", "name", "rateIntakeMode",
+        "rateIntakeGroupIds", "rateIntakeSenderIds")
       .get();
 
-    const map = new Map();
-    const duplicates = new Set();
+    const byChat = new Map();
+    const byGroup = new Map();
+    const duplicates = { chat: new Set(), group: new Set() };
+
     snap.forEach((doc) => {
       const data = doc.data() || {};
-      const id = String(data.whatsappChatId || "").toLowerCase();
-      if (!id || !isDirectChat(id)) return;
-      if (map.has(id)) {
-        duplicates.add(id);
-        return;
-      }
-      map.set(id, {
+      const chatId = String(data.whatsappChatId || "").toLowerCase();
+      const supplier = {
         agentId: doc.id,
         name: String(data.name || ""),
         isActive: data.isActive !== false,
         mode: INTAKE_MODES.includes(data.rateIntakeMode) ? data.rateIntakeMode : "off",
-      });
+        chatId: isDirectChat(chatId) ? chatId : null,
+        // Verified senders travel WITH the supplier so isVerifiedSender needs
+        // no second lookup, and so a claim-time re-check reads the same list
+        // the flag-time check used.
+        senderIds: (Array.isArray(data.rateIntakeSenderIds) ? data.rateIntakeSenderIds : [])
+          .map((entry) => String(entry || "").toLowerCase())
+          .filter(Boolean),
+      };
+
+      if (supplier.chatId) {
+        if (byChat.has(supplier.chatId)) duplicates.chat.add(supplier.chatId);
+        else byChat.set(supplier.chatId, supplier);
+      }
+
+      const groupIds = Array.isArray(data.rateIntakeGroupIds) ? data.rateIntakeGroupIds : [];
+      for (const raw of groupIds) {
+        const groupId = String(raw || "").toLowerCase();
+        if (!groupId || !isGroupChat(groupId)) continue;
+        if (byGroup.has(groupId)) duplicates.group.add(groupId);
+        else byGroup.set(groupId, supplier);
+      }
     });
-    for (const id of duplicates) {
+
+    for (const id of duplicates.chat) {
       console.error(`rateIntake: ${id} is claimed by more than one agent; ignoring it entirely.`);
-      map.delete(id);
+      byChat.delete(id);
+    }
+    for (const id of duplicates.group) {
+      console.error(`rateIntake: group ${id} is claimed by more than one agent; ignoring it entirely.`);
+      byGroup.delete(id);
     }
 
-    supplierCache = map;
+    supplierCache = { byChat, byGroup };
     supplierCacheAt = Date.now();
-    return map;
+    return supplierCache;
   }
 
+  /** The right index for an address: groups resolve by group, chats by chat. */
+  function lookup(cache, id) {
+    return (isGroupChat(id) ? cache.byGroup : cache.byChat).get(id) || null;
+  }
+
+  /**
+   * The supplier an inbound address belongs to, or null.
+   *
+   * Handles both a supplier's own number and an allow-listed announcement
+   * group. Note what it does NOT do: resolving a group says only which supplier
+   * OWNS that group, never that the supplier sent the message. intakeFieldsFor
+   * verifies the sender separately, and must keep doing so.
+   */
   async function supplierByChatId(chatId) {
     const id = String(chatId ?? "").toLowerCase();
     if (!supplierCache || Date.now() - supplierCacheAt > SUPPLIER_CACHE_MS) {
       await refreshSupplierCache();
     }
 
-    const hit = supplierCache.get(id);
+    const hit = lookup(supplierCache, id);
     if (hit) return hit;
 
     // A miss is the interesting case: it is indistinguishable, from here,
@@ -141,9 +193,36 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
     // built". The second one costs a rate sheet, so re-read before concluding.
     if (Date.now() - supplierCacheAt > SUPPLIER_CACHE_MISS_REFRESH_MS) {
       await refreshSupplierCache();
-      return supplierCache.get(id) || null;
+      return lookup(supplierCache, id);
     }
     return null;
+  }
+
+  /**
+   * Group ids the webhook may mirror, for isMirrorableEvent.
+   *
+   * Deliberately NOT miss-refreshing like supplierByChatId: this is consulted
+   * for every group message the linked number receives, including Zamra's own
+   * six community groups, and a miss there is the normal case rather than the
+   * interesting one. Refreshing on those would mean a collection read every 30
+   * seconds of ordinary group chatter, for nothing.
+   *
+   * The five-minute staleness that leaves would be a real hole — a sheet posted
+   * in the window after linking a group is never mirrored, so never ingested —
+   * so `rateIntakeGroupsUpdatedAt` closes it: db.js stamps it whenever a group
+   * link changes, the webhook already reads this config on every event, and a
+   * stamp newer than the cache forces the re-read on the very next message.
+   *
+   * @param {object} config config/whatsapp
+   * @returns {Promise<Set<string>>}
+   */
+  async function intakeGroupIds(config = {}) {
+    const stampedAt = toMillis(config.rateIntakeGroupsUpdatedAt);
+    const stale = !supplierCache ||
+      Date.now() - supplierCacheAt > SUPPLIER_CACHE_MS ||
+      (stampedAt > 0 && stampedAt > supplierCacheAt);
+    if (stale) await refreshSupplierCache();
+    return new Set(supplierCache.byGroup.keys());
   }
 
   /**
@@ -172,10 +251,15 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
   async function intakeFieldsFor(mirror, config) {
     if (!config?.rateIntakeEnabled) return null;
     if (!mirror || mirror.fromMe) return null;
-    // Independent of mirrorGroups on purpose: flipping that config on to mirror
-    // Zamra's community groups must not also open an ingestion path.
-    if (mirror.isGroup || !isDirectChat(mirror.chatId)) {
-      console.info(`rateIntake: NOT FLAGGED chatId=${mirror.chatId} reason=not-a-direct-chat`);
+
+    // Still independent of mirrorGroups on purpose: flipping that config on to
+    // mirror Zamra's own community groups must not open an ingestion path. What
+    // opens one is a group being named in some supplier's rateIntakeGroupIds,
+    // which is what supplierByChatId resolves below — so an unlisted group
+    // falls out as "no-linked-supplier" and never reaches the sender check.
+    const isGroup = Boolean(mirror.isGroup) || isGroupChat(mirror.chatId);
+    if (!isGroup && !isDirectChat(mirror.chatId)) {
+      console.info(`rateIntake: NOT FLAGGED chatId=${mirror.chatId} reason=not-an-ingestable-chat`);
       return null;
     }
 
@@ -212,7 +296,35 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
       return null;
     }
 
-    console.info(`rateIntake: FLAGGED chatId=${mirror.chatId} agentId=${supplier.agentId} agent=${supplier.name}`);
+    // Verified LAST, and only for groups. A direct chat needs no sender check —
+    // matching whatsappChatId already identified who sent it. A group needs one
+    // because membership is not authorship.
+    //
+    // Placed after looksLikeRateMessage so the address recorded below belongs to
+    // someone who actually posted something rate-shaped. Ordinary group chatter
+    // from members never lands in the approval list, which is what keeps that
+    // list short enough to read.
+    if (isGroup && !isVerifiedSender(mirror.senderId, supplier)) {
+      console.warn(
+        `rateIntake: NOT FLAGGED chatId=${mirror.chatId} agentId=${supplier.agentId} ` +
+        `sender=${mirror.senderId || "unresolved"} reason=sender-not-verified`,
+      );
+      return {
+        rateIntakeStatus: "skipped",
+        rateIntakeAgentId: supplier.agentId,
+        rateIntakeReason: "sender-not-verified",
+        // The observed address, so approving a supplier who posts under a LID is
+        // a copy-paste out of the dashboard rather than a guess. It is the whole
+        // reason this returns fields instead of null.
+        rateIntakeSeenSender: mirror.senderId || null,
+        rateIntakeAt: FieldValue.serverTimestamp(),
+      };
+    }
+
+    console.info(
+      `rateIntake: FLAGGED chatId=${mirror.chatId} agentId=${supplier.agentId} agent=${supplier.name}` +
+      (isGroup ? ` via=group sender=${mirror.senderId}` : ""),
+    );
     return {
       rateIntakeStatus: "pending",
       rateIntakeAgentId: supplier.agentId,
@@ -329,6 +441,33 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
         continue;
       }
 
+      // Senders are re-verified for the same reason the supplier is: approval
+      // can be WITHDRAWN in the minutes a batch waits. An admin who realises
+      // they approved the wrong address expects removing it to stop the next
+      // sheet, not to stop the one after it. Every message must pass — a batch
+      // is one vision call over the whole window, so a single unverified member
+      // message riding along would be ingested under the supplier's commission.
+      const isGroupBatch = isGroupChat(group.chatId);
+      const unverified = isGroupBatch
+        ? group.messages.filter((message) => !isVerifiedSender(message.senderId, supplier))
+        : [];
+      if (unverified.length) {
+        console.warn(
+          `rateIntake: dropping group batch chatId=${group.chatId} agentId=${supplier.agentId} ` +
+          `unverified=${unverified.length}/${group.messages.length} reason=sender-approval-withdrawn`,
+        );
+        const skip = db.batch();
+        for (const message of group.messages) {
+          skip.set(db.collection(messagesCollection).doc(message.id), {
+            rateIntakeStatus: "skipped",
+            rateIntakeReason: "sender-not-verified",
+            rateIntakeSeenSender: message.senderId || null,
+          }, { merge: true });
+        }
+        await skip.commit();
+        continue;
+      }
+
       const { rawText, media } = buildIntakePayload(group.messages);
       if (!rawText && media.length === 0) {
         const skip = db.batch();
@@ -350,7 +489,12 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
         agentId: supplier.agentId,
         agentName: supplier.name,
         chatId: group.chatId,
-        phone: group.chatId.split("@")[0] || "",
+        phone: isGroupBatch ? "" : (group.chatId.split("@")[0] || ""),
+        // How the sheet arrived, and from which verified address. The dashboard
+        // shows a group batch differently — "phone" is meaningless for one — and
+        // an audit of a mispriced fare needs to end at a person, not a group.
+        via: isGroupBatch ? "group" : "direct",
+        senderId: isGroupBatch ? (group.messages[0]?.senderId || null) : null,
         status: "claimed",
         attempt: 1,
         source: "whatsapp",
@@ -385,6 +529,7 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
         agentId: supplier.agentId,
         agentName: supplier.name,
         chatId: group.chatId,
+        via: isGroupBatch ? "group" : "direct",
         attempt: 1,
         reason: group.reason,
         truncated: group.truncated,
@@ -550,6 +695,7 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
   return {
     rateIntakeForN8n,
     intakeFieldsFor,
+    intakeGroupIds,
     purgeExpiredRateBatches,
     invalidateSupplierCache,
     // exported for tests

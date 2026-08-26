@@ -18,6 +18,7 @@ const {
   groupPendingMessages,
   buildIntakePayload,
   isUsableDocId,
+  isVerifiedSender,
 } = require("../whatsapp/rateIntakeRules");
 const { verifyN8nBearer, LEGACY_TOKEN } = require("../n8nAuth");
 
@@ -25,6 +26,10 @@ const { verifyN8nBearer, LEGACY_TOKEN } = require("../n8nAuth");
 
 const CHAT = "919812345678@c.us";
 const OTHER_CHAT = "919899999999@c.us";
+/** A supplier's announcement community, allow-listed via rateIntakeGroupIds. */
+const GROUP = "120363000000000000@g.us";
+/** The supplier's own number, as it appears in a group message's sender. */
+const SUPPLIER_SENDER = "919812345678@c.us";
 const T0 = new Date("2026-08-22T09:00:00.000Z");
 
 function msg(overrides = {}) {
@@ -228,11 +233,79 @@ test("batch members come back oldest first, so raw_text reads in typed order", (
 test("groupPendingMessages ignores anything it cannot attribute to a supplier", () => {
   const messages = [
     msg({ messageId: "no-agent", rateIntakeAgentId: "" }),
-    // A group id must never form a batch even if some upstream guard is relaxed.
-    msg({ messageId: "group", chatId: "919812345678-1600000000@g.us" }),
     msg({ messageId: "no-chat", chatId: "" }),
+    // Neither a direct chat nor a group — a LID reaching here would be an
+    // upstream bug, and forming a batch from one would attribute a sheet to a
+    // supplier nothing actually matched.
+    msg({ messageId: "lid", chatId: "224876132614243@lid" }),
   ];
   assert.deepEqual(groupPendingMessages(messages, { now: new Date(T0.getTime() + 300000) }), []);
+});
+
+test("an announcement group forms a batch — sender verification happened upstream", () => {
+  const batches = groupPendingMessages([
+    msg({ messageId: "g1", chatId: GROUP, senderId: SUPPLIER_SENDER }),
+    msg({ messageId: "g2", chatId: GROUP, senderId: SUPPLIER_SENDER, timestamp: new Date(T0.getTime() + 20000) }),
+  ], { now: new Date(T0.getTime() + 300000) });
+
+  assert.equal(batches.length, 1);
+  assert.equal(batches[0].chatId, GROUP);
+  assert.equal(batches[0].messages.length, 2);
+});
+
+test("one group carrying two suppliers splits, rather than merging their sheets", () => {
+  // Only verified senders reach this function, so in the announcement groups
+  // this was built for both keys agree. The split matters when they do not: a
+  // merged batch would be one vision call filed under whichever agent's message
+  // sorted first, stamping the wrong commission onto real selling prices.
+  const batches = groupPendingMessages([
+    msg({ messageId: "a", chatId: GROUP, rateIntakeAgentId: "101" }),
+    msg({ messageId: "b", chatId: GROUP, rateIntakeAgentId: "102" }),
+  ], { now: new Date(T0.getTime() + 300000) });
+
+  assert.equal(batches.length, 2);
+  assert.deepEqual(batches.map((b) => b.agentId).sort(), ["101", "102"]);
+  assert.ok(batches.every((b) => b.chatId === GROUP && b.messages.length === 1));
+});
+
+// ── isVerifiedSender ────────────────────────────────────────────────────────
+//
+// The check that makes group intake safe. Everything here is about it failing
+// CLOSED: a group message whose sender cannot be established must be skipped,
+// never attributed to the group's owner.
+
+test("a supplier's own number is verified without being restated", () => {
+  assert.equal(isVerifiedSender(SUPPLIER_SENDER, { chatId: SUPPLIER_SENDER }), true);
+});
+
+test("an approved LID is verified, because for some suppliers it is all there is", () => {
+  const supplier = { chatId: SUPPLIER_SENDER, senderIds: ["224876132614243@lid"] };
+  assert.equal(isVerifiedSender("224876132614243@lid", supplier), true);
+});
+
+test("another member of the group is NOT verified", () => {
+  // The attack this exists to stop: anyone in a supplier's community forwarding
+  // a screenshot would otherwise set Zamra's public selling prices.
+  assert.equal(isVerifiedSender("919899999999@c.us", { chatId: SUPPLIER_SENDER }), false);
+});
+
+test("an unresolvable sender fails closed rather than falling back to the owner", () => {
+  const supplier = { chatId: SUPPLIER_SENDER, senderIds: ["224876132614243@lid"] };
+  for (const sender of [null, undefined, "", "   "]) {
+    assert.equal(isVerifiedSender(sender, supplier), false, `${JSON.stringify(sender)} must not verify`);
+  }
+});
+
+test("isVerifiedSender survives a supplier with no addresses at all", () => {
+  assert.equal(isVerifiedSender(SUPPLIER_SENDER, {}), false);
+  assert.equal(isVerifiedSender(SUPPLIER_SENDER, null), false);
+  assert.equal(isVerifiedSender(SUPPLIER_SENDER, { chatId: null, senderIds: [] }), false);
+});
+
+test("verification is case-insensitive and ignores stray whitespace", () => {
+  const supplier = { chatId: SUPPLIER_SENDER, senderIds: ["  224876132614243@LID  "] };
+  assert.equal(isVerifiedSender("224876132614243@lid", supplier), true);
+  assert.equal(isVerifiedSender(SUPPLIER_SENDER.toUpperCase(), supplier), true);
 });
 
 // ── buildIntakePayload ──────────────────────────────────────────────────────

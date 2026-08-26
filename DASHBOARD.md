@@ -181,6 +181,50 @@ Messaging *logic* — auto-replies, AI answers, scheduled broadcasts — lives i
 reaches WAHA over the internal Docker network at `http://waha:3000`. Setup is in
 [infra/README.md](../infra/README.md).
 
+#### Rate intake from a supplier's community
+
+Suppliers who broadcast rate sheets to an announcement group rather than messaging Zamra
+directly are ingested the same way, with one extra check. **Membership is not authorship**:
+resolving a group tells you which supplier *owns* it, never who posted. So a group message is
+ingested only when both hold —
+
+1. the group is named in some supplier's `agents.rateIntakeGroupIds`, and
+2. the message's resolved sender matches that supplier's `whatsappChatId` or one of their
+   `rateIntakeSenderIds`.
+
+Anything else is skipped with `rateIntakeReason: "sender-not-verified"`. Both checks fail
+closed, including the case where the sender cannot be resolved at all — "we could not tell who
+sent this" must never collapse into "the supplier sent this", because that collapse is exactly
+how a member's forwarded screenshot ends up priced under the supplier's commission and
+published.
+
+Linking a group is also what makes it **mirrored at all**. `mirrorGroups` stays false: it is
+global, and flipping it would drag in Zamra's own six community groups and the thousands of
+daily writes that default exists to prevent. `rateIntakeGroupIds` is the narrow allow-list
+instead, and it is consulted only while `rateIntakeEnabled` is on.
+
+Linking one does still mean storing that group's **whole** traffic, not just its rate sheets —
+the gate decides what is *ingested*, not what is mirrored. So link announcement groups, where
+only admins can post, rather than open trade groups. `retentionDays` sweeps it either way.
+
+**Setting one up** (WhatsApp tab → Agents → Edit):
+
+1. Add Zamra's number to the supplier's community. Only the announcement group matters.
+2. Paste the group id (`…@g.us`) into *Announcement groups / communities*, and save. Mirroring
+   starts on the next message — `rateIntakeGroupsUpdatedAt` skips the 5-minute cache wait.
+3. Have them post a sheet. If their number was already linked it ingests immediately.
+4. If instead the batch is skipped as `sender-not-verified`, WhatsApp addressed them by an
+   opaque **LID** rather than a phone number. The observed address is recorded on the message
+   as `rateIntakeSeenSender` and logged; paste it into *Verified senders* to approve it.
+
+Step 4 is the normal path, not an error — WhatsApp is migrating group addressing to LIDs, and
+a LID cannot be converted back to a phone number. Approving one is deliberately manual: it is
+the credential that lets an address set Zamra's public selling prices.
+
+> ⚠️ A rate broadcast to a whole community is what every agency in it sees, which is not
+> necessarily the negotiated `specialRate` the pricing model assumes. Confirm that before
+> switching a community supplier on.
+
 ---
 
 ### 2. 📣 Socials Tab
@@ -552,6 +596,8 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `whatsappNumber` | String | As typed by the admin. Display only. |
 | `whatsappChatId` | String\|null | Normalised `919812345678@c.us` — the join key inbound messages are matched against. Enforced unique: two suppliers on one number would stamp the wrong commission onto real selling prices, so `addAgent`/`updateAgent` refuse the collision and the Cloud Function ignores the number entirely if one exists anyway. |
 | `rateIntakeMode` | String | `off` (default) \| `auto` \| `images_only`. Opt-in per supplier — fares from this path publish live. |
+| `rateIntakeGroupIds` | Array | Announcement groups / communities this supplier posts rate sheets into, as `…@g.us`. Also the **mirror allow-list**: a group named here is the only kind of group stored while `mirrorGroups` is false. Enforced unique per group, same reasoning as `whatsappChatId`. |
+| `rateIntakeSenderIds` | Array | Extra addresses this supplier is verified to post from inside those groups. `whatsappChatId` already counts and need not be repeated. Accepts a `…@lid`, which `whatsappChatId` never does. |
 | `createdAt` | Timestamp | Server timestamp |
 | `updatedAt` | Timestamp | Server timestamp |
 
@@ -851,6 +897,7 @@ read live by the dashboard via `subscribeWhatsappConfig`.
 | `rateIntakeMaxItems` | Number | Default 12 messages per batch; the rest wait for the next pass |
 | `rateIntakeLeaseMinutes` | Number | Default 15, against a ~7 min worst case |
 | `rateIntakeMaxBatchesPerChatPerDay` | Number | Default 12. Runaway-cost brake on vision calls, same spirit as `SEND_RATE_LIMIT_PER_MINUTE` |
+| `rateIntakeGroupsUpdatedAt` | Timestamp | Stamped by `addAgent`/`updateAgent` when a group link changes. The webhook caches the allow-list for 5 minutes and does **not** mirror an unlisted group at all, so without this a sheet posted right after linking would be lost rather than merely late. Read from a config the webhook already fetches, so it costs no extra read |
 | `rateIntakeLastClaimAt` / `rateIntakeClaimedTotal` / `rateIntakeSavedTotal` | — | Intake health, shown in the WhatsApp tab |
 
 > ⚠️ **The WAHA API key never goes in this doc.** It is admin-readable from the browser, which
@@ -906,7 +953,9 @@ contended.
 
 | Field | Type | Notes |
 |---|---|---|
-| `agentId` / `agentName` / `chatId` / `phone` | — | Which supplier, resolved from `agents.whatsappChatId` |
+| `agentId` / `agentName` / `chatId` / `phone` | — | Which supplier, resolved from `agents.whatsappChatId` or `agents.rateIntakeGroupIds`. `phone` is empty for a group batch, where it would be meaningless |
+| `via` | String | `direct` \| `group` |
+| `senderId` | String\|null | For a group batch, the verified address that posted it. An audit of a mispriced fare has to end at a person, not a group |
 | `status` | String | `claimed` → `done` \| `empty` \| `failed` \| `stale` \| `discarded` |
 | `messageIds` | Array | The `whatsapp_messages` doc ids in this batch. Reclaim reads them with `getAll`, so no index is needed |
 | `rawTextPreview` | String | First 1000 chars, for the dashboard. The full text is never copied — it already lives in `whatsapp_messages` |
@@ -919,9 +968,9 @@ contended.
 The batch is **derived, not accumulated**. Each inbound message is already one document in
 `whatsapp_messages` with exactly one writer, so intake adds `rateIntakeStatus`,
 `rateIntakeAgentId` and `rateIntakeBatchId` to a write that was happening anyway, and the
-claim groups them by `chatId`. An append-to-`items[]` queue document would be a hot doc,
-would need a transaction on the webhook hot path, and — bucketing by time — would split one
-supplier's six screenshots across two vision calls.
+claim groups them by `chatId` **and `agentId`**. An append-to-`items[]` queue document would be
+a hot doc, would need a transaction on the webhook hot path, and — bucketing by time — would
+split one supplier's six screenshots across two vision calls.
 
 > ⚠️ **An expired lease marks the batch `stale` and stops. It never auto-retries.** Unlike
 > `social_queue`, retrying here is not free: `ingestFaresFromN8n` writes a new auto-id

@@ -73,6 +73,69 @@ export function normalizeAgentWhatsapp(input) {
   return chatId && chatId.endsWith('@c.us') ? chatId : null;
 }
 
+/**
+ * Normalise a supplier announcement group / community id.
+ *
+ * The mirror image of normalizeAgentWhatsapp: here ONLY a group is valid. A
+ * number typed into the group field would otherwise be silently coerced to
+ * `…@c.us` by toChatId and stored as a group the server can never match,
+ * leaving a link that looks configured and ingests nothing.
+ *
+ * @param {string} input
+ * @returns {string|null}
+ */
+export function normalizeAgentGroupId(input) {
+  const chatId = toChatId(input);
+  return chatId && chatId.endsWith('@g.us') ? chatId : null;
+}
+
+/**
+ * Normalise an address a supplier is verified to post from.
+ *
+ * Wider than normalizeAgentWhatsapp because it must accept a LID: WhatsApp
+ * addresses group senders by an opaque id that cannot be converted to a phone
+ * number, so for some suppliers the LID is the only thing that will ever match.
+ * Approving one is deliberately a manual act — it is the credential that lets
+ * an address set Zamra's selling prices.
+ *
+ * @param {string} input
+ * @returns {string|null}
+ */
+export function normalizeSenderId(input) {
+  const raw = String(input ?? '').trim().toLowerCase();
+  if (/^\d{5,30}@lid$/.test(raw)) return raw;
+  return normalizeAgentWhatsapp(raw);
+}
+
+/**
+ * Split a textarea/comma list into normalised, de-duplicated ids.
+ *
+ * Returns the rejects alongside, so the form can name what it refused instead
+ * of dropping a typo on the floor — a silently discarded group id is a supplier
+ * whose sheets never arrive and nothing anywhere says why.
+ *
+ * @param {string} input
+ * @param {(value: string) => string|null} normalize
+ * @returns {{ids: string[], rejected: string[]}}
+ */
+export function parseAddressList(input, normalize) {
+  const ids = [];
+  const rejected = [];
+  const seen = new Set();
+
+  for (const piece of String(input ?? '').split(/[\s,;]+/)) {
+    const raw = piece.trim();
+    if (!raw) continue;
+    const id = normalize(raw);
+    if (!id) { rejected.push(raw); continue; }
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+
+  return { ids, rejected };
+}
+
 const BATCH_STATUS_LABELS = {
   claimed: { label: 'Reading…', tone: 'warn' },
   done: { label: 'Saved', tone: 'ok' },

@@ -25,6 +25,8 @@ const {
   MAX_TEXT_LENGTH,
   MAX_INBOUND_TEXT_LENGTH,
   chatIdFromPayload,
+  senderFromPayload,
+  isAllowedGroup,
 } = require("../whatsapp/normalize");
 
 const SECRET = "webhook-signing-secret";
@@ -412,4 +414,89 @@ test("a NOWEB message is mirrorable, which is what silently failed before", () =
     },
   };
   assert.equal(isMirrorableEvent(event, { mirrorGroups: false }), true);
+});
+
+// ── group senders and the intake allow-list ─────────────────────────────────
+//
+// Group intake rests entirely on these two: which groups are stored at all, and
+// who inside one is allowed to set Zamra's selling prices. Both fail closed, and
+// both are easy to "simplify" into failing open.
+
+const GROUP_ID = "120363000000000000@g.us";
+const SUPPLIER = "919812345678@c.us";
+
+/** A group message as NOWEB delivers it, addressed by LID with the PN beside. */
+function groupMessage(overrides = {}) {
+  return {
+    event: "message",
+    session: "default",
+    payload: {
+      id: "false_120363000000000000@g.us_3EB0",
+      timestamp: 1755855600,
+      from: GROUP_ID,
+      fromMe: false,
+      body: "CCJ JED IX 04 MAR 15500",
+      participant: "224876132614243@lid",
+      _data: { key: { participantAlt: "919812345678@s.whatsapp.net" } },
+      ...overrides,
+    },
+  };
+}
+
+test("senderFromPayload prefers the phone JID over the LID beside it", () => {
+  // The whole point: agents.whatsappChatId is a phone number, so reading the
+  // LID would leave a supplier unmatchable even though the payload named them.
+  assert.equal(senderFromPayload(groupMessage().payload), SUPPLIER);
+});
+
+test("senderFromPayload keeps a LID when no phone form is present anywhere", () => {
+  const payload = groupMessage({ _data: { key: {} } }).payload;
+  assert.equal(senderFromPayload(payload), "224876132614243@lid");
+});
+
+test("senderFromPayload returns null rather than inventing a sender", () => {
+  assert.equal(senderFromPayload({}), null);
+  assert.equal(senderFromPayload(null), null);
+  assert.equal(senderFromPayload({ participant: "not-an-address" }), null);
+});
+
+test("buildMessageMirror resolves senderId for a group and leaves it null for a direct chat", () => {
+  const group = buildMessageMirror(groupMessage());
+  assert.equal(group.isGroup, true);
+  assert.equal(group.senderId, SUPPLIER);
+  // The raw value survives untouched, so the inbox still shows what WAHA sent.
+  assert.equal(group.participant, "224876132614243@lid");
+
+  const direct = buildMessageMirror({
+    event: "message", session: "default",
+    payload: { id: "x", timestamp: 1755855600, from: SUPPLIER, fromMe: false, body: "hi" },
+  });
+  assert.equal(direct.isGroup, false);
+  assert.equal(direct.senderId, null, "a direct chat's sender IS its chat id");
+});
+
+test("an allow-listed group mirrors without opening every group", () => {
+  const event = groupMessage();
+  // The regression this guards: linking one supplier community must not require
+  // mirrorGroups, which would drag in all six of Zamra's own groups.
+  assert.equal(isMirrorableEvent(event, { mirrorGroups: false }), false);
+  assert.equal(
+    isMirrorableEvent(event, { mirrorGroups: false, mirrorGroupIds: new Set([GROUP_ID]) }),
+    true,
+  );
+});
+
+test("a group nobody linked is still dropped", () => {
+  const event = groupMessage({ from: "120363999999999999@g.us" });
+  assert.equal(
+    isMirrorableEvent(event, { mirrorGroups: false, mirrorGroupIds: new Set([GROUP_ID]) }),
+    false,
+  );
+});
+
+test("isAllowedGroup takes a Set or an Array and is case-insensitive", () => {
+  assert.equal(isAllowedGroup(new Set([GROUP_ID]), GROUP_ID.toUpperCase()), true);
+  assert.equal(isAllowedGroup([GROUP_ID], GROUP_ID), true);
+  assert.equal(isAllowedGroup(null, GROUP_ID), false);
+  assert.equal(isAllowedGroup([], GROUP_ID), false);
 });

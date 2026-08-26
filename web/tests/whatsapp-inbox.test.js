@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { toChatId, describeStatus, renderMessageBody, normalizeAgentWhatsapp, describeBatchStatus, summarizeIntake } from '../src/js/admin/whatsapp.js';
+import { toChatId, describeStatus, renderMessageBody, normalizeAgentWhatsapp, normalizeAgentGroupId, normalizeSenderId, parseAddressList, describeBatchStatus, summarizeIntake } from '../src/js/admin/whatsapp.js';
 
 test('toChatId accepts the shapes a human types', () => {
   assert.equal(toChatId('+91 98466 06731'), '919846606731@c.us');
@@ -135,4 +135,53 @@ test('toChatId canonicalises the NOWEB form the server also accepts', () => {
   assert.equal(normalizeAgentWhatsapp('919846606755@s.whatsapp.net'), '919846606755@c.us');
   // A LID is not a phone number, so it must never become an agent's link key.
   assert.equal(normalizeAgentWhatsapp('224876132614243@lid'), null);
+});
+
+// ── group intake addressing ─────────────────────────────────────────────────
+//
+// Three fields that look interchangeable and are not. Storing a number where a
+// group belongs — or the reverse — produces a link that reads as configured in
+// the form and matches nothing on the server, which is the worst failure shape
+// available: silent.
+
+test('normalizeAgentGroupId accepts only a group', () => {
+  assert.equal(normalizeAgentGroupId('120363001234567890@g.us'), '120363001234567890@g.us');
+  assert.equal(normalizeAgentGroupId('120363001234567890@G.US'), '120363001234567890@g.us');
+  // A number typed into the group box would otherwise be coerced to @c.us and
+  // stored as a "group" the server can never match.
+  assert.equal(normalizeAgentGroupId('9846606731'), null);
+  assert.equal(normalizeAgentGroupId('919846606731@c.us'), null);
+  assert.equal(normalizeAgentGroupId(''), null);
+});
+
+test('normalizeSenderId accepts a LID, which normalizeAgentWhatsapp must not', () => {
+  // A group sender is often addressed by an opaque LID, so for some suppliers
+  // it is the only value that will ever match.
+  assert.equal(normalizeSenderId('224876132614243@lid'), '224876132614243@lid');
+  assert.equal(normalizeAgentWhatsapp('224876132614243@lid'), null, 'a supplier NUMBER is never a LID');
+  assert.equal(normalizeSenderId('+91 98466 06731'), '919846606731@c.us');
+  assert.equal(normalizeSenderId('120363001234567890@g.us'), null, 'a group is not a sender');
+});
+
+test('parseAddressList splits, normalises and de-duplicates', () => {
+  const { ids, rejected } = parseAddressList(
+    '120363001234567890@g.us\n 120363001234567890@G.US , 120363009999999999@g.us',
+    normalizeAgentGroupId,
+  );
+  assert.deepEqual(ids, ['120363001234567890@g.us', '120363009999999999@g.us']);
+  assert.deepEqual(rejected, []);
+});
+
+test('parseAddressList reports what it refused instead of dropping it', () => {
+  // A silently discarded typo is a supplier whose sheets never arrive with
+  // nothing anywhere explaining why.
+  const { ids, rejected } = parseAddressList('120363001234567890@g.us  nonsense', normalizeAgentGroupId);
+  assert.deepEqual(ids, ['120363001234567890@g.us']);
+  assert.deepEqual(rejected, ['nonsense']);
+});
+
+test('parseAddressList treats an empty box as an empty list, not an error', () => {
+  for (const empty of ['', '   ', '\n\n', null, undefined]) {
+    assert.deepEqual(parseAddressList(empty, normalizeAgentGroupId), { ids: [], rejected: [] });
+  }
 });

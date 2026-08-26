@@ -171,6 +171,16 @@ This is worth knowing before debugging anything downstream: an unrecognised chat
 id is dropped as "not mirrorable" with a **200 and no error**, so the symptom is
 total silence rather than a failure.
 
+In a **group** the same problem applies one level down. The chat is the group;
+who typed is `participant`, and that is increasingly a LID too. The phone form
+rides alongside under a key Baileys has renamed across releases, so
+`senderFromPayload` reads several candidates and prefers whichever is a phone
+JID. Rate intake verifies group senders against that value, so if a future WAHA
+release renames the field again the symptom is sheets skipped as
+`sender-not-verified` with the observed address logged — never a sheet filed
+under the wrong supplier. The fix in that case is to approve the LID under the
+supplier's *Verified senders*, or add the new field name to `SENDER_FIELD_PATHS`.
+
 ### If inbound messages stop being mirrored
 
 Symptom: the dashboard's WhatsApp tab shows a healthy `Connected` session, but

@@ -11,7 +11,7 @@
 
 "use strict";
 
-const { isDirectChat } = require("./normalize");
+const { isDirectChat, isGroupChat } = require("./normalize");
 
 // ── tuning defaults ─────────────────────────────────────────────────────────
 // Overridable from config/whatsapp; these are the values a missing config
@@ -165,6 +165,39 @@ function isUsableDocId(value) {
 }
 
 /**
+ * Is this message's sender one of the addresses this supplier is verified on?
+ *
+ * The whole reason group intake is safe. A direct chat needs no such check —
+ * the chat id IS the sender, and matching it already identified the supplier.
+ * A group is the opposite: membership says nothing about who typed, so linking
+ * a community would otherwise mean trusting every member of it to set Zamra's
+ * selling prices.
+ *
+ * Fails closed in every ambiguous case. An unresolvable sender returns false
+ * rather than falling back to the group's owner, because "we could not tell who
+ * sent this" and "the supplier sent this" must never collapse into each other —
+ * that collapse is exactly how a member's forwarded screenshot would get
+ * ingested under the supplier's commission.
+ *
+ * @param {string|null} sender    canonical address from senderFromPayload
+ * @param {{chatId?: string|null, senderIds?: Array<string>}} supplier
+ * @returns {boolean}
+ */
+function isVerifiedSender(sender, supplier) {
+  const address = String(sender ?? "").trim().toLowerCase();
+  if (!address) return false;
+
+  const src = supplier && typeof supplier === "object" ? supplier : {};
+  // The supplier's own WhatsApp number counts without being restated: an admin
+  // who linked the number and the group should not have to type the number
+  // twice for the obvious case to work.
+  if (address === String(src.chatId ?? "").trim().toLowerCase()) return true;
+
+  const extra = Array.isArray(src.senderIds) ? src.senderIds : [];
+  return extra.some((entry) => String(entry ?? "").trim().toLowerCase() === address);
+}
+
+/**
  * Group pending messages into claimable batches, one per chat.
  *
  * The batch is derived here rather than accumulated in a queue document, and
@@ -172,6 +205,12 @@ function isUsableDocId(value) {
  * because they share a chatId — not because they happened to land in the same
  * time bucket. A bucketing scheme would split 11:59:58 from 12:00:02, which is
  * exactly the "one sheet, six vision calls" failure this exists to prevent.
+ *
+ * Group chats are grouped by chat AND supplier, never chat alone. Only verified
+ * senders reach this function, so in the announcement groups this was built for
+ * the two keys are the same thing — but if a group ever resolves to two
+ * suppliers, the extra key splits them into separate batches instead of merging
+ * two rate sheets into one vision call filed under whichever arrived first.
  *
  * A chat is released when any of these is true, checked in order:
  *   quiet     — nothing new for quietMs; the supplier has stopped typing
@@ -195,16 +234,20 @@ function groupPendingMessages(messages, {
   for (const message of Array.isArray(messages) ? messages : []) {
     const chatId = String(message?.chatId ?? "").toLowerCase();
     const agentId = String(message?.rateIntakeAgentId ?? "");
-    // A message with no resolvable supplier is not ingestable, and a group id
-    // must never reach here even if some upstream check is later relaxed.
-    if (!chatId || !agentId || !isDirectChat(chatId)) continue;
-    if (!byChat.has(chatId)) byChat.set(chatId, []);
-    byChat.get(chatId).push(message);
+    // A message with no resolvable supplier is not ingestable, and an address
+    // that is neither a direct chat nor a group must never reach here even if
+    // some upstream check is later relaxed.
+    if (!chatId || !agentId) continue;
+    if (!isDirectChat(chatId) && !isGroupChat(chatId)) continue;
+    const key = `${chatId}|${agentId}`;
+    if (!byChat.has(key)) byChat.set(key, []);
+    byChat.get(key).push(message);
   }
 
   const batches = [];
 
-  for (const [chatId, items] of byChat) {
+  for (const [key, items] of byChat) {
+    const chatId = key.slice(0, key.lastIndexOf("|"));
     // Oldest first, so raw_text reads in the order the supplier typed it — a
     // sector header above its own rate lines, which is what the model expects.
     items.sort((a, b) => toMs(a?.timestamp) - toMs(b?.timestamp));
@@ -285,6 +328,7 @@ module.exports = {
   looksLikeRateMessage,
   isUsableDocId,
   wahaMediaPath,
+  isVerifiedSender,
   groupPendingMessages,
   buildIntakePayload,
   INTAKE_MODES,

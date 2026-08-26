@@ -118,6 +118,67 @@ function isDirectChat(chatId) {
 }
 
 /**
+ * Where a group payload might carry the individual sender, best form first.
+ *
+ * In a direct chat the chat id IS the sender, so this does not exist there. In
+ * a group they are different questions — the chat is the group, the sender is
+ * one member — and the sender is the one rate intake must verify.
+ *
+ * It is a list rather than a field because WhatsApp is migrating group
+ * addressing to LIDs and Baileys has carried the phone-number form under
+ * several names across releases. Reading all of them and preferring a phone JID
+ * is cheap; guessing wrong is not. If a future WAHA release renames the field
+ * again the failure is a message skipped as sender-not-verified with the
+ * observed address logged — never a sheet filed under the wrong supplier.
+ */
+const SENDER_FIELD_PATHS = Object.freeze([
+  ["_data", "key", "participantPn"],
+  ["_data", "key", "participantAlt"],
+  ["_data", "participantPn"],
+  ["_data", "participantAlt"],
+  ["participant"],
+  ["_data", "key", "participant"],
+  ["_data", "participant"],
+]);
+
+/** Read a dotted path off a payload, returning "" for anything not a string. */
+function readPath(source, path) {
+  let cursor = source;
+  for (const key of path) {
+    if (!cursor || typeof cursor !== "object") return "";
+    cursor = cursor[key];
+  }
+  return typeof cursor === "string" ? cursor : "";
+}
+
+/**
+ * The individual who sent a group message, as a canonical address.
+ *
+ * A phone JID always wins over a LID: `agents.whatsappChatId` is a phone
+ * number, so a LID would match no supplier and the message would be skipped
+ * even though the payload named the sender perfectly well one field over. A
+ * LID is returned only when no phone form is present anywhere, so an admin can
+ * still approve it explicitly via `agents.rateIntakeSenderIds`.
+ *
+ * @param {object} payload
+ * @returns {string|null} "919812345678@c.us", "224876132614243@lid", or null
+ */
+function senderFromPayload(payload) {
+  const src = payload && typeof payload === "object" ? payload : {};
+  let fallbackLid = null;
+
+  for (const path of SENDER_FIELD_PATHS) {
+    const raw = readPath(src, path).trim().toLowerCase();
+    if (!raw) continue;
+    const resolved = raw.replace(WHATSAPP_NET_SUFFIX_RE, "@c.us");
+    if (DIRECT_CHAT_RE.test(resolved)) return resolved;
+    if (!fallbackLid && LID_CHAT_RE.test(resolved)) fallbackLid = resolved;
+  }
+
+  return fallbackLid;
+}
+
+/**
  * A WAHA message id used as a Firestore document id.
  *
  * Firestore forbids "/", ".", ".." and anything matching __*__ in a doc id, and
@@ -235,11 +296,16 @@ function verifyWebhookSignature(rawBody, signatureHeader, algorithmHeader, secre
  * groups, and mirroring those turns a quiet collection into thousands of
  * writes a day for messages nobody triages in the dashboard.
  *
+ * `mirrorGroupIds` is the narrow exception — the supplier announcement groups
+ * rate intake reads from. It exists so linking one community does not require
+ * flipping `mirrorGroups`, which would drag in all six of Zamra's own groups
+ * and the flood this default was written to prevent.
+ *
  * @param {object} event
- * @param {{mirrorGroups?: boolean}} [options]
+ * @param {{mirrorGroups?: boolean, mirrorGroupIds?: Set<string>|Array<string>}} [options]
  * @returns {boolean}
  */
-function isMirrorableEvent(event, { mirrorGroups = false } = {}) {
+function isMirrorableEvent(event, { mirrorGroups = false, mirrorGroupIds = null } = {}) {
   const src = event && typeof event === "object" ? event : {};
   if (!MIRRORED_EVENTS.includes(src.event)) return false;
 
@@ -248,8 +314,23 @@ function isMirrorableEvent(event, { mirrorGroups = false } = {}) {
 
   const chatId = chatIdFromPayload(payload);
   if (!chatId) return false;
-  if (isGroupChat(chatId) && !mirrorGroups) return false;
+  if (isGroupChat(chatId) && !mirrorGroups && !isAllowedGroup(mirrorGroupIds, chatId)) return false;
   return isDirectChat(chatId) || isGroupChat(chatId);
+}
+
+/**
+ * Is this group on the intake allow-list? Accepts a Set or an Array so the
+ * caller can pass whichever it already has.
+ *
+ * @param {Set<string>|Array<string>|null} allowed
+ * @param {string} chatId
+ * @returns {boolean}
+ */
+function isAllowedGroup(allowed, chatId) {
+  if (!allowed) return false;
+  const id = String(chatId ?? "").toLowerCase();
+  if (allowed instanceof Set) return allowed.has(id);
+  return Array.isArray(allowed) && allowed.some((entry) => String(entry ?? "").toLowerCase() === id);
 }
 
 /**
@@ -324,6 +405,10 @@ function buildMessageMirror(event, { now = new Date(), retentionDays = 90 } = {}
     mimetype: media && typeof media.mimetype === "string" ? media.mimetype : null,
     isGroup: isGroupChat(chatId),
     participant: String(payload.participant ?? "") || null,
+    // The resolved sender, and the field rate intake verifies against. Kept
+    // beside the raw `participant` rather than replacing it, so the inbox keeps
+    // showing exactly what WAHA sent while intake reads the canonical form.
+    senderId: isGroupChat(chatId) ? senderFromPayload(payload) : null,
     ack,
     ackName: ack !== null ? (ACK_NAMES[String(ack)] ?? null) : null,
     timestamp,
@@ -388,6 +473,8 @@ module.exports = {
   normalizeChatId,
   isDirectChat,
   isGroupChat,
+  isAllowedGroup,
+  senderFromPayload,
   docIdForMessage,
   projectSession,
   projectQr,

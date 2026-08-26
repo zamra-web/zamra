@@ -396,7 +396,15 @@ function build(db, requireAdmin, wahaApiKey, wahaWebhookSecret, n8nIngestToken) 
           return res.status(200).json({ ok: true });
         }
 
-        if (!isMirrorableEvent(event, { mirrorGroups: config.mirrorGroups })) {
+        // Supplier announcement groups mirror even with mirrorGroups off — but
+        // only while intake is switched on, since reading rate sheets is the
+        // only reason to store that traffic at all. With the master toggle off
+        // the allow-list is not even consulted and the feature stays fully dark.
+        const mirrorGroupIds = config.rateIntakeEnabled
+          ? await rateIntake.intakeGroupIds(config)
+          : null;
+
+        if (!isMirrorableEvent(event, { mirrorGroups: config.mirrorGroups, mirrorGroupIds })) {
           // 200, not 4xx: a rejection would sit in WAHA's retry queue forever
           // for events we simply do not store.
           await db.doc(CONFIG_DOC).set({

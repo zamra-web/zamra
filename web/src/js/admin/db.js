@@ -13,7 +13,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { httpsCallable } from 'firebase/functions';
 import { db, storage, functions } from './firebase-config.js';
 import { getEnquirySectorIds } from '../shared/enquiry-alerts.js';
-import { normalizeAgentWhatsapp } from './whatsapp.js';
+import { normalizeAgentWhatsapp, normalizeAgentGroupId, normalizeSenderId, parseAddressList } from './whatsapp.js';
 
 const SOCIAL_RETENTION_MS = 72 * 60 * 60 * 1000;
 
@@ -93,6 +93,48 @@ async function assertWhatsappChatIdFree(chatId, ownAgentId) {
 }
 
 /**
+ * Reject an announcement group already linked to a different supplier.
+ *
+ * Same reasoning as assertWhatsappChatIdFree, and the same server-side
+ * consequence: refreshSupplierCache drops a group claimed by two agents
+ * entirely rather than guessing, so an unchecked collision switches intake off
+ * for both suppliers with nothing in the UI to explain it.
+ */
+async function assertGroupIdsFree(groupIds, ownAgentId) {
+  for (const groupId of groupIds || []) {
+    const clash = await getDocs(query(
+      collection(db, 'agents'), where('rateIntakeGroupIds', 'array-contains', groupId),
+    ));
+    const other = clash.docs.find(d => d.id !== ownAgentId);
+    if (other) {
+      throw new Error(`That WhatsApp group is already linked to agent ${other.id} (${other.data().name || 'unnamed'}).`);
+    }
+  }
+}
+
+/**
+ * Tell the webhook its supplier cache is stale.
+ *
+ * The Cloud Function caches the group allow-list for five minutes, and a group
+ * that is not on it is not mirrored at all — so without this stamp a sheet
+ * posted in the minutes after linking would never reach Firestore, not merely
+ * arrive late. The webhook reads config/whatsapp on every event, so this costs
+ * one write here and no reads there.
+ */
+async function stampRateIntakeGroups() {
+  try {
+    await setDoc(doc(db, 'config', 'whatsapp'), {
+      rateIntakeGroupsUpdatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (err) {
+    // Non-fatal: the agent WAS saved, and the cache expires on its own within
+    // five minutes. Failing the save here would be the worse outcome.
+    console.warn('Could not stamp rateIntakeGroupsUpdatedAt; the link takes effect within 5 minutes.', err);
+  }
+}
+
+/**
  * Normalise the WhatsApp intake fields out of an agent form payload.
  * Returns only the keys that should be written, so an untouched form does not
  * clobber a number saved earlier.
@@ -109,6 +151,20 @@ function agentWhatsappFields(data) {
   if (data.rateIntakeMode !== undefined) {
     fields.rateIntakeMode = ['auto', 'images_only', 'off'].includes(data.rateIntakeMode)
       ? data.rateIntakeMode : 'off';
+  }
+  if (data.rateIntakeGroupIds !== undefined) {
+    const { ids, rejected } = parseAddressList(data.rateIntakeGroupIds, normalizeAgentGroupId);
+    if (rejected.length) {
+      throw new Error(`Not a WhatsApp group id: ${rejected.join(', ')}. A group id ends in @g.us.`);
+    }
+    fields.rateIntakeGroupIds = ids;
+  }
+  if (data.rateIntakeSenderIds !== undefined) {
+    const { ids, rejected } = parseAddressList(data.rateIntakeSenderIds, normalizeSenderId);
+    if (rejected.length) {
+      throw new Error(`Not a WhatsApp address: ${rejected.join(', ')}. Use a number, or the @lid shown on a skipped message.`);
+    }
+    fields.rateIntakeSenderIds = ids;
   }
   return fields;
 }
@@ -130,6 +186,7 @@ export async function addAgent(data) {
   if (!data.id) throw new Error("Agent ID is required.");
   const whatsapp = agentWhatsappFields(data);
   await assertWhatsappChatIdFree(whatsapp.whatsappChatId, data.id);
+  await assertGroupIdsFree(whatsapp.rateIntakeGroupIds, data.id);
   const docRef = doc(db, 'agents', data.id);
   await setDoc(docRef, {
     name: data.name || '',
@@ -142,9 +199,15 @@ export async function addAgent(data) {
     whatsappNumber: whatsapp.whatsappNumber || '',
     whatsappChatId: whatsapp.whatsappChatId || null,
     rateIntakeMode: whatsapp.rateIntakeMode || 'off',
+    // Announcement groups this supplier posts rate sheets into, and the
+    // addresses they are verified to post from. Both empty by default: a group
+    // link is worthless without an approved sender, and vice versa.
+    rateIntakeGroupIds: whatsapp.rateIntakeGroupIds || [],
+    rateIntakeSenderIds: whatsapp.rateIntakeSenderIds || [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  if (whatsapp.rateIntakeGroupIds?.length) await stampRateIntakeGroups();
   return data.id;
 }
 
@@ -153,6 +216,7 @@ export async function updateAgent(agentId, data) {
   const { id, ...updates } = data;
   const whatsapp = agentWhatsappFields(updates);
   await assertWhatsappChatIdFree(whatsapp.whatsappChatId, agentId);
+  await assertGroupIdsFree(whatsapp.rateIntakeGroupIds, agentId);
   Object.assign(updates, whatsapp);
   const hasCommission = updates.commission !== undefined && updates.commission !== null && updates.commission !== '';
   let updatedFares = 0;
@@ -164,6 +228,8 @@ export async function updateAgent(agentId, data) {
     ...updates,
     updatedAt: serverTimestamp(),
   });
+
+  if (whatsapp.rateIntakeGroupIds !== undefined) await stampRateIntakeGroups();
 
   if (hasCommission) {
     try {

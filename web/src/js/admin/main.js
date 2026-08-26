@@ -5199,13 +5199,17 @@ async function renderAgentsTab(fetchData = true) {
  * <td>s and an empty-state colspan="7" that would have to move with an eighth.
  */
 function agentIntakeBadge(a) {
-  if (!a.whatsappChatId) return '';
+  const groups = (a.rateIntakeGroupIds || []).length;
+  // A supplier can be linked by number, by group, or both — a group-only link
+  // is a real link, and showing nothing for it would read as "not configured".
+  if (!a.whatsappChatId && !groups) return '';
   const mode = a.rateIntakeMode || 'off';
+  const via = groups ? ` via ${groups} group${groups !== 1 ? 's' : ''}` : '';
   if (mode === 'off') {
-    return ` <i class="bi bi-whatsapp text-text-muted" title="WhatsApp linked, auto rate intake off"></i>`;
+    return ` <i class="bi bi-whatsapp text-text-muted" title="WhatsApp linked${via}, auto rate intake off"></i>`;
   }
   const label = mode === 'images_only' ? 'Auto rate intake: screenshots only' : 'Auto rate intake: on';
-  return ` <i class="bi bi-whatsapp text-emerald-600" title="${label}"></i>`;
+  return ` <i class="bi bi-whatsapp text-emerald-600" title="${label}${via}"></i>`;
 }
 
 function agentRow(a) {
@@ -5368,6 +5372,25 @@ function openAgentModal(agent) {
               <option value="images_only" ${agent?.rateIntakeMode === 'images_only' ? 'selected' : ''}>Screenshots only</option>
             </select>
             <p class="admin-help">Fares publish live. Only switch this on for suppliers whose sheets you trust.</p>
+          </div>
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Announcement groups / communities</label>
+            <textarea name="rateIntakeGroupIds" rows="2" class="admin-control font-mono text-xs"
+              placeholder="120363000000000000@g.us">${(agent?.rateIntakeGroupIds || []).join('\n')}</textarea>
+            <p class="admin-help">
+              Groups where this supplier posts rate sheets — one id per line, ending in <code>@g.us</code>.
+              Zamra's number must be a member. Only these groups are stored at all; every other group stays unmirrored.
+            </p>
+          </div>
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Verified senders in those groups</label>
+            <textarea name="rateIntakeSenderIds" rows="2" class="admin-control font-mono text-xs"
+              placeholder="919812345678@c.us">${(agent?.rateIntakeSenderIds || []).join('\n')}</textarea>
+            <p class="admin-help">
+              The WhatsApp number above already counts — add lines here only for extra addresses.
+              A post from anyone else in the group is skipped, and the address it came from is recorded on the
+              message as <code>rateIntakeSeenSender</code> so you can approve it here if it is really them.
+            </p>
           </div>
         </div>
       </div>
