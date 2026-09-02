@@ -210,14 +210,69 @@ only admins can post, rather than open trade groups. `retentionDays` sweeps it e
 **Setting one up** (WhatsApp tab → Agents → Edit):
 
 1. Add Zamra's number to the supplier's community. Only the announcement group matters.
-2. Paste the group id (`…@g.us`) into *Announcement groups / communities*, and save. Mirroring
+2. Find the group id. Nothing in the dashboard lists it — the WAHA proxy is a whitelist with no
+   groups endpoint — so ask WAHA directly, with the plaintext `WAHA_API_KEY`:
+
+   ```bash
+   curl -sS -H "X-Api-Key: $KEY" https://waha.zamratravels.com/api/zamra/groups > groups.json
+   jq -r 'if type=="array" then .[] else to_entries[].value end
+          | select(.isCommunityAnnounce == true)
+          | "\(.id)  size=\(.size)  ownerPn=\(.ownerPn // "-")  \(.subject)"' groups.json
+   ```
+
+   On the NOWEB engine that endpoint answers with an **object keyed by group id**, not the array
+   the Swagger page implies — hence `to_entries`. A community yields *two* documents sharing one
+   `subject`: the parent (`isCommunity: true`, `announce: false`) and its Announcements group
+   (`isCommunityAnnounce: true`, `announce: true`). Never link the parent — it holds no
+   messages. Which of the remaining groups to link is settled in step 3, not here. Failing all
+   of the above, set `config/whatsapp.mirrorGroups` true in the Firestore console for exactly
+   one message, read `chatId` off the new `whatsapp_messages` doc, and set it back — there is
+   deliberately no UI for that toggle, and leaving it on pulls in Zamra's own groups.
+3. **Confirm which group actually carries the sheets, and who posts them.** Do not infer either
+   — both guesses are wrong more often than they are right:
+
+   ```bash
+   G=120363411379659977%40g.us
+   curl -sS -H "X-Api-Key: $KEY" \
+     "https://waha.zamratravels.com/api/zamra/chats/$G/messages?limit=100&downloadMedia=false" |
+     jq -r '[.[] | select(.fromMe != true)]
+            | group_by(._data.key.participantAlt // ._data.key.participant)
+            | map({phone: .[0]._data.key.participantAlt, lid: .[0]._data.key.participant, n: length})
+            | sort_by(-.n)[] | "\(.n)  \(.phone)  \(.lid)"'
+   ```
+
+   A community's Announcements group is often **empty** — the supplier broadcasts in an ordinary
+   admins-only group linked to the community instead, which has `announce: true` but
+   `isCommunityAnnounce: false`. Link the group with the messages in it, whichever that is.
+
+   And the sender is usually **not the owner**: of the suppliers wired so far, only one posted
+   from the number that created the group. `participantAlt` carries the phone JID next to the
+   LID even under community phone-number privacy, so this query names the real posters directly
+   — put the busiest in *WhatsApp Number* and the rest in *Verified senders* as `…@c.us`. A
+   supplier desk commonly runs several numbers; one had five in its first eight messages.
+
+   The history only reaches back to when `zamrabot` joined, so a quiet group returns nothing.
+   For those, wire the group and let step 6 name the sender on the first real sheet.
+4. Paste the group id (`…@g.us`) into *Announcement groups / communities*, and save. Mirroring
    starts on the next message — `rateIntakeGroupsUpdatedAt` skips the 5-minute cache wait.
-3. Have them post a sheet. If their number was already linked it ingests immediately.
-4. If instead the batch is skipped as `sender-not-verified`, WhatsApp addressed them by an
+5. Have them post a sheet. If their number was already linked it ingests immediately.
+6. If instead the batch is skipped as `sender-not-verified`, WhatsApp addressed them by an
    opaque **LID** rather than a phone number. The observed address is recorded on the message
    as `rateIntakeSeenSender` and logged; paste it into *Verified senders* to approve it.
 
-Step 4 is the normal path, not an error — WhatsApp is migrating group addressing to LIDs, and
+**Test with a rate-shaped message, not "hi".** `looksLikeRateMessage` runs *before* the sender
+check, so ordinary chatter returns early and records no `rateIntakeSeenSender` — there is
+nothing to approve and nothing to see in the dashboard, which reads exactly like a broken
+pipeline. `CCJ DXB 15500` qualifies: one price and one three-letter uppercase token.
+`Rates 15500` does not. Any image qualifies on its own.
+
+A price counts written either way — `44000` or `44,000`. The comma form was added because it
+is not a stylistic variant but a whole supplier's house style: Travel Wallet writes most of its
+sheet with separators and Jubair mixes both, so a per-sector update like `06 SEP : 46,700/-`
+previously carried no price token at all and was dropped as chatter. A bare 10-digit phone
+number still does not match.
+
+Step 5 is the normal path, not an error — WhatsApp is migrating group addressing to LIDs, and
 a LID cannot be converted back to a phone number. Approving one is deliberately manual: it is
 the credential that lets an address set Zamra's public selling prices.
 
@@ -341,13 +396,62 @@ A fare gets cheaper two different ways, and only one of them is visible on a sin
 | Path | What lands in Firestore | How it is detected |
 |---|---|---|
 | Admin edits a row down | `previousFinalRate` + `rateChangedAt` on the same doc | Read straight off the document |
-| A cheaper rate sheet is re-uploaded | **A brand-new document** — `ingestFaresFromN8n` calls `.doc()` with no ID and never updates or dedupes | Compared against older sibling rows |
+| A cheaper rate sheet is re-uploaded | **A brand-new document** — `ingestFaresFromN8n` calls `.doc()` with no ID and never edits one; the row it replaces is *hidden*, not changed | Compared against older sibling rows |
 
 `annotateFarePriceDrops()` in [web/src/js/shared/fare-price-history.js](web/src/js/shared/fare-price-history.js) handles both. It groups rows by `sectorId + airlineId + flightDate + flightTime` — the same key the poster and public site dedupe on — orders each group by `createdAt`, and flags any row that undercuts the cheapest of its strictly-older siblings. Drops older than 7 days are ignored by default.
 
 Two things to know when touching this:
 - The drop map is computed over **all** loaded fares, never the filtered view. The older row that proves a drop is often filtered out.
 - It is cached against the `_databaseFares` array identity, which is safe only because that array is always reassigned, never mutated in place.
+
+Superseding does not break this. A replaced row keeps its `createdAt` and stays loaded on the
+admin surface — only the public and B2B projections filter it out — so it still counts as the
+older sibling that proves a drop.
+
+#### Supersede on ingest
+
+Ingest appends, and every projection that reads `agent_fares` dedupes a
+`sectorId + airlineId + flightDate + flightTime` group by **minimum price**
+([publicFares.js](functions/publicFares.js), [publicDeals.js](functions/publicDeals.js),
+[b2b.js](functions/b2b.js), and `dedupeAndSortFares` for the client). Those two behaviours are
+individually reasonable and jointly wrong:
+
+| Supplier revises | Before | Now |
+|---|---|---|
+| **down** | new row is cheapest, wins | unchanged |
+| **up** | superseded cheaper row wins **forever** | prior row hidden, live price quoted |
+
+This is not a corner case. Glansa sent four `*REVISED FARE*` messages in five on one morning,
+twice for the same sector; Airguide revised three times in twenty minutes. Automating intake
+multiplies exactly the update the pipeline handled worst.
+
+So `ingestFaresFromN8n` now reads the fares an upload replaces *before* writing it, and hides
+them after the new rows commit. The decision is pure and lives in
+[functions/fareSupersede.js](functions/fareSupersede.js):
+
+- **Identity is `agentId + sectorId + airlineId + flightDate + flightTime`** — the dedupe key
+  plus the supplier. `agentId` is what stops one supplier's sheet delisting a competitor's quote
+  for the same flight. `flightTime` is what stops an evening revision delisting the morning
+  flight, which suppliers really do sell separately (Travel Wallet prints MRNG and EVENING
+  blocks). Both are load-bearing; neither is optional.
+- **Fails closed.** A row missing any identity field yields no key and supersedes nothing —
+  a duplicate an admin can see beats silently removing a fare that is still for sale.
+- **Hides, never deletes.** `isHidden` already means "exists, not for sale" and all four
+  projections filter on it. The row survives for the audit trail that `ingestBatchId` and the
+  one-click batch delete assume.
+- **Writes new rows first, hides second.** The other order leaves a window with no visible price
+  for the sector, which the public site renders as sold out rather than as briefly stale.
+- **A failed lookup does not fail the upload.** Publishing the rates and leaving a stale
+  duplicate is recoverable from the dashboard; rejecting the batch loses the sheet.
+
+One query per supplier per upload — `agentId ==` plus the quoted date window, served by the
+existing `agentId + flightDate` composite index. The response reports `superseded` alongside
+`saved`.
+
+> **Undo caveat.** `bulkDeleteFares` removes the rows a batch *created*; it does not un-hide the
+> rows that batch *replaced*. Undoing a bad upload therefore leaves the sector with no visible
+> fare until the supplier posts again — `supersededByBatchId` records which batch to reverse if
+> that ever needs automating.
 
 ### 8. 📋 Rate Upload Tab
 - **AI Rate Intake** — premium step-by-step UI for agent selection and raw fare submission
@@ -637,6 +741,8 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `updatedAt` | Timestamp | Server timestamp — shown as "Edited …" once it diverges from `createdAt` |
 | `previousFinalRate` | Number | Optional. The rate before the most recent edit that changed it |
 | `rateChangedAt` | Timestamp | Optional. When `finalRate` last changed via an admin edit |
+| `supersededAt` | Timestamp | Optional. When a later upload replaced this quote — see [Supersede on ingest](#supersede-on-ingest) |
+| `supersededByBatchId` | String | Optional. The `ingestBatchId` that replaced it, when the replacing upload carried one |
 
 > `previousFinalRate` / `rateChangedAt` are written only by `updateFare(fareId, data, { previousFinalRate })`. They cover **edited** fares. A price drop that arrives as a *re-upload* has no such fields — `ingestFaresFromN8n` creates a new document per row — and is derived instead by `annotateFarePriceDrops()`. See [Price drop detection](#price-drop-detection).
 

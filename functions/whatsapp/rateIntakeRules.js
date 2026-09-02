@@ -25,15 +25,23 @@ const DEFAULT_MAX_ITEMS = 12;
 const INGESTIBLE_MEDIA_RE = /^image\/(jpeg|jpg|png|gif|webp)$/i;
 
 /**
- * The same band `Build Firebase Payload` enforces in n8n (₹1,000–99,999).
+ * The same band `Build Firebase Payload` enforces in n8n (₹1,000–99,999),
+ * written either plainly (`44000`) or with a thousands comma (`44,000`).
  * Matching it here means the gate and the validator agree about what a fare
  * looks like, so a message that passes this cannot be rejected downstream for
  * having no plausible prices in it.
  *
- * A 10-digit phone number does not match: \b..\b anchors on the whole run of
- * digits, so "9846606731" yields nothing rather than a false price.
+ * The comma alternative is not cosmetic. Travel Wallet writes most of its sheet
+ * that way and Jubair mixes both styles, so without it a per-sector update like
+ * "06 SEP : 46,700/-" carries no price token at all and is dropped as chatter —
+ * silently, because looksLikeRateMessage runs before the sender check and so
+ * records no rateIntakeSeenSender to show in the dashboard. A supplier's whole
+ * house style can fail this way without producing one visible symptom.
+ *
+ * A 10-digit phone number still does not match: \b..\b anchors on the whole run
+ * of digits, so "9846606731" yields nothing rather than a false price.
  */
-const RATE_TOKEN_RE = /\b\d{4,5}\b/g;
+const RATE_TOKEN_RE = /\b\d{1,2},\d{3}\b|\b\d{4,5}\b/g;
 
 /**
  * A three-letter uppercase token — an airport code, or a month like MAR. Rate

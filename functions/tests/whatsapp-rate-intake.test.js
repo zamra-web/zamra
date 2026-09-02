@@ -127,6 +127,31 @@ test("looksLikeRateMessage accepts the short updates suppliers actually send", (
   }
 });
 
+test("looksLikeRateMessage reads prices written with a thousands comma", () => {
+  // Travel Wallet writes nearly its whole sheet this way and Jubair mixes both
+  // styles. Before the comma alternative these carried no price token at all and
+  // were dropped as chatter, which is invisible: the rate-shape check runs before
+  // the sender check, so nothing is recorded for an admin to notice.
+  for (const body of [
+    "*CCJ -  DOH* IX  (30+7kg)\n06 SEP : 46,700/-\n07 SEP : 46,200/-",
+    "\u{1F6EB} COK \u279C RUH \u2013 SV775\n10 Sep \u2013 44,000",
+    "CCJ BAH 06 SEP : 32,200/-",
+  ]) {
+    assert.equal(looksLikeRateMessage({ body }, { mode: "auto" }), true, body);
+  }
+});
+
+test("the comma alternative does not turn a phone number into a price", () => {
+  // The whole reason RATE_TOKEN_RE anchors on \b..\b. A comma cannot appear
+  // inside a bare number, so the guard survives the widening — but a supplier
+  // quoting a landline with separators must not read as a fare either.
+  assert.equal(looksLikeRateMessage({ body: "9846606731" }, { mode: "auto" }), false);
+  // A comma between short runs is a list, not a thousands separator: the
+  // alternative requires exactly three digits after the comma.
+  assert.equal(looksLikeRateMessage({ body: "CCJ seats 1,2 and 3 left" }, { mode: "auto" }), false);
+  assert.equal(looksLikeRateMessage({ body: "CCJ JED on 6,7,8 SEP?" }, { mode: "auto" }), false);
+});
+
 test("looksLikeRateMessage still needs a price AND something route-shaped", () => {
   // A price with no route reads as prose, not a fare.
   assert.equal(

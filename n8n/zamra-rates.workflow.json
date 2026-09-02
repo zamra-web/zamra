@@ -108,7 +108,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ firebaseData: $json.firebaseData }) }}",
+        "jsonBody": "={{ JSON.stringify({ firebaseData: $json.firebaseData, meta: { source: ($('Rate Upload Webhook').first().json.body || {}).source || 'portal', ingestBatchId: ($('Rate Upload Webhook').first().json.body || {}).batch_id || '' } }) }}",
         "options": {
           "timeout": 120000
         }

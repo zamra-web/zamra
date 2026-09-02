@@ -26,6 +26,7 @@ const {
   resolveScheduledFlightTime,
 } = require("./flightSchedule");
 const { verifyN8nBearer } = require("./n8nAuth");
+const { planSupersede, supersedeDateRange } = require("./fareSupersede");
 const { defineSecret } = require("firebase-functions/params");
 
 // Shared bearer for the two n8n-facing onRequest endpoints and the WhatsApp
@@ -561,64 +562,116 @@ exports.ingestFaresFromN8n = onRequest(
   // schedule window beats the doc's default `flightTime`.
   const flightDetailIndex = buildFlightDetailIndex(await db.collection("flight_details").get());
 
+  // Every row is resolved BEFORE anything is written, for two reasons: supersede
+  // matches on the mapped sectorId/airlineId and the resolved flightTime rather
+  // than on what n8n sent, and it has to read the prior fares while they are
+  // still the only ones in the collection.
+  const resolved = fares.map(row => {
+    const n8nSectorCode = String(row.sector_code || "").trim();
+    const sectorId = sectorMap[n8nSectorCode] || n8nSectorCode;
+
+    const n8nFlightCode = String(row.flight_code || "").trim();
+    const airlineId = airlineMap[n8nFlightCode] || n8nFlightCode;
+
+    const agentIdStr = String(row.agent_id);
+    const flightDate = Timestamp.fromDate(new Date(row.date + "T00:00:00Z"));
+    const configuredDetail = flightDetailIndex.get(buildFlightDetailKey(airlineId, sectorId));
+    const flightTimeStr = resolveFlightTime(
+      row,
+      resolveScheduledFlightTime(configuredDetail, row.date, normalizeFlightTimeRange),
+    );
+
+    // Use agent's stored commission; n8n payload can override if explicitly provided
+    const commission = (row.commission !== undefined && row.commission !== null)
+      ? Number(row.commission)
+      : (agentCommissionMap[agentIdStr] ?? 500);
+
+    // A rate sheet quotes the supplier's special rate. The B2C selling price
+    // is that plus commission — derive it here so the n8n parser only has to
+    // extract what is actually printed. An explicit `rate` still wins.
+    const specialRate = row.sp_rate ? Number(row.sp_rate) : 0;
+    const finalRate = row.rate ? Number(row.rate) : specialRate + commission;
+
+    return {
+      agentId: agentIdStr,
+      sectorId,
+      airlineId,
+      flightDate,
+      specialRate,
+      finalRate,
+      // Baggage weights are fixed policy, not payload. Hand baggage is always
+      // the airline's rule value; check-in is snapped onto the airline's
+      // allowed weights so a bad upload can never reach the public site.
+      baggage: resolveCheckInBaggageKg(n8nFlightCode, row.baggage),
+      extraBaggage: handBaggageKg(n8nFlightCode),
+      commission,
+      supplierRate: 0,
+      isHidden: row.show === "no",
+      flightTime: flightTimeStr,
+      ...provenance,
+    };
+  });
+
+  // Which stored fares does this upload replace? One bounded query per supplier
+  // — agentId plus the date window actually quoted — served by the existing
+  // agentId+flightDate composite index, rather than a lookup per row.
+  const supersedeIds = [];
+  const rowsByAgent = new Map();
+  for (const fare of resolved) {
+    if (!rowsByAgent.has(fare.agentId)) rowsByAgent.set(fare.agentId, []);
+    rowsByAgent.get(fare.agentId).push(fare);
+  }
+  for (const [agentId, rows] of rowsByAgent) {
+    const range = supersedeDateRange(rows);
+    if (!agentId || !range) continue;
+    try {
+      const priorSnap = await db.collection("agent_fares")
+        .where("agentId", "==", agentId)
+        .where("flightDate", ">=", Timestamp.fromDate(range.min))
+        .where("flightDate", "<=", Timestamp.fromDate(range.max))
+        .get();
+      const existing = priorSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      supersedeIds.push(...planSupersede(rows, existing));
+    } catch (err) {
+      // A failed lookup must not cost the upload. Publishing the new rates and
+      // leaving a stale duplicate behind is recoverable from the dashboard;
+      // rejecting the batch loses the sheet entirely.
+      console.error(`ingestFaresFromN8n: supersede lookup failed for agent ${agentId}:`, err);
+    }
+  }
+
   const BATCH_LIMIT = 400;
   let saved = 0;
-  
-  for (let i = 0; i < fares.length; i += BATCH_LIMIT) {
+
+  for (let i = 0; i < resolved.length; i += BATCH_LIMIT) {
     const batch = db.batch();
-    const chunk = fares.slice(i, i + BATCH_LIMIT);
-    
-    chunk.forEach(row => {
-      const newRef = db.collection("agent_fares").doc();
-      const n8nSectorCode = String(row.sector_code || "").trim();
-      const sectorId = sectorMap[n8nSectorCode] || n8nSectorCode;
-      
-      const n8nFlightCode = String(row.flight_code || "").trim();
-      const airlineId = airlineMap[n8nFlightCode] || n8nFlightCode;
-      
-      const agentIdStr = String(row.agent_id);
-      const flightDate = Timestamp.fromDate(new Date(row.date + "T00:00:00Z"));
-      const configuredDetail = flightDetailIndex.get(buildFlightDetailKey(airlineId, sectorId));
-      const flightTimeStr = resolveFlightTime(
-        row,
-        resolveScheduledFlightTime(configuredDetail, row.date, normalizeFlightTimeRange),
-      );
-
-      // Use agent's stored commission; n8n payload can override if explicitly provided
-      const commission = (row.commission !== undefined && row.commission !== null)
-        ? Number(row.commission)
-        : (agentCommissionMap[agentIdStr] ?? 500);
-
-      // A rate sheet quotes the supplier's special rate. The B2C selling price
-      // is that plus commission — derive it here so the n8n parser only has to
-      // extract what is actually printed. An explicit `rate` still wins.
-      const specialRate = row.sp_rate ? Number(row.sp_rate) : 0;
-      const finalRate = row.rate ? Number(row.rate) : specialRate + commission;
-
-      batch.set(newRef, {
-        agentId: agentIdStr,
-        sectorId,
-        airlineId,
-        flightDate,
-        specialRate,
-        finalRate,
-        // Baggage weights are fixed policy, not payload. Hand baggage is always
-        // the airline's rule value; check-in is snapped onto the airline's
-        // allowed weights so a bad upload can never reach the public site.
-        baggage: resolveCheckInBaggageKg(n8nFlightCode, row.baggage),
-        extraBaggage: handBaggageKg(n8nFlightCode),
-        commission,
-        supplierRate: 0,
-        isHidden: row.show === "no",
-        flightTime: flightTimeStr,
-        ...provenance,
+    for (const data of resolved.slice(i, i + BATCH_LIMIT)) {
+      batch.set(db.collection("agent_fares").doc(), {
+        ...data,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
-    });
-    
+    }
     await batch.commit();
-    saved += chunk.length;
+    saved += Math.min(BATCH_LIMIT, resolved.length - i);
+  }
+
+  // Hide the replaced rows only after the new ones are committed. The other
+  // order opens a window in which a sector has no visible price at all, and the
+  // public site would render it as sold out rather than as briefly stale.
+  let superseded = 0;
+  for (let i = 0; i < supersedeIds.length; i += BATCH_LIMIT) {
+    const batch = db.batch();
+    for (const id of supersedeIds.slice(i, i + BATCH_LIMIT)) {
+      batch.update(db.collection("agent_fares").doc(id), {
+        isHidden: true,
+        supersededAt: FieldValue.serverTimestamp(),
+        ...(ingestBatchId ? { supersededByBatchId: ingestBatchId } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    superseded += Math.min(BATCH_LIMIT, supersedeIds.length - i);
   }
 
   // Update lastRatesUploadedAt on the agents documents
@@ -640,7 +693,7 @@ exports.ingestFaresFromN8n = onRequest(
     console.error("Failed to update agents lastRatesUploadedAt timestamps:", err);
   }
 
-  res.status(200).json({ success: true, saved, ...(ingestBatchId ? { ingestBatchId } : {}) });
+  res.status(200).json({ success: true, saved, superseded, ...(ingestBatchId ? { ingestBatchId } : {}) });
 });
 
 
