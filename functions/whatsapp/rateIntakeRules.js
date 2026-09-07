@@ -358,6 +358,83 @@ function applyRateSheetAliases(text, agentId) {
   return rules.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), String(text));
 }
 
+// ── sold-out notices ────────────────────────────────────────────────────────
+
+/** IATA-style month abbreviations, the same ones rate sheets print. */
+const MONTH_ABBR = {
+  JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
+  JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
+};
+
+/**
+ * A standalone "this flight is gone" notice: "CCJ AAN 09 SEP SOLD OUT". It
+ * carries no price, so it never reaches looksLikeRateMessage and would
+ * otherwise be silently dropped as chatter — the exact gap that leaves a
+ * sold-out fare bookable on the public site.
+ *
+ * The month must be a real IATA abbreviation (built into the pattern, not
+ * validated after), which is what stops three random capital letters from
+ * matching. Everything else is loose on purpose: a hyphen or space between
+ * the airport codes, up to six non-alphanumeric characters (a closing
+ * WhatsApp bold marker, a colon) between the airport codes and the day, and
+ * up to a dozen more between the date and "SOLD OUT". A false positive here
+ * costs a harmless Firestore lookup that finds nothing to hide (validated
+ * downstream against the real sectors collection); a false negative leaves a
+ * sold-out flight for sale, which is the worse mistake.
+ */
+const SOLD_OUT_RE = new RegExp(
+  "\\b([A-Z]{3})[\\s-]+([A-Z]{3})\\b[^A-Za-z0-9]{0,6}(\\d{1,2})\\s+(" +
+  Object.keys(MONTH_ABBR).join("|") +
+  ")\\b[^A-Za-z0-9]{0,12}SOLD\\s*-?\\s*OUT\\b",
+  "i",
+);
+
+/**
+ * Parse a sold-out announcement into the route and date it names, or null.
+ *
+ * Not a rate-sheet parser — sector codes that fall out of this are resolved
+ * downstream against the real `sectors` collection, so an unrecognised route
+ * just fails to match anything rather than needing validation here.
+ *
+ * @param {string} body
+ * @returns {{originCode: string, destCode: string, day: number, month: number}|null}
+ */
+function parseSoldOutMessage(body) {
+  const match = SOLD_OUT_RE.exec(String(body ?? ""));
+  if (!match) return null;
+
+  const [, origin, dest, dayStr, monthAbbr] = match;
+  const day = Number(dayStr);
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+
+  return {
+    originCode: origin.toUpperCase(),
+    destCode: dest.toUpperCase(),
+    day,
+    month: MONTH_ABBR[monthAbbr.toUpperCase()],
+  };
+}
+
+/**
+ * Resolve a bare day+month to the flight date it names: the next occurrence
+ * of that day and month on or after today. Rate sheets never print a year —
+ * this is the same rule the zamra-rates extraction prompt already applies for
+ * that reason (n8n/zamra-rates.workflow.json, rule 5), so a sold-out notice
+ * for "05 JAN" sent in September resolves to next January, not last January.
+ *
+ * @param {{day: number, month: number}} parsed
+ * @param {Date} [now]
+ * @returns {Date} UTC midnight
+ */
+function resolveSoldOutDate({ day, month }, now = new Date()) {
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const candidate = new Date(Date.UTC(now.getUTCFullYear(), month, day));
+  if (candidate.getTime() < todayUtc) {
+    return new Date(Date.UTC(now.getUTCFullYear() + 1, month, day));
+  }
+  return candidate;
+}
+
 module.exports = {
   looksLikeRateMessage,
   isUsableDocId,
@@ -366,6 +443,8 @@ module.exports = {
   groupPendingMessages,
   buildIntakePayload,
   applyRateSheetAliases,
+  parseSoldOutMessage,
+  resolveSoldOutDate,
   INTAKE_MODES,
   INGESTIBLE_MEDIA_RE,
   DEFAULT_QUIET_MS,

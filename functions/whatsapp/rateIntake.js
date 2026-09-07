@@ -31,6 +31,8 @@ const {
   buildIntakePayload,
   applyRateSheetAliases,
   isUsableDocId,
+  parseSoldOutMessage,
+  resolveSoldOutDate,
   INTAKE_MODES,
   DEFAULT_QUIET_MS,
   DEFAULT_MAX_HOLD_MS,
@@ -40,6 +42,8 @@ const {
 const REGION = "asia-south1";
 const BATCHES_COLLECTION = "whatsapp_rate_batches";
 const AGENTS_COLLECTION = "agents";
+const SECTORS_COLLECTION = "sectors";
+const FARES_COLLECTION = "agent_fares";
 
 /** How long a claimed batch may stay claimed before it is called stale. */
 const DEFAULT_LEASE_MINUTES = 15;
@@ -237,6 +241,100 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
     supplierCacheAt = 0;
   }
 
+  // ── sold-out notices ──────────────────────────────────────────────────────
+
+  /**
+   * Hide every stored fare a sold-out notice names.
+   *
+   * Writes the same `isHidden` flag ingestFaresFromN8n sets from a sheet row's
+   * `show: "no"` and fareSupersede.js sets on a revision — one meaning, three
+   * writers, and every public projection already filters on it. Hiding rather
+   * than deleting keeps the same audit trail those two rely on: what a
+   * supplier quoted, and when it stopped being for sale.
+   *
+   * A standalone notice never states a flight time or airline, so this hides
+   * every fare for the agentId+sectorId+date it names rather than guessing
+   * which one. When a supplier runs two departures on the same route and date,
+   * hiding both is the safer mistake — a bookable, actually-sold-out flight is
+   * a real booking failure; an extra sector an admin re-shows in one click is
+   * not.
+   *
+   * @param {{agentId: string}} supplier
+   * @param {{originCode: string, destCode: string, day: number, month: number}} soldOut
+   * @param {{chatId?: string, messageId?: string}} mirror
+   * @returns {Promise<object>} audit fields for the whatsapp_messages write
+   */
+  async function applySoldOut(supplier, soldOut, mirror) {
+    // Read fresh rather than cached: sold-out notices are rare (a handful a
+    // day across every supplier combined), so the cost of a full collection
+    // read is negligible next to the cost of missing a sector added minutes
+    // ago. Mirrors ingestFaresFromN8n's own sectorMap construction exactly, so
+    // a route resolves here iff it would resolve on a real rate-sheet upload.
+    const sectorsSnap = await db.collection(SECTORS_COLLECTION).get();
+    const sectorMap = {};
+    sectorsSnap.forEach((doc) => {
+      const dbCode = doc.data().sectorCode || "";
+      sectorMap[dbCode.replace("-", " ").trim()] = doc.id;
+    });
+    const sectorId = sectorMap[`${soldOut.originCode} ${soldOut.destCode}`] || null;
+
+    if (!sectorId) {
+      console.warn(
+        `rateIntake: sold-out NOT APPLIED chatId=${mirror.chatId} agentId=${supplier.agentId} ` +
+        `route="${soldOut.originCode} ${soldOut.destCode}" reason=sector-not-found`,
+      );
+      return {
+        rateIntakeAgentId: supplier.agentId,
+        soldOutStatus: "sector-not-found",
+        soldOutOriginCode: soldOut.originCode,
+        soldOutDestCode: soldOut.destCode,
+        soldOutAt: FieldValue.serverTimestamp(),
+      };
+    }
+
+    const flightDate = resolveSoldOutDate(soldOut);
+    const flightDateTs = Timestamp.fromDate(flightDate);
+
+    // agentId+sectorId+flightDate is an existing composite index — the same
+    // one supersedeDateRange's callers rely on — so this is one indexed query,
+    // not a collection scan.
+    const snap = await db.collection(FARES_COLLECTION)
+      .where("agentId", "==", supplier.agentId)
+      .where("sectorId", "==", sectorId)
+      .where("flightDate", "==", flightDateTs)
+      .get();
+
+    const toHide = snap.docs.filter((doc) => doc.data().isHidden !== true);
+    if (toHide.length) {
+      const batch = db.batch();
+      for (const doc of toHide) {
+        batch.update(doc.ref, {
+          isHidden: true,
+          supersededAt: FieldValue.serverTimestamp(),
+          soldOutSourceMessageId: mirror.messageId || null,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    }
+
+    console.info(
+      `rateIntake: sold-out APPLIED chatId=${mirror.chatId} agentId=${supplier.agentId} ` +
+      `sectorId=${sectorId} date=${flightDate.toISOString().slice(0, 10)} hidden=${toHide.length}/${snap.size}`,
+    );
+
+    return {
+      rateIntakeAgentId: supplier.agentId,
+      soldOutStatus: toHide.length ? "applied" : "no-matching-fares",
+      soldOutOriginCode: soldOut.originCode,
+      soldOutDestCode: soldOut.destCode,
+      soldOutSectorId: sectorId,
+      soldOutFlightDate: flightDateTs,
+      soldOutFaresHidden: toHide.length,
+      soldOutAt: FieldValue.serverTimestamp(),
+    };
+  }
+
   // ── the webhook hook ──────────────────────────────────────────────────────
 
   /**
@@ -288,7 +386,37 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
       };
     }
 
-    if (!looksLikeRateMessage(mirror, { mode: supplier.mode })) {
+    const isRateSheet = looksLikeRateMessage(mirror, { mode: supplier.mode });
+
+    // A standalone "this flight is gone" notice carries no price, so it would
+    // otherwise fall straight through the check below as chatter and leave a
+    // sold-out fare bookable. Checked first, and acted on ONLY when the
+    // message carries no rate data of its own (!isRateSheet) — a supplier who
+    // pastes one long sheet with a "sold out" line ALONGSIDE real prices must
+    // still have every other row reach the normal pipeline, which already
+    // turns that one line into show:"no" (n8n/zamra-rates.workflow.json,
+    // extraction rule 6). This path exists only for the message that has
+    // nothing else in it. mode:"off" opts an agent out of every automatic
+    // Firestore write from their WhatsApp text, sold-out included.
+    const soldOut = supplier.mode !== "off" ? parseSoldOutMessage(mirror.body) : null;
+    if (soldOut && !isRateSheet) {
+      if (isGroup && !isVerifiedSender(mirror.senderId, supplier)) {
+        console.warn(
+          `rateIntake: sold-out NOT APPLIED chatId=${mirror.chatId} agentId=${supplier.agentId} ` +
+          `sender=${mirror.senderId || "unresolved"} reason=sender-not-verified`,
+        );
+        return {
+          rateIntakeStatus: "skipped",
+          rateIntakeAgentId: supplier.agentId,
+          rateIntakeReason: "sender-not-verified",
+          rateIntakeSeenSender: mirror.senderId || null,
+          rateIntakeAt: FieldValue.serverTimestamp(),
+        };
+      }
+      return applySoldOut(supplier, soldOut, mirror);
+    }
+
+    if (!isRateSheet) {
       console.info(
         `rateIntake: NOT FLAGGED chatId=${mirror.chatId} agentId=${supplier.agentId} ` +
         `mode=${supplier.mode} hasMedia=${Boolean(mirror.hasMedia)} mime=${mirror.mimetype || "-"} ` +
@@ -704,6 +832,7 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
     claimBatches,
     completeBatch,
     reclaimExpiredLeases,
+    applySoldOut,
   };
 }
 

@@ -20,6 +20,8 @@ const {
   applyRateSheetAliases,
   isUsableDocId,
   isVerifiedSender,
+  parseSoldOutMessage,
+  resolveSoldOutDate,
 } = require("../whatsapp/rateIntakeRules");
 const { verifyN8nBearer, LEGACY_TOKEN } = require("../n8nAuth");
 
@@ -379,6 +381,84 @@ test("applyRateSheetAliases leaves other suppliers' text untouched", () => {
   const sheet = "*Group-1* is not a header for this agent";
   assert.equal(applyRateSheetAliases(sheet, "1"), sheet);
   assert.equal(applyRateSheetAliases(sheet, 3), "*SG* is not a header for this agent");
+});
+
+// ── parseSoldOutMessage / resolveSoldOutDate ────────────────────────────────
+
+test("parseSoldOutMessage reads the plain form", () => {
+  assert.deepEqual(parseSoldOutMessage("CCJ AAN 09 SEP SOLD OUT"), {
+    originCode: "CCJ",
+    destCode: "AAN",
+    day: 9,
+    month: 8, // September, 0-indexed
+  });
+});
+
+test("parseSoldOutMessage tolerates WhatsApp markdown, hyphens and lowercase", () => {
+  assert.deepEqual(parseSoldOutMessage("*ccj-aan* 9 sep - soldout"), {
+    originCode: "CCJ",
+    destCode: "AAN",
+    day: 9,
+    month: 8,
+  });
+  assert.deepEqual(parseSoldOutMessage("CCJ AAN 09 SEP : SOLD-OUT ❌"), {
+    originCode: "CCJ",
+    destCode: "AAN",
+    day: 9,
+    month: 8,
+  });
+});
+
+test("parseSoldOutMessage requires a real month abbreviation, not any three letters", () => {
+  assert.equal(parseSoldOutMessage("CCJ AAN 09 XXX SOLD OUT"), null);
+});
+
+test("parseSoldOutMessage rejects an out-of-range day", () => {
+  assert.equal(parseSoldOutMessage("CCJ AAN 00 SEP SOLD OUT"), null);
+  assert.equal(parseSoldOutMessage("CCJ AAN 32 SEP SOLD OUT"), null);
+});
+
+test("parseSoldOutMessage returns null for ordinary chatter and real rate lines", () => {
+  assert.equal(parseSoldOutMessage("ok bro will send rates soon"), null);
+  assert.equal(parseSoldOutMessage(SHEET), null);
+  // A price close by must not itself read as a sold-out notice.
+  assert.equal(parseSoldOutMessage("CCJ AAN 09 SEP 15500"), null);
+});
+
+test("parseSoldOutMessage does not fire across an unrelated line in between", () => {
+  // The header and the sold-out date are two lines apart with a real price row
+  // between them — a full sheet like this must reach the normal AI pipeline
+  // intact, not get intercepted as a pure sold-out notice.
+  const sheet = "CCJ DXB\n04 SEP 15000\n06 SEP SOLD OUT";
+  assert.equal(parseSoldOutMessage(sheet), null);
+});
+
+test("parseSoldOutMessage fires on a per-line repeated header, which is what it exists for", () => {
+  const sheet = "CCJ DXB 04 SEP 15000\nCCJ DXB 06 SEP SOLD OUT\nCCJ DXB 07 SEP 17000";
+  assert.deepEqual(parseSoldOutMessage(sheet), {
+    originCode: "CCJ",
+    destCode: "DXB",
+    day: 6,
+    month: 8,
+  });
+});
+
+test("resolveSoldOutDate keeps this year when the date is still ahead", () => {
+  const now = new Date("2026-09-07T00:00:00.000Z");
+  const resolved = resolveSoldOutDate({ day: 9, month: 8 }, now); // 09 SEP
+  assert.equal(resolved.toISOString(), "2026-09-09T00:00:00.000Z");
+});
+
+test("resolveSoldOutDate rolls a past month into next year", () => {
+  const now = new Date("2026-09-07T00:00:00.000Z");
+  const resolved = resolveSoldOutDate({ day: 15, month: 0 }, now); // 15 JAN
+  assert.equal(resolved.toISOString(), "2027-01-15T00:00:00.000Z");
+});
+
+test("resolveSoldOutDate treats today itself as still ahead, not past", () => {
+  const now = new Date("2026-09-07T00:00:00.000Z");
+  const resolved = resolveSoldOutDate({ day: 7, month: 8 }, now); // 07 SEP == today
+  assert.equal(resolved.toISOString(), "2026-09-07T00:00:00.000Z");
 });
 
 // ── verifyN8nBearer ─────────────────────────────────────────────────────────

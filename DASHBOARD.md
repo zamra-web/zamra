@@ -280,6 +280,37 @@ the credential that lets an address set Zamra's public selling prices.
 > necessarily the negotiated `specialRate` the pricing model assumes. Confirm that before
 > switching a community supplier on.
 
+#### Sold-out notices
+
+A supplier who WhatsApps a standalone line like `CCJ AAN 09 SEP SOLD OUT` — no price, just a
+route, a date, and the words "sold out" — has that flight hidden from `agent_fares`
+automatically, the same `isHidden` flag a revised-price supersede or a sheet row's `show: "no"`
+sets. This is a **separate, deterministic path**, not the AI extraction pipeline: a regex in
+`functions/whatsapp/rateIntakeRules.js` (`parseSoldOutMessage`) reads the route and date, and
+`rateIntake.js`'s `applySoldOut` resolves the route against the real `sectors` collection and
+hides every stored fare for that supplier + sector + date. No vision or text-extraction call is
+spent on it, and a route Zamra doesn't have on file is a safe no-op (`soldOutStatus:
+"sector-not-found"` on the message doc), not a guess.
+
+It reuses the exact same trust boundary as a rate sheet — the chat must resolve to a linked,
+active supplier, and a group message needs a verified sender — and the same per-agent
+`rateIntakeMode`: `off` opts a supplier out of this too, not just AI extraction. It is checked
+**before** `looksLikeRateMessage`, but only acts when the message has no price of its own. A
+sheet that mixes real rates with a "sold out" line for one date (one WhatsApp message, several
+lines) is left alone and flows through the normal pipeline unchanged — the extraction prompt
+already turns that specific line into `show: "no"` (rule 6). This path exists only for the
+message that carries nothing else.
+
+Because a standalone notice never names a flight time or airline, it hides **every** fare for
+that supplier + sector + date, not just one. If a supplier runs two departures on the same route
+and date, both go dark rather than one — deliberately: a still-bookable, actually-sold-out
+flight is a real booking failure, and re-showing a sector from the dashboard is one click.
+
+Audit fields land on the `whatsapp_messages` doc: `soldOutStatus` (`applied` |
+`no-matching-fares` | `sector-not-found`), `soldOutSectorId`, `soldOutFlightDate`,
+`soldOutFaresHidden`. Hidden fares also carry `soldOutSourceMessageId`, so a hide can be traced
+back to the WhatsApp message that caused it.
+
 ---
 
 ### 2. 📣 Socials Tab
