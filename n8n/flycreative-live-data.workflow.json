@@ -1,0 +1,341 @@
+{
+  "name": "FlyCreative Live Data",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://flycreativekdr.com:8443/FlyCreativeNG/SearchFlightDest.jsp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "en-US,en;q=0.9"
+            },
+            {
+              "name": "Cache-Control",
+              "value": "max-age=0"
+            },
+            {
+              "name": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "name": "Origin",
+              "value": "https://flycreativekdr.com:8443"
+            },
+            {
+              "name": "Referer",
+              "value": "https://flycreativekdr.com:8443/FlyCreativeNG/index.jsp?"
+            },
+            {
+              "name": "Sec-Fetch-Dest",
+              "value": "document"
+            },
+            {
+              "name": "Sec-Fetch-Mode",
+              "value": "navigate"
+            },
+            {
+              "name": "Sec-Fetch-Site",
+              "value": "same-origin"
+            },
+            {
+              "name": "Sec-Fetch-User",
+              "value": "?1"
+            },
+            {
+              "name": "Upgrade-Insecure-Requests",
+              "value": "1"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "sec-ch-ua",
+              "value": "\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"145\", \"Chromium\";v=\"145\""
+            },
+            {
+              "name": "sec-ch-ua-mobile",
+              "value": "?0"
+            },
+            {
+              "name": "sec-ch-ua-platform",
+              "value": "\"macOS\""
+            },
+            {
+              "name": "Cookie",
+              "value": "JSESSIONID=8339D7A79B268C0D3D0BACE7FBC5910A"
+            },
+            {
+              "name": "cookie",
+              "value": "JSESSIONID=8339D7A79B268C0D3D0BACE7FBC5910A;"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "destination",
+              "value": "={{ $json.destination }}"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        -16
+      ],
+      "id": "8185a34a-065e-4f06-915c-fc729349f532",
+      "name": "http"
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "Price",
+              "cssSelector": ".flight_search_right h2",
+              "returnArray": true
+            },
+            {
+              "key": "Seats",
+              "cssSelector": ".flight_search_items > .flight_search_destination h2",
+              "returnArray": true
+            },
+            {
+              "key": "Origin",
+              "cssSelector": ".flight_search_left h3",
+              "returnArray": true
+            },
+            {
+              "key": "Destination",
+              "cssSelector": ".flight_search_middel h3",
+              "returnArray": true
+            },
+            {
+              "key": "AirlineSrc",
+              "cssSelector": ".flight_logo img",
+              "returnValue": "attribute",
+              "attribute": "src",
+              "returnArray": true
+            },
+            {
+              "key": "Luggage",
+              "cssSelector": ".flight_search_right p",
+              "returnArray": true
+            },
+            {
+              "key": "DateDay",
+              "cssSelector": ".flight_multis_area_wrapper > .flight_search_destination h2",
+              "returnArray": true
+            },
+            {
+              "key": "DateMonthYear",
+              "cssSelector": ".flight_multis_area_wrapper > .flight_search_destination h4",
+              "returnArray": true
+            },
+            {
+              "key": "DepTime",
+              "cssSelector": ".flight_search_left .flight_search_destination h6:last-child",
+              "returnArray": true
+            },
+            {
+              "key": "ArrTime",
+              "cssSelector": ".flight_search_middel .flight_search_destination h6:last-child",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e366f25b-fe90-4dcd-826d-dfd2909a7c25",
+      "name": "extract",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access the aggregated array of destinations\nconst aggregatedData = $input.first().json.data;\nconst allValidFlights = [];\n\n// Safety check in case the data is missing\nif (!aggregatedData || !Array.isArray(aggregatedData)) {\n  return [];\n}\n\n// --- DICTIONARIES ---\n\n// 1. Month Mapping\nconst monthMap = {\n  \"Jan\": \"01\", \"Feb\": \"02\", \"Mar\": \"03\", \"Apr\": \"04\", \"May\": \"05\", \"Jun\": \"06\",\n  \"Jul\": \"07\", \"Aug\": \"08\", \"Sep\": \"09\", \"Oct\": \"10\", \"Nov\": \"11\", \"Dec\": \"12\"\n};\n\n// 2. City to IATA Sector Mapping\nconst iataMap = {\n  \"COCHIN\": \"COK\", \"CALICUT\": \"CCJ\", \"KANNUR\": \"CNN\", \"TRIVANDRUM\": \"TRV\",\n  \"MANGALORE\": \"IXE\", \"COLOMBO\": \"CMB\", \"LUCKNOW\": \"LKO\", \"DOHA\": \"DOH\",\n  \"ABUDHABI\": \"AUH\", \"SHARJAH\": \"SHJ\", \"DUBAI\": \"DXB\", \"JEDDAH\": \"JED\",\n  \"RIYADH\": \"RUH\", \"DAMMAM\": \"DMM\", \"RAS AL KHAIMAH\": \"RKT\", \"MUSCAT\": \"MCT\",\n  \"KUWAIT\": \"KWI\", \"FUJAIRAH\": \"FJR\", \"KUALA LUMPUR\": \"KUL\"\n};\n\n// 3. Image Name to 2-Letter Airline Code Mapping\nconst airlineMap = {\n  \"AIR INDIA\": \"AI\", \"INDIGO\": \"6E\", \"AKASAAIR\": \"QP\", \"SALAMAIR\": \"OV\",\n  \"SRILANKA\": \"UL\", \"JAZEERA\": \"J9\", \"FLYDUBAI\": \"FZ\", \"SOUDIA\": \"SV\",\n  \"SAUDIA\": \"SV\", \"FLYNAS\": \"XY\", \"AIRASIA\": \"AK\", \"AIR ARABIA\": \"G9\",\n  \"AIR EXPRESS\": \"IX\", \"AIR INDIA EXPRESS\": \"IX\", \"SPICEJET\": \"SG\"\n};\n\n// 4. Default Baggage Fallbacks (if scraped baggage is empty)\nconst defaultBaggage = {\n  \"IX\": { bag: \"30\", extra: \"7\" }, \"6E\": { bag: \"30\", extra: \"7\" },\n  \"G9\": { bag: \"30\", extra: \"10\" }, \"XY\": { bag: \"30\", extra: \"7\" },\n  \"WY\": { bag: \"30\", extra: \"7\" }, \"OV\": { bag: \"20\", extra: \"5\" },\n  \"AI\": { bag: \"30\", extra: \"7\" }, \"SV\": { bag: \"20\", extra: \"7\" },\n  \"QP\": { bag: \"30\", extra: \"7\" }, \"FZ\": { bag: \"30\", extra: \"7\" },\n  \"J9\": { bag: \"30\", extra: \"7\" }, \"SG\": { bag: \"30\", extra: \"7\" },\n  \"UL\": { bag: \"30\", extra: \"7\" }, \"AK\": { bag: \"20\", extra: \"7\" }\n};\n\n// --- PROCESSING LOOP ---\n\n// Loop through each destination's block of data\nfor (const data of aggregatedData) {\n  const numFlights = data.Price ? data.Price.length : 0;\n\n  for (let i = 0; i < numFlights; i++) {\n    // 1. Clean the Airline Name & Get 2-Letter Code\n    let rawSrc = data.AirlineSrc[i] || \"\";\n    let airlineName = rawSrc.split('/').pop().replace(/\\.[^/.]+$/, \"\").trim().toUpperCase();\n    let flightCode = airlineMap[airlineName] || airlineName; // Fallback to raw name if missing from map\n    \n    // 2. Format the Date (Target: YYYY-MM-DD)\n    let day = data.DateDay[i] ? data.DateDay[i].trim() : \"\";\n    if (day.length === 1) day = \"0\" + day; \n    let monthRaw = data.DateMonthYear[i * 2] ? data.DateMonthYear[i * 2].trim() : \"\";\n    let month = monthMap[monthRaw.substring(0, 3)] || monthRaw;\n    let year = data.DateMonthYear[(i * 2) + 1] ? data.DateMonthYear[(i * 2) + 1].trim() : \"\";\n    let fullDate = (year && month && day) ? `${year}-${month}-${day}` : \"\";\n\n    // 3. Clean Departure/Arrival Times\n    let dep = data.DepTime[i] ? data.DepTime[i].replace('Dep-', '').trim() : \"\";\n    let arr = data.ArrTime[i] ? data.ArrTime[i].replace('Arr-', '').trim() : \"\";\n\n    // 4. Check for Excluded Sectors & Create Sector Code\n    let originRaw = data.Origin[i] ? data.Origin[i].trim().toUpperCase() : \"\";\n    let destRaw = data.Destination[i] ? data.Destination[i].trim().toUpperCase() : \"\";\n    \n    // EXCLUSION FILTER: List of sectors to remove (Full names & standard codes)\n    const excludedSectors = [\n      \"AHMEDABAD\", \"AMD\", \n      \"LUCKNOW\", \"LKO\", \n      \"VARANASI\", \"VNS\", \n      \"DELHI\", \"DEL\", \n      \"KUALA LUMPUR\", \"KUL\"\n    ];\n    \n    // Skip this flight if the origin or destination matches the excluded list\n    if (excludedSectors.includes(originRaw) || excludedSectors.includes(destRaw)) {\n      continue; \n    }\n\n    let originCode = iataMap[originRaw] || originRaw;\n    let destCode = iataMap[destRaw] || destRaw;\n    let sectorCode = (originCode && destCode) ? `${originCode} ${destCode}` : \"\";\n\n    // 5. Clean Price. Commission and the final selling price are derived\n    // server-side from agents.commission (ingestFaresFromN8n) rather than\n    // hardcoded here — sending them in the payload would silently override\n    // that and go stale the next time the commission changes in the dashboard.\n    let rawPrice = data.Price[i] ? data.Price[i].trim() : \"\";\n    let spRateNum = Number(rawPrice.replace(/[^0-9.]/g, '')) || 0;\n\n    // 6. Parse Baggage (Smarter Split Logic)\n    let rawLuggage = data.Luggage[i] ? data.Luggage[i].trim().toUpperCase() : \"\";\n    let parsedBaggage = \"\";\n    let parsedExtra = \"\";\n\n    // Remove \"LUGGAGE\" word and leading hyphens/spaces\n    let cleanLuggage = rawLuggage.replace(/LUGGAGE/g, '').replace(/^[-\\s:]+/, '').trim();\n    let lugParts = cleanLuggage.split('-'); // Splits into [\"20*2\", \"5 KG\"] etc.\n\n    if (lugParts.length >= 1) {\n      let mainPart = lugParts[0];\n      \n      // Calculate math like 20*2\n      if (mainPart.includes(\"20*2\") || mainPart.includes(\"20 * 2\")) {\n        parsedBaggage = \"40\";\n      } else if (mainPart.includes(\"30*2\") || mainPart.includes(\"30 * 2\")) {\n        parsedBaggage = \"60\";\n      } else if (mainPart.includes(\"2PC\") || mainPart.includes(\"2 PC\")) {\n        let num = mainPart.match(/\\d{2,}/);\n        parsedBaggage = num ? num[0] : \"40\"; // Prioritize explicit weight if given (e.g. 40 KG 2 PC)\n      } else if (mainPart.includes(\"1PC\") || mainPart.includes(\"1 PC\")) {\n        let num = mainPart.match(/\\d{2,}/);\n        parsedBaggage = num ? num[0] : \"20\";\n      } else {\n        // Just extract the first number it finds\n        let match = mainPart.match(/\\d+/);\n        if (match) parsedBaggage = match[0];\n      }\n    }\n\n    if (lugParts.length >= 2) {\n      let extraPart = lugParts[1];\n      let match = extraPart.match(/\\d+/);\n      if (match) {\n        parsedExtra = parseInt(match[0], 10).toString(); // Converts \"07\" into \"7\"\n        \n        // Failsafe: Hand baggage over 15kg is definitely a typo (like \"30 - 30\")\n        if (parseInt(parsedExtra, 10) > 15) {\n          parsedExtra = \"\"; // Clear it so dictionary handles it below\n        }\n      }\n    }\n\n    // Apply default baggage if parsing failed or hit the failsafe\n    if (!parsedBaggage && defaultBaggage[flightCode]) {\n        parsedBaggage = defaultBaggage[flightCode].bag;\n    }\n    if (!parsedExtra && defaultBaggage[flightCode]) {\n        parsedExtra = defaultBaggage[flightCode].extra;\n    }\n\n    // 7. Validate and push to array matching the Firebase schema\n    if (sectorCode && fullDate && spRateNum) {\n      allValidFlights.push({\n        agent_id: 27,\n        sector_code: sectorCode,\n        date: fullDate,\n        time_start: dep,\n        time_end: arr,\n        flight_code: flightCode, \n        baggage: parsedBaggage,\n        extra_baggage: parsedExtra,\n        sp_rate: spRateNum,\n        show: \"yes\"\n      });\n    }\n  }\n}\n\n// Stop workflow if no valid data was found\nif (allValidFlights.length === 0) {\n  return []; \n}\n\n// Return ONE single item containing all formatted flights\nreturn [{\n  json: {\n    firebaseData: allValidFlights\n  }\n}];"
+      },
+      "id": "4d769756-0b73-4e1a-a660-b9740f63d97d",
+      "name": "format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        -16
+      ],
+      "id": "faccf799-3365-4236-8b00-f765a1fde0be",
+      "name": "trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://asia-south1-zamra-web-01.cloudfunctions.net/ingestFaresFromN8n",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"firebaseData\": $('format').item.json.firebaseData } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1104,
+        -16
+      ],
+      "id": "e3c5d056-7b2c-43a4-af38-1024b7cedb83",
+      "name": "firebase",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fXwTRbR6c38XVUkO",
+          "name": "Firestore"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// List of all destinations from the board, excluding KUL\nconst destinations = [\n  \"DOH\", \"AUH\", \"SHJ\", \"DXB\", \n  \"CCJ\", \"JED\", \"RUH\", \"MCT\", \n  \"COK\", \"DMM\", \"RKT\", \n  \"KWI\", \"FJR\"\n];\n\n// Map them into n8n's item structure so it processes them one by one\nreturn destinations.map(dest => {\n  return {\n    json: {\n      destination: dest\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        -16
+      ],
+      "id": "04b6eb51-9c80-4002-a5a8-db341b84f52c",
+      "name": "destinations"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        656,
+        -16
+      ],
+      "id": "b4a53d91-b94b-4c4e-96ba-1966ed79e814",
+      "name": "aggregate"
+    }
+  ],
+  "connections": {
+    "http": {
+      "main": [
+        [
+          {
+            "node": "extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract": {
+      "main": [
+        [
+          {
+            "node": "aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format": {
+      "main": [
+        [
+          {
+            "node": "firebase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "destinations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "destinations": {
+      "main": [
+        [
+          {
+            "node": "http",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "firebase": {
+      "main": [
+        []
+      ]
+    },
+    "aggregate": {
+      "main": [
+        [
+          {
+            "node": "format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

@@ -311,3 +311,36 @@ line. From WAHA's own guidance:
 - On error **463** (shadow restriction) or **475** (message capping), **do not re-pair or
   restart the session** — the restriction lifts on its own, and churning the session makes it
   worse.
+
+## Direct-API supplier feeds
+
+Two suppliers publish their own inventory API/portal instead of sending sheets, so a small
+daily workflow fetches it directly and posts straight to `ingestFaresFromN8n` — no vision
+model involved. **Both existed only on the live instance for months without ever being
+mirrored here or into this doc**, which is how `FlyCreative Live Data` ran misconfigured
+and unnoticed; treat any new "does agent X already have a feed?" question as a reason to
+check the live instance's full workflow list, not just this file.
+
+| | |
+|---|---|
+| `FlyCreative Live Data` | id `9mh2peBkwjBELk8v`, agent **27**. Scrapes `flycreativekdr.com:8443` (static session cookie, HTML `htmlExtract`). Mirrored at [flycreative-live-data.workflow.json](flycreative-live-data.workflow.json). |
+| `Book4air Live Data` | id `WAZdBwpvgMijMhEx`, agent **24**. Calls `eapi.book4air.com` directly (real JSON API). Mirrored at [book4air-live-data.workflow.json](book4air-live-data.workflow.json), tested by [functions/tests/n8n-book4air-workflow.test.js](../functions/tests/n8n-book4air-workflow.test.js). |
+
+Both run daily via a Schedule Trigger `cronExpression` (`0 5 * * *` / `15 5 * * *`,
+`Asia/Kolkata`) and never send `commission`/`rate` in the payload — those must come from
+`agents.commission` inside `ingestFaresFromN8n`, same contract as the vision and WhatsApp
+paths. **FlyCreative's original build broke both rules**: it hardcoded `agent_id: 9` (a
+different, unrelated supplier) and a stale `commission: 500`, and sat on a `weeksInterval: 4`
+schedule trigger that had produced **zero executions in six months** — found and fixed
+2026-09-07. If either workflow needs editing again, re-export over its mirror file and add
+the `--activate`/`--deactivate` API round-trip afterward; a schedule-trigger edit that
+doesn't get this appears to save fine but may not actually re-register.
+
+`Book4air Live Data`'s `fetchAndFormat` Code node authenticates and fetches inline
+(`this.helpers.httpRequest`, no HTTP Request nodes) rather than as a per-item node chain,
+because `eapi.book4air.com` issues a real expiring JWT each run — there is no credential to
+attach to an HTTP Request node the way `ingestFaresFromN8n` itself uses one, so the token
+has to stay inside one execution. Its `directApiKey` (`0E6E4463-…`) is not a secret: it
+ships in `book4air`'s own public client-side JS for any site visitor's browser to call
+directly. Only `CCJ`/`COK`/`TRV` origins are in scope — the API's full sector list covers
+many more Indian cities Zamra does not sell those routes for.

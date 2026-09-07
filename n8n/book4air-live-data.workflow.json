@@ -1,0 +1,92 @@
+{
+  "name": "Book4air Live Data",
+  "nodes": [
+    {
+      "id": "4b979fec-a609-4847-aee2-df599f9933d9",
+      "name": "trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        -16
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "15 5 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ecaa76ae-8236-4fd9-880d-b912771b19c0",
+      "name": "fetchAndFormat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -16
+      ],
+      "parameters": {
+        "jsCode": "// Book4air Live Data — Fixed Departure fares for agent 24 (BOOK).\n//\n// Only Calicut/Kochi/Trivandrum origins are in scope, per the user: the\n// site's own \"Available Sectors\" list covers many more Indian cities Zamra\n// does not sell ex-CCJ/COK/TRV flights for.\n//\n// The fetch runs inline in one Code node rather than as separate HTTP\n// Request nodes: eapi.book4air.com needs a fresh Bearer token every run\n// (its JWT actually expires, unlike FlyCreative's oddly-persistent static\n// session cookie), and keeping auth + all four sector calls in one place\n// avoids threading that token through per-item expressions across nodes.\n// The API key below is not a secret — it ships in book4air's own public\n// client-side JS for anyone visiting the site to use directly.\n\nconst BASE_URL = 'https://eapi.book4air.com';\nconst API_KEY = '0E6E4463-F585-4300-997C-CF5CB8A7E0C2';\nconst AGENT_ID = '24';\n\nconst SECTORS = [\n  { origin: 'CCJ', destination: 'DXB' },\n  { origin: 'COK', destination: 'DXB' },\n  { origin: 'COK', destination: 'KWI' },\n  { origin: 'TRV', destination: 'KWI' },\n];\n\nconst authRes = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `${BASE_URL}/api/Authenticate`,\n  headers: { 'Content-Type': 'application/json' },\n  body: { apiKey: API_KEY },\n  json: true,\n});\n\nconst rawToken = authRes && (authRes.token || (authRes.data && authRes.data.token));\nif (!rawToken) {\n  throw new Error('Book4air auth did not return a token: ' + JSON.stringify(authRes).slice(0, 300));\n}\nconst token = rawToken.startsWith('Bearer ') ? rawToken : `Bearer ${rawToken}`;\n\nconst firebaseData = [];\n\nfor (const { origin, destination } of SECTORS) {\n  const datesRes = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${BASE_URL}/api/Sector/available-dates-with-deatils`,\n    headers: { 'Content-Type': 'application/json', 'Authorization': token },\n    body: { origin, destination },\n    json: true,\n  });\n\n  const dates = (datesRes && datesRes.data && Array.isArray(datesRes.data.data)) ? datesRes.data.data : [];\n  if (dates.length === 0) continue; // no fixed-departure inventory on this sector right now\n\n  // Airline/flight number/times/baggage do not vary by date for a fixed\n  // departure block (confirmed 2026-09-07 across several dates per sector),\n  // so one `search` call for the first available date covers the whole run.\n  const searchRes = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${BASE_URL}/api/Sector/search`,\n    headers: { 'Content-Type': 'application/json', 'Authorization': token },\n    body: { origin, destination, date: dates[0].availableDate, pax: 1 },\n    json: true,\n  });\n\n  const flight = (searchRes && searchRes.data && Array.isArray(searchRes.data.search)) ? searchRes.data.search[0] : null;\n  if (!flight || !flight.airline) continue; // nothing bookable right now — skip rather than guess\n\n  for (const row of dates) {\n    if (!row.availableDate || !row.price) continue;\n    firebaseData.push({\n      agent_id: AGENT_ID,\n      sector_code: `${origin} ${destination}`,\n      flight_code: flight.airline,\n      date: row.availableDate,\n      time_start: flight.deparTime || '',\n      time_end: flight.arrTime || '',\n      baggage: flight.checkInWeight || '',\n      extra_baggage: flight.cabinWeight || '',\n      sp_rate: row.price,\n      // Commission and the final selling price are derived server-side from\n      // agents.commission (ingestFaresFromN8n) — never send them here.\n      show: row.availableSeats > 0 ? 'yes' : 'no',\n    });\n  }\n}\n\nreturn [{ json: { firebaseData } }];\n"
+      }
+    },
+    {
+      "id": "8a528ee6-507e-4476-8fea-8804f5f10be3",
+      "name": "firebase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        -16
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://asia-south1-zamra-web-01.cloudfunctions.net/ingestFaresFromN8n",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"firebaseData\": $json.firebaseData } }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fXwTRbR6c38XVUkO",
+          "name": "Firestore"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "fetchAndFormat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fetchAndFormat": {
+      "main": [
+        [
+          {
+            "node": "firebase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata"
+  }
+}
