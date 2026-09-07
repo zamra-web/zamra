@@ -332,6 +332,32 @@ function buildIntakePayload(messages) {
   return { rawText: lines.join("\n"), media };
 }
 
+/**
+ * Per-supplier header rewrites, keyed by agents/{id}.
+ *
+ * The extraction system prompt tells the model to read the airline off the
+ * sheet itself; a supplier who never states it there gets a guess instead of
+ * a rejection, which can land a fare under the wrong carrier. Lefin (agent 3)
+ * numbers his fare tables "Group-1" / "Group-2" rather than naming SpiceJet
+ * (SG) or Air India Express (IX), so those tokens are rewritten to the IATA
+ * code they stand for before the sheet ever reaches n8n. `\b` on both sides
+ * matches through the surrounding WhatsApp markdown (`*Group-1*`,
+ * `_*Group-2*_`) without disturbing it.
+ */
+const RATE_SHEET_HEADER_ALIASES = {
+  3: [
+    [/\bgroup[\s-]*1\b/gi, "SG"],
+    [/\bgroup[\s-]*2\b/gi, "IX"],
+  ],
+};
+
+/** Rewrite a supplier's sheet-specific header codes to the airline IATA code they stand for. */
+function applyRateSheetAliases(text, agentId) {
+  const rules = RATE_SHEET_HEADER_ALIASES[String(agentId)];
+  if (!rules || !text) return text;
+  return rules.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), String(text));
+}
+
 module.exports = {
   looksLikeRateMessage,
   isUsableDocId,
@@ -339,6 +365,7 @@ module.exports = {
   isVerifiedSender,
   groupPendingMessages,
   buildIntakePayload,
+  applyRateSheetAliases,
   INTAKE_MODES,
   INGESTIBLE_MEDIA_RE,
   DEFAULT_QUIET_MS,

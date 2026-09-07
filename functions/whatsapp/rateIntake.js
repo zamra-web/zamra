@@ -29,6 +29,7 @@ const {
   isVerifiedSender,
   groupPendingMessages,
   buildIntakePayload,
+  applyRateSheetAliases,
   isUsableDocId,
   INTAKE_MODES,
   DEFAULT_QUIET_MS,
@@ -468,7 +469,8 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
         continue;
       }
 
-      const { rawText, media } = buildIntakePayload(group.messages);
+      const { rawText: sheetText, media } = buildIntakePayload(group.messages);
+      const rawText = applyRateSheetAliases(sheetText, supplier.agentId);
       if (!rawText && media.length === 0) {
         const skip = db.batch();
         for (const message of group.messages) {

@@ -17,6 +17,7 @@ const {
   wahaMediaPath,
   groupPendingMessages,
   buildIntakePayload,
+  applyRateSheetAliases,
   isUsableDocId,
   isVerifiedSender,
 } = require("../whatsapp/rateIntakeRules");
@@ -362,6 +363,22 @@ test("buildIntakePayload does not pay for the same image twice", () => {
     msg({ messageId: "b", hasMedia: true, mimetype: "image/jpeg", mediaUrl: url }),
   ]);
   assert.equal(media.length, 1);
+});
+
+// ── applyRateSheetAliases ────────────────────────────────────────────────────
+
+test("applyRateSheetAliases rewrites Lefin's Group-1/Group-2 headers to airline codes", () => {
+  const sheet = "*Group-1*\n*COK-DXB*\n05-Sep\t37500\n\n_*Group-2*_\n*TRV-DXB*\n07-Sep\t39500";
+  assert.equal(
+    applyRateSheetAliases(sheet, "3"),
+    "*SG*\n*COK-DXB*\n05-Sep\t37500\n\n_*IX*_\n*TRV-DXB*\n07-Sep\t39500",
+  );
+});
+
+test("applyRateSheetAliases leaves other suppliers' text untouched", () => {
+  const sheet = "*Group-1* is not a header for this agent";
+  assert.equal(applyRateSheetAliases(sheet, "1"), sheet);
+  assert.equal(applyRateSheetAliases(sheet, 3), "*SG* is not a header for this agent");
 });
 
 // ── verifyN8nBearer ─────────────────────────────────────────────────────────
