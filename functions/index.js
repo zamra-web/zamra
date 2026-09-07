@@ -27,6 +27,7 @@ const {
 } = require("./flightSchedule");
 const { verifyN8nBearer } = require("./n8nAuth");
 const { planSupersede, supersedeDateRange } = require("./fareSupersede");
+const { roundToNearestThousand } = require("./farePricing");
 const { defineSecret } = require("firebase-functions/params");
 
 // Shared bearer for the two n8n-facing onRequest endpoints and the WhatsApp
@@ -589,8 +590,10 @@ exports.ingestFaresFromN8n = onRequest(
     // A rate sheet quotes the supplier's special rate. The B2C selling price
     // is that plus commission — derive it here so the n8n parser only has to
     // extract what is actually printed. An explicit `rate` still wins.
+    // specialRate itself is left exactly as quoted — only the price a
+    // customer is shown gets rounded, to a clean multiple of ₹1,000.
     const specialRate = row.sp_rate ? Number(row.sp_rate) : 0;
-    const finalRate = row.rate ? Number(row.rate) : specialRate + commission;
+    const finalRate = roundToNearestThousand(row.rate ? Number(row.rate) : specialRate + commission);
 
     return {
       agentId: agentIdStr,
