@@ -443,6 +443,27 @@ test("parseSoldOutMessage fires on a per-line repeated header, which is what it 
   });
 });
 
+test("parseSoldOutMessage reads FLY.UNITED's date-before-route form with glued day+month", () => {
+  assert.deepEqual(parseSoldOutMessage("*16SEP CNN SHJ-SOLDOUT🛑*"), {
+    originCode: "CNN",
+    destCode: "SHJ",
+    day: 16,
+    month: 8, // September, 0-indexed
+  });
+  assert.deepEqual(parseSoldOutMessage("*11SEP COK AUH-*SOLDOUT🛑*"), {
+    originCode: "COK",
+    destCode: "AUH",
+    day: 11,
+    month: 8,
+  });
+  assert.deepEqual(parseSoldOutMessage("*11SEP CNN MCT - SOLDOUT🛑*"), {
+    originCode: "CNN",
+    destCode: "MCT",
+    day: 11,
+    month: 8,
+  });
+});
+
 test("resolveSoldOutDate keeps this year when the date is still ahead", () => {
   const now = new Date("2026-09-07T00:00:00.000Z");
   const resolved = resolveSoldOutDate({ day: 9, month: 8 }, now); // 09 SEP

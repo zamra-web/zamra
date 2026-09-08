@@ -367,25 +367,35 @@ const MONTH_ABBR = {
 };
 
 /**
- * A standalone "this flight is gone" notice: "CCJ AAN 09 SEP SOLD OUT". It
- * carries no price, so it never reaches looksLikeRateMessage and would
- * otherwise be silently dropped as chatter — the exact gap that leaves a
- * sold-out fare bookable on the public site.
+ * A standalone "this flight is gone" notice, in either token order:
+ * "CCJ AAN 09 SEP SOLD OUT" (route then date — most suppliers) or
+ * "09SEP CCJ AAN SOLDOUT" (date then route, day and month glued with no
+ * space — FLY.UNITED's house style). It carries no price, so it never
+ * reaches looksLikeRateMessage and would otherwise be silently dropped as
+ * chatter — the exact gap that leaves a sold-out fare bookable on the public
+ * site.
  *
  * The month must be a real IATA abbreviation (built into the pattern, not
  * validated after), which is what stops three random capital letters from
  * matching. Everything else is loose on purpose: a hyphen or space between
- * the airport codes, up to six non-alphanumeric characters (a closing
- * WhatsApp bold marker, a colon) between the airport codes and the day, and
- * up to a dozen more between the date and "SOLD OUT". A false positive here
- * costs a harmless Firestore lookup that finds nothing to hide (validated
- * downstream against the real sectors collection); a false negative leaves a
- * sold-out flight for sale, which is the worse mistake.
+ * the airport codes, zero-to-six non-alphanumeric characters (a closing
+ * WhatsApp bold marker, a colon — or nothing, for the glued day+month) around
+ * the date, and up to a dozen more between the date/route pair and
+ * "SOLD OUT". A false positive here costs a harmless Firestore lookup that
+ * finds nothing to hide (validated downstream against the real sectors
+ * collection); a false negative leaves a sold-out flight for sale, which is
+ * the worse mistake.
  */
 const SOLD_OUT_RE = new RegExp(
-  "\\b([A-Z]{3})[\\s-]+([A-Z]{3})\\b[^A-Za-z0-9]{0,6}(\\d{1,2})\\s+(" +
-  Object.keys(MONTH_ABBR).join("|") +
-  ")\\b[^A-Za-z0-9]{0,12}SOLD\\s*-?\\s*OUT\\b",
+  "\\b(?:" +
+    "(?<origin1>[A-Z]{3})[\\s-]+(?<dest1>[A-Z]{3})\\b[^A-Za-z0-9]{0,6}(?<day1>\\d{1,2})\\s+(?<month1>" +
+    Object.keys(MONTH_ABBR).join("|") +
+    ")\\b[^A-Za-z0-9]{0,12}" +
+  "|" +
+    "(?<day2>\\d{1,2})\\s*(?<month2>" +
+    Object.keys(MONTH_ABBR).join("|") +
+    ")\\b[^A-Za-z0-9]{0,6}(?<origin2>[A-Z]{3})[\\s-]+(?<dest2>[A-Z]{3})\\b[^A-Za-z0-9]{0,12}" +
+  ")SOLD\\s*-?\\s*OUT\\b",
   "i",
 );
 
@@ -403,7 +413,12 @@ function parseSoldOutMessage(body) {
   const match = SOLD_OUT_RE.exec(String(body ?? ""));
   if (!match) return null;
 
-  const [, origin, dest, dayStr, monthAbbr] = match;
+  const g = match.groups || {};
+  const origin = g.origin1 || g.origin2;
+  const dest = g.dest1 || g.dest2;
+  const dayStr = g.day1 || g.day2;
+  const monthAbbr = g.month1 || g.month2;
+
   const day = Number(dayStr);
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
 
