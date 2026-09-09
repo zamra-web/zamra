@@ -1796,6 +1796,30 @@ export function subscribeWhatsappRateBatches(callback, maxItems = 20) {
 }
 
 /**
+ * Sheets rejected because the number that sent them is not approved.
+ *
+ * The one intake failure with no error attached to it: the message is marked
+ * `skipped` and nothing else happens, so a supplier whose desk added a number
+ * silently stops delivering. Read here rather than derived from the batches
+ * feed, because a rejected sheet never becomes a batch at all.
+ *
+ * Needs the composite index on (rateIntakeReason ASC, timestamp DESC).
+ */
+export function subscribeWhatsappUnverifiedSenders(callback, maxItems = 200) {
+  const q = query(
+    collection(db, 'whatsapp_messages'),
+    where('rateIntakeReason', '==', 'sender-not-verified'),
+    orderBy('timestamp', 'desc'),
+    limit(maxItems),
+  );
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))),
+    (err) => console.error('[whatsapp] unverified sender listener error:', err),
+  );
+}
+
+/**
  * Change the rate-intake settings on config/whatsapp.
  *
  * Filtered to the intake keys so a stray field cannot overwrite sessionStatus

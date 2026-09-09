@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { toChatId, describeStatus, renderMessageBody, normalizeAgentWhatsapp, normalizeAgentGroupId, normalizeSenderId, parseAddressList, describeBatchStatus, summarizeIntake } from '../src/js/admin/whatsapp.js';
+import { toChatId, describeStatus, renderMessageBody, normalizeAgentWhatsapp, normalizeAgentGroupId, normalizeSenderId, parseAddressList, describeBatchStatus, summarizeIntake, summarizeUnverifiedSenders } from '../src/js/admin/whatsapp.js';
 
 test('toChatId accepts the shapes a human types', () => {
   assert.equal(toChatId('+91 98466 06731'), '919846606731@c.us');
@@ -184,4 +184,57 @@ test('parseAddressList treats an empty box as an empty list, not an error', () =
   for (const empty of ['', '   ', '\n\n', null, undefined]) {
     assert.deepEqual(parseAddressList(empty, normalizeAgentGroupId), { ids: [], rejected: [] });
   }
+});
+
+// ── unverified senders ───────────────────────────────────────────────────────
+// The bug this surfaces has hit fourteen suppliers and was found by a human
+// noticing missing fares every single time, because nothing about it is an
+// error: the message is marked skipped and the supplier's config still looks
+// correct. These pin the grouping the warning panel depends on.
+
+test('summarizeUnverifiedSenders groups by supplier and sender, busiest first', () => {
+  const rows = summarizeUnverifiedSenders([
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8', rateIntakeSeenSender: 'a@c.us', timestamp: '2026-09-08T10:00:00Z' },
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8', rateIntakeSeenSender: 'a@c.us', timestamp: '2026-09-09T10:00:00Z' },
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8', rateIntakeSeenSender: 'b@c.us', timestamp: '2026-09-09T11:00:00Z' },
+  ], { 8: 'AMEER.G' });
+
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((r) => [r.senderId, r.count]), [['a@c.us', 2], ['b@c.us', 1]]);
+  assert.equal(rows[0].agentName, 'AMEER.G');
+  // lastAt must be the NEWEST sighting, not whichever document arrived first —
+  // an admin triages by what is still actively being dropped.
+  assert.equal(rows[0].lastAt, '2026-09-09T10:00:00Z');
+});
+
+test('summarizeUnverifiedSenders ignores messages skipped for any other reason', () => {
+  // Only this one reason means "a real sheet was thrown away for want of an
+  // approval". agent-unlinked and empty are not an admin's problem to fix here,
+  // and surfacing them would train people to ignore the warning.
+  const rows = summarizeUnverifiedSenders([
+    { rateIntakeReason: 'agent-unlinked', rateIntakeAgentId: '8', senderId: 'a@c.us' },
+    { rateIntakeReason: 'empty', rateIntakeAgentId: '8', senderId: 'b@c.us' },
+    { rateIntakeStatus: 'done', rateIntakeAgentId: '8', senderId: 'c@c.us' },
+  ]);
+  assert.deepEqual(rows, []);
+});
+
+test('summarizeUnverifiedSenders needs both a sender and a supplier to act on', () => {
+  // A row naming neither is not actionable: there is no field to paste the
+  // number into. Dropping it beats rendering a blank line in the warning.
+  const rows = summarizeUnverifiedSenders([
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8' },
+    { rateIntakeReason: 'sender-not-verified', senderId: 'a@c.us' },
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8', senderId: 'ok@c.us' },
+  ]);
+  assert.deepEqual(rows.map((r) => r.senderId), ['ok@c.us']);
+});
+
+test('summarizeUnverifiedSenders falls back to senderId and names an unknown agent', () => {
+  const rows = summarizeUnverifiedSenders([
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '99', senderId: 'z@c.us' },
+  ], new Map());
+  assert.equal(rows[0].senderId, 'z@c.us');
+  assert.equal(rows[0].agentName, '');
+  assert.equal(rows[0].agentId, '99');
 });

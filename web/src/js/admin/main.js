@@ -30,7 +30,8 @@ import {
   callRefreshSocialPublishingHealth, callRunSocialQueueNow, callRetrySocialJobItem,
   callGetWhatsappSessionStatus, callGetWhatsappQr, callSetWhatsappSessionState,
   callEnsureWhatsappSession, callSendWhatsappMessage, subscribeWhatsappConfig,
-  subscribeWhatsappRateBatches, setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch,
+  subscribeWhatsappRateBatches, subscribeWhatsappUnverifiedSenders,
+  setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch,
   getB2BAgents, subscribeB2BAgents, updateB2BAgent, callCreateB2BAgent,
   callResetB2BAgentPassword, callGetB2BAgentCredentials,
   callSetB2BAgentStatus, callDeleteB2BAgent, getB2BConfig, saveB2BConfig,
@@ -4476,6 +4477,7 @@ function getWhatsappController() {
     callSendWhatsappMessage,
     subscribeWhatsappConfig,
     subscribeWhatsappRateBatches,
+    subscribeWhatsappUnverifiedSenders,
     setWhatsappRateIntakeConfig,
     callDeleteFaresByIngestBatch,
   });

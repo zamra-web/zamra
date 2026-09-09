@@ -256,9 +256,31 @@ only admins can post, rather than open trade groups. `retentionDays` sweeps it e
 4. Paste the group id (`…@g.us`) into *Announcement groups / communities*, and save. Mirroring
    starts on the next message — `rateIntakeGroupsUpdatedAt` skips the 5-minute cache wait.
 5. Have them post a sheet. If their number was already linked it ingests immediately.
-6. If instead the batch is skipped as `sender-not-verified`, WhatsApp addressed them by an
-   opaque **LID** rather than a phone number. The observed address is recorded on the message
-   as `rateIntakeSeenSender` and logged; paste it into *Verified senders* to approve it.
+6. If instead the batch is skipped as `sender-not-verified`, the number is not approved —
+   either a desk number nobody listed, or WhatsApp addressing them by an opaque **LID**
+   rather than a phone number. The observed address is recorded on the message as
+   `rateIntakeSeenSender`, and the **"numbers sent rate sheets that were thrown away"**
+   warning at the top of the WhatsApp tab lists every such address with its supplier and a
+   count. Paste the ones that are real fare desks into *Verified senders*.
+
+> **Step 6 is the single most-missed step in this whole setup**, and it is worth
+> understanding why before trusting a supplier is working. Linking the group makes messages
+> *mirror*, which looks like success — but `rateIntakeSenderIds` starts empty, and until it
+> is filled every sheet from every desk number is discarded. Nothing about that is an error:
+> no failed batch, no log an admin sees, and the supplier's own config still looks correct,
+> because it is correct and merely incomplete. Fourteen suppliers were sitting in this state
+> across 2026-09-07…09, each found only when somebody noticed missing fares.
+>
+> It is not only fares. `applySoldOut` gates on the same check, so an unapproved number's
+> "CCJ AAN 09 SEP SOLD OUT" is dropped too — leaving a flight on sale that is gone. Agents 1
+> and 13 were losing almost *nothing but* sold-out notices, so a sweep that counts only
+> rate-shaped messages reports them as healthy.
+>
+> **Check what a number posts before approving it.** Several suppliers run a visa or
+> attestation desk in the same group, and its price tables trip the same rate-shape
+> heuristic. Approving one costs a `detail:high` vision call per post and returns nothing,
+> since the closed sector vocabulary rejects every row. Six such numbers are deliberately
+> excluded and named in `scripts/approve-supplier-senders-2026-09-09.js`.
 
 **Test with a rate-shaped message, not "hi".** `looksLikeRateMessage` runs *before* the sender
 check, so ordinary chatter returns early and records no `rateIntakeSeenSender` — there is
@@ -1033,7 +1055,7 @@ read live by the dashboard via `subscribeWhatsappConfig`.
 | `rateIntakeMaxHoldMinutes` | Number | Default 20. Releases a supplier who drips one line a minute and never goes quiet |
 | `rateIntakeMaxItems` | Number | Default 12 messages per batch; the rest wait for the next pass |
 | `rateIntakeLeaseMinutes` | Number | Default 15, against a ~7 min worst case |
-| `rateIntakeMaxBatchesPerChatPerDay` | Number | Default 12. Runaway-cost brake on vision calls, same spirit as `SEND_RATE_LIMIT_PER_MINUTE` |
+| `rateIntakeMaxBatchesPerChatPerDay` | Number | Default **30** (was 12 until 2026-09-09). Runaway-cost brake on vision calls, same spirit as `SEND_RATE_LIMIT_PER_MINUTE`. 12 was sized for a supplier who sends one sheet a day and was truncating the busy desks — over-cap batches are *held to the next UTC day*, not dropped, so the symptom is a sheet arriving half a day late with no error anywhere |
 | `rateIntakeGroupsUpdatedAt` | Timestamp | Stamped by `addAgent`/`updateAgent` when a group link changes. The webhook caches the allow-list for 5 minutes and does **not** mirror an unlisted group at all, so without this a sheet posted right after linking would be lost rather than merely late. Read from a config the webhook already fetches, so it costs no extra read |
 | `rateIntakeLastClaimAt` / `rateIntakeClaimedTotal` / `rateIntakeSavedTotal` | — | Intake health, shown in the WhatsApp tab |
 

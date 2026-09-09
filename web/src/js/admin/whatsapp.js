@@ -182,6 +182,71 @@ export function summarizeIntake(config, batches) {
 }
 
 /**
+ * Group the sheets that were thrown away for coming from an unapproved number.
+ *
+ * This exists because the failure it surfaces is completely silent. A supplier
+ * desk adds one new number, that number posts the sheet, `isVerifiedSender`
+ * rejects it, and the message is marked `skipped` — no error, no failed batch,
+ * nothing in this tab. The supplier's config still looks correct, because it IS
+ * correct; it is merely incomplete. That bug has now hit fourteen suppliers
+ * across five sessions and was found every time by a human noticing missing
+ * fares, which is the slowest possible detector.
+ *
+ * Sold-out notices are gated on the same check, so the damage is not only
+ * missing fares: a "CCJ AAN 09 SEP SOLD OUT" from an unapproved number is
+ * dropped too, leaving a flight bookable on the public site that is gone. That
+ * is why this is a warning and not a quiet stat.
+ *
+ * Returns one row per supplier+sender, busiest first. Deliberately NOT a list of
+ * numbers to approve blindly — several suppliers run a visa desk in the same
+ * group whose price lists trip the same heuristic, so the admin still has to
+ * look at what the number actually posts.
+ *
+ * @param {Array<object>} messages  whatsapp_messages docs, any order
+ * @param {Map<string, string>|object} [agentNames]  agentId -> display name
+ * @returns {Array<{agentId: string, agentName: string, senderId: string, count: number, lastAt: *}>}
+ */
+export function summarizeUnverifiedSenders(messages, agentNames) {
+  const nameFor = (id) => {
+    if (!agentNames) return '';
+    if (typeof agentNames.get === 'function') return agentNames.get(String(id)) || '';
+    return agentNames[String(id)] || '';
+  };
+
+  const groups = new Map();
+  for (const message of Array.isArray(messages) ? messages : []) {
+    if (message?.rateIntakeReason !== 'sender-not-verified') continue;
+    // rateIntakeSeenSender is what the intake code records for approval; fall
+    // back to senderId so a row still appears if only that was written.
+    const senderId = String(message.rateIntakeSeenSender || message.senderId || '').trim();
+    const agentId = String(message.rateIntakeAgentId ?? '').trim();
+    if (!senderId || !agentId) continue;
+
+    const key = `${agentId}|${senderId}`;
+    const prior = groups.get(key);
+    if (prior) {
+      prior.count += 1;
+      if (toMillis(message.timestamp) > toMillis(prior.lastAt)) prior.lastAt = message.timestamp;
+    } else {
+      groups.set(key, {
+        agentId, senderId, agentName: nameFor(agentId), count: 1, lastAt: message.timestamp || null,
+      });
+    }
+  }
+
+  return [...groups.values()].sort((a, b) => (b.count - a.count) || toMillis(b.lastAt) - toMillis(a.lastAt));
+}
+
+/** Firestore Timestamp, Date, or ISO string -> epoch ms. 0 for anything else. */
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
  * @param {string} status
  * @returns {{label: string, tone: 'ok'|'warn'|'bad'}}
  */
@@ -229,13 +294,21 @@ export function createWhatsappController(deps) {
     toast, openModal,
     callGetWhatsappSessionStatus, callGetWhatsappQr, callSetWhatsappSessionState,
     callEnsureWhatsappSession, callSendWhatsappMessage, subscribeWhatsappConfig,
-    subscribeWhatsappRateBatches, setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch,
+    subscribeWhatsappRateBatches, subscribeWhatsappUnverifiedSenders,
+    setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch,
   } = deps;
 
   const state = {
     session: null,
     config: null,
     batches: [],
+    // Sheets dropped for coming from an unapproved number — the one intake
+    // failure that records no error, so nothing else in this tab would show it.
+    unverified: [],
+    // agentId -> name, harvested from the batches feed rather than taking a new
+    // dependency on the agents collection. A supplier that has never produced a
+    // batch simply renders as "agent N", which is still enough to act on.
+    agentNames: new Map(),
     unsubs: [],
     qrTimer: null,
     wired: false,
@@ -350,6 +423,7 @@ export function createWhatsappController(deps) {
     if (!host) return;
 
     const summary = summarizeIntake(state.config, state.batches);
+    const blocked = summarizeUnverifiedSenders(state.unverified, state.agentNames);
     const rows = state.batches.map(batchRow).join('');
 
     host.innerHTML = `
@@ -377,6 +451,28 @@ export function createWhatsappController(deps) {
           </button>
         </div>
       </div>
+
+      ${blocked.length
+    ? `<div class="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+             <p class="font-semibold">
+               ${blocked.length} number${blocked.length !== 1 ? 's' : ''} sent rate sheets that were thrown away.
+             </p>
+             <p class="mt-1 text-xs">
+               These posted into a linked supplier's group but are not in that supplier's
+               <strong>Verified senders</strong>, so their sheets — and any sold-out notices, which
+               would otherwise hide a flight that is gone — were dropped. Check what each number
+               actually posts before approving it in the Agents tab: a supplier's visa desk sits in
+               the same group and its price lists look similar.
+             </p>
+             <ul class="mt-2 space-y-1 font-mono text-xs">
+               ${blocked.slice(0, 12).map((row) => `<li>
+                 ${escapeHtml(row.senderId)} → ${escapeHtml(row.agentName || `agent ${row.agentId}`)}
+                 · ${row.count} sheet${row.count !== 1 ? 's' : ''} · last ${escapeHtml(fmtWhen(row.lastAt))}
+               </li>`).join('')}
+             </ul>
+             ${blocked.length > 12 ? `<p class="mt-1 text-xs">…and ${blocked.length - 12} more.</p>` : ''}
+           </div>`
+    : ''}
 
       ${summary.needsReview
     ? `<p class="mt-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -586,6 +682,16 @@ export function createWhatsappController(deps) {
     if (subscribeWhatsappRateBatches) {
       state.unsubs.push(subscribeWhatsappRateBatches((batches) => {
         state.batches = batches;
+        for (const batch of batches) {
+          if (batch?.agentId && batch.agentName) state.agentNames.set(String(batch.agentId), batch.agentName);
+        }
+        paintRateIntake();
+      }));
+    }
+
+    if (subscribeWhatsappUnverifiedSenders) {
+      state.unsubs.push(subscribeWhatsappUnverifiedSenders((messages) => {
+        state.unverified = messages;
         paintRateIntake();
       }));
     }
