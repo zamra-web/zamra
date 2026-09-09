@@ -4480,6 +4480,7 @@ function getWhatsappController() {
     subscribeWhatsappUnverifiedSenders,
     setWhatsappRateIntakeConfig,
     callDeleteFaresByIngestBatch,
+    getAgents,
   });
   return _whatsappController;
 }
@@ -5392,6 +5393,18 @@ function openAgentModal(agent) {
               The WhatsApp number above already counts — add lines here only for extra addresses.
               A post from anyone else in the group is skipped, and the address it came from is recorded on the
               message as <code>rateIntakeSeenSender</code> so you can approve it here if it is really them.
+            </p>
+          </div>
+          <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Not a fare desk — stop warning about these</label>
+            <textarea name="rateIntakeIgnoredSenderIds" rows="2" class="admin-control font-mono text-xs"
+              placeholder="919812345678@c.us">${(agent?.rateIntakeIgnoredSenderIds || []).join('\n')}</textarea>
+            <p class="admin-help">
+              For numbers in this supplier's group that post something other than fares — a visa or
+              attestation desk, whose price tables look like rate sheets to the intake filter.
+              This does <strong>not</strong> approve them: their messages are still rejected exactly as now.
+              It only removes them from the “sheets thrown away” warning, so that warning can reach zero
+              and stay meaningful.
             </p>
           </div>
         </div>

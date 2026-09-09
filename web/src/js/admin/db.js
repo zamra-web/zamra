@@ -166,6 +166,13 @@ function agentWhatsappFields(data) {
     }
     fields.rateIntakeSenderIds = ids;
   }
+  if (data.rateIntakeIgnoredSenderIds !== undefined) {
+    const { ids, rejected } = parseAddressList(data.rateIntakeIgnoredSenderIds, normalizeSenderId);
+    if (rejected.length) {
+      throw new Error(`Not a WhatsApp address: ${rejected.join(', ')}. Use a number, or the @lid shown on a skipped message.`);
+    }
+    fields.rateIntakeIgnoredSenderIds = ids;
+  }
   return fields;
 }
 
@@ -204,6 +211,12 @@ export async function addAgent(data) {
     // link is worthless without an approved sender, and vice versa.
     rateIntakeGroupIds: whatsapp.rateIntakeGroupIds || [],
     rateIntakeSenderIds: whatsapp.rateIntakeSenderIds || [],
+    // Dismissed-not-approved. Read ONLY by the dashboard warning, never by
+    // rateIntake.js — a number listed here is still rejected at intake exactly
+    // as before. It exists so a supplier's visa desk, which posts price tables
+    // that trip the rate-shape heuristic but hold no fares, can be triaged once
+    // instead of sitting in the warning forever and teaching people to ignore it.
+    rateIntakeIgnoredSenderIds: whatsapp.rateIntakeIgnoredSenderIds || [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

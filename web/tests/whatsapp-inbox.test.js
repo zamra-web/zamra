@@ -238,3 +238,45 @@ test('summarizeUnverifiedSenders falls back to senderId and names an unknown age
   assert.equal(rows[0].agentName, '');
   assert.equal(rows[0].agentId, '99');
 });
+
+test('summarizeUnverifiedSenders hides senders that have since been approved', () => {
+  // The failure this guards against is subtle and was shipped once: skip records
+  // are historical and are never rewritten when a number is later approved, so
+  // an unfiltered panel keeps listing every sender ever fixed. A warning that is
+  // permanently wrong is one people learn to scroll past.
+  const messages = [
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8', rateIntakeSeenSender: 'fixed@c.us', timestamp: '2026-09-08T10:00:00Z' },
+    { rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8', rateIntakeSeenSender: 'stillbad@c.us', timestamp: '2026-09-09T10:00:00Z' },
+  ];
+  const approved = new Map([['8', new Set(['fixed@c.us'])]]);
+
+  assert.deepEqual(
+    summarizeUnverifiedSenders(messages, {}, approved).map((r) => r.senderId),
+    ['stillbad@c.us'],
+  );
+  // Without the approved map nothing is filtered, so an unavailable agents read
+  // degrades to a noisier panel rather than an empty one.
+  assert.equal(summarizeUnverifiedSenders(messages, {}).length, 2);
+});
+
+test('summarizeUnverifiedSenders matches approved addresses case-insensitively', () => {
+  // whatsappChatId and rateIntakeSenderIds are lowercased on the way in, but a
+  // seen sender is recorded verbatim; a case difference must not resurrect a row.
+  const rows = summarizeUnverifiedSenders(
+    [{ rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '8', rateIntakeSeenSender: 'AB12@LID' }],
+    {},
+    new Map([['8', new Set(['ab12@lid'])]]),
+  );
+  assert.deepEqual(rows, []);
+});
+
+test('summarizeUnverifiedSenders scopes approval to the right supplier', () => {
+  // Approving a number for agent 8 must not silence the same number posting
+  // into a different supplier's group, where it is still unapproved.
+  const rows = summarizeUnverifiedSenders(
+    [{ rateIntakeReason: 'sender-not-verified', rateIntakeAgentId: '12', rateIntakeSeenSender: 'shared@c.us' }],
+    {},
+    new Map([['8', new Set(['shared@c.us'])]]),
+  );
+  assert.deepEqual(rows.map((r) => [r.agentId, r.senderId]), [['12', 'shared@c.us']]);
+});

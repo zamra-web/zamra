@@ -755,6 +755,7 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `rateIntakeMode` | String | `off` (default) \| `auto` \| `images_only`. Opt-in per supplier — fares from this path publish live. |
 | `rateIntakeGroupIds` | Array | Announcement groups / communities this supplier posts rate sheets into, as `…@g.us`. Also the **mirror allow-list**: a group named here is the only kind of group stored while `mirrorGroups` is false. Enforced unique per group, same reasoning as `whatsappChatId`. |
 | `rateIntakeSenderIds` | Array | Extra addresses this supplier is verified to post from inside those groups. `whatsappChatId` already counts and need not be repeated. Accepts a `…@lid`, which `whatsappChatId` never does. |
+| `rateIntakeIgnoredSenderIds` | Array | Numbers in this supplier's group confirmed **not** to be a fare desk — typically their visa/attestation desk, whose price tables trip the rate-shape filter but hold no fares. Read only by the dashboard's "sheets thrown away" warning; `rateIntake.js` never reads it, so these stay rejected at intake exactly as before. It exists so the warning can reach zero and keep meaning something. |
 | `createdAt` | Timestamp | Server timestamp |
 | `updatedAt` | Timestamp | Server timestamp |
 

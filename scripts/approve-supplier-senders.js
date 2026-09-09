@@ -25,12 +25,17 @@
  * shaped { agents: { "<id>": { name, senders: [[address, why], …] } },
  *          excluded: { "<id>": [[address, why], …] } }.
  *
- * `excluded` is documentation, never written: those are real supplier numbers
- * that must NOT be approved because they staff the visa/attestation desk in the
- * same group. Their price tables trip the rate-shape heuristic, so approving one
- * buys a detail:high vision call per post and returns nothing — the closed
- * sector vocabulary rejects every row. Verify what a number posts before adding
- * it to the roster.
+ * `excluded` are real supplier numbers that must NOT be approved, because they
+ * staff the visa/attestation desk in the same group. Their price tables trip the
+ * rate-shape heuristic, so approving one buys a detail:high vision call per post
+ * and returns nothing — the closed sector vocabulary rejects every row. Verify
+ * what a number posts before adding it to either list.
+ *
+ * They ARE written, to `rateIntakeIgnoredSenderIds` — a field the dashboard
+ * warning reads and `rateIntake.js` does not. Their sheets stay rejected exactly
+ * as before; the only effect is that a number triaged once stops appearing in
+ * the "sheets thrown away" warning, so that warning can reach zero. A warning
+ * that permanently shows known-fine rows is one people stop reading.
  *
  * Additive by design: `arrayUnion`, never a blind overwrite, and every agent is
  * verified by name before it is touched, so a renumbered collection skips rather
@@ -88,6 +93,7 @@ async function main() {
   }
 
   let added = 0;
+  let ignored = 0;
   let skipped = 0;
 
   for (const [id, plan] of entries) {
@@ -112,20 +118,25 @@ async function main() {
       const have = existing.has(String(address).toLowerCase());
       console.log(`   ${have ? "have " : APPLY ? "ADD  " : "would"} ${String(address).padEnd(22)} ${why}`);
     }
-    for (const [address, why] of (roster.excluded || {})[id] || []) {
-      console.log(`   EXCL  ${String(address).padEnd(22)} ${why}`);
+    const ignoredNow = new Set((data.rateIntakeIgnoredSenderIds || []).map((s) => String(s).toLowerCase()));
+    const excluded = (roster.excluded || {})[id] || [];
+    const toIgnore = excluded.filter(([address]) => !ignoredNow.has(String(address).toLowerCase()));
+    for (const [address, why] of excluded) {
+      const have = ignoredNow.has(String(address).toLowerCase());
+      console.log(`   ${have ? "excl " : APPLY ? "EXCL " : "would"} ${String(address).padEnd(22)} not a fare desk — ${why}`);
     }
 
-    if (APPLY && toAdd.length) {
-      await ref.set({
-        rateIntakeSenderIds: FV.arrayUnion(...toAdd.map(([address]) => address)),
-        updatedAt: FV.serverTimestamp(),
-      }, { merge: true });
+    if (APPLY && (toAdd.length || toIgnore.length)) {
+      const patch = { updatedAt: FV.serverTimestamp() };
+      if (toAdd.length) patch.rateIntakeSenderIds = FV.arrayUnion(...toAdd.map(([a]) => a));
+      if (toIgnore.length) patch.rateIntakeIgnoredSenderIds = FV.arrayUnion(...toIgnore.map(([a]) => a));
+      await ref.set(patch, { merge: true });
     }
     added += toAdd.length;
+    ignored += toIgnore.length;
   }
 
-  if (APPLY && added) {
+  if (APPLY && (added || ignored)) {
     // The webhook caches the supplier allow-list for five minutes, and a message
     // is evaluated exactly once on arrival — so without this a sheet sent inside
     // that window is lost rather than merely late.
@@ -134,7 +145,8 @@ async function main() {
     }, { merge: true });
   }
 
-  console.log(`\n${APPLY ? "Added" : "Would add"} ${added} sender(s); ${skipped} agent(s) skipped.`);
+  console.log(`\n${APPLY ? "Added" : "Would add"} ${added} sender(s), ` +
+    `${APPLY ? "marked" : "would mark"} ${ignored} as not-a-fare-desk; ${skipped} agent(s) skipped.`);
 }
 
 main().then(() => process.exit(0)).catch((err) => { console.error(err.message); process.exit(1); });

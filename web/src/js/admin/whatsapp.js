@@ -202,11 +202,19 @@ export function summarizeIntake(config, batches) {
  * group whose price lists trip the same heuristic, so the admin still has to
  * look at what the number actually posts.
  *
+ * `approvedByAgent` is what keeps this usable rather than noise. Skip records are
+ * historical and are never rewritten when a number is later approved, so without
+ * it the panel would keep listing every sender ever fixed — and a warning that
+ * is permanently wrong is one people learn to scroll past, which is worse than
+ * no warning at all. Only addresses still absent from the supplier's approved
+ * set are shown.
+ *
  * @param {Array<object>} messages  whatsapp_messages docs, any order
  * @param {Map<string, string>|object} [agentNames]  agentId -> display name
+ * @param {Map<string, Set<string>>} [approvedByAgent]  agentId -> approved addresses
  * @returns {Array<{agentId: string, agentName: string, senderId: string, count: number, lastAt: *}>}
  */
-export function summarizeUnverifiedSenders(messages, agentNames) {
+export function summarizeUnverifiedSenders(messages, agentNames, approvedByAgent) {
   const nameFor = (id) => {
     if (!agentNames) return '';
     if (typeof agentNames.get === 'function') return agentNames.get(String(id)) || '';
@@ -221,6 +229,13 @@ export function summarizeUnverifiedSenders(messages, agentNames) {
     const senderId = String(message.rateIntakeSeenSender || message.senderId || '').trim();
     const agentId = String(message.rateIntakeAgentId ?? '').trim();
     if (!senderId || !agentId) continue;
+
+    // Already approved since this message was skipped? Then it is fixed, and
+    // the stale skip record is not something anyone needs to see.
+    const approved = approvedByAgent && typeof approvedByAgent.get === 'function'
+      ? approvedByAgent.get(agentId)
+      : null;
+    if (approved && approved.has(senderId.toLowerCase())) continue;
 
     const key = `${agentId}|${senderId}`;
     const prior = groups.get(key);
@@ -295,7 +310,7 @@ export function createWhatsappController(deps) {
     callGetWhatsappSessionStatus, callGetWhatsappQr, callSetWhatsappSessionState,
     callEnsureWhatsappSession, callSendWhatsappMessage, subscribeWhatsappConfig,
     subscribeWhatsappRateBatches, subscribeWhatsappUnverifiedSenders,
-    setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch,
+    setWhatsappRateIntakeConfig, callDeleteFaresByIngestBatch, getAgents,
   } = deps;
 
   const state = {
@@ -423,7 +438,7 @@ export function createWhatsappController(deps) {
     if (!host) return;
 
     const summary = summarizeIntake(state.config, state.batches);
-    const blocked = summarizeUnverifiedSenders(state.unverified, state.agentNames);
+    const blocked = summarizeUnverifiedSenders(state.unverified, state.agentNames, state.approvedByAgent);
     const rows = state.batches.map(batchRow).join('');
 
     host.innerHTML = `
@@ -489,6 +504,40 @@ export function createWhatsappController(deps) {
           <tbody>${rows || '<tr><td colspan="6" class="py-6 text-center text-sm text-text-muted">No sheets have arrived by WhatsApp yet.</td></tr>'}</tbody>
         </table>
       </div>`;
+  }
+
+  /**
+   * Which addresses each supplier already accepts, for filtering the warning.
+   *
+   * A read rather than a live subscription: it changes only when an admin edits
+   * a supplier, and a stale entry costs one extra row in a warning panel until
+   * the tab is reopened — not worth a second listener on the agents collection.
+   */
+  async function loadApprovedSenders() {
+    if (!getAgents) return;
+    try {
+      const agents = await getAgents();
+      const approved = new Map();
+      for (const agent of agents || []) {
+        const id = String(agent?.id ?? '');
+        if (!id) continue;
+        if (agent.name) state.agentNames.set(id, agent.name);
+        const addresses = [
+          String(agent.whatsappChatId || '').toLowerCase(),
+          ...(agent.rateIntakeSenderIds || []).map((entry) => String(entry || '').toLowerCase()),
+          // Dismissed numbers are filtered from the warning the same way approved
+          // ones are, but they are NOT approved for intake — rateIntake.js never
+          // reads this field. Both simply mean "already triaged, stop showing it".
+          ...(agent.rateIntakeIgnoredSenderIds || []).map((entry) => String(entry || '').toLowerCase()),
+        ].filter(Boolean);
+        approved.set(id, new Set(addresses));
+      }
+      state.approvedByAgent = approved;
+      paintRateIntake();
+    } catch (error) {
+      // A failed read must not blank the tab; the warning just stays unfiltered.
+      console.error('[whatsapp] could not load approved senders:', error);
+    }
   }
 
   async function toggleIntakeConfig(key, next) {
@@ -695,6 +744,8 @@ export function createWhatsappController(deps) {
         paintRateIntake();
       }));
     }
+
+    await loadApprovedSenders();
 
     await refresh();
   }
