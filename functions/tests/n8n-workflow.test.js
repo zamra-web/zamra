@@ -191,6 +191,77 @@ test("Build Firebase Payload drops every row that fails validation", () => {
   assert.equal(out.notes, "One sector unreadable.");
 });
 
+test("Build Firebase Payload keeps the cheapest of two flights on one day", () => {
+  // Travel Wallet's sheet of 2026-09-09 prints "14 SEP : 41700/- (IX 343)" and
+  // "14 SEP : 39200/- (IX 345)" — one route, one day, two flights. Flight number
+  // is not part of the dedupe key and cannot be (nothing downstream stores it),
+  // so the two rows collapse. First-wins used to keep 41700 purely because the
+  // supplier typed it first, and since every projection downstream dedupes this
+  // same group by minimum price, that cheaper fare was unrecoverable.
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 41700, show: "yes" },
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 39200, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": META },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData, [
+    { agent_id: "102", sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 39200, show: "yes" },
+  ]);
+  assert.equal(out.parsed_count, 1);
+});
+
+test("Build Firebase Payload keeps the cheapest whichever order the sheet prints", () => {
+  // The cheaper row printed FIRST must survive the pricier one that follows —
+  // the fix must not merely invert first-wins into last-wins.
+  const out = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 39200, show: "yes" },
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 41700, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": META },
+  })[0].json;
+
+  assert.deepEqual(out.firebaseData.map((r) => r.sp_rate), [39200]);
+});
+
+test("Build Firebase Payload never lets a sold-out fare displace a bookable one", () => {
+  // Availability outranks price. A show:"no" row is written hidden, so letting a
+  // cheap sold-out flight win would delete the sellable fare from the site — a
+  // strictly worse outcome than showing the pricier seat that can be booked.
+  const cheapSoldOutSecond = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 41700, show: "yes" },
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 12000, show: "no" },
+    ]),
+    nodes: { "Build Vision Request": META },
+  })[0].json;
+  assert.deepEqual(cheapSoldOutSecond.firebaseData.map((r) => [r.sp_rate, r.show]), [[41700, "yes"]]);
+
+  // And in the other print order: a bookable row must still overtake the
+  // sold-out one that preceded it, even though it costs more.
+  const cheapSoldOutFirst = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 12000, show: "no" },
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 41700, show: "yes" },
+    ]),
+    nodes: { "Build Vision Request": META },
+  })[0].json;
+  assert.deepEqual(cheapSoldOutFirst.firebaseData.map((r) => [r.sp_rate, r.show]), [[41700, "yes"]]);
+
+  // Two sold-out rows still compare on price, so the hidden row left behind for
+  // the audit trail is the one the sheet actually quoted cheapest.
+  const bothSoldOut = runNode("Build Firebase Payload", {
+    json: openaiResponse([
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 41700, show: "no" },
+      { sector_code: "CCJ JED", flight_code: "IX", date: "2026-03-04", sp_rate: 39200, show: "no" },
+    ]),
+    nodes: { "Build Vision Request": META },
+  })[0].json;
+  assert.deepEqual(bothSoldOut.firebaseData.map((r) => [r.sp_rate, r.show]), [[39200, "no"]]);
+});
+
 test("Build Firebase Payload repairs a transposed origin/destination", () => {
   // Both directions are sellable; the model saved the reverse of what the sheet
   // prints. route_text names the two codes in the printed order, so the guard
