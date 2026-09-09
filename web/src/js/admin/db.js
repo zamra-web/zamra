@@ -166,6 +166,14 @@ function agentWhatsappFields(data) {
     }
     fields.rateIntakeSenderIds = ids;
   }
+  if (data.rateIntakeAbsenceSoldOut !== undefined) {
+    // An unchecked checkbox is absent from a FormData submit, so this can never
+    // be inferred from the presence of the key — the agent form sends an
+    // explicit boolean. Anything not clearly true is false: a supplier is only
+    // treated as sending complete lists when someone said so.
+    fields.rateIntakeAbsenceSoldOut = data.rateIntakeAbsenceSoldOut === true ||
+      data.rateIntakeAbsenceSoldOut === 'true' || data.rateIntakeAbsenceSoldOut === 'on';
+  }
   if (data.rateIntakeIgnoredSenderIds !== undefined) {
     const { ids, rejected } = parseAddressList(data.rateIntakeIgnoredSenderIds, normalizeSenderId);
     if (rejected.length) {
@@ -211,6 +219,11 @@ export async function addAgent(data) {
     // link is worthless without an approved sender, and vice versa.
     rateIntakeGroupIds: whatsapp.rateIntakeGroupIds || [],
     rateIntakeSenderIds: whatsapp.rateIntakeSenderIds || [],
+    // Does a flight missing from this supplier's newest sheet mean it sold out?
+    // Only true for suppliers who send a COMPLETE list every time. Off by
+    // default: for a supplier who sends per-sector updates, absence means
+    // nothing, and acting on it would delist fares that are still for sale.
+    rateIntakeAbsenceSoldOut: whatsapp.rateIntakeAbsenceSoldOut === true,
     // Dismissed-not-approved. Read ONLY by the dashboard warning, never by
     // rateIntake.js — a number listed here is still rejected at intake exactly
     // as before. It exists so a supplier's visa desk, which posts price tables

@@ -506,6 +506,56 @@ existing `agentId + flightDate` composite index. The response reports `supersede
 > fare until the supplier posts again — `supersededByBatchId` records which batch to reverse if
 > that ever needs automating.
 
+#### Absence on ingest — the flight that dropped off the sheet
+
+Superseding handles a supplier who **re-quotes** a flight. The other half of the same daily habit
+is a flight that was on yesterday's sheet and is simply **gone** from today's. Most suppliers
+never write "sold out" — they send the next list, and the omission *is* the message. Nothing read
+that, so those fares stayed live and bookable at yesterday's price indefinitely: the worst
+failure this system can produce, because it sells a seat that does not exist.
+
+Absence is far more dangerous to act on than a revision. A revision is evidence about one flight;
+absence is evidence **only if the new sheet actually covers the flight it omits**. Three things
+can each make that false, so three guards gate it, and each fails closed:
+
+| Guard | Rule | Stops |
+|---|---|---|
+| **Coverage** | Only an `agentId + sectorId + flightDate` group the new sheet actually quoted is swept | A CCJ-DXB sheet delisting CCJ-JED |
+| **Sheet size** | The upload must carry ≥ `minRows` rows (**default 6**) for that supplier | A one-line 20:00 price correction delisting the other carrier on that route |
+| **Row age** | Only rows whose `createdAt` is older than `minAgeMs` (**default 6h**) are sweepable | Batch 1 delisting what batch 2 of the *same* sheet is about to restate — intake splits one sheet on a 90s quiet window |
+
+The coverage group is deliberately the same granularity `applySoldOut` hides on for an explicit
+"SOLD OUT" notice, so a flight that vanishes from a sheet and one named in a message are treated
+as the same claim about the same thing. It is exactly the identity key minus `airlineId` and
+`flightTime` — which is what an absent row differs from a quoted one *by*.
+
+On top of the guards it is **off by default at three levels**:
+
+1. `config/whatsapp.rateIntakeAbsenceSoldOut` — global switch, coerced `=== true`.
+2. `agents.rateIntakeAbsenceSoldOut` — per supplier. "Absence means sold out" is a fact about a
+   supplier's *habits*, not about fares. True only for desks that send a complete list each time;
+   for a supplier who sends per-sector updates, absence means nothing.
+3. `meta.source` must be in `config/whatsapp.rateIntakeAbsenceSources` (default
+   `["whatsapp-intake"]`). A **portal** paste is an admin fixing whatever they happen to be
+   fixing — reading that as a complete list would delist every other carrier on the routes they
+   touched. The live-data scrapers send no `meta` at all, so they are excluded until added here.
+
+Both numeric overrides (`rateIntakeAbsenceMinRows`, `rateIntakeAbsenceMinAgeHours`) are honoured
+only when **positive**. `Number(null)` and `Number("")` are both `0`, so a field left empty in the
+console would otherwise read as "no minimum" and switch off the guard it configures.
+
+Costs **no extra reads**: it reuses the same per-supplier query and the same `existing` array
+`planSupersede` already reads, and the per-agent opt-in rides along on the `agents` pass that was
+already loading commissions. Swept rows are written in their own pass marked
+`soldOutReason: "absent-from-sheet"` — distinct from `supersededByBatchId` alone, because one
+says "this price was replaced" and the other says "this flight was not on the new list", and only
+the second is an inference. The response reports `soldOutByAbsence` alongside `saved` and
+`superseded`.
+
+> **Why a split sheet is still safe.** If one route+date is split across two batches, whichever
+> lands second writes a fresh row that the age guard protects, and whichever lands first only
+> hides *yesterday's* row for it. Either order converges on the same correct end state.
+
 ### 8. 📋 Rate Upload Tab
 - **AI Rate Intake** — premium step-by-step UI for agent selection and raw fare submission
 - **Agent selector** — chips populated from live Firestore `agents` list (manual override supported)
@@ -753,6 +803,7 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `whatsappNumber` | String | As typed by the admin. Display only. |
 | `whatsappChatId` | String\|null | Normalised `919812345678@c.us` — the join key inbound messages are matched against. Enforced unique: two suppliers on one number would stamp the wrong commission onto real selling prices, so `addAgent`/`updateAgent` refuse the collision and the Cloud Function ignores the number entirely if one exists anyway. |
 | `rateIntakeMode` | String | `off` (default) \| `auto` \| `images_only`. Opt-in per supplier — fares from this path publish live. |
+| `rateIntakeAbsenceSoldOut` | Boolean | Default **false**. `true` only for suppliers who send a **complete list** every time — a flight dropped from their newest sheet is hidden as sold out. See [Absence on ingest](#absence-on-ingest--the-flight-that-dropped-off-the-sheet). |
 | `rateIntakeGroupIds` | Array | Announcement groups / communities this supplier posts rate sheets into, as `…@g.us`. Also the **mirror allow-list**: a group named here is the only kind of group stored while `mirrorGroups` is false. Enforced unique per group, same reasoning as `whatsappChatId`. |
 | `rateIntakeSenderIds` | Array | Extra addresses this supplier is verified to post from inside those groups. `whatsappChatId` already counts and need not be repeated. Accepts a `…@lid`, which `whatsappChatId` never does. |
 | `rateIntakeIgnoredSenderIds` | Array | Numbers in this supplier's group confirmed **not** to be a fare desk — typically their visa/attestation desk, whose price tables trip the rate-shape filter but hold no fares. Read only by the dashboard's "sheets thrown away" warning; `rateIntake.js` never reads it, so these stay rejected at intake exactly as before. It exists so the warning can reach zero and keep meaning something. |
@@ -797,6 +848,7 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `rateChangedAt` | Timestamp | Optional. When `finalRate` last changed via an admin edit |
 | `supersededAt` | Timestamp | Optional. When a later upload replaced this quote — see [Supersede on ingest](#supersede-on-ingest) |
 | `supersededByBatchId` | String | Optional. The `ingestBatchId` that replaced it, when the replacing upload carried one |
+| `soldOutReason` | String | Optional. `"absent-from-sheet"` when the row was hidden because the supplier's newest complete sheet stopped quoting it, rather than because a new price replaced it |
 
 > `previousFinalRate` / `rateChangedAt` are written only by `updateFare(fareId, data, { previousFinalRate })`. They cover **edited** fares. A price drop that arrives as a *re-upload* has no such fields — `ingestFaresFromN8n` creates a new document per row — and is derived instead by `annotateFarePriceDrops()`. See [Price drop detection](#price-drop-detection).
 
@@ -1051,6 +1103,10 @@ read live by the dashboard via `subscribeWhatsappConfig`.
 | `unreadTotal` | Number | Single counter behind the nav dot, so the badge needs no always-on `whatsapp_chats` listener |
 | `lastWebhookAt` / `lastWebhookEvent` / `droppedEventCounts` | — | Webhook health |
 | `rateIntakeEnabled` | Boolean | Default **false**, coerced with `=== true` so a missing field can never read as on. Master switch for automatic rate intake |
+| `rateIntakeAbsenceSoldOut` | Boolean | Default **false**, coerced `=== true`. Master switch for treating a flight missing from a supplier's newest sheet as sold out. Needs the per-supplier flag too |
+| `rateIntakeAbsenceSources` | Array | Default `["whatsapp-intake"]`. Which `meta.source` values count as a **complete** sheet. Adding `"portal"` would let a partial manual paste delist fares — do not |
+| `rateIntakeAbsenceMinRows` | Number | Default **6**. Rows one supplier must quote in a single upload before absence within it is read as evidence. Honoured only when ≥ 1 |
+| `rateIntakeAbsenceMinAgeHours` | Number | Default **6**. How old a stored row must be before absence may hide it — must clear a whole sheet-sending session. Honoured only when > 0 |
 | `rateIntakeAutoReply` | Boolean | Default false. Reply to the supplier with the saved count — a reply, never a cold initiation |
 | `rateIntakeQuietSeconds` | Number | Default 90. How long a chat must go silent before its messages are batched |
 | `rateIntakeMaxHoldMinutes` | Number | Default 20. Releases a supplier who drips one line a minute and never goes quiet |

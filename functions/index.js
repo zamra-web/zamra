@@ -26,7 +26,7 @@ const {
   resolveScheduledFlightTime,
 } = require("./flightSchedule");
 const { verifyN8nBearer } = require("./n8nAuth");
-const { planSupersede, supersedeDateRange } = require("./fareSupersede");
+const { planSupersede, planAbsenceSoldOut, supersedeDateRange } = require("./fareSupersede");
 const { roundToNearestThousand } = require("./farePricing");
 const { defineSecret } = require("firebase-functions/params");
 
@@ -497,6 +497,21 @@ exports.generateAgentReport = onCall({ region: "asia-south1" }, async (request) 
 // ══════════════════════════════════════════════════════════════════════════════
 const { onRequest } = require("firebase-functions/v2/https");
 
+/**
+ * Which upload sources may be read as a COMPLETE list of what a supplier sells?
+ *
+ * Absence only means "sold out" if the upload was the supplier's whole sheet.
+ * `whatsapp-intake` is one batch of one supplier's messages handed to the
+ * extractor in a single call, so it is; `portal` is an admin pasting whatever
+ * they happen to be fixing, and treating a partial correction as a complete
+ * list would delist every other carrier on the routes they touched.
+ *
+ * The live-data scrapers (FlyCreative, Book4air) send no meta at all, so they
+ * land on "" and are excluded until someone deliberately adds them via
+ * config/whatsapp.rateIntakeAbsenceSources.
+ */
+const ABSENCE_DEFAULT_SOURCES = ["whatsapp-intake"];
+
 // cors:false — only n8n calls this, server to server. It was cors:true, which
 // let any browser tab POST fares using the token that was published in this repo.
 exports.ingestFaresFromN8n = onRequest(
@@ -550,11 +565,55 @@ exports.ingestFaresFromN8n = onRequest(
 
   // Load Agents commission map — commission value is stored per-agent in Firestore
   const agentCommissionMap = {};
+  // Which suppliers send a COMPLETE list each time, so that a flight missing
+  // from today's sheet means it stopped being for sale? Read in the pass that
+  // was already loading every agent, so the sweep costs no extra read.
+  // Explicit === true: a supplier who has never been considered is not one.
+  const agentAbsenceSoldOut = new Set();
   const agentsSnap = await db.collection("agents").get();
   agentsSnap.forEach(a => {
       const d = a.data();
       agentCommissionMap[a.id] = d.commission !== undefined ? Number(d.commission) : 500;
+      if (d.rateIntakeAbsenceSoldOut === true) agentAbsenceSoldOut.add(a.id);
   });
+
+  // Global switch and tuning for the absence sweep, alongside the other rate
+  // intake flags. Read once per upload, and only when some supplier in this
+  // payload is actually opted in — an upload from suppliers who all send
+  // partial sheets pays nothing for a feature it does not use.
+  //
+  // Absence hides live fares with no human in the loop, so it fails closed
+  // twice over: the doc must say true, AND the supplier must say true.
+  const absenceCandidates = [...new Set(fares.map(r => String(r.agent_id)))]
+    .filter(id => agentAbsenceSoldOut.has(id));
+  let absenceConfig = null;
+  if (absenceCandidates.length) {
+    try {
+      const cfgSnap = await db.doc("config/whatsapp").get();
+      const cfg = cfgSnap.exists ? cfgSnap.data() || {} : {};
+      const allowedSources = Array.isArray(cfg.rateIntakeAbsenceSources) && cfg.rateIntakeAbsenceSources.length
+        ? cfg.rateIntakeAbsenceSources.map((s) => String(s))
+        : ABSENCE_DEFAULT_SOURCES;
+      if (cfg.rateIntakeAbsenceSoldOut === true && allowedSources.includes(ingestSource)) {
+        // Both overrides must be POSITIVE to be honoured, not merely numeric.
+        // Number(null) and Number("") are both 0, so a field left empty in the
+        // console would otherwise read as "no minimum" and quietly switch off
+        // the very guard that stops one batch delisting its sibling's fares.
+        // An unusable value falls back to the default rather than to zero.
+        const minRows = Number(cfg.rateIntakeAbsenceMinRows);
+        const minAgeHours = Number(cfg.rateIntakeAbsenceMinAgeHours);
+        absenceConfig = {
+          minRows: Number.isFinite(minRows) && minRows >= 1 ? minRows : undefined,
+          minAgeMs: Number.isFinite(minAgeHours) && minAgeHours > 0
+            ? minAgeHours * 60 * 60 * 1000 : undefined,
+        };
+      }
+    } catch (err) {
+      // Unreadable config means "not switched on". Never a reason to reject the
+      // upload — the new rates matter more than the sweep.
+      console.error("ingestFaresFromN8n: could not read config/whatsapp; absence sweep skipped:", err);
+    }
+  }
 
   // Configured flight times per airline+sector. n8n only echoes times back when
   // its parser found them in the paste, so this is the fallback that keeps
@@ -619,6 +678,10 @@ exports.ingestFaresFromN8n = onRequest(
   // — agentId plus the date window actually quoted — served by the existing
   // agentId+flightDate composite index, rather than a lookup per row.
   const supersedeIds = [];
+  const absenceIds = [];
+  // One clock for the whole upload, so every supplier's age guard is measured
+  // from the same instant rather than drifting across a slow multi-agent batch.
+  const ingestStartedAt = new Date();
   const rowsByAgent = new Map();
   for (const fare of resolved) {
     if (!rowsByAgent.has(fare.agentId)) rowsByAgent.set(fare.agentId, []);
@@ -635,6 +698,19 @@ exports.ingestFaresFromN8n = onRequest(
         .get();
       const existing = priorSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       supersedeIds.push(...planSupersede(rows, existing));
+
+      // And the other half of the same habit: what did this sheet stop
+      // quoting? Same `existing` array, so no second query. Disjoint from
+      // supersedeIds by construction — planAbsenceSoldOut excludes any row the
+      // upload re-quotes — but filtered below so a future change to either
+      // cannot put one document in the same batch twice.
+      if (absenceConfig && agentAbsenceSoldOut.has(agentId)) {
+        absenceIds.push(...planAbsenceSoldOut(rows, existing, {
+          now: ingestStartedAt,
+          ...(absenceConfig.minRows !== undefined ? { minRows: absenceConfig.minRows } : {}),
+          ...(absenceConfig.minAgeMs !== undefined ? { minAgeMs: absenceConfig.minAgeMs } : {}),
+        }));
+      }
     } catch (err) {
       // A failed lookup must not cost the upload. Publishing the new rates and
       // leaving a stale duplicate behind is recoverable from the dashboard;
@@ -677,6 +753,40 @@ exports.ingestFaresFromN8n = onRequest(
     superseded += Math.min(BATCH_LIMIT, supersedeIds.length - i);
   }
 
+  // Then the flights this sheet stopped quoting. Written as a separate pass with
+  // its own marker rather than folded into the loop above, because the two mean
+  // different things to whoever reads the row later: `supersededByBatchId` says
+  // "this price was replaced", `soldOutReason: "absent-from-sheet"` says "this
+  // flight was not on the new list". Only the second is a guess, and an admin
+  // reviewing a re-shown fare needs to know which one they are looking at.
+  //
+  // Same isHidden flag as every other writer — ingest's own `show: "no"`, a
+  // revision, and an explicit "SOLD OUT" notice — so all four public
+  // projections already filter these out with no change.
+  const supersedeSet = new Set(supersedeIds);
+  const absenceToHide = [...new Set(absenceIds)].filter(id => !supersedeSet.has(id));
+  let soldOutByAbsence = 0;
+  for (let i = 0; i < absenceToHide.length; i += BATCH_LIMIT) {
+    const batch = db.batch();
+    for (const id of absenceToHide.slice(i, i + BATCH_LIMIT)) {
+      batch.update(db.collection("agent_fares").doc(id), {
+        isHidden: true,
+        supersededAt: FieldValue.serverTimestamp(),
+        soldOutReason: "absent-from-sheet",
+        ...(ingestBatchId ? { supersededByBatchId: ingestBatchId } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    soldOutByAbsence += Math.min(BATCH_LIMIT, absenceToHide.length - i);
+  }
+  if (soldOutByAbsence) {
+    console.info(
+      `ingestFaresFromN8n: absence sold-out hid ${soldOutByAbsence} fare(s) ` +
+      `for agents ${absenceCandidates.join(",")} batch=${ingestBatchId || "none"}`,
+    );
+  }
+
   // Update lastRatesUploadedAt on the agents documents
   try {
     const uniqueAgentIds = [...new Set(fares.map(row => String(row.agent_id)).filter(Boolean))];
@@ -696,7 +806,13 @@ exports.ingestFaresFromN8n = onRequest(
     console.error("Failed to update agents lastRatesUploadedAt timestamps:", err);
   }
 
-  res.status(200).json({ success: true, saved, superseded, ...(ingestBatchId ? { ingestBatchId } : {}) });
+  res.status(200).json({
+    success: true,
+    saved,
+    superseded,
+    soldOutByAbsence,
+    ...(ingestBatchId ? { ingestBatchId } : {}),
+  });
 });
 
 

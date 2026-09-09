@@ -3,7 +3,9 @@ const assert = require("node:assert/strict");
 
 const {
   fareIdentityKey,
+  fareCoverageKey,
   planSupersede,
+  planAbsenceSoldOut,
   supersedeDateRange,
   flightDateMs,
 } = require("../fareSupersede");
@@ -190,4 +192,232 @@ test("a downward revision still wins, as it always did", () => {
   assert.deepEqual(planSupersede([revised], [original]), ["old"]);
   const priced = computeB2BFares([revised], agent, config);
   assert.equal(priced[0].price, 44000);
+});
+
+
+// ── absence as a sold-out signal ────────────────────────────────────────────
+//
+// The case the exact-match half cannot see: a supplier sends tomorrow's list,
+// and a flight that was on yesterday's is simply gone from it. No "SOLD OUT"
+// message is ever sent — the omission IS the message.
+
+const NOW = new Date("2026-09-09T09:00:00Z");
+const YESTERDAY = new Date("2026-09-08T09:05:00Z");
+const MINUTES_AGO = new Date("2026-09-09T08:52:00Z");
+
+/** A stored row, dated — the absence sweep refuses to judge an undated one. */
+function stored(overrides = {}) {
+  return fare({ createdAt: YESTERDAY, ...overrides });
+}
+
+/**
+ * A sheet big enough to clear the minRows guard, on sectors that are
+ * deliberately NOT the one under test, so it contributes coverage for itself
+ * and nothing else.
+ */
+function padding(count = 6, overrides = {}) {
+  return Array.from({ length: count }, (_, i) => fare({
+    id: `pad${i}`,
+    sectorId: `PAD-${i}`,
+    ...overrides,
+  }));
+}
+
+const sweep = (incoming, existing, opts = {}) =>
+  planAbsenceSoldOut(incoming, existing, { now: NOW, ...opts });
+
+// ── fareCoverageKey ─────────────────────────────────────────────────────────
+
+test("fareCoverageKey groups a route and date, ignoring airline and time", () => {
+  const base = fareCoverageKey(fare());
+  assert.equal(fareCoverageKey(fare({ airlineId: "IX" })), base);
+  assert.equal(fareCoverageKey(fare({ flightTime: "08:00" })), base);
+  assert.equal(fareCoverageKey(fare({ specialRate: 1 })), base);
+});
+
+test("fareCoverageKey separates supplier, route and date", () => {
+  const base = fareCoverageKey(fare());
+  assert.notEqual(fareCoverageKey(fare({ agentId: "airguide" })), base);
+  assert.notEqual(fareCoverageKey(fare({ sectorId: "CCJ-DXB" })), base);
+  assert.notEqual(fareCoverageKey(fare({ flightDate: SEP_12 })), base);
+});
+
+test("fareCoverageKey refuses a row it cannot place", () => {
+  assert.equal(fareCoverageKey(fare({ agentId: "" })), null);
+  assert.equal(fareCoverageKey(fare({ sectorId: "  " })), null);
+  assert.equal(fareCoverageKey(fare({ flightDate: null })), null);
+  assert.equal(fareCoverageKey(null), null);
+});
+
+// ── the behaviour being added ───────────────────────────────────────────────
+
+test("a flight dropped from today's sheet is sold out", () => {
+  // Yesterday the supplier sold this route on two carriers. Today's list
+  // re-quotes the IX and says nothing about the G9 — that is the sold-out.
+  const existing = [
+    stored({ id: "ix", airlineId: "IX", flightTime: "20:15" }),
+    stored({ id: "g9", airlineId: "G9", flightTime: "11:30" }),
+  ];
+  const incoming = [
+    fare({ airlineId: "IX", flightTime: "20:15", specialRate: 46700 }),
+    ...padding(5),
+  ];
+  assert.deepEqual(sweep(incoming, existing), ["g9"]);
+});
+
+test("the re-quoted flight is left to planSupersede, not swept twice", () => {
+  const existing = [
+    stored({ id: "ix", airlineId: "IX", flightTime: "20:15" }),
+    stored({ id: "g9", airlineId: "G9", flightTime: "11:30" }),
+  ];
+  const incoming = [
+    fare({ airlineId: "IX", flightTime: "20:15", specialRate: 46700 }),
+    ...padding(5),
+  ];
+  const replaced = planSupersede(incoming, existing);
+  const absent = sweep(incoming, existing);
+  assert.deepEqual(replaced, ["ix"], "the revision is a supersede");
+  assert.deepEqual(absent, ["g9"], "the omission is a sold-out");
+  assert.equal(replaced.filter((id) => absent.includes(id)).length, 0, "disjoint");
+});
+
+// ── guard 1: coverage ───────────────────────────────────────────────────────
+
+test("a route the sheet never mentions is never touched", () => {
+  // A CCJ-DXB-only sheet is not a statement about CCJ-JED.
+  const existing = [stored({ id: "other", sectorId: "CCJ-JED" })];
+  assert.deepEqual(sweep([...padding(6, { sectorId: "CCJ-DXB" })], existing), []);
+});
+
+test("a date the sheet never mentions is never touched", () => {
+  const existing = [stored({ id: "later", flightDate: SEP_12 })];
+  assert.deepEqual(sweep(padding(6, { sectorId: fare().sectorId }), existing), []);
+});
+
+test("absence never crosses suppliers", () => {
+  // One supplier's complete list must not delist a competitor's quote on the
+  // same route and date — the same rule agentId enforces in fareIdentityKey.
+  const existing = [stored({ id: "theirs", agentId: "airguide" })];
+  assert.deepEqual(sweep(padding(6, { sectorId: fare().sectorId }), existing), []);
+});
+
+// ── guard 2: minRows ────────────────────────────────────────────────────────
+
+test("a one-line correction sells nothing out", () => {
+  // "CCJ DXB IX 46700" at 20:00 is one price, not a claim that the G9 is gone.
+  const existing = [stored({ id: "g9", airlineId: "G9", flightTime: "11:30" })];
+  const correction = [fare({ airlineId: "IX", specialRate: 46700 })];
+  assert.deepEqual(sweep(correction, existing), []);
+});
+
+test("minRows is the line between a correction and a list", () => {
+  const existing = [stored({ id: "g9", airlineId: "G9", flightTime: "11:30" })];
+  const five = [fare({ airlineId: "IX" }), ...padding(4)];
+  assert.deepEqual(sweep(five, existing), [], "five rows is still a correction");
+  assert.deepEqual(sweep([...five, fare({ id: "pad9", sectorId: "PAD-9" })], existing), ["g9"]);
+  // And a supplier who sends genuinely large partial sheets can raise the bar.
+  assert.deepEqual(sweep([...five, fare({ id: "pad9", sectorId: "PAD-9" })], existing, { minRows: 20 }), []);
+});
+
+// ── guard 3: minAge ─────────────────────────────────────────────────────────
+
+test("a sibling batch from the same session is protected", () => {
+  // Intake splits one sheet into batches on a 90s quiet window. Batch 1 must
+  // not delist what batch 2 wrote three minutes ago — that is flapping, and it
+  // would take a live fare off sale for no reason at all.
+  const existing = [stored({ id: "g9", airlineId: "G9", flightTime: "11:30", createdAt: MINUTES_AGO })];
+  const incoming = [fare({ airlineId: "IX" }), ...padding(5)];
+  assert.deepEqual(sweep(incoming, existing), []);
+});
+
+test("yesterday's row is old enough to sweep, this morning's is not", () => {
+  const incoming = [fare({ airlineId: "IX" }), ...padding(5)];
+  const old = [stored({ id: "g9", airlineId: "G9", createdAt: YESTERDAY })];
+  const fresh = [stored({ id: "g9", airlineId: "G9", createdAt: new Date("2026-09-09T05:00:00Z") })];
+  assert.deepEqual(sweep(incoming, old), ["g9"]);
+  assert.deepEqual(sweep(incoming, fresh), [], "four hours old is the same session");
+  // A supplier who revises late into the evening can be given a wider window.
+  assert.deepEqual(sweep(incoming, old, { minAgeMs: 48 * 60 * 60 * 1000 }), []);
+});
+
+test("a row that cannot be dated is protected, not swept", () => {
+  // Fails closed, for the reason stated throughout this file: a missed
+  // sold-out leaves a row an admin can see; an over-eager sweep silently
+  // removes a fare that was still for sale.
+  const incoming = [fare({ airlineId: "IX" }), ...padding(5)];
+  for (const createdAt of [undefined, null, "", "not a date", NaN]) {
+    assert.deepEqual(sweep(incoming, [stored({ id: "g9", airlineId: "G9", createdAt })]), [],
+      `createdAt=${String(createdAt)}`);
+  }
+});
+
+test("createdAt is read from a Firestore Timestamp as well as a Date", () => {
+  const incoming = [fare({ airlineId: "IX" }), ...padding(5)];
+  const existing = [stored({ id: "g9", airlineId: "G9", createdAt: timestamp(YESTERDAY) })];
+  assert.deepEqual(sweep(incoming, existing), ["g9"]);
+});
+
+// ── the rest of the contract ────────────────────────────────────────────────
+
+test("an already-hidden row is not hidden again", () => {
+  const existing = [stored({ id: "g9", airlineId: "G9", isHidden: true })];
+  assert.deepEqual(sweep([fare({ airlineId: "IX" }), ...padding(5)], existing), []);
+});
+
+test("a sold-out line inside a sheet still covers its own route", () => {
+  // n8n turns "CCJ DXB 10 SEP SOLD OUT" inside a sheet into show:"no", which
+  // reaches ingest as a hidden row. It is a statement about that route, so it
+  // establishes coverage — and every other carrier on it that the sheet did
+  // not restate goes too.
+  const existing = [stored({ id: "g9", airlineId: "G9", flightTime: "11:30" })];
+  const incoming = [fare({ airlineId: "IX", isHidden: true }), ...padding(5)];
+  assert.deepEqual(sweep(incoming, existing), ["g9"]);
+});
+
+test("each id is returned once even if the sheet repeats a route", () => {
+  const existing = [stored({ id: "g9", airlineId: "G9" })];
+  const incoming = [fare({ airlineId: "IX" }), fare({ airlineId: "IX" }), ...padding(5)];
+  assert.deepEqual(sweep(incoming, existing), ["g9"]);
+});
+
+test("absence is a no-op on empty or unusable input", () => {
+  assert.deepEqual(sweep([], [stored()]), []);
+  assert.deepEqual(sweep(padding(6), []), []);
+  assert.deepEqual(sweep(null, null), []);
+  // Six rows that cannot be placed give no coverage, so nothing is swept.
+  assert.deepEqual(sweep(padding(6, { sectorId: "" }), [stored({ id: "g9", airlineId: "G9" })]), []);
+});
+
+// ── the regression this exists for ──────────────────────────────────────────
+
+test("a sold-out flight stops being bookable once it drops off the sheet", () => {
+  const agent = { markupOverride: 0 };
+  const config = { defaultMarkup: 0 };
+
+  // Yesterday: the cheap G9 and the pricier IX, both on sale.
+  const g9 = stored({ id: "g9", airlineId: "G9", flightTime: "11:30", specialRate: 39000 });
+  const ix = stored({ id: "ix", airlineId: "IX", flightTime: "20:15", specialRate: 46000 });
+
+  // Today's list re-quotes only the IX. The G9 sold out and was never announced.
+  const incoming = [fare({ airlineId: "IX", flightTime: "20:15", specialRate: 46700 }), ...padding(5)];
+
+  const before = computeB2BFares([g9, ix], agent, config);
+  assert.equal(before.length, 2);
+  assert.equal(before[0].price, 39000, "the bug: the sold-out G9 is the headline price");
+
+  const hidden = new Set([
+    ...planSupersede(incoming, [g9, ix]),
+    ...sweep(incoming, [g9, ix]),
+  ]);
+  assert.deepEqual([...hidden].sort(), ["g9", "ix"]);
+
+  // Only the route under test reaches the projection; the padding rows exist
+  // solely to make this upload a list rather than a correction.
+  const live = [g9, ix, ...incoming]
+    .filter((f) => f.sectorId === fare().sectorId)
+    .map((f) => (hidden.has(f.id) ? { ...f, isHidden: true } : f))
+    .filter((f) => !f.isHidden);
+  const after = computeB2BFares(live, agent, config);
+  assert.equal(after.length, 1, "only the flight still on the sheet survives");
+  assert.equal(after[0].price, 46700, "at today's price");
 });

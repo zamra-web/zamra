@@ -5212,7 +5212,11 @@ function agentIntakeBadge(a) {
     return ` <i class="bi bi-whatsapp text-text-muted" title="WhatsApp linked${via}, auto rate intake off"></i>`;
   }
   const label = mode === 'images_only' ? 'Auto rate intake: screenshots only' : 'Auto rate intake: on';
-  return ` <i class="bi bi-whatsapp text-emerald-600" title="${label}${via}"></i>`;
+  // Worth surfacing on the row: it is the one intake setting that HIDES fares
+  // rather than adding them, so "why did that fare disappear" should be
+  // answerable without opening the supplier.
+  const absence = a.rateIntakeAbsenceSoldOut === true ? ' · dropped flights sold out' : '';
+  return ` <i class="bi bi-whatsapp text-emerald-600" title="${label}${via}${absence}"></i>`;
 }
 
 function agentRow(a) {
@@ -5377,6 +5381,22 @@ function openAgentModal(agent) {
             <p class="admin-help">Fares publish live. Only switch this on for suppliers whose sheets you trust.</p>
           </div>
           <div class="admin-field sm:col-span-2">
+            <label class="admin-label">Missing from a new sheet = sold out</label>
+            <label class="admin-toggle">
+              <input type="checkbox" name="rateIntakeAbsenceSoldOut"
+                ${agent?.rateIntakeAbsenceSoldOut === true ? 'checked' : ''}>
+              <span>Treat a dropped flight as sold out</span>
+            </label>
+            <p class="admin-help">
+              For suppliers who send a <strong>complete list</strong> each time and never write “sold out”.
+              When their new sheet re-quotes a route and date but leaves out a flight that was on the last one,
+              that flight is hidden automatically.
+              Only routes and dates the new sheet actually quotes are touched, and only fares older than the
+              current sheet — a one-line price correction never hides anything.
+              Leave this off for suppliers who send per-sector updates.
+            </p>
+          </div>
+          <div class="admin-field sm:col-span-2">
             <label class="admin-label">Announcement groups / communities</label>
             <textarea name="rateIntakeGroupIds" rows="2" class="admin-control font-mono text-xs"
               placeholder="120363000000000000@g.us">${(agent?.rateIntakeGroupIds || []).join('\n')}</textarea>
@@ -5423,6 +5443,11 @@ function openAgentModal(agent) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
+    // FormData omits an unchecked checkbox entirely, and agentWhatsappFields
+    // only writes keys it is given — so without this an admin could switch the
+    // absence sweep on but never back off.
+    data.rateIntakeAbsenceSoldOut =
+      e.target.querySelector('[name="rateIntakeAbsenceSoldOut"]')?.checked === true;
     const btn = e.target.querySelector('[type=submit]');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
