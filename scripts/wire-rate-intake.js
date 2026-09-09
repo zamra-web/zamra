@@ -7,9 +7,19 @@
  * each group (_data.key.participantAlt), not from group ownership, which turned
  * out to name the wrong person for four suppliers out of five.
  *
- * Safe to re-run: every write is a merge, and each agent is verified by name
- * before it is touched, so a renumbered agents collection makes this skip rather
- * than write the wrong supplier's config.
+ * NOT SAFE TO RE-RUN AS OF 2026-09-09. The PLAN below is frozen at its
+ * 2026-09-02 values, but `rateIntakeSenderIds` has been added to for a dozen
+ * agents since (2/3/6/9/10/11/13/14/16/17/18/20) as each supplier's real desk
+ * numbers were confirmed from group history. This script ASSIGNS that field
+ * outright rather than merging into it, so running it today would silently
+ * un-approve every one of those senders and put those suppliers straight back
+ * into the `sender-not-verified` bug it was written to prevent. Update PLAN
+ * from the live documents first, or use a targeted arrayUnion script such as
+ * scripts/approve-agent11-senders.js.
+ *
+ * Each agent is still verified by name before it is touched, so a renumbered
+ * agents collection makes this skip rather than write the wrong supplier's
+ * config.
  *
  * Run:
  *   GOOGLE_APPLICATION_CREDENTIALS=~/.config/zamra/zamra-web-01-sa.json \

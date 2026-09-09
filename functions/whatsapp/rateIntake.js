@@ -47,8 +47,25 @@ const FARES_COLLECTION = "agent_fares";
 
 /** How long a claimed batch may stay claimed before it is called stale. */
 const DEFAULT_LEASE_MINUTES = 15;
-/** Per-chat vision-call ceiling per day. A runaway-cost brake, not a policy. */
-const DEFAULT_MAX_BATCHES_PER_CHAT_PER_DAY = 12;
+/**
+ * Per-chat vision-call ceiling per day. A runaway-cost brake, not a policy.
+ *
+ * Raised from 12 on 2026-09-09. 12 was sized for a supplier who sends one sheet
+ * a day; the busy desks send one message per sector and revise all morning, so
+ * replaying Travel Wallet's (agent 11) real history through groupPendingMessages
+ * gives 13-18 batches on 5 days out of 7, and agents 1 and 5 had already been
+ * landing on exactly 12 — the shape of a cap that is truncating, not braking.
+ *
+ * Over-cap batches are HELD, not dropped, so the symptom is not an error: the
+ * sheet is claimed on the next UTC day, half a day late, quoting departure dates
+ * that may already have gone. Silent lateness is the worst failure mode here.
+ *
+ * The cost this brakes is `detail:high` vision calls on screenshots. These
+ * suppliers overwhelmingly send text, which is a fraction of a cent a batch, so
+ * the ceiling can afford real headroom over observed peak without weakening the
+ * brake on an actual runaway.
+ */
+const DEFAULT_MAX_BATCHES_PER_CHAT_PER_DAY = 30;
 /** Batch docs are an audit trail, not data. 60 days is plenty. */
 const BATCH_RETENTION_DAYS = 60;
 /** WAHA's WHATSAPP_FILES_LIFETIME is 7 days; warn n8n a day before that. */
