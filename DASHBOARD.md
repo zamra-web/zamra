@@ -704,12 +704,22 @@ Fares are grouped by sector + airline + date + time keeping the **minimum final 
 #### B2B result cards
 The portal's results list renders `buildCompactFlightCardHtml` from [web/src/js/web/flight-card.js](web/src/js/web/flight-card.js) — a separate builder from the public site's `buildFlightCardHtml`, so the two surfaces can be restyled independently.
 
-Agents scan long lists and book from them directly, so the card keeps **every** field plus the Book Now CTA at all widths and saves height by packing rather than hiding: one dense line from `md` up, wrapping to details-then-price/CTA below it. All values are escaped.
+Agents scan long lists and book from them directly, so the card keeps **every** field plus the Book Now CTA at all widths. Three layouts come out of one markup:
 
-Two invariants when editing it:
+| Width | Layout |
+|---|---|
+| `< md` | Two lines: airline + date + price + baggage on the first, the route and the CTA on the second, split by a hairline. The price sits with the airline rather than beside the button so the route gets a line of its own — five fields on one phone line is what made the old row read as cramped. |
+| `md` – `lg` | One line: airline, route, price, CTA. |
+| `≥ lg` | The extra width is spent on content, not on stretching the connector across it: city names under the airport codes, `DEP`/`ARR` labels on the times, and both baggage allowances spelled out in their own column. |
+
+The reflow uses `md:contents`: two wrapper `<div>`s dissolve at `md` so identity/price/route/baggage/CTA become direct children of the row, and `md:order-*` puts them in reading order. Add a column and its order goes in the same sequence. All values are escaped.
+
+Invariants when editing it:
 
 - Exactly **one** `[data-flight-card]` element per card. `wireFlightCardSheet` matches cards to fares by index among those elements, so a second hook silently shifts every later card onto the wrong fare.
-- The Book Now anchor stays a **sibling** of that button, never a child — nested, it would open the details sheet instead of WhatsApp (and `<a>` inside `<button>` is invalid markup).
+- That hook is a **stretched, empty button** (`absolute inset-0`) sitting under the visible content, which is `pointer-events-none` so taps fall through to it. That is what lets the content reflow freely while staying one tap target. Do not move card content back inside the button.
+- The Book Now anchor stays a **sibling** of that button, never a child — nested, it would open the details sheet instead of WhatsApp (and `<a>` inside `<button>` is invalid markup). Because the overlay covers the card, the anchor also needs `relative z-10` and `pointer-events-auto`; without them the sheet swallows every booking tap.
+- The price is rendered **twice**, one copy hidden per breakpoint. `md:contents` can reorder columns but cannot move a node between the two phone rows.
 
 The details sheet ([flight-details-sheet.js](web/src/js/web/flight-details-sheet.js)) is still wired up and carries what the row omits: full city names and the two baggage allowances spelled out. It is shared with the public site, so sheet changes land on both surfaces.
 

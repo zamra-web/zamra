@@ -112,6 +112,41 @@ test('B2B compact card opens the sheet from one hook, separate from the CTA', ()
   );
 });
 
+test('B2B compact card taps through a stretched, empty hook', () => {
+  const html = buildCompactFlightCardHtml(item());
+
+  // The hook covers the card and carries no content of its own: that is what
+  // lets the row reflow between one and two lines while staying a single tap
+  // target. Content moved back inside it would break the reflow.
+  const hook = html.match(/<button[^>]*data-flight-card[\s\S]*?<\/button>/)[0];
+  assert.match(hook, /absolute inset-0/);
+  assert.equal(hook.replace(/<[^>]*>/g, '').trim(), '');
+
+  // Content sits over the hook, so it must let taps fall through...
+  assert.ok(html.includes('pointer-events-none'), 'card content must pass taps to the hook');
+  // ...and the CTA must climb back above it, or booking opens the sheet.
+  const cta = html.match(/<a[\s\S]*?<\/a>/)[0];
+  assert.match(cta, /pointer-events-auto/);
+  assert.match(cta, /z-10/);
+});
+
+test('B2B compact card spells baggage out for the wide row', () => {
+  const html = buildCompactFlightCardHtml(item());
+
+  // From lg the row has a baggage column of its own; below it the short label
+  // rides with the price. Both are in the markup, one hidden per breakpoint.
+  assert.ok(html.includes('Check-in 30 kg'), 'wide row shows the check-in allowance');
+  assert.ok(html.includes('Hand 7 kg'), 'wide row shows the cabin allowance');
+  assert.ok(html.includes('30 + 7 kg'), 'narrow rows keep the short label');
+});
+
+test('B2B compact card carries the city names the wide row shows', () => {
+  const html = buildCompactFlightCardHtml(item());
+
+  assert.ok(html.includes('Calicut'));
+  assert.ok(html.includes('Dubai'));
+});
+
 test('B2B compact card carries no dark outline', () => {
   const html = buildCompactFlightCardHtml(item());
 
