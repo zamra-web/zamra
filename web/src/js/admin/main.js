@@ -729,7 +729,7 @@ let tableSort = {
 };
 let tableSearch = { agents: '', b2bAgents: '', sectors: '', airlines: '', visas: '', visaStampings: '', attestations: '', passportServices: '', tours: '', hajjUmrah: '', enquiries: '' };
 let tablePage = { agents: 1, b2bAgents: 1, sectors: 1, airlines: 1, visas: 1, visaStampings: 1, attestations: 1, passportServices: 1, tours: 1, hajjUmrah: 1, reportFares: 1, databaseFares: 1, enquiries: 1 };
-// databaseFares must match an option in #database-limit (20/50/100/250) or the
+// databaseFares must match an option in #database-limit (20/50/100/250/500) or the
 // select paints blank on first render.
 let tableLimit = { agents: 10, b2bAgents: 25, sectors: 25, airlines: 10, visas: 10, visaStampings: 10, attestations: 10, passportServices: 10, tours: 10, hajjUmrah: 10, reportFares: 10, databaseFares: 20, enquiries: 10 };
 
@@ -1073,6 +1073,98 @@ async function renderActiveTab() {
   }
   else if (id === 'eticket-tab') await renderETicketTab();
   else if (id === 'design-tab') await renderDesignTab();
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// KEEPING THE ADMIN'S PLACE ACROSS A RE-RENDER
+// ══════════════════════════════════════════════════════════════════════════════
+// Saving an edit ends in a re-render, and a re-render used to cost the admin
+// their place twice over — which on a 500-row Database tab means hunting for
+// the row they just saved.
+//
+// 1. Scroll. A browser clamps a scroll offset the moment the content behind it
+//    is too short to hold it, and never gives it back when the content grows
+//    again (measured in Chrome: shrink a 5000px page to 600px while scrolled
+//    to 1200 and scrollY is 147 from then on). Any re-render that is even
+//    briefly shorter than what it replaced spends that offset permanently — a
+//    page of rows leaving edit mode, a deleted row, an empty state between two
+//    filters. Both the window and `.admin-database-wrap` (`overflow: auto`,
+//    `max-height: 72vh`) are exposed to it.
+// 2. Pagination. Every `renderXxxTab()` refetch reset `tablePage` to 1, so
+//    editing the fourth row of page seven landed the admin back on page one.
+//    Those resets are gone. The search/limit/filter handlers still reset,
+//    because there a jump to page one is the thing being asked for, and every
+//    renderer already clamps `tablePage` to the last page — so a page a delete
+//    emptied still resolves on its own.
+//
+// `keepPlace()` covers (1) for renderers sync and async alike. Wrap the
+// renderer, not its callers: each of these is called from a dozen
+// save/delete/toggle handlers, and the next handler added would forget.
+
+// Scrollers that move independently of the page. A container survives its own
+// `innerHTML` swap even though its children do not, so these are restored by
+// element reference — an id would work for some of them and none of the ones
+// rendered from JS.
+const SCROLL_KEEPERS = '.admin-database-wrap, .admin-table-container, .overflow-auto, .overflow-y-auto, .overflow-x-auto';
+
+function capturePlace() {
+  const scrollers = [];
+  document.querySelectorAll(SCROLL_KEEPERS).forEach((el) => {
+    if (el.scrollTop || el.scrollLeft) scrollers.push({ el, top: el.scrollTop, left: el.scrollLeft });
+  });
+  return { scrollers, x: window.scrollX, y: window.scrollY };
+}
+
+function restorePlace(place) {
+  // Only ever undo a *backwards* move. A clamp can only shrink an offset, so
+  // this puts back everything the re-render took while leaving alone an admin
+  // who scrolled further down themselves while a slow save was in flight.
+  const apply = () => {
+    place.scrollers.forEach(({ el, top, left }) => {
+      if (!el.isConnected) return;
+      if (el.scrollTop < top) el.scrollTop = top;
+      if (el.scrollLeft < left) el.scrollLeft = left;
+    });
+    // 'instant' so that `scroll-behavior: smooth` anywhere up the cascade can
+    // never turn a correction the admin should not notice into a visible slide.
+    if (window.scrollY < place.y || window.scrollX < place.x) {
+      window.scrollTo({
+        top: Math.max(window.scrollY, place.y),
+        left: Math.max(window.scrollX, place.x),
+        behavior: 'instant',
+      });
+    }
+  };
+  apply();
+  // And again after layout. Rows can all be in the DOM and the table still
+  // settle to its final height a frame later — web fonts, flag images, the
+  // sticky header — and it is that second height the clamp reacts to.
+  requestAnimationFrame(apply);
+}
+
+/**
+ * Run a renderer without moving the admin away from what they were reading.
+ * Passes the return value through, so it wraps sync and async renderers alike.
+ * @param {() => any} render
+ */
+function keepPlace(render) {
+  const place = capturePlace();
+  let out;
+  try {
+    out = render();
+  } catch (err) {
+    restorePlace(place);
+    throw err;
+  }
+  if (out && typeof out.then === 'function') {
+    return out.then(
+      (value) => { restorePlace(place); return value; },
+      (err) => { restorePlace(place); throw err; },
+    );
+  }
+  restorePlace(place);
+  return out;
 }
 
 
@@ -5154,7 +5246,12 @@ function renderReportFaresTable(fares) {
 // AGENTS TAB — Full CRUD + Toggle Active
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderAgentsTab(fetchData = true) {
-  if (fetchData) { _agents = await getAgents(); tablePage.agents = 1; }
+  return keepPlace(() => renderAgentsTabInner(fetchData));
+}
+
+async function renderAgentsTabInner(fetchData = true) {
+  // The page is deliberately kept across the refetch — see keepPlace().
+  if (fetchData) { _agents = await getAgents(); }
   const tbody = document.querySelector('#agents-tab .admin-table tbody');
   if (!tbody) return;
 
@@ -5524,6 +5621,10 @@ function renderB2BPresenceSummary() {
 }
 
 async function renderB2BAgentsTab(fetchData = true) {
+  return keepPlace(() => renderB2BAgentsTabInner(fetchData));
+}
+
+async function renderB2BAgentsTabInner(fetchData = true) {
   if (fetchData) {
     // Suppliers drive the markup-rules table; loadGlobalData() usually has them
     // already, but the tab can render before that settles on a cold load.
@@ -6931,9 +7032,13 @@ function renderSectorFooter(totalCount, totalPages, start, limit) {
 }
 
 async function renderSectorsTab(fetchData = true) {
+  return keepPlace(() => renderSectorsTabInner(fetchData));
+}
+
+async function renderSectorsTabInner(fetchData = true) {
   if (fetchData) {
+    // The page is deliberately kept across the refetch — see keepPlace().
     _sectors = normalizeSectors(await getSectors());
-    tablePage.sectors = 1;
     refreshSectorDrivenControls();
   }
 
@@ -7210,6 +7315,11 @@ function openSectorModal(sector) {
 // FLIGHTS TAB (Airlines) — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderFlightsTab(fetchData = true) {
+  return keepPlace(() => renderFlightsTabInner(fetchData));
+}
+
+async function renderFlightsTabInner(fetchData = true) {
+  // The page is deliberately kept across the refetch — see keepPlace().
   if (fetchData) {
     _airlines = await getAirlines();
     _flightDetails = await getFlightDetails();
@@ -7217,7 +7327,6 @@ async function renderFlightsTab(fetchData = true) {
     if (!_sectors.length) {
       _sectors = await getSectors();
     }
-    tablePage.airlines = 1;
   }
 
   // Wire up filter inputs if not already
@@ -8846,7 +8955,7 @@ async function renderDatabaseTab(fetchData = true) {
       _databaseDrafts = {};
       _databaseSelected = new Set();
       _databaseEditing = new Set();
-      tablePage.databaseFares = 1;
+      // The page is deliberately kept across the refetch — see keepPlace().
       tab.dataset.loaded = '1';
     } catch (err) {
       toast('error', 'Load Failed', err.message);
@@ -8978,7 +9087,15 @@ function buildDatabaseDropHtml(drop) {
   return `<span class="admin-fare-drop" title="${escapeHtml(reason)}"><i class="bi bi-arrow-down-short"></i>${escapeHtml(delta)}</span>`;
 }
 
+// Called from every inline-edit action — edit, save, cancel, reset, delete,
+// sort, filter, paginate — and each call replaces the whole contents of a
+// scroll container. It keeps its own place rather than leaving twenty call
+// sites to remember to.
 function renderDatabaseTable() {
+  return keepPlace(renderDatabaseTableInner);
+}
+
+function renderDatabaseTableInner() {
   const wrap = document.getElementById('database-table-wrap');
   if (!wrap) return;
 
@@ -9594,6 +9711,10 @@ function getFilteredEnquiries() {
 }
 
 function renderEnquiryTable() {
+  return keepPlace(renderEnquiryTableInner);
+}
+
+function renderEnquiryTableInner() {
   const tbody = document.getElementById('enquiry-table-body');
   if (!tbody) return;
 
@@ -10157,6 +10278,10 @@ function describeDealLinkWindow(link) {
 }
 
 function renderDealLinksTable() {
+  return keepPlace(renderDealLinksTableInner);
+}
+
+function renderDealLinksTableInner() {
   const tbody = document.getElementById('deallink-table-body');
   if (!tbody) return;
 
@@ -11963,6 +12088,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // VISAS TAB — Full CRUD
 // ══════════════════════════════════════════════════════════════════════════════
 async function renderVisasTab(fetchData = true) {
+  return keepPlace(() => renderVisasTabInner(fetchData));
+}
+
+async function renderVisasTabInner(fetchData = true) {
   if (fetchData) {
     try {
       const [v, vs, att, ps, rc] = await Promise.all([
@@ -11982,11 +12111,9 @@ async function renderVisasTab(fetchData = true) {
       _attestations = att;
       _passportServices = ps;
       _visaRateCards = sortRateCards(rc.map(normaliseRateCard));
-
-      tablePage.visas = 1;
-      tablePage.visaStampings = 1;
-      tablePage.attestations = 1;
-      tablePage.passportServices = 1;
+      // All four pages are deliberately kept across the refetch — see
+      // keepPlace(). One save re-renders every table on this tab, so resetting
+      // here moved tables the admin was not even editing.
     } catch (e) {
       toast('error', 'Error loading Visas tab data', e.message);
     }
@@ -12675,10 +12802,14 @@ function openPassportServiceModal(item) {
  * @param {boolean} fetchData — skip the Firestore round-trip when re-rendering after sort
  */
 async function renderToursTab(fetchData = true) {
+  return keepPlace(() => renderToursTabInner(fetchData));
+}
+
+async function renderToursTabInner(fetchData = true) {
+  // The page is deliberately kept across the refetch — see keepPlace().
   if (fetchData) {
     try {
       _tours = await getTours({ includeInactive: true });
-      tablePage.tours = 1;
     } catch (e) {
       toast('error', 'Error loading Tours', e.message);
     }
@@ -12939,10 +13070,14 @@ function openTourModal(tour) {
  * @param {boolean} fetchData — skip the Firestore round-trip when re-rendering
  */
 async function renderHajjUmrahTab(fetchData = true) {
+  return keepPlace(() => renderHajjUmrahTabInner(fetchData));
+}
+
+async function renderHajjUmrahTabInner(fetchData = true) {
+  // The page is deliberately kept across the refetch — see keepPlace().
   if (fetchData) {
     try {
       _hajjUmrahPackages = await getHajjUmrahPackages({ includeInactive: true });
-      tablePage.hajjUmrah = 1;
     } catch (e) {
       toast('error', 'Error loading Hajj & Umrah', e.message);
     }
