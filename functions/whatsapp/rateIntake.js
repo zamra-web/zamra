@@ -260,20 +260,47 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
 
   // ── sold-out notices ──────────────────────────────────────────────────────
 
+  /** Firestore's own cap is 500 writes; the same headroom index.js leaves. */
+  const SOLD_OUT_BATCH_LIMIT = 400;
+
   /**
-   * Hide every stored fare a sold-out notice names.
+   * One log line describing a fare about to be deleted.
    *
-   * Writes the same `isHidden` flag ingestFaresFromN8n sets from a sheet row's
-   * `show: "no"` and fareSupersede.js sets on a revision — one meaning, three
-   * writers, and every public projection already filters on it. Hiding rather
-   * than deleting keeps the same audit trail those two rely on: what a
-   * supplier quoted, and when it stopped being for sale.
+   * The row is the only record of what a supplier quoted, so this is what
+   * replaces it: enough to re-enter the fare by hand if the notice was wrong.
    *
-   * A standalone notice never states a flight time or airline, so this hides
+   * @param {object} data an agent_fares document's data
+   * @returns {string}
+   */
+  function describeFare(data) {
+    const d = data || {};
+    const date = d.flightDate && typeof d.flightDate.toDate === "function"
+      ? d.flightDate.toDate().toISOString().slice(0, 10) : "?";
+    const time = String(d.flightTime || "").trim();
+    return `${d.airlineId || "?"} ${date}${time ? " " + time : ""} ` +
+      `INR ${d.finalRate !== undefined ? d.finalRate : "?"}` +
+      `${d.isHidden === true ? " (was hidden)" : ""}`;
+  }
+
+  /**
+   * Delete every stored fare a sold-out notice names.
+   *
+   * Deletes rather than hides, matching the absence sweep in fareSupersede.js:
+   * the supplier has said this flight is gone, so the row is not a price any
+   * more and nothing downstream will ever read it again. A hidden row only sat
+   * in `agent_fares` one un-hide away from putting a sold-out seat back on
+   * sale. There is no undo, so the notice itself is the whole authority for
+   * this — which is why the trust boundary below is the same one a rate sheet
+   * must clear, and why every removed row is logged.
+   *
+   * Already-hidden rows go too. They are the same dead weight: a fare the
+   * supplier has now said is gone, whoever hid it and for whatever reason.
+   *
+   * A standalone notice never states a flight time or airline, so this removes
    * every fare for the agentId+sectorId+date it names rather than guessing
    * which one. When a supplier runs two departures on the same route and date,
-   * hiding both is the safer mistake — a bookable, actually-sold-out flight is
-   * a real booking failure; an extra sector an admin re-shows in one click is
+   * taking both is the safer mistake — a bookable, actually-sold-out flight is
+   * a real booking failure; a fare the supplier restates on its next sheet is
    * not.
    *
    * @param {{agentId: string}} supplier
@@ -321,33 +348,37 @@ function build(db, { readConfig, n8nToken, messagesCollection, configDoc }) {
       .where("flightDate", "==", flightDateTs)
       .get();
 
-    const toHide = snap.docs.filter((doc) => doc.data().isHidden !== true);
-    if (toHide.length) {
+    // Every match, hidden or not — see the note above. Described before the
+    // delete, because once it commits this log line is the only record the fare
+    // existed: the row that used to carry `soldOutSourceMessageId` is gone.
+    const toDelete = snap.docs;
+    // Capped so one unusually wide route+date cannot blow the log entry's size
+    // limit and cost the whole line, which is the only audit trail there is.
+    const described = toDelete.slice(0, 60).map((doc) => describeFare(doc.data()));
+    for (let i = 0; i < toDelete.length; i += SOLD_OUT_BATCH_LIMIT) {
       const batch = db.batch();
-      for (const doc of toHide) {
-        batch.update(doc.ref, {
-          isHidden: true,
-          supersededAt: FieldValue.serverTimestamp(),
-          soldOutSourceMessageId: mirror.messageId || null,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+      for (const doc of toDelete.slice(i, i + SOLD_OUT_BATCH_LIMIT)) {
+        batch.delete(doc.ref);
       }
       await batch.commit();
     }
 
     console.info(
       `rateIntake: sold-out APPLIED chatId=${mirror.chatId} agentId=${supplier.agentId} ` +
-      `sectorId=${sectorId} date=${flightDate.toISOString().slice(0, 10)} hidden=${toHide.length}/${snap.size}`,
+      `sectorId=${sectorId} date=${flightDate.toISOString().slice(0, 10)} ` +
+      `messageId=${mirror.messageId || "none"} deleted=${toDelete.length}` +
+      (described.length ? ` :: ${described.join(" | ")}` : "") +
+      (toDelete.length > described.length ? ` | …${toDelete.length - described.length} more` : ""),
     );
 
     return {
       rateIntakeAgentId: supplier.agentId,
-      soldOutStatus: toHide.length ? "applied" : "no-matching-fares",
+      soldOutStatus: toDelete.length ? "applied" : "no-matching-fares",
       soldOutOriginCode: soldOut.originCode,
       soldOutDestCode: soldOut.destCode,
       soldOutSectorId: sectorId,
       soldOutFlightDate: flightDateTs,
-      soldOutFaresHidden: toHide.length,
+      soldOutFaresDeleted: toDelete.length,
       soldOutAt: FieldValue.serverTimestamp(),
     };
   }

@@ -305,14 +305,20 @@ the credential that lets an address set Zamra's public selling prices.
 #### Sold-out notices
 
 A supplier who WhatsApps a standalone line like `CCJ AAN 09 SEP SOLD OUT` — no price, just a
-route, a date, and the words "sold out" — has that flight hidden from `agent_fares`
-automatically, the same `isHidden` flag a revised-price supersede or a sheet row's `show: "no"`
-sets. This is a **separate, deterministic path**, not the AI extraction pipeline: a regex in
-`functions/whatsapp/rateIntakeRules.js` (`parseSoldOutMessage`) reads the route and date, and
+route, a date, and the words "sold out" — has that flight **deleted** from `agent_fares`
+automatically. This is a **separate, deterministic path**, not the AI extraction pipeline: a regex
+in `functions/whatsapp/rateIntakeRules.js` (`parseSoldOutMessage`) reads the route and date, and
 `rateIntake.js`'s `applySoldOut` resolves the route against the real `sectors` collection and
-hides every stored fare for that supplier + sector + date. No vision or text-extraction call is
+removes every stored fare for that supplier + sector + date. No vision or text-extraction call is
 spent on it, and a route Zamra doesn't have on file is a safe no-op (`soldOutStatus:
 "sector-not-found"` on the message doc), not a guess.
+
+It deletes rather than hides, matching the [absence sweep](#absence-on-ingest--the-flight-that-dropped-off-the-sheet):
+the supplier has said the flight is gone, so the row is not a price any more, and a hidden one
+only sat there one un-hide away from putting a sold-out seat back on sale. **Already-hidden rows
+go too** — same dead weight, whoever hid them. There is no undo, which makes the notice itself the
+whole authority for the removal; that is why the trust boundary below is exactly the one a rate
+sheet must clear.
 
 It reuses the exact same trust boundary as a rate sheet — the chat must resolve to a linked,
 active supplier, and a group message needs a verified sender — and the same per-agent
@@ -323,15 +329,17 @@ lines) is left alone and flows through the normal pipeline unchanged — the ext
 already turns that specific line into `show: "no"` (rule 6). This path exists only for the
 message that carries nothing else.
 
-Because a standalone notice never names a flight time or airline, it hides **every** fare for
+Because a standalone notice never names a flight time or airline, it removes **every** fare for
 that supplier + sector + date, not just one. If a supplier runs two departures on the same route
-and date, both go dark rather than one — deliberately: a still-bookable, actually-sold-out
-flight is a real booking failure, and re-showing a sector from the dashboard is one click.
+and date, both go rather than one — deliberately: a still-bookable, actually-sold-out flight is a
+real booking failure, and a fare the supplier still sells comes back on its next sheet.
 
 Audit fields land on the `whatsapp_messages` doc: `soldOutStatus` (`applied` |
 `no-matching-fares` | `sector-not-found`), `soldOutSectorId`, `soldOutFlightDate`,
-`soldOutFaresHidden`. Hidden fares also carry `soldOutSourceMessageId`, so a hide can be traced
-back to the WhatsApp message that caused it.
+`soldOutFaresDeleted`. The deleted rows themselves go to Cloud Logging —
+`rateIntake: sold-out APPLIED … messageId=… deleted=2 :: IX 2026-09-09 20:15 INR 46700 | …` —
+which is the only trace left once the documents are gone. A row that was already hidden is
+marked `(was hidden)` in that line.
 
 ---
 
@@ -449,7 +457,7 @@ A fare gets cheaper two different ways, and only one of them is visible on a sin
 | Path | What lands in Firestore | How it is detected |
 |---|---|---|
 | Admin edits a row down | `previousFinalRate` + `rateChangedAt` on the same doc | Read straight off the document |
-| A cheaper rate sheet is re-uploaded | **A brand-new document** — `ingestFaresFromN8n` calls `.doc()` with no ID and never edits one; the row it replaces is *hidden*, not changed | Compared against older sibling rows |
+| A cheaper rate sheet is re-uploaded | **A brand-new document** — `ingestFaresFromN8n` calls `.doc()` with no ID and never edits one — carrying `previousFinalRate` + `rateChangedAt` when it undercuts the row it replaces, because that row is deleted | Read straight off the document, same as an edit |
 
 `annotateFarePriceDrops()` in [web/src/js/shared/fare-price-history.js](web/src/js/shared/fare-price-history.js) handles both. It groups rows by `sectorId + airlineId + flightDate + flightTime` — the same key the poster and public site dedupe on — orders each group by `createdAt`, and flags any row that undercuts the cheapest of its strictly-older siblings. Drops older than 7 days are ignored by default.
 
@@ -457,9 +465,13 @@ Two things to know when touching this:
 - The drop map is computed over **all** loaded fares, never the filtered view. The older row that proves a drop is often filtered out.
 - It is cached against the `_databaseFares` array identity, which is safe only because that array is always reassigned, never mutated in place.
 
-Superseding does not break this. A replaced row keeps its `createdAt` and stays loaded on the
-admin surface — only the public and B2B projections filter it out — so it still counts as the
-older sibling that proves a drop.
+**Superseding changed how the second path works.** Until 2026-09-12 a replaced row was hidden,
+not deleted, so it stayed loaded on the admin surface and served as the older sibling that proved
+the drop. It is now deleted — so ingest stamps the replaced price onto the *new* row instead, via
+`priorFinalRates()` in [functions/fareSupersede.js](functions/fareSupersede.js), and the drop is
+read off one document by the same branch that handles an admin edit. The sibling comparison below
+still runs and still matters: it catches drops between rows a supersede does **not** pair up —
+different suppliers on one flight, or rows whose `flightTime` drifted between sheets.
 
 #### Supersede on ingest
 
@@ -478,7 +490,7 @@ This is not a corner case. Glansa sent four `*REVISED FARE*` messages in five on
 twice for the same sector; Airguide revised three times in twenty minutes. Automating intake
 multiplies exactly the update the pipeline handled worst.
 
-So `ingestFaresFromN8n` now reads the fares an upload replaces *before* writing it, and hides
+So `ingestFaresFromN8n` now reads the fares an upload replaces *before* writing it, and deletes
 them after the new rows commit. The decision is pure and lives in
 [functions/fareSupersede.js](functions/fareSupersede.js):
 
@@ -489,10 +501,16 @@ them after the new rows commit. The decision is pure and lives in
   blocks). Both are load-bearing; neither is optional.
 - **Fails closed.** A row missing any identity field yields no key and supersedes nothing —
   a duplicate an admin can see beats silently removing a fare that is still for sale.
-- **Hides, never deletes.** `isHidden` already means "exists, not for sale" and all four
-  projections filter on it. The row survives for the audit trail that `ingestBatchId` and the
-  one-click batch delete assume.
-- **Writes new rows first, hides second.** The other order leaves a window with no visible price
+- **Deletes, never hides** (since 2026-09-12; it hid until then). Hiding assumed the collection
+  was cleared daily. It was not — 5,509 hidden rows had accumulated against 2,191 live ones, none
+  of them read by anything, since every projection filters `isHidden`. Already-hidden rows are
+  taken too: nothing collects them any more, and the replacement is written visible regardless.
+- **The replaced price survives twice.** Every deleted row is named in the Cloud Logging line
+  (`superseded and DELETED n fare(s) … :: agent/sector/airline date time INR rate`), which is the
+  price-dispute trail the hidden row used to be; and when the new price is *lower*, the old one
+  rides forward on the new row as `previousFinalRate` + `rateChangedAt`. That second part is
+  load-bearing — see the note below.
+- **Writes new rows first, deletes second.** The other order leaves a window with no visible price
   for the sector, which the public site renders as sold out rather than as briefly stale.
 - **A failed lookup does not fail the upload.** Publishing the rates and leaving a stale
   duplicate is recoverable from the dashboard; rejecting the batch loses the sheet.
@@ -501,10 +519,20 @@ One query per supplier per upload — `agentId ==` plus the quoted date window, 
 existing `agentId + flightDate` composite index. The response reports `superseded` alongside
 `saved`.
 
-> **Undo caveat.** `bulkDeleteFares` removes the rows a batch *created*; it does not un-hide the
-> rows that batch *replaced*. Undoing a bad upload therefore leaves the sector with no visible
-> fare until the supplier posts again — `supersededByBatchId` records which batch to reverse if
-> that ever needs automating.
+> **Why `previousFinalRate` is stamped on ingest.** [Price drop detection](#price-drop-detection)
+> read a re-upload drop as a *relationship between two rows* — a new row against its older
+> siblings. Those siblings are exactly what a supersede now deletes, so the drop would have
+> vanished with them. `priorFinalRates()` in `fareSupersede.js` returns the lowest stored price
+> per flight, and ingest stamps it onto the cheaper new row as `previousFinalRate` +
+> `rateChangedAt` — the same two fields an admin edit writes, read by the same branch of
+> `annotateFarePriceDrops`, so nothing downstream changed. The **minimum** is the right "before"
+> price because every projection dedupes a group by minimum, so that is what was on display.
+> A price *rise* stamps nothing; only drops were ever badged.
+
+> **Undo caveat.** `bulkDeleteFares` removes the rows a batch *created*; the rows that batch
+> *replaced* are gone for good. Undoing a bad upload therefore leaves the sector with no fare
+> until the supplier posts again, and re-entering one by hand means reading it off the
+> `superseded and DELETED` log line.
 
 #### Absence on ingest — the flight that dropped off the sheet
 
@@ -513,6 +541,13 @@ is a flight that was on yesterday's sheet and is simply **gone** from today's. M
 never write "sold out" — they send the next list, and the omission *is* the message. Nothing read
 that, so those fares stayed live and bookable at yesterday's price indefinitely: the worst
 failure this system can produce, because it sells a seat that does not exist.
+
+Those rows are **deleted**, not hidden — the one place in the ingest path where that is true, and
+the deliberate opposite of a supersede. A superseded row is history: the price quoted before the
+one that replaced it, with the replacement sitting right beside it to be read against. A row
+absent from the newest complete sheet has no successor and is not a price any more; leaving it
+hidden only grew `agent_fares` with rows no projection will ever read again, each one an un-hide
+away from putting a seat that does not exist back on sale.
 
 Absence is far more dangerous to act on than a revision. A revision is evidence about one flight;
 absence is evidence **only if the new sheet actually covers the flight it omits**. Three things
@@ -524,9 +559,19 @@ can each make that false, so three guards gate it, and each fails closed:
 | **Sheet size** | The upload must carry ≥ `minRows` rows (**default 6**) for that supplier | A one-line 20:00 price correction delisting the other carrier on that route |
 | **Row age** | Only rows whose `createdAt` is older than `minAgeMs` (**default 6h**) are sweepable | Batch 1 delisting what batch 2 of the *same* sheet is about to restate — intake splits one sheet on a 90s quiet window |
 
-The coverage group is deliberately the same granularity `applySoldOut` hides on for an explicit
+**Already-hidden rows are swept too.** Whoever hid one — an admin, a supersede, a `show: "no"`
+line — was saying "not for sale"; the new sheet says the flight is gone. The only exception is a
+hidden row the sheet *re-quotes*: that flight is still sold, so the row belongs to the supersede
+half and stays as history.
+
+Because the delete has no undo, `--simulate` in
+[scripts/enable-absence-soldout.js](scripts/enable-absence-soldout.js) is not optional before
+switching a supplier on: it replays the real uploads and prints every fare that *would* have been
+deleted.
+
+The coverage group is deliberately the same granularity `applySoldOut` deletes on for an explicit
 "SOLD OUT" notice, so a flight that vanishes from a sheet and one named in a message are treated
-as the same claim about the same thing. It is exactly the identity key minus `airlineId` and
+as the same claim about the same thing, and removed the same way. It is exactly the identity key minus `airlineId` and
 `flightTime` — which is what an absent row differs from a quoted one *by*.
 
 On top of the guards it is **off by default at three levels**:
@@ -546,15 +591,22 @@ console would otherwise read as "no minimum" and switch off the guard it configu
 
 Costs **no extra reads**: it reuses the same per-supplier query and the same `existing` array
 `planSupersede` already reads, and the per-agent opt-in rides along on the `agents` pass that was
-already loading commissions. Swept rows are written in their own pass marked
-`soldOutReason: "absent-from-sheet"` — distinct from `supersededByBatchId` alone, because one
-says "this price was replaced" and the other says "this flight was not on the new list", and only
-the second is an inference. The response reports `soldOutByAbsence` alongside `saved` and
-`superseded`.
+already loading commissions. Swept rows are removed in their own `batch.delete()` pass that runs
+after the new rows and the supersede updates commit — the other order leaves the sector with no
+visible price, which the public site renders as sold out rather than as briefly stale. A delete
+of a document some other writer already removed is a no-op, so a concurrent daily wipe cannot
+fail the batch the way an `update()` would. The response reports `deletedByAbsence` alongside
+`saved` and `superseded`.
+
+**The log line is the audit trail.** A hidden row could be inspected afterwards; a deleted one
+cannot, so ingest writes every removed fare to Cloud Logging as
+`absence sold-out DELETED n fare(s) … :: agent/sector/airline date time INR rate | …` (capped at
+60 rows per entry). Searching `absence sold-out DELETED` in the Functions logs is how "why did
+that fare disappear?" gets answered now.
 
 > **Why a split sheet is still safe.** If one route+date is split across two batches, whichever
 > lands second writes a fresh row that the age guard protects, and whichever lands first only
-> hides *yesterday's* row for it. Either order converges on the same correct end state.
+> deletes *yesterday's* row for it. Either order converges on the same correct end state.
 
 ### 8. 📋 Rate Upload Tab
 - **AI Rate Intake** — premium step-by-step UI for agent selection and raw fare submission
@@ -839,7 +891,7 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `whatsappNumber` | String | As typed by the admin. Display only. |
 | `whatsappChatId` | String\|null | Normalised `919812345678@c.us` — the join key inbound messages are matched against. Enforced unique: two suppliers on one number would stamp the wrong commission onto real selling prices, so `addAgent`/`updateAgent` refuse the collision and the Cloud Function ignores the number entirely if one exists anyway. |
 | `rateIntakeMode` | String | `off` (default) \| `auto` \| `images_only`. Opt-in per supplier — fares from this path publish live. |
-| `rateIntakeAbsenceSoldOut` | Boolean | Default **false**. `true` only for suppliers who send a **complete list** every time — a flight dropped from their newest sheet is hidden as sold out. See [Absence on ingest](#absence-on-ingest--the-flight-that-dropped-off-the-sheet). |
+| `rateIntakeAbsenceSoldOut` | Boolean | Default **false**. `true` only for suppliers who send a **complete list** every time — a flight dropped from their newest sheet has its fare row **deleted**. See [Absence on ingest](#absence-on-ingest--the-flight-that-dropped-off-the-sheet). |
 | `rateIntakeGroupIds` | Array | Announcement groups / communities this supplier posts rate sheets into, as `…@g.us`. Also the **mirror allow-list**: a group named here is the only kind of group stored while `mirrorGroups` is false. Enforced unique per group, same reasoning as `whatsappChatId`. |
 | `rateIntakeSenderIds` | Array | Extra addresses this supplier is verified to post from inside those groups. `whatsappChatId` already counts and need not be repeated. Accepts a `…@lid`, which `whatsappChatId` never does. |
 | `rateIntakeIgnoredSenderIds` | Array | Numbers in this supplier's group confirmed **not** to be a fare desk — typically their visa/attestation desk, whose price tables trip the rate-shape filter but hold no fares. Read only by the dashboard's "sheets thrown away" warning; `rateIntake.js` never reads it, so these stay rejected at intake exactly as before. It exists so the warning can reach zero and keep meaning something. |
@@ -882,11 +934,11 @@ Overlapping windows are legal but almost always a mistake, so the Flights-tab ed
 | `updatedAt` | Timestamp | Server timestamp — shown as "Edited …" once it diverges from `createdAt` |
 | `previousFinalRate` | Number | Optional. The rate before the most recent edit that changed it |
 | `rateChangedAt` | Timestamp | Optional. When `finalRate` last changed via an admin edit |
-| `supersededAt` | Timestamp | Optional. When a later upload replaced this quote — see [Supersede on ingest](#supersede-on-ingest) |
-| `supersededByBatchId` | String | Optional. The `ingestBatchId` that replaced it, when the replacing upload carried one |
-| `soldOutReason` | String | Optional. `"absent-from-sheet"` when the row was hidden because the supplier's newest complete sheet stopped quoting it, rather than because a new price replaced it |
+| `supersededAt` | Timestamp | **No longer written.** Marked a row a later upload had replaced, back when a supersede hid it; the row is now deleted instead |
+| `supersededByBatchId` | String | **No longer written.** Named the `ingestBatchId` that replaced the row — same reason |
+| `soldOutReason` | String | **No longer written.** Marked a row hidden because the supplier's newest sheet stopped quoting it; that sweep deletes the row instead |
 
-> `previousFinalRate` / `rateChangedAt` are written only by `updateFare(fareId, data, { previousFinalRate })`. They cover **edited** fares. A price drop that arrives as a *re-upload* has no such fields — `ingestFaresFromN8n` creates a new document per row — and is derived instead by `annotateFarePriceDrops()`. See [Price drop detection](#price-drop-detection).
+> `previousFinalRate` / `rateChangedAt` are written by `updateFare(fareId, data, { previousFinalRate })` for **edited** fares, and since 2026-09-12 also by `ingestFaresFromN8n` when a re-upload comes in cheaper than the row it replaces — because that row is now deleted rather than kept as the older sibling the drop was derived from. See [Supersede on ingest](#supersede-on-ingest) and [Price drop detection](#price-drop-detection).
 
 ### `enquiries`
 Internal log of customer fare requests. **Admin-only in `firestore.rules`, both read and write** — these documents hold customer names and phone numbers.
@@ -1139,10 +1191,10 @@ read live by the dashboard via `subscribeWhatsappConfig`.
 | `unreadTotal` | Number | Single counter behind the nav dot, so the badge needs no always-on `whatsapp_chats` listener |
 | `lastWebhookAt` / `lastWebhookEvent` / `droppedEventCounts` | — | Webhook health |
 | `rateIntakeEnabled` | Boolean | Default **false**, coerced with `=== true` so a missing field can never read as on. Master switch for automatic rate intake |
-| `rateIntakeAbsenceSoldOut` | Boolean | Default **false**, coerced `=== true`. Master switch for treating a flight missing from a supplier's newest sheet as sold out. Needs the per-supplier flag too |
+| `rateIntakeAbsenceSoldOut` | Boolean | Default **false**, coerced `=== true`. Master switch for treating a flight missing from a supplier's newest sheet as sold out — the row is **deleted**. Needs the per-supplier flag too |
 | `rateIntakeAbsenceSources` | Array | Default `["whatsapp-intake"]`. Which `meta.source` values count as a **complete** sheet. Adding `"portal"` would let a partial manual paste delist fares — do not |
 | `rateIntakeAbsenceMinRows` | Number | Default **6**. Rows one supplier must quote in a single upload before absence within it is read as evidence. Honoured only when ≥ 1 |
-| `rateIntakeAbsenceMinAgeHours` | Number | Default **6**. How old a stored row must be before absence may hide it — must clear a whole sheet-sending session. Honoured only when > 0 |
+| `rateIntakeAbsenceMinAgeHours` | Number | Default **6**. How old a stored row must be before absence may delete it — must clear a whole sheet-sending session. Honoured only when > 0 |
 | `rateIntakeAutoReply` | Boolean | Default false. Reply to the supplier with the saved count — a reply, never a cold initiation |
 | `rateIntakeQuietSeconds` | Number | Default 90. How long a chat must go silent before its messages are batched |
 | `rateIntakeMaxHoldMinutes` | Number | Default 20. Releases a supplier who drips one line a minute and never goes quiet |

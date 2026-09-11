@@ -5309,10 +5309,10 @@ function agentIntakeBadge(a) {
     return ` <i class="bi bi-whatsapp text-text-muted" title="WhatsApp linked${via}, auto rate intake off"></i>`;
   }
   const label = mode === 'images_only' ? 'Auto rate intake: screenshots only' : 'Auto rate intake: on';
-  // Worth surfacing on the row: it is the one intake setting that HIDES fares
+  // Worth surfacing on the row: it is the one intake setting that REMOVES fares
   // rather than adding them, so "why did that fare disappear" should be
   // answerable without opening the supplier.
-  const absence = a.rateIntakeAbsenceSoldOut === true ? ' · dropped flights sold out' : '';
+  const absence = a.rateIntakeAbsenceSoldOut === true ? ' · dropped flights deleted' : '';
   return ` <i class="bi bi-whatsapp text-emerald-600" title="${label}${via}${absence}"></i>`;
 }
 
@@ -5487,9 +5487,9 @@ function openAgentModal(agent) {
             <p class="admin-help">
               For suppliers who send a <strong>complete list</strong> each time and never write “sold out”.
               When their new sheet re-quotes a route and date but leaves out a flight that was on the last one,
-              that flight is hidden automatically.
+              that flight&rsquo;s fare row is <strong>deleted</strong> — removed, not hidden, so there is no undo.
               Only routes and dates the new sheet actually quotes are touched, and only fares older than the
-              current sheet — a one-line price correction never hides anything.
+              current sheet — a one-line price correction never deletes anything.
               Leave this off for suppliers who send per-sector updates.
             </p>
           </div>

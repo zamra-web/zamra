@@ -26,7 +26,10 @@ const {
   resolveScheduledFlightTime,
 } = require("./flightSchedule");
 const { verifyN8nBearer } = require("./n8nAuth");
-const { planSupersede, planAbsenceSoldOut, supersedeDateRange } = require("./fareSupersede");
+const {
+  planSupersede, planAbsenceSoldOut, priorFinalRates,
+  fareIdentityKey, supersedeDateRange, flightDateMs,
+} = require("./fareSupersede");
 const { roundToNearestThousand } = require("./farePricing");
 const { defineSecret } = require("firebase-functions/params");
 
@@ -512,6 +515,25 @@ const { onRequest } = require("firebase-functions/v2/https");
  */
 const ABSENCE_DEFAULT_SOURCES = ["whatsapp-intake"];
 
+/**
+ * One log line describing a stored fare, for the absence sweep's audit trail.
+ *
+ * The sweep DELETES the document, so this string is the only thing that
+ * survives it. Carries exactly what an admin would need to re-enter the row by
+ * hand if the sweep ever turns out to have been wrong.
+ *
+ * @param {object} doc a stored agent_fares document
+ * @returns {string}
+ */
+function describeFareRow(doc) {
+  const ms = flightDateMs(doc && doc.flightDate);
+  const date = ms === null ? "?" : new Date(ms).toISOString().slice(0, 10);
+  const time = String((doc && doc.flightTime) || "").trim();
+  return `${(doc && doc.agentId) || "?"}/${(doc && doc.sectorId) || "?"}/` +
+    `${(doc && doc.airlineId) || "?"} ${date}${time ? " " + time : ""} ` +
+    `INR ${(doc && doc.finalRate) !== undefined ? doc.finalRate : "?"}`;
+}
+
 // cors:false — only n8n calls this, server to server. It was cors:true, which
 // let any browser tab POST fares using the token that was published in this repo.
 exports.ingestFaresFromN8n = onRequest(
@@ -679,6 +701,10 @@ exports.ingestFaresFromN8n = onRequest(
   // agentId+flightDate composite index, rather than a lookup per row.
   const supersedeIds = [];
   const absenceIds = [];
+  // id -> a description of the row, captured while it still exists. Both passes
+  // delete, so nothing but these strings records what was removed.
+  const absenceDeleted = new Map();
+  const supersedeDeleted = new Map();
   // One clock for the whole upload, so every supplier's age guard is measured
   // from the same instant rather than drifting across a slow multi-agent batch.
   const ingestStartedAt = new Date();
@@ -697,7 +723,29 @@ exports.ingestFaresFromN8n = onRequest(
         .where("flightDate", "<=", Timestamp.fromDate(range.max))
         .get();
       const existing = priorSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      supersedeIds.push(...planSupersede(rows, existing));
+      const replaced = planSupersede(rows, existing);
+      supersedeIds.push(...replaced);
+      const byId = new Map(existing.map((d) => [d.id, d]));
+      for (const id of replaced) {
+        const doc = byId.get(id);
+        if (doc) supersedeDeleted.set(id, describeFareRow(doc));
+      }
+
+      // Carry the replaced price forward. A re-upload price drop used to be
+      // readable as the relationship between the new row and the old one; the
+      // old one is about to be deleted, so the drop is stamped onto the new row
+      // as previousFinalRate + rateChangedAt instead — the same two fields an
+      // admin edit writes, read by the same branch of annotateFarePriceDrops.
+      // Only a drop is marked, because only a drop was ever badged.
+      const priors = priorFinalRates(existing);
+      for (const fare of rows) {
+        const key = fareIdentityKey(fare);
+        const before = key ? priors.get(key) : undefined;
+        if (before === undefined) continue;
+        if (!Number.isFinite(fare.finalRate) || fare.finalRate >= before) continue;
+        fare.previousFinalRate = before;
+        fare.rateChangedAt = FieldValue.serverTimestamp();
+      }
 
       // And the other half of the same habit: what did this sheet stop
       // quoting? Same `existing` array, so no second query. Disjoint from
@@ -705,11 +753,19 @@ exports.ingestFaresFromN8n = onRequest(
       // upload re-quotes — but filtered below so a future change to either
       // cannot put one document in the same batch twice.
       if (absenceConfig && agentAbsenceSoldOut.has(agentId)) {
-        absenceIds.push(...planAbsenceSoldOut(rows, existing, {
+        const gone = planAbsenceSoldOut(rows, existing, {
           now: ingestStartedAt,
           ...(absenceConfig.minRows !== undefined ? { minRows: absenceConfig.minRows } : {}),
           ...(absenceConfig.minAgeMs !== undefined ? { minAgeMs: absenceConfig.minAgeMs } : {}),
-        }));
+        });
+        absenceIds.push(...gone);
+        // Describe each row now, while the document still exists. After the
+        // delete pass below there is nothing left to answer "which fare
+        // disappeared, and what was it?" — the log line is the audit trail.
+        for (const id of gone) {
+          const doc = byId.get(id);
+          if (doc) absenceDeleted.set(id, describeFareRow(doc));
+        }
       }
     } catch (err) {
       // A failed lookup must not cost the upload. Publishing the new rates and
@@ -735,55 +791,82 @@ exports.ingestFaresFromN8n = onRequest(
     saved += Math.min(BATCH_LIMIT, resolved.length - i);
   }
 
-  // Hide the replaced rows only after the new ones are committed. The other
+  // Delete the replaced rows, only after the new ones are committed. The other
   // order opens a window in which a sector has no visible price at all, and the
   // public site would render it as sold out rather than as briefly stale.
+  //
+  // These were hidden rather than deleted until 2026-09-12, to keep a record of
+  // what a supplier quoted before the revision. The record survives — it is the
+  // log line below, and the replaced price also rides forward on the new row as
+  // previousFinalRate — while the rows themselves no longer pile up unread: the
+  // collection was carrying 5,509 hidden rows against 2,191 live ones, none of
+  // which any projection reads, because every one of them filters isHidden.
   let superseded = 0;
   for (let i = 0; i < supersedeIds.length; i += BATCH_LIMIT) {
     const batch = db.batch();
     for (const id of supersedeIds.slice(i, i + BATCH_LIMIT)) {
-      batch.update(db.collection("agent_fares").doc(id), {
-        isHidden: true,
-        supersededAt: FieldValue.serverTimestamp(),
-        ...(ingestBatchId ? { supersededByBatchId: ingestBatchId } : {}),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      batch.delete(db.collection("agent_fares").doc(id));
     }
     await batch.commit();
     superseded += Math.min(BATCH_LIMIT, supersedeIds.length - i);
   }
+  if (superseded) {
+    // What was replaced, at what price. This is the price-dispute trail the
+    // hidden row used to be — "what were we selling at 11:00" — so it names
+    // each fare rather than counting them. Capped to protect the entry.
+    const described = supersedeIds.map((id) => supersedeDeleted.get(id) || id);
+    const shown = described.slice(0, 60);
+    console.info(
+      `ingestFaresFromN8n: superseded and DELETED ${superseded} fare(s) ` +
+      `batch=${ingestBatchId || "none"} :: ` + shown.join(" | ") +
+      (described.length > shown.length ? ` | …${described.length - shown.length} more` : ""),
+    );
+  }
 
-  // Then the flights this sheet stopped quoting. Written as a separate pass with
-  // its own marker rather than folded into the loop above, because the two mean
-  // different things to whoever reads the row later: `supersededByBatchId` says
-  // "this price was replaced", `soldOutReason: "absent-from-sheet"` says "this
-  // flight was not on the new list". Only the second is a guess, and an admin
-  // reviewing a re-shown fare needs to know which one they are looking at.
+  // Then the flights this sheet stopped quoting — DELETED, not hidden, and that
+  // asymmetry with the pass above is deliberate.
   //
-  // Same isHidden flag as every other writer — ingest's own `show: "no"`, a
-  // revision, and an explicit "SOLD OUT" notice — so all four public
-  // projections already filter these out with no change.
+  // A superseded row is a historical fact: "this is what the supplier quoted at
+  // 11:00", which someone needs when a customer disputes a price, so it stays
+  // with `supersededByBatchId` on it. A row absent from the supplier's newest
+  // complete sheet is not a price that changed — it is a fare that no longer
+  // exists, with no successor row to compare it against. Keeping it hidden in
+  // the collection only grew `agent_fares` with rows nothing will ever read
+  // again, and left a stale quote one un-hide away from being sellable.
+  //
+  // A hard delete has no undo, which is the whole reason the three guards in
+  // fareSupersede.js fail closed and why this stays off by default at three
+  // levels. Every row removed here is logged below, because once the batch
+  // commits that log line is the only record the fare ever existed.
+  //
+  // Written as its own pass after the supersede updates, and after the new rows
+  // commit, for the same reason: the other order leaves the sector with no
+  // visible price at all, which the public site renders as sold out rather than
+  // as briefly stale. `batch.delete()` on a document some other writer already
+  // removed is a no-op — unlike the `update()` above, which would fail the whole
+  // batch — so a concurrent daily wipe cannot cost this upload anything.
   const supersedeSet = new Set(supersedeIds);
-  const absenceToHide = [...new Set(absenceIds)].filter(id => !supersedeSet.has(id));
-  let soldOutByAbsence = 0;
-  for (let i = 0; i < absenceToHide.length; i += BATCH_LIMIT) {
+  const absenceToDelete = [...new Set(absenceIds)].filter(id => !supersedeSet.has(id));
+  let deletedByAbsence = 0;
+  for (let i = 0; i < absenceToDelete.length; i += BATCH_LIMIT) {
     const batch = db.batch();
-    for (const id of absenceToHide.slice(i, i + BATCH_LIMIT)) {
-      batch.update(db.collection("agent_fares").doc(id), {
-        isHidden: true,
-        supersededAt: FieldValue.serverTimestamp(),
-        soldOutReason: "absent-from-sheet",
-        ...(ingestBatchId ? { supersededByBatchId: ingestBatchId } : {}),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+    for (const id of absenceToDelete.slice(i, i + BATCH_LIMIT)) {
+      batch.delete(db.collection("agent_fares").doc(id));
     }
     await batch.commit();
-    soldOutByAbsence += Math.min(BATCH_LIMIT, absenceToHide.length - i);
+    deletedByAbsence += Math.min(BATCH_LIMIT, absenceToDelete.length - i);
   }
-  if (soldOutByAbsence) {
+  if (deletedByAbsence) {
+    // The deleted rows themselves, not just a count. This is the audit trail a
+    // hide left in Firestore and a delete does not, so it names each fare;
+    // capped so one very large sweep cannot blow the log entry's size limit.
+    const described = absenceToDelete.map((id) => absenceDeleted.get(id) || id);
+    const shown = described.slice(0, 60);
     console.info(
-      `ingestFaresFromN8n: absence sold-out hid ${soldOutByAbsence} fare(s) ` +
-      `for agents ${absenceCandidates.join(",")} batch=${ingestBatchId || "none"}`,
+      `ingestFaresFromN8n: absence sold-out DELETED ${deletedByAbsence} fare(s) ` +
+      `for agents ${absenceCandidates.join(",")} batch=${ingestBatchId || "none"} :: ` +
+      shown.join(" | ") +
+      (described.length > shown.length ? ` | …${described.length - shown.length} more` : ""),
     );
   }
 
@@ -810,7 +893,7 @@ exports.ingestFaresFromN8n = onRequest(
     success: true,
     saved,
     superseded,
-    soldOutByAbsence,
+    deletedByAbsence,
     ...(ingestBatchId ? { ingestBatchId } : {}),
   });
 });

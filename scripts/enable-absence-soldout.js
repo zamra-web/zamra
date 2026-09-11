@@ -3,11 +3,12 @@
  * Decide — from real ingest history — which suppliers may have a flight
  * missing from their newest sheet treated as SOLD OUT, then switch it on.
  *
- * The feature (functions/fareSupersede.js → planAbsenceSoldOut) hides live,
+ * The feature (functions/fareSupersede.js → planAbsenceSoldOut) DELETES live,
  * bookable fares on an INFERENCE: the supplier did not say "sold out", they
  * simply stopped quoting the flight. That is only true for a desk that sends a
  * COMPLETE list every time. For a desk that sends per-sector updates, absence
- * means nothing, and acting on it delists fares that are still for sale.
+ * means nothing, and acting on it delists fares that are still for sale — and
+ * the row is gone, so a wrong call is not something an admin can un-hide.
  *
  * Which desk is which is a question about observed behaviour, not opinion, so
  * this reports the evidence rather than asking anyone to remember:
@@ -26,10 +27,11 @@
  * feature adds under that regime is the INTRA-day case, where a supplier sends
  * a second complete list hours later with a flight missing from it.
  *
- * --simulate is the check that actually decides an enablement. It replays
- * planSupersede + planAbsenceSoldOut over today's real uploads in the order
- * they arrived and prints every fare that would have been hidden, so the
- * blast radius is read off the data instead of predicted.
+ * --simulate is the check that actually decides an enablement, and with a hard
+ * delete on the other end it is not optional. It replays planSupersede +
+ * planAbsenceSoldOut over today's real uploads in the order they arrived and
+ * prints every fare that would have been deleted, so the blast radius is read
+ * off the data instead of predicted.
  *
  * Run (read-only report, writes nothing):
  *   GOOGLE_APPLICATION_CREDENTIALS=~/.config/zamra/zamra-web-01-sa.json \
@@ -193,7 +195,7 @@ async function main() {
     const minAgeMs = (SIM_ARGS[1] || 6) * 60 * 60 * 1000;
     console.log(`\n── simulation: minRows=${minRows} minAgeHours=${minAgeMs / 3600000} ──`);
     console.log("   Replaying today's uploads in arrival order. Everything listed");
-    console.log("   below WOULD BE HIDDEN if the feature were on for that supplier.\n");
+    console.log("   below WOULD BE DELETED if the feature were on for that supplier.\n");
 
     const sectorName = new Map();
     (await db.collection("sectors").get()).forEach((d) => sectorName.set(d.id, d.data().sectorCode || d.id));
@@ -244,7 +246,7 @@ async function main() {
       }
       if (!killed.length) continue;
       grand += killed.length;
-      console.log(`  agent ${id} ${(agents.get(id) || {}).name || "?"} — ${ordered.length} uploads, ${rows.length} rows → would hide ${killed.length}`);
+      console.log(`  agent ${id} ${(agents.get(id) || {}).name || "?"} — ${ordered.length} uploads, ${rows.length} rows → would delete ${killed.length}`);
       for (const k of killed.slice(0, 15)) {
         const fd = k.r.flightDate && k.r.flightDate.toDate
           ? k.r.flightDate.toDate().toISOString().slice(0, 10) : "?";
@@ -253,7 +255,7 @@ async function main() {
       }
       if (killed.length > 15) console.log(`      … ${killed.length - 15} more`);
     }
-    console.log(`\n  TOTAL would hide: ${grand} of ${full.size} live fares`);
+    console.log(`\n  TOTAL would delete: ${grand} of ${full.size} live fares`);
     if (!APPLY) return;
   }
 

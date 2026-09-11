@@ -6,6 +6,7 @@ const {
   fareCoverageKey,
   planSupersede,
   planAbsenceSoldOut,
+  priorFinalRates,
   supersedeDateRange,
   flightDateMs,
 } = require("../fareSupersede");
@@ -114,11 +115,76 @@ test("planSupersede keeps a different departure time alive", () => {
   assert.deepEqual(planSupersede(incoming, existing), ["evening"]);
 });
 
-test("planSupersede leaves already-hidden rows alone", () => {
-  // Re-hiding burns a write and churns updatedAt, and the row may have been
-  // hidden by an admin for a reason of their own.
+test("planSupersede takes already-hidden rows too", () => {
+  // A hidden row is still a quote for the flight this upload just re-priced,
+  // and nothing collects hidden rows any more — skipping one would strand it in
+  // the collection forever. The replacement is written visible either way, so
+  // this changes nothing an admin can see.
   const existing = [fare({ id: "old", isHidden: true })];
-  assert.deepEqual(planSupersede([fare()], existing), []);
+  assert.deepEqual(planSupersede([fare()], existing), ["old"]);
+});
+
+// ── priorFinalRates ─────────────────────────────────────────────────────────
+//
+// Deleting the replaced row costs the older sibling that annotateFarePriceDrops
+// read a re-upload drop from. This is what carries the price forward instead.
+
+test("priorFinalRates reports the lowest stored price per flight", () => {
+  // Every projection dedupes a group by minimum price, so the lowest row is
+  // what the public site was actually showing — that is the "before" price.
+  const rates = priorFinalRates([
+    fare({ id: "a", finalRate: 48000 }),
+    fare({ id: "b", finalRate: 44000 }),
+    fare({ id: "c", finalRate: 46000 }),
+  ]);
+  assert.equal(rates.get(fareIdentityKey(fare())), 44000);
+});
+
+test("priorFinalRates keys by flight, not by supplier's whole book", () => {
+  const rates = priorFinalRates([
+    fare({ id: "a", finalRate: 44000 }),
+    fare({ id: "b", airlineId: "IX", finalRate: 39000 }),
+  ]);
+  assert.equal(rates.get(fareIdentityKey(fare())), 44000);
+  assert.equal(rates.get(fareIdentityKey(fare({ airlineId: "IX" }))), 39000);
+});
+
+test("priorFinalRates counts a hidden row's price", () => {
+  // It is about to be deleted with the rest of the group either way, and it
+  // priced this flight — leaving it out would understate the drop.
+  const rates = priorFinalRates([fare({ id: "a", finalRate: 44000, isHidden: true })]);
+  assert.equal(rates.get(fareIdentityKey(fare())), 44000);
+});
+
+test("priorFinalRates ignores rows it cannot price or place", () => {
+  assert.equal(priorFinalRates([fare({ finalRate: 0 })]).size, 0);
+  assert.equal(priorFinalRates([fare({ finalRate: "" })]).size, 0);
+  assert.equal(priorFinalRates([fare({ finalRate: -100 })]).size, 0);
+  assert.equal(priorFinalRates([fare({ agentId: "" , finalRate: 44000 })]).size, 0);
+  assert.equal(priorFinalRates(null).size, 0);
+});
+
+test("a re-upload price drop survives the replaced row being deleted", () => {
+  // The regression this pairs with: the old row used to prove the drop by
+  // existing. Now the new row carries it, and the SAME branch of
+  // annotateFarePriceDrops — the one that reads previousFinalRate off one
+  // document — reports it.
+  const existing = [fare({ id: "old", finalRate: 48000 })];
+  const incoming = fare({ id: "new", finalRate: 44000 });
+
+  assert.deepEqual(planSupersede([incoming], existing), ["old"], "the old row goes");
+  const before = priorFinalRates(existing).get(fareIdentityKey(incoming));
+  assert.equal(before, 48000);
+  assert.ok(incoming.finalRate < before, "so ingest stamps previousFinalRate");
+  assert.equal(before - incoming.finalRate, 4000, "and the badge reads ₹4,000 off");
+});
+
+test("a price RISE stamps nothing", () => {
+  // Only a drop was ever badged, so only a drop is carried forward.
+  const existing = [fare({ id: "old", finalRate: 44000 })];
+  const incoming = fare({ id: "new", finalRate: 48000 });
+  const before = priorFinalRates(existing).get(fareIdentityKey(incoming));
+  assert.ok(incoming.finalRate >= before, "no drop, nothing to stamp");
 });
 
 test("planSupersede returns each id once even if the sheet repeats a flight", () => {
@@ -173,10 +239,10 @@ test("an upward revision now reaches the customer instead of the stale price", (
   assert.equal(withoutSupersede.length, 1);
   assert.equal(withoutSupersede[0].price, 44000, "the bug: cheapest wins, not newest");
 
-  // Supersede hides the original, so the projection never sees it.
-  assert.deepEqual(planSupersede([revised], [original]), ["old"]);
-  const hidden = { ...original, isHidden: true };
-  const visible = [hidden, revised].filter((f) => !f.isHidden);
+  // Supersede deletes the original, so the projection never sees it.
+  const replaced = planSupersede([revised], [original]);
+  assert.deepEqual(replaced, ["old"]);
+  const visible = [original, revised].filter((f) => !replaced.includes(f.id));
 
   const withSupersede = computeB2BFares(visible, agent, config);
   assert.equal(withSupersede.length, 1);
@@ -200,6 +266,10 @@ test("a downward revision still wins, as it always did", () => {
 // The case the exact-match half cannot see: a supplier sends tomorrow's list,
 // and a flight that was on yesterday's is simply gone from it. No "SOLD OUT"
 // message is ever sent — the omission IS the message.
+//
+// Every id this half returns is a document index.js DELETES, where a supersede
+// only hides. There is no un-hide to undo a wrong call, so the guards below are
+// not tidiness — they are the whole safety story.
 
 const NOW = new Date("2026-09-09T09:00:00Z");
 const YESTERDAY = new Date("2026-09-08T09:05:00Z");
@@ -359,9 +429,20 @@ test("createdAt is read from a Firestore Timestamp as well as a Date", () => {
 
 // ── the rest of the contract ────────────────────────────────────────────────
 
-test("an already-hidden row is not hidden again", () => {
+test("an already-hidden row is swept too", () => {
+  // Whoever hid it was saying "not for sale"; the new sheet says the flight is
+  // gone. Leaving it behind kept a dead row that an un-hide could put back on
+  // sale, so it goes with the rest.
   const existing = [stored({ id: "g9", airlineId: "G9", isHidden: true })];
-  assert.deepEqual(sweep([fare({ airlineId: "IX" }), ...padding(5)], existing), []);
+  assert.deepEqual(sweep([fare({ airlineId: "IX" }), ...padding(5)], existing), ["g9"]);
+});
+
+test("a hidden row the sheet re-quotes is left to planSupersede", () => {
+  // Hidden but still sold — the flight is on the new sheet. That is a revision,
+  // not an absence, and the sweep must not reach into the other half's group.
+  const existing = [stored({ id: "ix", airlineId: "IX", flightTime: "20:15", isHidden: true })];
+  const incoming = [fare({ airlineId: "IX", flightTime: "20:15", specialRate: 46700 }), ...padding(5)];
+  assert.deepEqual(sweep(incoming, existing), []);
 });
 
 test("a sold-out line inside a sheet still covers its own route", () => {
@@ -405,18 +486,20 @@ test("a sold-out flight stops being bookable once it drops off the sheet", () =>
   assert.equal(before.length, 2);
   assert.equal(before[0].price, 39000, "the bug: the sold-out G9 is the headline price");
 
-  const hidden = new Set([
-    ...planSupersede(incoming, [g9, ix]),
-    ...sweep(incoming, [g9, ix]),
-  ]);
-  assert.deepEqual([...hidden].sort(), ["g9", "ix"]);
+  const replaced = new Set(planSupersede(incoming, [g9, ix]));
+  const deleted = new Set(sweep(incoming, [g9, ix]));
+  assert.deepEqual([...replaced], ["ix"], "the re-quoted flight is superseded");
+  assert.deepEqual([...deleted], ["g9"], "the dropped flight is swept");
 
+  // Applied the way ingest applies them: both passes delete, so neither row is
+  // in the collection afterwards. This is the assertion that would catch either
+  // one regressing to a hide.
+  //
   // Only the route under test reaches the projection; the padding rows exist
   // solely to make this upload a list rather than a correction.
   const live = [g9, ix, ...incoming]
     .filter((f) => f.sectorId === fare().sectorId)
-    .map((f) => (hidden.has(f.id) ? { ...f, isHidden: true } : f))
-    .filter((f) => !f.isHidden);
+    .filter((f) => !deleted.has(f.id) && !replaced.has(f.id));
   const after = computeB2BFares(live, agent, config);
   assert.equal(after.length, 1, "only the flight still on the sheet survives");
   assert.equal(after[0].price, 46700, "at today's price");
