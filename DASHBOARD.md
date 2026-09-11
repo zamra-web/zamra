@@ -652,7 +652,33 @@ The promo rail on the right half of the portal's welcome banner. One `b2b_offers
 
 **`getB2BPortalContext` only sends routes that can be priced.** Sector visibility is filtered per agent (`hiddenOrigins` / `hiddenSectorIds`) *and* against live inventory: a sector holding no upcoming, unhidden fare is dropped before it reaches the portal. Without that filter the route selects offered a pair whose search could only answer "No fares loaded for X → Y" — the same dead end the public site had. Deciding it needs `agent_fares`, so the check is shared with `getPublicRoutes` via `createSectorsWithFaresCache` in [functions/publicRoutes.js](functions/publicRoutes.js) and memoized per instance (the answer is agent-independent). When the filter empties an agent's list, the portal shows "No routes are available on your account right now" — copy deliberately neutral between "nothing assigned" and "assigned but out of fares", since the agent's next step is the same.
 
+The portal passes its **own, shorter TTL** into that shared cache — `B2B_ROUTE_CACHE_TTL_MS` (2 min) in [functions/b2b.js](functions/b2b.js), against the 10 minutes `publicRoutes` defaults to. The two surfaces are not the same bet: on the public site a route missing for ten minutes costs a visitor one empty dropdown entry, while here it is the floor on how long a freshly uploaded route stays **unsearchable for an agent**. `getB2BFares` also memoizes the whole-collection `flight_details` read for 60s (`FLIGHT_DETAIL_CACHE_TTL_MS`) — scheduled flight times are admin-edited and change rarely, and without it the portal's refresh loop below would repeat that read every couple of minutes per open portal. **The fare query itself is never cached**: serving a price from a memo is the exact staleness the endpoint exists to avoid.
+
 Offers reach the portal through `getB2BPortalContext`, not a direct Firestore read: `b2b_offers` is admin-only in [firestore.rules](firestore.rules). That keeps expiry enforced server-side (a stale tab cannot resurrect a dead deal) and lets the callable drop offers departing from an origin the agent has hidden — advertising a route they cannot search would be a dead end. Liveness rules are mirrored in [functions/b2bOffers.js](functions/b2bOffers.js) and [web/src/js/shared/b2b-offers.js](web/src/js/shared/b2b-offers.js) and **must be changed in both**.
+
+#### Portal live sync
+The portal is **not** a snapshot listener and cannot be one: `agent_fares` is admin-only and every price is computed per agent inside `getB2BFares`, so the browser's only window on the data is a callable it chooses to call again. It never chose to — routes and offers were fetched once per page load, results once per Search click, with no timer and no refetch on focus. The data was right at the instant of the call and then froze, which is how an agent who searched at 09:00 and left the tab (or the Android app, whose WebView keeps the page alive across resumes) was still quoting 09:00's prices in the afternoon.
+
+It now polls. The rules are pure functions in [web/src/js/shared/b2b-freshness.js](web/src/js/shared/b2b-freshness.js) so [web/tests/b2b-freshness.test.js](web/tests/b2b-freshness.test.js) can exercise them without a DOM:
+
+| What | Cadence | Notes |
+|---|---|---|
+| On-screen fares (`getB2BFares`) | `FARE_REFRESH_MS` — 2 min | Only the route currently on screen |
+| Routes + offers (`getB2BPortalContext`) | `CONTEXT_REFRESH_MS` — 10 min | A route appearing at all is a rarer event than a price moving |
+| Either, on tab/app foreground | immediately if older than `RESUME_STALE_MS` — 30s | `visibilitychange`, which the Android WebView fires on resume |
+| Either, after a failure | `REFRESH_RETRY_MS` — 20s | Last good result stays on screen; the pill turns amber |
+
+The loop is deliberately unnoticeable, and each guard is load-bearing:
+
+- **A hidden tab never polls.** Same reasoning as the presence heartbeat below — nobody is reading those prices.
+- **An identical refetch changes nothing on screen.** `fareSignature()` covers price *and* baggage (both are printed on the card and in the WhatsApp quote); only a real change re-renders, because a re-render swaps the DOM under whatever the agent is reading.
+- **A refresh holds while a details sheet is open.** The sheet lives outside `#flightList` with its own copy of the card data, so re-rendering underneath it would leave it showing a fare no longer in the results.
+- **A refresh that resolves after the agent searched elsewhere is dropped** — `refreshFares()` re-checks the sector id, or it would print one route's prices under another route's heading.
+- **Scroll offset and the airline filter survive** a silent re-render; the filter falls back to "All airlines" only when the chosen carrier itself sold out.
+
+What the agent sees is the **Updated just now / 4 min ago** pill in the results header — green live, amber once two intervals are missed or a refresh has failed, grey offline — plus a **Refresh** button, and a one-line "2 prices updated · 1 new" notice after any change. Telling them a price moved matters: a number that silently rewrites itself mid-quote is worse than a stale one, because a stale price at least matches what they just read aloud.
+
+> **This is polling, not a cure for a slow upstream.** If rates reach `agent_fares` late — an n8n workflow on a daily cron, a supplier who has not sent a sheet — the portal now shows that staleness faithfully instead of hiding it. Fixing *that* means the ingest schedule, not this loop.
 
 #### Live presence & last login
 The **Activity** column shows an Online / Idle / Offline badge over a "last seen" or "last login" line, and a roll-up count sits under the tab title.

@@ -155,10 +155,43 @@
 
         <div class="px-[32px] max-sm:px-[20px] pb-[32px] max-sm:pb-[24px]">
           <div id="resultsHeader" style="display: none; margin-bottom: 24px;">
-            <h2 class="text-[24px] max-sm:text-[20px] font-heading font-black text-navy tracking-[-0.02em]">
-              Live Flights: <span id="origName" class="text-primary">...</span> to <span id="locName" class="text-primary">...</span>
-            </h2>
-            <div class="h-[4px] w-[60px] bg-primary rounded-[2px] mt-[8px]"></div>
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+              <div class="min-w-0">
+                <h2 class="text-[24px] max-sm:text-[20px] font-heading font-black text-navy tracking-[-0.02em]">
+                  Live Flights: <span id="origName" class="text-primary">...</span> to <span id="locName" class="text-primary">...</span>
+                </h2>
+                <div class="h-[4px] w-[60px] bg-primary rounded-[2px] mt-[8px]"></div>
+              </div>
+
+              <!-- Live sync status. The portal refetches these fares on a timer
+                   and whenever the tab or the Android app comes back to the
+                   foreground (see shared/b2b-freshness.js), so the pill has to
+                   say how old the prices on screen are — a number an agent is
+                   about to quote should never be of unknown age. The button
+                   forces a refetch for the agent who wants to be certain. -->
+              <div id="b2b-live-controls" class="shrink-0 flex items-center gap-2">
+                <span id="b2b-live-status" data-state="live"
+                  class="inline-flex items-center gap-2 h-[38px] sm:h-[40px] px-3.5 rounded-xl border border-border bg-white text-[12px] font-bold text-text-muted whitespace-nowrap
+                         data-[state=stale]:border-amber-300 data-[state=stale]:bg-amber-50 data-[state=stale]:text-amber-700
+                         data-[state=offline]:border-slate-300 data-[state=offline]:bg-slate-100 data-[state=offline]:text-slate-500">
+                  <span data-live-dot
+                    class="w-[7px] h-[7px] rounded-full bg-emerald-500 ring-[3px] ring-emerald-500/20 transition-colors"></span>
+                  <span id="b2b-live-label">Live</span>
+                </span>
+                <button id="b2b-refresh" type="button" aria-label="Refresh fares now" title="Refresh fares now"
+                  class="shrink-0 inline-flex items-center justify-center gap-1.5 px-3.5 h-[38px] sm:h-[40px] rounded-xl border border-border bg-white text-[13px] font-bold text-text-main hover:border-primary hover:text-primary transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-default">
+                  <i data-refresh-icon class="bi bi-arrow-clockwise text-[15px]"></i><span class="max-sm:hidden">Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- What moved on the last silent refresh. Shown briefly, because a
+                 price that rewrites itself under an agent mid-quote is worse
+                 than a stale one unless they are told it moved. -->
+            <p id="b2b-live-change" hidden
+              class="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-[12px] font-bold text-primary">
+              <i class="bi bi-arrow-repeat"></i><span id="b2b-live-change-text"></span>
+            </p>
           </div>
 
           <!-- Sort / filter / share — shown once a search returns results.

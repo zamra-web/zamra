@@ -43,6 +43,36 @@ const PASSWORD_LENGTH = 10;
 // this is slack for a slow network, not a usable window for a stale token.
 const REAUTH_MAX_AGE_SECONDS = 10 * 60;
 
+/**
+ * How long getB2BPortalContext may reuse the "which sectors hold a bookable
+ * fare" sweep, overriding the 10 minutes publicRoutes defaults to.
+ *
+ * The two surfaces are not the same bet. On the public site a route missing for
+ * ten minutes costs a visitor one empty dropdown entry. Here it is the
+ * difference between an agent being able to sell a seat and being told the route
+ * does not exist — a sector holding no upcoming fare is dropped from the portal
+ * entirely, so this cache is the floor on how long a fresh upload stays
+ * unsearchable. The portal also re-asks on its own schedule now (see
+ * shared/b2b-freshness.js), and a cache longer than that refresh interval would
+ * just be handing the same stale answer back to a client that bothered to ask.
+ *
+ * The cost of the shorter window is one count() aggregation per sector per
+ * expiry per warm instance, which is a few hundred billed reads a day.
+ */
+const B2B_ROUTE_CACHE_TTL_MS = 2 * 60 * 1000;
+
+/**
+ * How long getB2BFares may reuse the flight_details collection.
+ *
+ * flight_details is read whole on every fare search to fill blank flight times
+ * (see DASHBOARD.md). That was one collection read per agent per *search* —
+ * affordable when a search was a click. The portal now refetches on a timer, so
+ * without this memo the read would repeat every couple of minutes for every open
+ * portal. Scheduled flight times are admin-edited and change rarely; a minute of
+ * slack on them is invisible, where a minute of slack on a price is not.
+ */
+const FLIGHT_DETAIL_CACHE_TTL_MS = 60 * 1000;
+
 // ── Pure helpers (unit-tested) ───────────────────────────────────────────────
 
 function loginIdToEmail(loginId) {
@@ -289,7 +319,22 @@ function build(db, requireAdmin) {
   // Shared with getPublicRoutes: which sectors currently hold a bookable fare.
   // Memoized per instance because the portal boots this on every agent login and
   // the answer is agent-independent.
-  const sectorsWithFares = createSectorsWithFaresCache(db);
+  const sectorsWithFares = createSectorsWithFaresCache(db, B2B_ROUTE_CACHE_TTL_MS);
+
+  // Per-instance memo over the flight_details collection. Same shape and same
+  // reasoning as sectorsWithFares: the answer does not vary by agent, and the
+  // read is whole-collection.
+  let flightDetailCache = null; // { at: number, index: Map }
+
+  async function getFlightDetailIndex() {
+    if (flightDetailCache && Date.now() - flightDetailCache.at <= FLIGHT_DETAIL_CACHE_TTL_MS) {
+      return flightDetailCache.index;
+    }
+    const snap = await db.collection("flight_details").get();
+    const index = buildFlightDetailIndex(snap);
+    flightDetailCache = { at: Date.now(), index };
+    return index;
+  }
 
   /**
    * Writes the admin-readable copy of an agent's password.
@@ -654,7 +699,10 @@ function build(db, requireAdmin) {
     const sectorData = sectorSnap.data();
     const { originCode, destCode } = parseSectorCodes(sectorData.sectorCode);
 
-    const [config, faresSnap, flightDetailsSnap] = await Promise.all([
+    // The fare query itself is never cached: it is the whole reason the portal
+    // calls this, and a price served from a memo is the staleness this endpoint
+    // exists to avoid.
+    const [config, faresSnap, flightDetailIndex] = await Promise.all([
       getB2BConfig(),
       db.collection("agent_fares")
         .where("sectorId", "==", sectorId)
@@ -662,14 +710,13 @@ function build(db, requireAdmin) {
         .where("flightDate", ">=", Timestamp.fromDate(getUtcMidnightToday()))
         .orderBy("flightDate", "asc")
         .get(),
-      db.collection("flight_details").get(),
+      getFlightDetailIndex(),
     ]);
 
     // Fares ingested before the n8n time round-trip was fixed store an empty
     // flightTime, which renders as "TBA" in the portal. Fill it from the
     // configured per-route default (date-aware) before pricing, so the dedupe
     // key and what the agent sees agree.
-    const flightDetailIndex = buildFlightDetailIndex(flightDetailsSnap);
     const fareDocs = faresSnap.docs.map((d) => {
       const fare = d.data();
       if (normalizeFlightTimeRange(fare.flightTime)) return fare;
@@ -716,6 +763,8 @@ function getUtcMidnightToday() {
 
 module.exports = {
   build,
+  B2B_ROUTE_CACHE_TTL_MS,
+  FLIGHT_DETAIL_CACHE_TTL_MS,
   // Pure helpers exported for unit tests
   computeB2BFares,
   filterSectorsForAgent,

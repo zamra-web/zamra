@@ -33,6 +33,15 @@ import {
   formatOfferPrice,
   formatOfferBaggage,
 } from '../shared/b2b-offers.js';
+import {
+  FARE_REFRESH_MS,
+  CONTEXT_REFRESH_MS,
+  summarizeFareChange,
+  describeFareChange,
+  shouldRefresh,
+  isStaleOnResume,
+  formatUpdatedLabel,
+} from '../shared/b2b-freshness.js';
 
 const getB2BPortalContext = httpsCallable(functions, 'getB2BPortalContext');
 const getB2BFares = httpsCallable(functions, 'getB2BFares');
@@ -45,8 +54,22 @@ let _cityByCode = new Map(); // IATA code → city name, for friendly select lab
 let _rateCards = new Map();  // normalised country key → tourist visa rate card
 
 // Last search kept in memory so sort/filter re-render without another callable.
-let _results = { fares: [], sectorInfo: null, origin: '', dest: '' };
+// `fetchedAt` is what the live-sync loop measures staleness against — a result
+// set with no timestamp is one nothing can tell is old.
+let _results = { fares: [], sectorInfo: null, origin: '', dest: '', fetchedAt: 0 };
 let _view = { sort: 'date-asc', airline: 'all' };
+
+// Live sync bookkeeping. `contextAt` ages the route list and offers separately
+// from the fares, because they refresh on their own (much longer) cadence.
+let _sync = {
+  timer: null,
+  contextAt: 0,
+  faresInFlight: false,
+  contextInFlight: false,
+  faresFailedAt: 0,
+  contextFailedAt: 0,
+  noticeTimer: null,
+};
 
 // Hide until the agent claim is verified to avoid flashing portal content.
 document.documentElement.style.visibility = 'hidden';
@@ -85,6 +108,7 @@ async function boot() {
       getAirlines().catch(() => []),
     ]);
     _context = contextRes.data;
+    _sync.contextAt = Date.now();
     _airlineMap = new Map(airlines.map((airline) => [airline.id, airline]));
   } catch (err) {
     console.error('Portal boot failed:', err);
@@ -102,15 +126,11 @@ async function boot() {
   const nameEl = document.getElementById('b2b-agent-name');
   const agencyEl = document.getElementById('b2b-agency-name');
   const heroNameEl = document.getElementById('b2b-hero-agent');
-  const routeCountEl = document.getElementById('b2b-route-count');
   const displayName = _context.agent?.name || _context.agent?.loginId || 'Agent';
   if (nameEl) nameEl.textContent = displayName;
   if (agencyEl) agencyEl.textContent = _context.agent?.agencyName || '';
   if (heroNameEl) heroNameEl.textContent = displayName;
-  if (routeCountEl) {
-    const n = (_context.sectors || []).length;
-    routeCountEl.textContent = `${n} route${n === 1 ? '' : 's'} available`;
-  }
+  renderRouteCount();
 
   const waLink = document.getElementById('b2b-footer-whatsapp');
   if (waLink && _context.whatsappNumber) {
@@ -121,6 +141,7 @@ async function boot() {
   renderFeaturedOffers();
   loadVisaServices();
   startActivityHeartbeat();
+  startLiveSync();
   wireAccountControls();
 }
 
@@ -445,6 +466,28 @@ function renderSearchPrompt() {
     </div>`;
 }
 
+/**
+ * "This route has nothing" — as opposed to "your filter hid everything".
+ *
+ * Shared because a background refresh can empty a list that had rows a minute
+ * ago (a supplier's new sheet dropping a flight is how most of them say sold
+ * out), and that agent needs the same copy as one whose first search came back
+ * empty — not the filter message, which would send them hunting for a filter
+ * they never set.
+ */
+function routeEmptyHtml(origin, dest) {
+  return `
+    <div class="text-center px-6 py-12 max-sm:py-10 rounded-[24px] border-2 border-dashed border-border bg-[#f8fafc]">
+      <div class="w-[56px] h-[56px] mx-auto rounded-2xl bg-slate-200/70 text-slate-500 flex items-center justify-center text-[26px] mb-4">
+        <i class="bi bi-calendar-x"></i>
+      </div>
+      <p class="text-[17px] font-heading font-bold text-navy">No fares loaded for ${escHtml(origin)} → ${escHtml(dest)}</p>
+      <p class="text-[14px] text-text-muted font-medium mt-1.5 max-w-[420px] mx-auto">
+        Try another route, or message us on WhatsApp and we will quote it for you.
+      </p>
+    </div>`;
+}
+
 function setControlsVisible(visible) {
   const bar = document.getElementById('b2b-results-controls');
   if (bar) bar.hidden = !visible;
@@ -486,22 +529,27 @@ async function searchFlights() {
     if (origName) origName.innerText = origin;
     if (locName) locName.innerText = dest;
 
+    // Recorded before the empty check. The live-sync loop polls whatever route
+    // `_results` names, so leaving the previous search in place here would have
+    // it refreshing a route the agent is no longer looking at — and an empty
+    // result is exactly the case where they are waiting for an upload to land.
+    _results = {
+      fares,
+      sectorInfo: sectorInfo || sector || null,
+      origin,
+      dest,
+      fetchedAt: sector ? Date.now() : 0,
+    };
+    _sync.faresFailedAt = 0;
+    clearChangeNotice();
+    renderFreshness();
+
     if (!fares.length) {
-      list.innerHTML = `
-        <div class="text-center px-6 py-12 max-sm:py-10 rounded-[24px] border-2 border-dashed border-border bg-[#f8fafc]">
-          <div class="w-[56px] h-[56px] mx-auto rounded-2xl bg-slate-200/70 text-slate-500 flex items-center justify-center text-[26px] mb-4">
-            <i class="bi bi-calendar-x"></i>
-          </div>
-          <p class="text-[17px] font-heading font-bold text-navy">No fares loaded for ${escHtml(origin)} → ${escHtml(dest)}</p>
-          <p class="text-[14px] text-text-muted font-medium mt-1.5 max-w-[420px] mx-auto">
-            Try another route, or message us on WhatsApp and we will quote it for you.
-          </p>
-        </div>`;
+      setControlsVisible(false);
+      list.innerHTML = routeEmptyHtml(origin, dest);
       return;
     }
 
-    _results = { fares, sectorInfo: sectorInfo || sector, origin, dest };
-    _view.airline = 'all';
     buildAirlineFilter();
     renderResults();
 
@@ -520,14 +568,23 @@ function airlineNameFor(fare) {
   return resolveAirlineBrand(_airlineMap.get(fare.airlineId)).name;
 }
 
-/** Populate the airline filter from whatever this route actually returned. */
-function buildAirlineFilter() {
+/**
+ * Populate the airline filter from whatever this route actually returned.
+ *
+ * `keepSelection` is what a background refresh passes. Resetting to "All
+ * airlines" under an agent who is reading one carrier's rows would be its own
+ * kind of data loss — but so would leaving them filtered to a carrier that just
+ * sold out, which renders as an empty screen with no explanation. So the
+ * selection survives only while the carrier still has fares.
+ */
+function buildAirlineFilter({ keepSelection = false } = {}) {
   const sel = document.getElementById('b2b-filter-airline');
   if (!sel) return;
   const names = [...new Set(_results.fares.map(airlineNameFor))].sort((a, b) => a.localeCompare(b));
   sel.innerHTML = `<option value="all">All airlines (${_results.fares.length})</option>` +
     names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
-  sel.value = 'all';
+  _view.airline = keepSelection && names.includes(_view.airline) ? _view.airline : 'all';
+  sel.value = _view.airline;
 }
 
 function visibleFares() {
@@ -544,12 +601,21 @@ function visibleFares() {
   return rows.sort(sorters[_view.sort] || sorters['date-asc']);
 }
 
-function renderResults() {
+/**
+ * @param {{keepScroll?: boolean}} [opts] `keepScroll` is passed by the live-sync
+ *   refresh: replacing the list's innerHTML collapses and rebuilds it, which
+ *   drops the agent back to the top of the page mid-read unless the offset is
+ *   put back.
+ */
+function renderResults({ keepScroll = false } = {}) {
   const list = document.getElementById('flightList');
   if (!list) return;
 
+  const scrollY = keepScroll ? window.scrollY : null;
+  const restoreScroll = () => { if (scrollY !== null) window.scrollTo({ top: scrollY }); };
+
   const fares = visibleFares();
-  setControlsVisible(true);
+  setControlsVisible(_results.fares.length > 0);
 
   const countEl = document.getElementById('b2b-results-count');
   if (countEl) {
@@ -557,11 +623,16 @@ function renderResults() {
   }
 
   if (!fares.length) {
-    list.innerHTML = `
+    // Two different empties. A refresh that sells out every remaining seat has
+    // to say so about the route, not blame a filter the agent never set.
+    list.innerHTML = _results.fares.length
+      ? `
       <div class="text-center px-6 py-10 rounded-[24px] border-2 border-dashed border-border bg-[#f8fafc]">
         <p class="text-[15px] font-heading font-bold text-navy">No fares match this filter</p>
         <p class="text-[13px] text-text-muted font-medium mt-1">Switch back to All airlines to see every result.</p>
-      </div>`;
+      </div>`
+      : routeEmptyHtml(_results.origin, _results.dest);
+    restoreScroll();
     return;
   }
 
@@ -612,9 +683,11 @@ function renderResults() {
   list.innerHTML = cards.map((item) => buildCompactFlightCardHtml(item)).join('');
   wireFlightResultLogos(list);
   wireFlightCardSheet(list, cards, wireFlightResultLogos);
+  restoreScroll();
 }
 
 function wireResultControls() {
+  document.getElementById('b2b-refresh')?.addEventListener('click', () => refreshFares({ manual: true }));
   document.getElementById('b2b-sort')?.addEventListener('change', (e) => {
     _view.sort = e.target.value;
     renderResults();
@@ -634,6 +707,307 @@ function wireResultControls() {
     }
     setTimeout(() => { btn.innerHTML = original; }, 1800);
   });
+}
+
+// ── Live sync ────────────────────────────────────────────────────────────────
+//
+// The portal's data was only ever as fresh as the last thing the agent clicked:
+// routes and offers were fetched once per page load, results once per Search,
+// and nothing refetched either. The admin dashboard has no such problem because
+// it reads `agent_fares` through onSnapshot — a listener the portal cannot have,
+// since `agent_fares` is admin-only and every price is computed per agent inside
+// getB2BFares. So the portal polls instead, and the decisions about when live in
+// shared/b2b-freshness.js where tests can reach them.
+//
+// The loop is deliberately quiet. It only runs while the tab is visible, it skips
+// a beat while a details sheet is open, and a refetch that comes back identical
+// changes nothing on screen — a poll the agent can notice is a poll that
+// interrupts them.
+
+/** How often the loop wakes. The decision to actually refetch is per-datum. */
+const SYNC_TICK_MS = 15 * 1000;
+const CHANGE_NOTICE_MS = 8 * 1000;
+
+// Ring rather than an arbitrary shadow: Tailwind's scanner does not pick up
+// `shadow-[...rgba(a,b,c,d)]` in this setup (the commas break extraction), so
+// such a class compiles to nothing at all.
+const DOT_BASE = 'w-[7px] h-[7px] rounded-full transition-colors';
+const DOT_CLASS = {
+  live: `${DOT_BASE} bg-emerald-500 ring-[3px] ring-emerald-500/20`,
+  stale: `${DOT_BASE} bg-amber-500 ring-[3px] ring-amber-500/20`,
+  offline: `${DOT_BASE} bg-slate-400 ring-[3px] ring-slate-400/20`,
+};
+
+/** The route currently on screen, or '' when no search has run. */
+function currentSectorId() {
+  return _results.sectorInfo?.id || '';
+}
+
+/**
+ * Is the agent reading an expanded fare?
+ *
+ * The details sheet is built outside #flightList and holds its own copy of the
+ * card data, so re-rendering the list underneath it would leave the open sheet
+ * showing a fare that is no longer in the results. Holding the refresh until
+ * they close it costs at most one tick.
+ */
+function isDetailsSheetOpen() {
+  return !!document.getElementById('flight-details-sheet')?.classList.contains('active');
+}
+
+function isOnline() {
+  return typeof navigator === 'undefined' || navigator.onLine !== false;
+}
+
+/** Paints the "Updated 2 min ago" pill. Safe to call on every tick. */
+function renderFreshness() {
+  const wrap = document.getElementById('b2b-live-controls');
+  const pill = document.getElementById('b2b-live-status');
+  const label = document.getElementById('b2b-live-label');
+  if (!pill || !label) return;
+
+  // Nothing is being polled when no sector resolved (an unknown ?from=/&to=
+  // pair), and a "Live" badge over data that is not being refreshed is worse
+  // than no badge at all.
+  const pollable = !!currentSectorId();
+  if (wrap) wrap.hidden = !pollable;
+  if (!pollable) return;
+
+  const at = _results.fetchedAt;
+  const now = Date.now();
+
+  // Amber once the loop has missed two intervals, or once a refresh has failed
+  // since the last good one: both mean the number on screen is no longer being
+  // kept honest, and that is precisely when the agent needs to know.
+  const behind = at > 0 && (now - at >= FARE_REFRESH_MS * 2 || _sync.faresFailedAt > at);
+  const state = !isOnline() ? 'offline' : (behind ? 'stale' : 'live');
+
+  pill.dataset.state = state;
+  const dot = pill.querySelector('[data-live-dot]');
+  if (dot) dot.className = DOT_CLASS[state];
+
+  const age = formatUpdatedLabel(at, now);
+  label.textContent = state === 'offline'
+    ? 'Offline — prices may be old'
+    : (age ? `Updated ${age}` : 'Live');
+}
+
+function setRefreshBusy(busy) {
+  const btn = document.getElementById('b2b-refresh');
+  if (btn) btn.disabled = busy;
+  const icon = btn?.querySelector('[data-refresh-icon]');
+  if (icon) icon.classList.toggle('animate-spin', busy);
+}
+
+function showChangeNotice(text) {
+  const box = document.getElementById('b2b-live-change');
+  const span = document.getElementById('b2b-live-change-text');
+  if (!box || !span) return;
+  span.textContent = text;
+  box.hidden = false;
+  clearTimeout(_sync.noticeTimer);
+  _sync.noticeTimer = setTimeout(() => { box.hidden = true; }, CHANGE_NOTICE_MS);
+}
+
+function clearChangeNotice() {
+  clearTimeout(_sync.noticeTimer);
+  const box = document.getElementById('b2b-live-change');
+  if (box) box.hidden = true;
+}
+
+/**
+ * Refetch the route on screen.
+ *
+ * Failure keeps the last good result on screen rather than blanking it — a
+ * price from two minutes ago beats an error box, and the pill goes amber to say
+ * which one the agent is looking at.
+ *
+ * @param {{manual?: boolean}} [opts] `manual` = the agent pressed Refresh, so
+ *   the call gets a spinner and an answer even when nothing moved.
+ */
+async function refreshFares({ manual = false } = {}) {
+  const sectorId = currentSectorId();
+  if (!sectorId || _sync.faresInFlight) return;
+
+  _sync.faresInFlight = true;
+  if (manual) setRefreshBusy(true);
+  try {
+    const res = await getB2BFares({ sectorId });
+
+    // The agent can run a different search while this is in flight. Applying
+    // these fares now would print one route's prices under another route's
+    // heading — the single worst thing a background refresh could do here.
+    if (currentSectorId() !== sectorId) return;
+
+    const fares = res.data?.fares || [];
+    const change = summarizeFareChange(_results.fares, fares);
+
+    _results = {
+      ..._results,
+      fares,
+      sectorInfo: res.data?.sector || _results.sectorInfo,
+      fetchedAt: Date.now(),
+    };
+    _sync.faresFailedAt = 0;
+
+    if (change.changed) {
+      buildAirlineFilter({ keepSelection: true });
+      renderResults({ keepScroll: true });
+      showChangeNotice(describeFareChange(change) || 'Fares updated');
+    } else if (manual) {
+      showChangeNotice('Already up to date');
+    }
+  } catch (err) {
+    _sync.faresFailedAt = Date.now();
+    if (isAgentBlockedError(err)) {
+      stopLiveSync();
+      await forceLogout('Your account is not active. Contact Zamra Travels.');
+      return;
+    }
+    console.debug('Fare refresh failed, keeping last result:', err?.message || err);
+    if (manual) showChangeNotice('Could not refresh — showing last loaded prices');
+  } finally {
+    _sync.faresInFlight = false;
+    if (manual) setRefreshBusy(false);
+    renderFreshness();
+  }
+}
+
+/**
+ * Refetch routes and offers.
+ *
+ * This is the half that fixes a route appearing out of nowhere: a sector with no
+ * upcoming fare is dropped from the portal's route list server-side, so before
+ * this existed, an agent whose tab predated a fresh upload could not search the
+ * route at all until they reloaded the page by hand.
+ */
+async function refreshContext() {
+  if (_sync.contextInFlight) return;
+  _sync.contextInFlight = true;
+  try {
+    const res = await getB2BPortalContext();
+    const next = res.data;
+    if (!next) return;
+
+    const sectorsMoved = JSON.stringify(next.sectors || []) !== JSON.stringify(_context?.sectors || []);
+    const offersMoved = JSON.stringify(next.offers || []) !== JSON.stringify(_context?.offers || []);
+
+    _context = next;
+    _sync.contextAt = Date.now();
+    _sync.contextFailedAt = 0;
+
+    if (sectorsMoved) {
+      buildCityLookup();
+      syncRouteSelects();
+      renderRouteCount();
+    }
+    if (offersMoved) renderFeaturedOffers();
+  } catch (err) {
+    _sync.contextFailedAt = Date.now();
+    if (isAgentBlockedError(err)) {
+      stopLiveSync();
+      await forceLogout('Your account is not active. Contact Zamra Travels.');
+      return;
+    }
+    console.debug('Portal context refresh failed, keeping last one:', err?.message || err);
+  } finally {
+    _sync.contextInFlight = false;
+  }
+}
+
+/**
+ * Re-fill the route selects from a refreshed context without disturbing the
+ * agent's pick, and without re-wiring the handlers initRouteSelects installed.
+ *
+ * An emptied list is left alone rather than blanked: the selects would have
+ * nothing to show, and the search they already ran still answers honestly.
+ */
+function syncRouteSelects() {
+  const originSel = document.getElementById('origin');
+  const destSel = document.getElementById('destination');
+  if (!originSel || !destSel) return;
+
+  const origins = allowedOrigins();
+  if (!origins.length) return;
+
+  const wantOrigin = originSel.value;
+  const wantDest = destSel.value;
+
+  fillSelect(originSel, origins, origins.includes(wantOrigin) ? wantOrigin : undefined);
+  const dests = destinationsFor(originSel.value);
+  fillSelect(destSel, dests, dests.includes(wantDest) ? wantDest : undefined);
+}
+
+function renderRouteCount() {
+  const el = document.getElementById('b2b-route-count');
+  if (!el) return;
+  const n = (_context?.sectors || []).length;
+  el.textContent = `${n} route${n === 1 ? '' : 's'} available`;
+}
+
+function syncTick() {
+  const now = Date.now();
+  const visible = document.visibilityState === 'visible';
+  const online = isOnline();
+
+  // Unconditional: the label ages even on the ticks that refetch nothing, which
+  // is the whole point of showing it.
+  renderFreshness();
+
+  if (currentSectorId() && shouldRefresh({
+    lastAt: _results.fetchedAt,
+    now,
+    intervalMs: FARE_REFRESH_MS,
+    visible,
+    online,
+    inFlight: _sync.faresInFlight,
+    blocked: isDetailsSheetOpen(),
+    failedAt: _sync.faresFailedAt,
+  })) {
+    refreshFares();
+  }
+
+  // Not gated on the details sheet: the route list and the offers rail are not
+  // the results the sheet was opened from.
+  if (shouldRefresh({
+    lastAt: _sync.contextAt,
+    now,
+    intervalMs: CONTEXT_REFRESH_MS,
+    visible,
+    online,
+    inFlight: _sync.contextInFlight,
+    failedAt: _sync.contextFailedAt,
+  })) {
+    refreshContext();
+  }
+}
+
+function stopLiveSync() {
+  if (_sync.timer) clearInterval(_sync.timer);
+  _sync.timer = null;
+}
+
+function startLiveSync() {
+  if (_sync.timer) return;
+  _sync.timer = setInterval(syncTick, SYNC_TICK_MS);
+
+  // Coming back to the tab — or resuming the Android app, whose WebView fires
+  // the same event — is the strongest possible signal that a refresh is wanted:
+  // it is the exact moment an agent looks at a page that stopped updating while
+  // they were away. Waiting out the interval here is what made the portal feel
+  // stale even after the timer existed.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const now = Date.now();
+    if (currentSectorId() && isStaleOnResume(_results.fetchedAt, now)) refreshFares();
+    if (isStaleOnResume(_sync.contextAt, now, CONTEXT_REFRESH_MS)) refreshContext();
+    renderFreshness();
+  });
+
+  window.addEventListener('online', () => { renderFreshness(); syncTick(); });
+  window.addEventListener('offline', renderFreshness);
+
+  renderFreshness();
 }
 
 // ── Visa & Immigration services (3 categories, poster-card layout) ──────────
